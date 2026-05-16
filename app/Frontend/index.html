@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DukaanAI — Inventory & Billing</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;color:#1a1a1a;height:100vh;overflow:hidden}
+.app{display:flex;height:100vh}
+/* Sidebar */
+.sb{width:200px;background:#fff;border-right:1px solid #e8e8e8;display:flex;flex-direction:column;flex-shrink:0}
+.sb-logo{padding:14px 16px 12px;border-bottom:1px solid #e8e8e8}
+.sb-logo-name{font-size:15px;font-weight:600;color:#1D9E75;display:flex;align-items:center;gap:6px}
+.sb-logo-sub{font-size:10px;color:#888;margin-top:2px}
+.nav{margin-top:4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 16px;font-size:12px;color:#666;cursor:pointer;border-left:3px solid transparent;transition:all .12s;user-select:none}
+.nav-item:hover{color:#1a1a1a;background:#f5f5f0}
+.nav-item.active{color:#1D9E75;background:#f0fdf8;border-left:3px solid #1D9E75;font-weight:500}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+.sb-foot{margin-top:auto;padding:10px 16px;border-top:1px solid #e8e8e8;font-size:10px;color:#888}
+.sb-foot b{display:block;font-size:11px;color:#333;font-weight:500;margin-bottom:2px}
+#sync-badge{font-size:10px;margin-top:4px}
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{padding:0 16px;height:46px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e8e8e8;background:#fff;flex-shrink:0}
+.topbar-title{font-size:14px;font-weight:500}
+.topbar-actions{display:flex;gap:8px;align-items:center}
+.content{flex:1;overflow-y:auto;padding:14px 16px}
+/* Pages */
+.page{display:none}.page.active{display:block}
+/* Stats grid */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:12px 14px}
+.stat-label{font-size:10px;color:#888;margin-bottom:4px}
+.stat-value{font-size:22px;font-weight:600;color:#1a1a1a}
+.stat-sub{font-size:10px;color:#888;margin-top:3px}
+/* Cards */
+.card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px;margin-bottom:12px}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.card-title{font-size:12px;font-weight:500;color:#333}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;padding:6px 8px;color:#888;font-weight:500;border-bottom:1px solid #f0f0f0;font-size:10px}
+td{padding:7px 8px;border-bottom:1px solid #f5f5f0;color:#333;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500}
+.badge-green{background:#f0fdf8;color:#0f6e56}
+.badge-red{background:#fef2f2;color:#991b1b}
+.badge-amber{background:#fffbeb;color:#92400e}
+.badge-blue{background:#eff6ff;color:#1e40af}
+/* Progress bar */
+.prog{height:4px;background:#f0f0f0;border-radius:2px;margin-top:3px;overflow:hidden}
+.prog-fill{height:100%;border-radius:2px;background:#1D9E75}
+.prog-fill.low{background:#dc2626}.prog-fill.mid{background:#f59e0b}
+/* Mini bars */
+.mini-bar{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.mini-bar-label{font-size:10px;color:#666;width:120px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-bar-track{flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden}
+.mini-bar-fill{height:100%;border-radius:3px;background:#1D9E75}
+.mini-bar-val{font-size:10px;color:#888;width:36px;text-align:right}
+/* Alerts */
+.alert{padding:8px 10px;border-radius:8px;font-size:11px;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.alert-red{background:#fef2f2;color:#991b1b}
+.alert-amber{background:#fffbeb;color:#92400e}
+/* Buttons */
+.btn{padding:6px 14px;border-radius:8px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid #e0e0e0;background:#fff;color:#333;transition:all .12s}
+.btn:hover{background:#f5f5f0}
+.btn-primary{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.btn-primary:hover{background:#0f6e56}
+.btn-sm{padding:3px 9px;font-size:10px}
+/* Forms */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.form-full{grid-column:1/-1}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:10px;color:#666;font-weight:500}
+.fg input,.fg select{padding:7px 10px;font-size:12px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;color:#333;outline:none}
+.fg input:focus,.fg select:focus{border-color:#1D9E75}
+/* Chat */
+.msgs{background:#f5f5f0;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;height:300px;overflow-y:auto;margin-bottom:8px}
+.msg-user{align-self:flex-end;background:#1D9E75;color:#fff;padding:8px 12px;border-radius:12px 12px 3px 12px;font-size:12px;max-width:80%}
+.msg-ai{align-self:flex-start;background:#fff;border:1px solid #e8e8e8;padding:8px 12px;border-radius:12px 12px 12px 3px;font-size:12px;color:#333;max-width:85%;line-height:1.5}
+.quick-btns{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.qbtn{font-size:10px;padding:4px 10px;border:1px solid #e0e0e0;border-radius:20px;cursor:pointer;background:#fff;color:#666}
+.qbtn:hover{background:#f0fdf8;color:#0f6e56;border-color:#1D9E75}
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:14px;padding:20px;width:380px;max-height:90vh;overflow-y:auto}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.modal-head h3{font-size:13px;font-weight:500}
+.close-btn{background:none;border:none;font-size:18px;cursor:pointer;color:#888;line-height:1}
+/* Notif */
+.notif{position:fixed;top:14px;right:14px;background:#1D9E75;color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;z-index:200;display:none}
+/* Loading */
+.loading{text-align:center;padding:30px;color:#888;font-size:12px}
+/* Auth modal */
+.auth-tabs{display:flex;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:16px;overflow:hidden}
+.auth-tab{flex:1;padding:8px;border:none;background:#fff;font-size:12px;font-weight:500;cursor:pointer;color:#666}
+.auth-tab.active{background:#1D9E75;color:#fff}
+.error-msg{color:#dc2626;font-size:11px;min-height:16px;margin-bottom:4px}
+</style>
+<script type="module" src="src/app.js"></script>
+</head>
+<body>
+
+<div class="notif" id="notif"></div>
+
+<!-- Add Product Modal -->
+<div class="modal-overlay" id="modal-product">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-product-title">Add Product</h3>
+      <button class="close-btn" onclick="closeModal('modal-product')">×</button>
+    </div>
+    <div class="form-grid">
+      <div class="fg form-full"><label>Product Name *</label><input id="p-name" placeholder="e.g. Tata Salt 1kg"></div>
+      <div class="fg"><label>SKU / Code</label><input id="p-sku" placeholder="TS-001"></div>
+      <div class="fg"><label>Category</label>
+        <select id="p-cat"><option>Staples</option><option>Dairy</option><option>Oils</option><option>Beverages</option><option>Snacks</option><option>Personal Care</option><option>Other</option></select>
+      </div>
+      <div class="fg"><label>Stock (units)</label><input id="p-stock" type="number" value="0" min="0"></div>
+      <div class="fg"><label>Min Stock (reorder at)</label><input id="p-min" type="number" value="10" min="0"></div>
+      <div class="fg"><label>MRP (₹)</label><input id="p-mrp" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>Cost Price (₹)</label><input id="p-cost" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>GST %</label>
+        <select id="p-gst"><option value="0">0%</option><option value="5" selected>5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="saveProduct()">Save Product</button>
+  </div>
+</div>
+
+<!-- Quick Sale Modal -->
+<div class="modal-overlay" id="modal-sale">
+  <div class="modal" style="width:320px">
+    <div class="modal-head">
+      <h3>Quick Sale</h3>
+      <button class="close-btn" onclick="closeModal('modal-sale')">×</button>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label>Product *</label><select id="s-prod"></select></div>
+    <div class="form-grid">
+      <div class="fg"><label>Qty *</label><input id="s-qty" type="number" value="1" min="1"></div>
+      <div class="fg"><label>Payment</label>
+        <select id="s-pay"><option>Cash</option><option>UPI</option><option>Credit</option><option>Cheque</option></select>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Customer</label><input id="s-cust" placeholder="Walk-in"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="recordSale()">Record Sale</button>
+  </div>
+</div>
+
+<!-- Auth Modal -->
+<div class="modal-overlay" id="modal-auth">
+  <div class="modal" style="width:340px">
+    <div class="modal-head">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1D9E75">DukaanAI Cloud</div>
+        <div style="font-size:11px;color:#888">Sync your data across devices</div>
+      </div>
+      <button class="close-btn" onclick="closeModal('modal-auth')">×</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Login</button>
+      <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Register</button>
+    </div>
+    <div id="auth-register-fields" style="display:none">
+      <div class="fg" style="margin-bottom:8px"><label>Store Name *</label><input id="a-store" placeholder="Sharma General Stores"></div>
+    </div>
+    <div class="fg" style="margin-bottom:8px"><label>Email *</label><input id="a-email" type="email" placeholder="you@store.com"></div>
+    <div class="fg" style="margin-bottom:8px"><label>Password *</label><input id="a-pass" type="password" placeholder="Min 8 characters"></div>
+    <div id="auth-register-extra" style="display:none">
+      <div class="form-grid" style="margin-bottom:8px">
+        <div class="fg"><label>Phone</label><input id="a-phone" placeholder="9876543210"></div>
+        <div class="fg"><label>GSTIN</label><input id="a-gstin" placeholder="Optional"></div>
+      </div>
+    </div>
+    <div class="error-msg" id="auth-err"></div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" id="auth-submit-btn" onclick="submitAuth()">Login</button>
+    <button class="btn" style="width:100%;font-size:10px;color:#888;border:none" onclick="closeModal('modal-auth')">Continue without account (free local mode)</button>
+  </div>
+</div>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sb">
+    <div class="sb-logo">
+      <div class="sb-logo-name">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        DukaanAI
+      </div>
+      <div class="sb-logo-sub">Inventory & Billing Agent</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active" onclick="goTo('dash',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" onclick="goTo('inv',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        Inventory
+      </div>
+      <div class="nav-item" onclick="goTo('bill',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        GST Billing
+      </div>
+      <div class="nav-item" onclick="goTo('agent',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        AI Agent
+      </div>
+      <div class="nav-item" onclick="goTo('insight',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Insights
+      </div>
+    </nav>
+    <div class="sb-foot">
+      <b id="sb-store">DukaanAI</b>
+      <div id="sync-badge">● Local mode</div>
+      <span id="sync-mode-badge"></span>
+      <div style="margin-top:6px">
+        <span id="auth-action-btn" onclick="openAuthModal()" style="color:#1D9E75;font-size:10px;cursor:pointer;text-decoration:underline">Login / Register</span>
+        <span id="logout-btn" onclick="doLogout()" style="color:#888;font-size:10px;cursor:pointer;text-decoration:underline;display:none;margin-left:8px">Logout</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="topbar">
+      <span class="topbar-title" id="page-title">Dashboard</span>
+      <div class="topbar-actions">
+        <span class="badge badge-red" id="low-stock-badge" style="display:none"></span>
+        <button class="btn btn-primary btn-sm" onclick="openSaleModal()">+ Quick Sale</button>
+        <button class="btn btn-sm" onclick="openProductModal()">+ Product</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dash">
+        <div class="stats" id="dash-stats">
+          <div class="stat"><div class="stat-label">Today's Sales</div><div class="stat-value" id="stat-today">₹0</div><div class="stat-sub">Loading...</div></div>
+          <div class="stat"><div class="stat-label">Total Products</div><div class="stat-value" id="stat-prods">—</div><div class="stat-sub">In inventory</div></div>
+          <div class="stat"><div class="stat-label">Low Stock</div><div class="stat-value" id="stat-low" style="color:#dc2626">—</div><div class="stat-sub">Need reorder</div></div>
+          <div class="stat"><div class="stat-label">Monthly Revenue</div><div class="stat-value" id="stat-rev">₹0</div><div class="stat-sub">Last 30 days</div></div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-head"><span class="card-title">⚠ Reorder Alerts</span></div>
+            <div id="dash-alerts"><div class="loading">Loading...</div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">↑ Top Sellers</span></div>
+            <div id="dash-top"><div class="loading">Loading...</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Recent Sales</span><span class="badge badge-green" id="mode-badge">Local</span></div>
+          <table><thead><tr><th>Product</th><th>Customer</th><th>Qty</th><th>Amount</th><th>Time</th></tr></thead>
+          <tbody id="dash-sales"></tbody></table>
+        </div>
+      </div>
+
+      <!-- INVENTORY -->
+      <div class="page" id="page-inv">
+        <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+          <input type="text" id="inv-search" placeholder="Search products..." oninput="renderInventory()" style="flex:1;padding:7px 11px;font-size:12px;border:1px solid #e0e0e0;border-radius:8px">
+          <select id="inv-cat" onchange="renderInventory()" style="padding:7px 10px;font-size:12px;border:1px solid #e0e0e0;border-radius:8px">
+            <option value="">All categories</option>
+            <option>Staples</option><option>Dairy</option><option>Oils</option><option>Beverages</option><option>Snacks</option><option>Personal Care</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openProductModal()">+ Add Product</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table>
+            <thead><tr><th style="padding:8px 10px">Product</th><th>Category</th><th>Stock</th><th>MRP</th><th>Cost</th><th>GST</th><th>Status</th><th></th></tr></thead>
+            <tbody id="inv-tbody"><tr><td colspan="8" class="loading">Loading inventory...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- BILLING -->
+      <div class="page" id="page-bill">
+        <div class="card">
+          <div class="card-head"><span class="card-title">New GST Invoice</span><span class="badge badge-green">Auto CGST + SGST</span></div>
+          <div class="form-grid">
+            <div class="fg"><label>Customer Name *</label><input id="b-cust" placeholder="Ravi Kirana Mart"></div>
+            <div class="fg"><label>Customer GSTIN</label><input id="b-gstin" placeholder="Optional"></div>
+            <div class="fg"><label>Invoice Date</label><input id="b-date" type="date"></div>
+            <div class="fg"><label>Payment Mode</label>
+              <select id="b-pay"><option>Cash</option><option>UPI</option><option>Credit</option><option>Cheque</option></select>
+            </div>
+          </div>
+          <div style="font-size:11px;font-weight:500;color:#333;margin-bottom:8px">Items</div>
+          <table id="bill-table">
+            <thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>GST%</th><th>Total</th><th></th></tr></thead>
+            <tbody id="bill-tbody"></tbody>
+          </table>
+          <button class="btn btn-sm" style="margin-top:8px" onclick="addBillRow()">+ Add Item</button>
+          <div id="bill-total" style="text-align:right;margin-top:12px;font-size:12px;color:#666"></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-primary" onclick="generateInvoice()">Generate Invoice</button>
+            <button class="btn" onclick="printInvoice()">Print</button>
+            <button class="btn" onclick="clearBill()">Clear</button>
+          </div>
+        </div>
+        <div class="card" id="invoice-preview-card" style="display:none">
+          <div class="card-head"><span class="card-title">Invoice Preview</span></div>
+          <div id="invoice-preview"></div>
+        </div>
+      </div>
+
+      <!-- AI AGENT -->
+      <div class="page" id="page-agent">
+        <div class="quick-btns" id="quick-btns"></div>
+        <div class="msgs" id="chat-msgs">
+          <div class="msg-ai">Namaste! I'm your DukaanAI assistant. Ask me about stock, sales, billing, or demand. Try the quick buttons above!</div>
+        </div>
+        <div style="display:flex;gap:7px">
+          <input id="chat-input" placeholder="Ask about stock, invoices, demand..." style="flex:1;padding:8px 12px;font-size:12px;border:1px solid #e0e0e0;border-radius:8px" onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="btn btn-primary" onclick="sendChat()">Send</button>
+        </div>
+      </div>
+
+      <!-- INSIGHTS -->
+      <div class="page" id="page-insight">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-head"><span class="card-title">AI Demand Forecast — Next 30 Days</span></div>
+            <div id="forecast-bars"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">GST Summary — This Month</span></div>
+            <div id="gst-summary"><div class="loading">Loading...</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Top Products by Revenue</span></div>
+          <div id="top-revenue-bars"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// SYNC LAYER — local ↔ cloud router
+// ═══════════════════════════════════════════════════════════
+
+const BASE_URL = "http://localhost:8000";
+const LS_KEY   = "dukaanai_data";
+
+// ── Local storage ─────────────────────────────────────────
+function localRead() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || defaultData(); }
+  catch { return defaultData(); }
+}
+function defaultData() {
+  return { products:[], sales:[], invoices:[], nextId:1, nextInvNo:1 };
+}
+function localWrite(d) { localStorage.setItem(LS_KEY, JSON.stringify(d)); }
+function newLocalId(d) { const id = "local-" + d.nextId++; localWrite(d); return id; }
+
+// ── API client ────────────────────────────────────────────
+function getToken()  { return localStorage.getItem("dk_access"); }
+function getRefresh(){ return localStorage.getItem("dk_refresh"); }
+function setTokens(a,r){ localStorage.setItem("dk_access",a); localStorage.setItem("dk_refresh",r); }
+function clearAuth() { ["dk_access","dk_refresh","dk_vendor"].forEach(k=>localStorage.removeItem(k)); }
+function getVendor() { try { return JSON.parse(localStorage.getItem("dk_vendor")); } catch { return null; } }
+function getPlan()   { return getVendor()?.plan || "free"; }
+function isCloud()   { return !!getToken() && ["pro","wholesale"].includes(getPlan()); }
+
+async function apiCall(method, path, body=null, retry=true) {
+  const headers = { "Content-Type": "application/json" };
+  const token = getToken();
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(BASE_URL + path, opts);
+  if (res.status === 401 && retry) {
+    const ok = await tryRefresh();
+    if (ok) return apiCall(method, path, body, false);
+    clearAuth(); updateAuthUI(); throw new Error("Session expired");
+  }
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({detail:"Unknown error"}));
+    throw new Error(e.detail || "HTTP " + res.status);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+async function tryRefresh() {
+  const r = getRefresh();
+  if (!r) return false;
+  try {
+    const d = await apiCall("POST","/auth/refresh",{refresh_token:r},false);
+    setTokens(d.access_token, d.refresh_token); return true;
+  } catch { return false; }
+}
+const api = {
+  get:   (p)    => apiCall("GET",    p),
+  post:  (p, b) => apiCall("POST",   p, b),
+  patch: (p, b) => apiCall("PATCH",  p, b),
+  del:   (p)    => apiCall("DELETE", p),
+};
+
+// ── Products dataStore ────────────────────────────────────
+const Products = {
+  async list(f={}) {
+    if (isCloud()) {
+      const q = new URLSearchParams();
+      if (f.category)  q.set("category", f.category);
+      if (f.search)    q.set("search", f.search);
+      if (f.low_stock) q.set("low_stock", "true");
+      return api.get("/products" + (q.toString() ? "?" + q : ""));
+    }
+    let p = localRead().products.filter(x => x.is_active !== false);
+    if (f.category)  p = p.filter(x => x.category === f.category);
+    if (f.search)    p = p.filter(x => x.name.toLowerCase().includes(f.search.toLowerCase()));
+    if (f.low_stock) p = p.filter(x => x.stock < x.min_stock);
+    return p;
+  },
+  async create(product) {
+    if (isCloud()) return api.post("/products", product);
+    const d = localRead();
+    const p = { ...product, id: newLocalId(d), vendor_id:"local", is_active:true, created_at:new Date().toISOString(), updated_at:new Date().toISOString() };
+    d.products.push(p); localWrite(d); return p;
+  },
+  async update(id, updates) {
+    if (isCloud()) return api.patch("/products/" + id, updates);
+    const d = localRead();
+    const i = d.products.findIndex(p => p.id === id);
+    if (i < 0) throw new Error("Not found");
+    d.products[i] = { ...d.products[i], ...updates, updated_at: new Date().toISOString() };
+    localWrite(d); return d.products[i];
+  },
+  async delete(id) {
+    if (isCloud()) return api.del("/products/" + id);
+    const d = localRead();
+    const i = d.products.findIndex(p => p.id === id);
+    if (i >= 0) { d.products[i].is_active = false; localWrite(d); }
+  },
+  async lowStock() {
+    if (isCloud()) return api.get("/products/low-stock");
+    return localRead().products.filter(p => p.is_active!==false && p.stock < p.min_stock).sort((a,b)=>a.stock-b.stock);
+  },
+};
+
+// ── Sales dataStore ───────────────────────────────────────
+const Sales = {
+  async record({ product_id, qty, customer="Walk-in", payment_mode="Cash" }) {
+    if (isCloud()) return api.post("/sales", { product_id, qty, customer, payment_mode });
+    const d = localRead();
+    const prod = d.products.find(p => p.id === product_id);
+    if (!prod) throw new Error("Product not found");
+    if (prod.stock < qty) throw new Error("Insufficient stock. Available: " + prod.stock);
+    const total = Math.round(prod.mrp * qty * 100) / 100;
+    const sale = { id: newLocalId(d), vendor_id:"local", product_id, product_name:prod.name, qty, unit_price:prod.mrp, total, customer, payment_mode, sold_at:new Date().toISOString() };
+    prod.stock -= qty;
+    d.sales.push(sale); localWrite(d); return sale;
+  },
+  async today() {
+    if (isCloud()) return api.get("/sales/today");
+    const d = localRead();
+    const start = new Date(); start.setHours(0,0,0,0);
+    const s = d.sales.filter(x => new Date(x.sold_at) >= start);
+    return { sales: s.sort((a,b)=>new Date(b.sold_at)-new Date(a.sold_at)), total: Math.round(s.reduce((sum,x)=>sum+x.total,0)*100)/100, count:s.length };
+  },
+  async list({ days=30, limit=100 }={}) {
+    if (isCloud()) return api.get("/sales?days=" + days + "&limit=" + limit);
+    const since = new Date(Date.now() - days*86400000);
+    return localRead().sales.filter(s=>new Date(s.sold_at)>=since).sort((a,b)=>new Date(b.sold_at)-new Date(a.sold_at)).slice(0,limit);
+  },
+  async summary({ days=30 }={}) {
+    if (isCloud()) return api.get("/sales/summary?days=" + days);
+    const since = new Date(Date.now() - days*86400000);
+    const sales = localRead().sales.filter(s=>new Date(s.sold_at)>=since);
+    const rev = Math.round(sales.reduce((s,x)=>s+x.total,0)*100)/100;
+    const byProd = {};
+    sales.forEach(s=>{ byProd[s.product_name] = byProd[s.product_name]||{units:0,revenue:0}; byProd[s.product_name].units+=s.qty; byProd[s.product_name].revenue+=s.total; });
+    return { total_revenue:rev, total_units:sales.reduce((s,x)=>s+x.qty,0), transaction_count:sales.length, top_products:Object.entries(byProd).map(([name,v])=>({name,...v})).sort((a,b)=>b.units-a.units).slice(0,8) };
+  },
+};
+
+// ── Invoices dataStore ────────────────────────────────────
+const Invoices = {
+  async generate({ customer_name, customer_gstin, payment_mode="Cash", items }) {
+    if (isCloud()) return api.post("/invoices", { customer_name, customer_gstin, payment_mode, items });
+    const d = localRead();
+    let sub=0, tax=0;
+    const lineItems = items.map(item => {
+      const s = Math.round(item.unit_price*item.qty*100)/100;
+      const t = Math.round(s*item.gst_percent/100*100)/100;
+      sub+=s; tax+=t;
+      return { ...item, subtotal:s, tax:t, total:Math.round((s+t)*100)/100 };
+    });
+    sub=Math.round(sub*100)/100; tax=Math.round(tax*100)/100;
+    const cgst=Math.round(tax/2*100)/100, sgst=Math.round(tax/2*100)/100;
+    const invNo = "INV-" + String(d.nextInvNo++).padStart(4,"0");
+    const inv = { id:newLocalId(d), vendor_id:"local", invoice_no:invNo, customer_name, customer_gstin:customer_gstin||null, payment_mode, subtotal:sub, cgst, sgst, total:Math.round((sub+tax)*100)/100, items:lineItems, status:"paid", created_at:new Date().toISOString() };
+    d.invoices.push(inv); localWrite(d); return inv;
+  },
+  async list() {
+    if (isCloud()) return api.get("/invoices?limit=50");
+    return localRead().invoices.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  },
+  async gstSummary(month, year) {
+    if (isCloud()) return api.get("/invoices/summary/gst?month="+month+"&year="+year);
+    const invs = localRead().invoices.filter(inv=>{ const d=new Date(inv.created_at); return d.getMonth()+1===month && d.getFullYear()===year && inv.status==="paid"; });
+    const sub=Math.round(invs.reduce((s,i)=>s+i.subtotal,0)*100)/100;
+    const cgst=Math.round(invs.reduce((s,i)=>s+i.cgst,0)*100)/100;
+    const sgst=Math.round(invs.reduce((s,i)=>s+i.sgst,0)*100)/100;
+    return { period:`${year}-${String(month).padStart(2,"0")}`, invoice_count:invs.length, taxable_sales:sub, cgst_collected:cgst, sgst_collected:sgst, total_gst:Math.round((cgst+sgst)*100)/100, gross_revenue:Math.round((sub+cgst+sgst)*100)/100 };
+  },
+};
+
+// ═══════════════════════════════════════════════════════════
+// AUTH UI
+// ═══════════════════════════════════════════════════════════
+
+let authMode = "login";
+
+function openAuthModal() { openModal("modal-auth"); }
+function switchAuthTab(mode) {
+  authMode = mode;
+  document.getElementById("tab-login").classList.toggle("active", mode==="login");
+  document.getElementById("tab-register").classList.toggle("active", mode==="register");
+  document.getElementById("auth-register-fields").style.display = mode==="register"?"block":"none";
+  document.getElementById("auth-register-extra").style.display  = mode==="register"?"block":"none";
+  document.getElementById("auth-submit-btn").textContent = mode==="login"?"Login":"Create Account";
+  document.getElementById("auth-err").textContent = "";
+}
+
+async function submitAuth() {
+  const btn = document.getElementById("auth-submit-btn");
+  const err = document.getElementById("auth-err");
+  btn.disabled = true; btn.textContent = "Please wait..."; err.textContent = "";
+  try {
+    const email = document.getElementById("a-email").value.trim();
+    const password = document.getElementById("a-pass").value;
+    let data;
+    if (authMode === "login") {
+      data = await api.post("/auth/login", { email, password });
+    } else {
+      const store_name = document.getElementById("a-store").value.trim();
+      if (!store_name) throw new Error("Store name is required");
+      data = await api.post("/auth/register", { email, password, store_name, phone: document.getElementById("a-phone").value, gstin: document.getElementById("a-gstin").value });
+    }
+    setTokens(data.access_token, data.refresh_token);
+    localStorage.setItem("dk_vendor", JSON.stringify({ id:data.vendor_id, store_name:data.store_name, plan:data.plan }));
+    closeModal("modal-auth");
+    updateAuthUI();
+    showNotif("Welcome, " + data.store_name + "!");
+    renderDash();
+  } catch(e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = authMode==="login"?"Login":"Create Account";
+  }
+}
+
+function doLogout() {
+  const r = getRefresh();
+  if (r) api.post("/auth/logout", { refresh_token: r }).catch(()=>{});
+  clearAuth(); updateAuthUI(); showNotif("Logged out"); renderDash();
+}
+
+function updateAuthUI() {
+  const vendor = getVendor();
+  const loggedIn = !!getToken();
+  document.getElementById("auth-action-btn").style.display = loggedIn ? "none" : "inline";
+  document.getElementById("logout-btn").style.display = loggedIn ? "inline" : "none";
+  if (vendor) {
+    document.getElementById("sb-store").textContent = vendor.store_name;
+    document.getElementById("sync-badge").innerHTML = isCloud()
+      ? '<span style="color:#1D9E75">● Cloud sync ON</span>'
+      : '<span style="color:#888">● Free plan — local</span>';
+    document.getElementById("mode-badge").textContent = isCloud() ? "Cloud" : "Local";
+  } else {
+    document.getElementById("sb-store").textContent = "DukaanAI";
+    document.getElementById("sync-badge").innerHTML = '<span style="color:#888">● Local only</span>';
+    document.getElementById("mode-badge").textContent = "Local";
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════
+
+const PAGE_TITLES = { dash:"Dashboard", inv:"Inventory", bill:"GST Billing", agent:"AI Agent", insight:"Insights" };
+
+function goTo(id, el) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("page-" + id).classList.add("active");
+  el.classList.add("active");
+  document.getElementById("page-title").textContent = PAGE_TITLES[id];
+  if (id==="dash")    renderDash();
+  if (id==="inv")     renderInventory();
+  if (id==="bill")    initBill();
+  if (id==="agent")   renderQuickBtns();
+  if (id==="insight") renderInsights();
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════
+
+async function renderDash() {
+  try {
+    const [today, summary, low, allProds] = await Promise.all([
+      window.DukaanAI.Sales.today(), window.DukaanAI.Sales.summary({ days:30 }), window.DukaanAI.Products.lowStock(), window.DukaanAI.Products.list()
+    ]);
+
+    // Stats
+    document.getElementById("stat-today").textContent = "₹" + today.total.toLocaleString("en-IN");
+    document.getElementById("stat-prods").textContent = allProds.length;
+    document.getElementById("stat-low").textContent   = low.length;
+    document.getElementById("stat-rev").textContent   = "₹" + (summary.total_revenue||0).toLocaleString("en-IN");
+
+    // Low stock badge
+    const badge = document.getElementById("low-stock-badge");
+    if (low.length > 0) { badge.textContent = low.length + " Low Stock"; badge.style.display="inline-flex"; }
+    else badge.style.display = "none";
+
+    // Alerts
+    document.getElementById("dash-alerts").innerHTML = low.length
+      ? low.slice(0,4).map(p => `<div class="alert ${p.stock<p.min_stock*0.3?'alert-red':'alert-amber'}">${p.stock<p.min_stock*0.3?'🔴':'🟡'} ${p.name} — ${p.stock} units (min: ${p.min_stock})</div>`).join("")
+      : '<div style="font-size:11px;color:#888;padding:8px 0">All stock levels healthy! ✓</div>';
+
+    // Top sellers
+    const top = summary.top_products || [];
+    const maxU = top[0]?.units || 1;
+    document.getElementById("dash-top").innerHTML = top.length
+      ? top.map(p=>`<div class="mini-bar"><span class="mini-bar-label" title="${p.name}">${p.name.substring(0,18)}</span><div class="mini-bar-track"><div class="mini-bar-fill" style="width:${Math.round(p.units/maxU*100)}%"></div></div><span class="mini-bar-val">${p.units}u</span></div>`).join("")
+      : '<div style="font-size:11px;color:#888;padding:8px 0">No sales recorded yet</div>';
+
+    // Recent sales
+    const sales = today.sales.slice(0,8);
+    document.getElementById("dash-sales").innerHTML = sales.length
+      ? sales.map(s=>`<tr><td>${s.product_name}</td><td>${s.customer}</td><td>${s.qty}</td><td>₹${s.total.toLocaleString("en-IN")}</td><td>${new Date(s.sold_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</td></tr>`).join("")
+      : '<tr><td colspan="5" style="text-align:center;color:#888;padding:16px">No sales today yet</td></tr>';
+  } catch(e) {
+    console.error("Dash error:", e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INVENTORY
+// ═══════════════════════════════════════════════════════════
+
+let editingProductId = null;
+
+async function renderInventory() {
+  const search = document.getElementById("inv-search").value;
+  const category = document.getElementById("inv-cat").value;
+  try {
+    const products = await window.DukaanAI.Products.list({ search, category });
+    const pct = p => Math.max(4, Math.min(100, Math.round(p.stock / Math.max(p.min_stock*2,1) * 100)));
+    const cls = p => p.stock < p.min_stock*0.3 ? "low" : p.stock < p.min_stock ? "mid" : "";
+    const statusBadge = p => {
+      if (p.stock <= 0) return '<span class="badge badge-red">Out of stock</span>';
+      if (p.stock < p.min_stock*0.3) return '<span class="badge badge-red">Critical</span>';
+      if (p.stock < p.min_stock) return '<span class="badge badge-amber">Low stock</span>';
+      return '<span class="badge badge-green">In stock</span>';
+    };
+    document.getElementById("inv-tbody").innerHTML = products.length
+      ? products.map(p => `<tr>
+          <td style="padding:6px 10px"><b style="font-size:11px">${p.name}</b><br><span style="font-size:10px;color:#888">${p.sku||"—"}</span></td>
+          <td>${p.category||"—"}</td>
+          <td><span style="font-weight:500">${p.stock}</span><div class="prog"><div class="prog-fill ${cls(p)}" style="width:${pct(p)}%"></div></div></td>
+          <td>₹${p.mrp}</td><td>₹${p.cost_price}</td><td>${p.gst_percent}%</td>
+          <td>${statusBadge(p)}</td>
+          <td><button class="btn btn-sm" onclick="editProduct('${p.id}')">Edit</button></td>
+        </tr>`).join("")
+      : '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px">No products found. Add your first product!</td></tr>';
+  } catch(e) {
+    document.getElementById("inv-tbody").innerHTML = `<tr><td colspan="8" style="color:#dc2626;padding:12px">${e.message}</td></tr>`;
+  }
+}
+
+function openProductModal(reset=true) {
+  if (reset) {
+    editingProductId = null;
+    document.getElementById("modal-product-title").textContent = "Add Product";
+    ["p-name","p-sku"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("p-stock").value = "0";
+    document.getElementById("p-min").value = "10";
+    document.getElementById("p-mrp").value = "";
+    document.getElementById("p-cost").value = "";
+  }
+  openModal("modal-product");
+}
+
+async function editProduct(id) {
+  const products = await window.DukaanAI.Products.list();
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  editingProductId = id;
+  document.getElementById("modal-product-title").textContent = "Edit Product";
+  document.getElementById("p-name").value  = p.name;
+  document.getElementById("p-sku").value   = p.sku || "";
+  document.getElementById("p-cat").value   = p.category || "Staples";
+  document.getElementById("p-stock").value = p.stock;
+  document.getElementById("p-min").value   = p.min_stock;
+  document.getElementById("p-mrp").value   = p.mrp;
+  document.getElementById("p-cost").value  = p.cost_price;
+  document.getElementById("p-gst").value   = p.gst_percent;
+  openModal("modal-product");
+}
+
+async function saveProduct() {
+  const name = document.getElementById("p-name").value.trim();
+  if (!name) return showNotif("Product name is required");
+  const product = {
+    name,
+    sku:         document.getElementById("p-sku").value || null,
+    category:    document.getElementById("p-cat").value,
+    stock:       parseInt(document.getElementById("p-stock").value) || 0,
+    min_stock:   parseInt(document.getElementById("p-min").value) || 10,
+    mrp:         parseFloat(document.getElementById("p-mrp").value) || 0,
+    cost_price:  parseFloat(document.getElementById("p-cost").value) || 0,
+    gst_percent: parseInt(document.getElementById("p-gst").value) || 5,
+  };
+  try {
+    if (editingProductId) await window.DukaanAI.Products.update(editingProductId, product);
+    else await window.DukaanAI.Products.create(product);
+    closeModal("modal-product");
+    showNotif(editingProductId ? "Product updated!" : "Product added!");
+    editingProductId = null;
+    renderInventory(); renderDash();
+  } catch(e) { showNotif("Error: " + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUICK SALE
+// ═══════════════════════════════════════════════════════════
+
+async function openSaleModal() {
+  const products = await window.DukaanAI.Products.list();
+  document.getElementById("s-prod").innerHTML = products.map(p=>`<option value="${p.id}">${p.name} (${p.stock} in stock)</option>`).join("");
+  document.getElementById("s-qty").value = "1";
+  document.getElementById("s-cust").value = "";
+  openModal("modal-sale");
+}
+
+async function recordSale() {
+  const product_id  = document.getElementById("s-prod").value;
+  const qty         = parseInt(document.getElementById("s-qty").value) || 1;
+  const customer    = document.getElementById("s-cust").value || "Walk-in";
+  const payment_mode= document.getElementById("s-pay").value;
+  try {
+    await window.DukaanAI.Sales.record({ product_id, qty, customer, payment_mode });
+    closeModal("modal-sale");
+    showNotif("Sale recorded! Stock updated.");
+    renderDash();
+  } catch(e) { showNotif("Error: " + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BILLING
+// ═══════════════════════════════════════════════════════════
+
+let billRows = [];
+
+async function initBill() {
+  document.getElementById("b-date").value = new Date().toISOString().slice(0,10);
+  if (!billRows.length) {
+    const products = await window.DukaanAI.Products.list();
+    billRows = [{ prodId: products[0]?.id || "", qty: 1 }];
+  }
+  renderBillRows();
+}
+
+async function renderBillRows() {
+  const products = await window.DukaanAI.Products.list();
+  document.getElementById("bill-tbody").innerHTML = billRows.map((r,i) => {
+    const p = products.find(x => x.id === r.prodId) || products[0];
+    const sub = p ? Math.round(p.mrp * r.qty * (1 + p.gst_percent/100) * 100) / 100 : 0;
+    return `<tr>
+      <td><select onchange="billProd(${i},this.value)" style="font-size:11px;padding:3px 5px;border:1px solid #e0e0e0;border-radius:5px;width:100%">
+        ${products.map(x=>`<option value="${x.id}"${x.id===r.prodId?" selected":""}>${x.name}</option>`).join("")}
+      </select></td>
+      <td><input type="number" value="${r.qty}" min="1" onchange="billQty(${i},this.value)" style="width:55px;font-size:11px;padding:3px 5px;border:1px solid #e0e0e0;border-radius:5px"></td>
+      <td>₹${p?.mrp||0}</td>
+      <td>${p?.gst_percent||0}%</td>
+      <td>₹${sub.toLocaleString("en-IN")}</td>
+      <td><button onclick="billDel(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
+    </tr>`;
+  }).join("");
+  updateBillTotal(products);
+}
+
+function billProd(i,v)   { billRows[i].prodId=v; renderBillRows(); }
+function billQty(i,v)    { billRows[i].qty=Math.max(1,parseInt(v)||1); renderBillRows(); }
+function billDel(i)      { billRows.splice(i,1); if(!billRows.length) billRows=[{prodId:"",qty:1}]; renderBillRows(); }
+async function addBillRow() {
+  const products = await window.DukaanAI.Products.list();
+  billRows.push({ prodId: products[0]?.id||"", qty:1 });
+  renderBillRows();
+}
+
+async function updateBillTotal(products) {
+  if (!products) products = await window.DukaanAI.Products.list();
+  let sub=0, tax=0;
+  billRows.forEach(r => {
+    const p = products.find(x=>x.id===r.prodId);
+    if (!p) return;
+    const s = p.mrp * r.qty; sub += s; tax += s * p.gst_percent/100;
+  });
+  sub=Math.round(sub*100)/100; tax=Math.round(tax*100)/100;
+  document.getElementById("bill-total").innerHTML =
+    `Subtotal: ₹${sub.toLocaleString("en-IN")} &nbsp;|&nbsp; CGST: ₹${Math.round(tax/2*100)/100} &nbsp;|&nbsp; SGST: ₹${Math.round(tax/2*100)/100}<br>
+     <b style="font-size:14px;color:#1D9E75">Total: ₹${Math.round((sub+tax)*100)/100}</b>`;
+}
+
+function clearBill() { billRows=[]; initBill(); document.getElementById("invoice-preview-card").style.display="none"; }
+
+async function generateInvoice() {
+  const customer_name = document.getElementById("b-cust").value.trim();
+  if (!customer_name) return showNotif("Customer name is required");
+  const products = await window.DukaanAI.Products.list();
+  const items = billRows.map(r => {
+    const p = products.find(x=>x.id===r.prodId);
+    if (!p) return null;
+    return { name:p.name, qty:r.qty, unit_price:p.mrp, gst_percent:p.gst_percent, product_id:p.id };
+  }).filter(Boolean);
+  if (!items.length) return showNotif("Add at least one item");
+  try {
+    const inv = await window.DukaanAI.Invoices.generate({
+      customer_name,
+      customer_gstin: document.getElementById("b-gstin").value || null,
+      payment_mode:   document.getElementById("b-pay").value,
+      items,
+    });
+    showNotif("Invoice " + inv.invoice_no + " generated!");
+    showInvoicePreview(inv);
+  } catch(e) { showNotif("Error: " + e.message); }
+}
+
+function showInvoicePreview(inv) {
+  const vendor = getVendor();
+  document.getElementById("invoice-preview").innerHTML = `
+    <div style="font-size:11px;line-height:1.8;border:1px dashed #e0e0e0;border-radius:8px;padding:14px">
+      <div style="text-align:center;margin-bottom:10px">
+        <b style="font-size:13px">${vendor?.store_name || "DukaanAI"}</b><br>
+        <span style="font-size:10px;color:#888">GSTIN: ${vendor?.gstin || "—"}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:8px;border-bottom:1px solid #f0f0f0;padding-bottom:8px">
+        <span><b>Invoice #${inv.invoice_no}</b></span>
+        <span>${new Date(inv.created_at).toLocaleDateString("en-IN")}</span>
+      </div>
+      <div style="font-size:10px;margin-bottom:8px">Customer: <b>${inv.customer_name}</b>${inv.customer_gstin?" | GSTIN: "+inv.customer_gstin:""}</div>
+      <table style="width:100%;font-size:10px;border-collapse:collapse">
+        <thead><tr style="background:#f5f5f0"><th style="padding:4px 6px;text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Rate</th><th style="text-align:center">GST</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${inv.items.map(it=>`<tr><td style="padding:4px 6px">${it.name}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">₹${it.unit_price}</td><td style="text-align:center">${it.gst_percent}%</td><td style="text-align:right">₹${it.total}</td></tr>`).join("")}</tbody>
+      </table>
+      <div style="margin-top:8px;text-align:right;border-top:1px solid #f0f0f0;padding-top:8px;font-size:10px">
+        Subtotal: ₹${inv.subtotal} &nbsp;|&nbsp; CGST: ₹${inv.cgst} &nbsp;|&nbsp; SGST: ₹${inv.sgst}<br>
+        <b style="font-size:13px;color:#1D9E75">Grand Total: ₹${inv.total}</b>
+      </div>
+    </div>`;
+  document.getElementById("invoice-preview-card").style.display = "block";
+}
+
+function printInvoice() { window.print(); }
+
+// ═══════════════════════════════════════════════════════════
+// AI AGENT
+// ═══════════════════════════════════════════════════════════
+
+const QUICK_QS = [
+  "How many products are low stock?",
+  "What are my top selling products?",
+  "Total revenue today",
+  "Which items need reorder?",
+  "Predict demand for next month",
+  "What is my best margin product?",
+];
+
+function renderQuickBtns() {
+  document.getElementById("quick-btns").innerHTML = QUICK_QS.map(q =>
+    `<div class="qbtn" onclick="askAI('${q}')">${q}</div>`
+  ).join("");
+}
+
+function askAI(q) { document.getElementById("chat-input").value = q; sendChat(); }
+
+async function sendChat() {
+  const input = document.getElementById("chat-input");
+  const q = input.value.trim(); if (!q) return;
+  input.value = "";
+  const box = document.getElementById("chat-msgs");
+  box.innerHTML += `<div class="msg-user">${q}</div>`;
+  box.innerHTML += `<div class="msg-ai" id="typing-indicator">Thinking...</div>`;
+  box.scrollTop = box.scrollHeight;
+
+  const answer = await buildAIAnswer(q);
+  document.getElementById("typing-indicator")?.remove();
+  box.innerHTML += `<div class="msg-ai">${answer}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+async function buildAIAnswer(q) {
+  const ql = q.toLowerCase();
+  try {
+    if (ql.includes("low stock") || ql.includes("reorder")) {
+      const low = await Products.lowStock();
+      if (!low.length) return "✅ All products are above minimum stock levels!";
+      return `🚨 <b>${low.length} items need reorder:</b><br>${low.map(p=>`${p.stock<p.min_stock*0.3?"🔴":"🟡"} ${p.name} — ${p.stock} units (min: ${p.min_stock})`).join("<br>")}`;
+    }
+    if (ql.includes("top sell") || ql.includes("best sell")) {
+      const s = await Sales.summary({ days:30 });
+      const top = s.top_products||[];
+      return top.length ? `🚀 <b>Top sellers (last 30 days):</b><br>${top.slice(0,5).map((p,i)=>`${i+1}. ${p.name} — ${p.units} units`).join("<br>")}` : "No sales recorded yet.";
+    }
+    if (ql.includes("revenue") || ql.includes("sales today") || ql.includes("total today")) {
+      const t = await Sales.today();
+      const m = await Sales.summary({ days:30 });
+      return `💰 <b>Sales Summary:</b><br>Today: ₹${t.total.toLocaleString("en-IN")} (${t.count} sales)<br>Last 30 days: ₹${(m.total_revenue||0).toLocaleString("en-IN")}`;
+    }
+    if (ql.includes("demand") || ql.includes("predict") || ql.includes("forecast")) {
+      return "📈 <b>AI Demand Forecast:</b><br>☀️ Summer season detected:<br>• Cold drinks & beverages ↑ 55%<br>• Dairy products ↑ 30%<br>• Packaged water ↑ 40%<br><br>💡 Stock up on beverages and dairy before June!";
+    }
+    if (ql.includes("margin") || ql.includes("profit")) {
+      const prods = await Products.list();
+      const withM = prods.map(p => ({ name:p.name, margin: p.mrp>0 ? Math.round((p.mrp-p.cost_price)/p.mrp*100) : 0 })).sort((a,b)=>b.margin-a.margin);
+      return `📊 <b>Best margin products:</b><br>${withM.slice(0,5).map((p,i)=>`${i+1}. ${p.name} — ${p.margin}%`).join("<br>")}`;
+    }
+    // Try to find a specific product mentioned
+    const prods = await Products.list();
+    const found = prods.find(p => ql.includes(p.name.toLowerCase().split(" ")[0]));
+    if (found) return `📦 <b>${found.name}</b><br>Stock: ${found.stock} units | Min: ${found.min_stock}<br>MRP: ₹${found.mrp} | Cost: ₹${found.cost_price}<br>GST: ${found.gst_percent}% | Margin: ${found.mrp>0?Math.round((found.mrp-found.cost_price)/found.mrp*100):0}%`;
+
+    return `🤖 I can help with:<br>• "Which products are low stock?"<br>• "Top selling products"<br>• "Total revenue today"<br>• "Predict demand for next month"<br>• Name any product for details`;
+  } catch(e) {
+    return "Sorry, couldn't fetch data: " + e.message;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INSIGHTS
+// ═══════════════════════════════════════════════════════════
+
+async function renderInsights() {
+  // Forecast bars (static AI predictions)
+  const forecasts = [
+    { name:"Cold Drinks",    pct:90, note:"↑ 55%" },
+    { name:"Packaged Water", pct:80, note:"↑ 40%" },
+    { name:"Dairy",          pct:70, note:"↑ 30%" },
+    { name:"Tata Salt",      pct:50, note:"→ flat" },
+    { name:"Snacks",         pct:40, note:"↑ 10%" },
+  ];
+  document.getElementById("forecast-bars").innerHTML = forecasts.map(f =>
+    `<div class="mini-bar"><span class="mini-bar-label">${f.name}</span><div class="mini-bar-track"><div class="mini-bar-fill" style="width:${f.pct}%"></div></div><span class="mini-bar-val">${f.note}</span></div>`
+  ).join("") + `<div style="font-size:10px;color:#888;margin-top:6px">Summer 2026 — based on seasonal patterns</div>`;
+
+  // GST Summary
+  const now = new Date();
+  try {
+    const gst = await Invoices.gstSummary(now.getMonth()+1, now.getFullYear());
+    document.getElementById("gst-summary").innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+        <div><div style="color:#888;font-size:10px">Taxable Sales</div><div style="font-weight:500">₹${(gst.taxable_sales||0).toLocaleString("en-IN")}</div></div>
+        <div><div style="color:#888;font-size:10px">Total GST</div><div style="font-weight:500;color:#1D9E75">₹${(gst.total_gst||0).toLocaleString("en-IN")}</div></div>
+        <div><div style="color:#888;font-size:10px">CGST</div><div style="font-weight:500">₹${(gst.cgst_collected||0).toLocaleString("en-IN")}</div></div>
+        <div><div style="color:#888;font-size:10px">SGST</div><div style="font-weight:500">₹${(gst.sgst_collected||0).toLocaleString("en-IN")}</div></div>
+        <div class="form-full" style="grid-column:1/-1"><div style="color:#888;font-size:10px">Gross Revenue</div><div style="font-weight:600;font-size:14px;color:#1D9E75">₹${(gst.gross_revenue||0).toLocaleString("en-IN")}</div></div>
+      </div>
+      <div style="font-size:10px;color:#888;margin-top:8px">Invoices: ${gst.invoice_count} | Period: ${gst.period}</div>`;
+  } catch(e) {
+    document.getElementById("gst-summary").innerHTML = `<div style="color:#888;font-size:11px">No invoice data yet</div>`;
+  }
+
+  // Top products by revenue
+  try {
+    const summary = await Sales.summary({ days:30 });
+    const top = summary.top_products || [];
+    const maxR = top[0]?.revenue || 1;
+    document.getElementById("top-revenue-bars").innerHTML = top.length
+      ? top.map(p=>`<div class="mini-bar"><span class="mini-bar-label">${p.name.substring(0,20)}</span><div class="mini-bar-track"><div class="mini-bar-fill" style="width:${Math.round(p.revenue/maxR*100)}%"></div></div><span class="mini-bar-val">₹${Math.round(p.revenue/1000)}k</span></div>`).join("")
+      : '<div style="font-size:11px;color:#888">No sales data yet</div>';
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════════════════════════
+
+function openModal(id)  { document.getElementById(id).classList.add("open"); }
+function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+
+// Close modal on overlay click
+document.querySelectorAll(".modal-overlay").forEach(overlay => {
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("open"); });
+});
+
+// ═══════════════════════════════════════════════════════════
+// NOTIFICATION
+// ═══════════════════════════════════════════════════════════
+
+let notifTimer;
+function showNotif(msg) {
+  const n = document.getElementById("notif");
+  n.textContent = msg; n.style.display = "block";
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => { n.style.display = "none"; }, 2500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+
+updateAuthUI();
+renderDash();
+renderQuickBtns();
+</script>
+</body>
+</html>
