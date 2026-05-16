@@ -3,29 +3,24 @@ from typing import Any
 import hashlib
 import secrets
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.core.config import settings
 from app.core.database import get_db
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
 
 
-# ── Passwords ────────────────────────────────────────────────
-
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
-
-# ── JWT ──────────────────────────────────────────────────────
 
 def create_access_token(data: dict[str, Any]) -> str:
     payload = data.copy()
@@ -37,7 +32,6 @@ def create_access_token(data: dict[str, Any]) -> str:
 
 
 def create_refresh_token() -> tuple[str, str]:
-    """Returns (raw_token, hashed_token). Store the hash, send the raw."""
     raw = secrets.token_urlsafe(48)
     hashed = hashlib.sha256(raw.encode()).hexdigest()
     return raw, hashed
@@ -59,8 +53,6 @@ def decode_access_token(token: str) -> dict[str, Any]:
         )
 
 
-# ── Dependency: current vendor ───────────────────────────────
-
 async def get_current_vendor(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ):
@@ -68,12 +60,10 @@ async def get_current_vendor(
     vendor_id: str | None = payload.get("sub")
     if not vendor_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
-
     db = get_db()
     result = db.table("vendors").select("*").eq("id", vendor_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="Vendor not found")
-
     vendor = result.data
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
@@ -87,14 +77,12 @@ async def get_current_admin(vendor=Depends(get_current_vendor)):
 
 
 def require_plan(*plans: str):
-    """Dependency factory — ensures vendor is on one of the given plans."""
     async def check(vendor=Depends(get_current_vendor)):
         if vendor["plan"] not in plans:
             raise HTTPException(
                 status_code=402,
-                detail=f"This feature requires a {' or '.join(plans)} plan. Upgrade at /subscriptions/plans",
+                detail=f"This feature requires a {' or '.join(plans)} plan.",
             )
-        # Check plan hasn't expired
         if vendor.get("plan_expires_at"):
             expires = datetime.fromisoformat(vendor["plan_expires_at"])
             if expires < datetime.now(timezone.utc):
