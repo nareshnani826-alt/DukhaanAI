@@ -1,0 +1,165 @@
+// ── API Client ────────────────────────────────────────────
+const BASE = "http://localhost:8000"
+const LS   = "dukaanai_data"
+const TOK  = "dk_access"
+const REF  = "dk_refresh"
+const VND  = "dk_vendor"
+
+export const getToken   = () => localStorage.getItem(TOK)
+export const getRefresh = () => localStorage.getItem(REF)
+export const setTokens  = (a, r) => { localStorage.setItem(TOK, a); localStorage.setItem(REF, r) }
+export const clearAuth  = () => [TOK, REF, VND].forEach(k => localStorage.removeItem(k))
+export const getVendor  = () => { try { return JSON.parse(localStorage.getItem(VND)) } catch { return null } }
+export const setVendor  = (v) => localStorage.setItem(VND, JSON.stringify(v))
+export const getPlan    = () => getVendor()?.plan || "free"
+export const isCloud    = () => !!getToken() && ["pro","wholesale"].includes(getPlan())
+
+async function tryRefresh() {
+  const r = getRefresh(); if (!r) return false
+  try {
+    const d = await call("POST", "/auth/refresh", { refresh_token: r }, false)
+    setTokens(d.access_token, d.refresh_token); return true
+  } catch { return false }
+}
+
+export async function call(method, path, body = null, retry = true) {
+  const headers = { "Content-Type": "application/json" }
+  const token = getToken()
+  if (token) headers["Authorization"] = "Bearer " + token
+  const opts = { method, headers }
+  if (body) opts.body = JSON.stringify(body)
+  const res = await fetch(BASE + path, opts)
+  if (res.status === 401 && retry) {
+    const ok = await tryRefresh()
+    if (ok) return call(method, path, body, false)
+    clearAuth(); window.dispatchEvent(new Event("dk:logout"))
+    throw new Error("Session expired")
+  }
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({ detail: "Unknown error" }))
+    throw new Error(e.detail || "HTTP " + res.status)
+  }
+  if (res.status === 204) return null
+  return res.json()
+}
+
+export const api = {
+  get:   (p)    => call("GET",    p),
+  post:  (p, b) => call("POST",   p, b),
+  patch: (p, b) => call("PATCH",  p, b),
+  del:   (p)    => call("DELETE", p),
+}
+
+// ── Local helpers ─────────────────────────────────────────
+function localRead() {
+  try { return JSON.parse(localStorage.getItem(LS)) || emptyDb() }
+  catch { return emptyDb() }
+}
+function emptyDb() { return { products:[], sales:[], invoices:[], nextId:1, nextInvNo:1 } }
+function localWrite(d) { localStorage.setItem(LS, JSON.stringify(d)) }
+function lid(d) { const id = "local-" + d.nextId++; localWrite(d); return id }
+
+// ── Products ──────────────────────────────────────────────
+export const Products = {
+  async list(f = {}) {
+    if (isCloud()) {
+      const q = new URLSearchParams()
+      if (f.category)  q.set("category",  f.category)
+      if (f.search)    q.set("search",     f.search)
+      if (f.low_stock) q.set("low_stock",  "true")
+      return api.get("/products" + (q.toString() ? "?" + q : ""))
+    }
+    let p = localRead().products.filter(x => x.is_active !== false)
+    if (f.category)  p = p.filter(x => x.category === f.category)
+    if (f.search)    p = p.filter(x => x.name.toLowerCase().includes(f.search.toLowerCase()))
+    if (f.low_stock) p = p.filter(x => x.stock < x.min_stock)
+    return p
+  },
+  async create(product) {
+    if (isCloud()) return api.post("/products", product)
+    const d = localRead()
+    const p = { ...product, id: lid(d), vendor_id:"local", is_active:true, created_at:new Date().toISOString(), updated_at:new Date().toISOString() }
+    d.products.push(p); localWrite(d); return p
+  },
+  async update(id, updates) {
+    if (isCloud()) return api.patch("/products/" + id, updates)
+    const d = localRead(); const i = d.products.findIndex(p => p.id === id)
+    if (i < 0) throw new Error("Not found")
+    d.products[i] = { ...d.products[i], ...updates, updated_at: new Date().toISOString() }
+    localWrite(d); return d.products[i]
+  },
+  async delete(id) {
+    if (isCloud()) return api.del("/products/" + id)
+    const d = localRead(); const i = d.products.findIndex(p => p.id === id)
+    if (i >= 0) { d.products[i].is_active = false; localWrite(d) }
+  },
+  async lowStock() {
+    if (isCloud()) return api.get("/products/low-stock")
+    return localRead().products.filter(p => p.is_active !== false && p.stock < p.min_stock).sort((a,b) => a.stock - b.stock)
+  },
+}
+
+// ── Sales ─────────────────────────────────────────────────
+export const Sales = {
+  async record({ product_id, qty, customer = "Walk-in", payment_mode = "Cash" }) {
+    if (isCloud()) return api.post("/sales", { product_id, qty, customer, payment_mode })
+    const d = localRead()
+    const prod = d.products.find(p => p.id === product_id)
+    if (!prod) throw new Error("Product not found")
+    if (prod.stock < qty) throw new Error("Insufficient stock. Available: " + prod.stock)
+    const total = Math.round(prod.mrp * qty * 100) / 100
+    const sale = { id: lid(d), vendor_id:"local", product_id, product_name:prod.name, qty, unit_price:prod.mrp, total, customer, payment_mode, sold_at:new Date().toISOString() }
+    prod.stock -= qty; d.sales.push(sale); localWrite(d); return sale
+  },
+  async today() {
+    if (isCloud()) return api.get("/sales/today")
+    const d = localRead(); const start = new Date(); start.setHours(0,0,0,0)
+    const s = d.sales.filter(x => new Date(x.sold_at) >= start)
+    return { sales: s.sort((a,b) => new Date(b.sold_at)-new Date(a.sold_at)), total: Math.round(s.reduce((sum,x) => sum+x.total,0)*100)/100, count: s.length }
+  },
+  async list({ days=30, limit=100 } = {}) {
+    if (isCloud()) return api.get(`/sales?days=${days}&limit=${limit}`)
+    const since = new Date(Date.now() - days*86400000)
+    return localRead().sales.filter(s => new Date(s.sold_at) >= since).sort((a,b) => new Date(b.sold_at)-new Date(a.sold_at)).slice(0,limit)
+  },
+  async summary({ days=30 } = {}) {
+    if (isCloud()) return api.get("/sales/summary?days=" + days)
+    const since = new Date(Date.now() - days*86400000)
+    const sales = localRead().sales.filter(s => new Date(s.sold_at) >= since)
+    const rev = Math.round(sales.reduce((s,x) => s+x.total,0)*100)/100
+    const byProd = {}
+    sales.forEach(s => { byProd[s.product_name] = byProd[s.product_name] || {units:0,revenue:0}; byProd[s.product_name].units += s.qty; byProd[s.product_name].revenue += s.total })
+    return { total_revenue:rev, total_units:sales.reduce((s,x) => s+x.qty,0), transaction_count:sales.length, top_products:Object.entries(byProd).map(([name,v]) => ({name,...v})).sort((a,b) => b.units-a.units).slice(0,8) }
+  },
+}
+
+// ── Invoices ──────────────────────────────────────────────
+export const Invoices = {
+  async generate({ customer_name, customer_gstin, payment_mode="Cash", items }) {
+    if (isCloud()) return api.post("/invoices", { customer_name, customer_gstin, payment_mode, items })
+    const d = localRead(); let sub=0, tax=0
+    const lineItems = items.map(item => {
+      const s = Math.round(item.unit_price*item.qty*100)/100
+      const t = Math.round(s*item.gst_percent/100*100)/100
+      sub+=s; tax+=t
+      return { ...item, subtotal:s, tax:t, total:Math.round((s+t)*100)/100 }
+    })
+    sub=Math.round(sub*100)/100; tax=Math.round(tax*100)/100
+    const cgst=Math.round(tax/2*100)/100, sgst=Math.round(tax/2*100)/100
+    const invNo = "INV-" + String(d.nextInvNo++).padStart(4,"0")
+    const inv = { id:lid(d), vendor_id:"local", invoice_no:invNo, customer_name, customer_gstin:customer_gstin||null, payment_mode, subtotal:sub, cgst, sgst, total:Math.round((sub+tax)*100)/100, items:lineItems, status:"paid", created_at:new Date().toISOString() }
+    d.invoices.push(inv); localWrite(d); return inv
+  },
+  async list() {
+    if (isCloud()) return api.get("/invoices?limit=50")
+    return localRead().invoices.sort((a,b) => new Date(b.created_at)-new Date(a.created_at))
+  },
+  async gstSummary(month, year) {
+    if (isCloud()) return api.get(`/invoices/summary/gst?month=${month}&year=${year}`)
+    const invs = localRead().invoices.filter(inv => { const d=new Date(inv.created_at); return d.getMonth()+1===month && d.getFullYear()===year && inv.status==="paid" })
+    const sub=Math.round(invs.reduce((s,i) => s+i.subtotal,0)*100)/100
+    const cgst=Math.round(invs.reduce((s,i) => s+i.cgst,0)*100)/100
+    const sgst=Math.round(invs.reduce((s,i) => s+i.sgst,0)*100)/100
+    return { period:`${year}-${String(month).padStart(2,"0")}`, invoice_count:invs.length, taxable_sales:sub, cgst_collected:cgst, sgst_collected:sgst, total_gst:Math.round((cgst+sgst)*100)/100, gross_revenue:Math.round((sub+cgst+sgst)*100)/100 }
+  },
+}
