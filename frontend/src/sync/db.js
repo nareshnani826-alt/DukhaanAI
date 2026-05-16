@@ -1,5 +1,5 @@
 // ── API Client ────────────────────────────────────────────
-const BASE = "http://localhost:8000"
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
 const LS   = "dukaanai_data"
 const TOK  = "dk_access"
 const REF  = "dk_refresh"
