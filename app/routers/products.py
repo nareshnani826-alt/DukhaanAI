@@ -47,6 +47,9 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
 
     data = body.model_dump()
     data["vendor_id"] = vendor["id"]
+    # Empty string SKU → None to avoid unique constraint conflicts
+    if not data.get("sku"):
+        data["sku"] = None
     result = db.table("products").insert(data).execute()
     return result.data[0]
 

@@ -163,3 +163,89 @@ export const Invoices = {
     return { period:`${year}-${String(month).padStart(2,"0")}`, invoice_count:invs.length, taxable_sales:sub, cgst_collected:cgst, sgst_collected:sgst, total_gst:Math.round((cgst+sgst)*100)/100, gross_revenue:Math.round((sub+cgst+sgst)*100)/100 }
   },
 }
+
+// ── Customers ─────────────────────────────────────────────
+export const Customers = {
+  async list({ search } = {}) {
+    if (isCloud()) {
+      const q = search ? `?search=${encodeURIComponent(search)}` : ""
+      return api.get("/customers" + q)
+    }
+    let { customers = [] } = localRead()
+    if (search) customers = customers.filter(c =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.phone || "").includes(search)
+    )
+    return customers.sort((a, b) => (b.total_spent || 0) - (a.total_spent || 0))
+  },
+
+  async upsert({ name, phone, gstin, amount }) {
+    // Called automatically every time an invoice is generated
+    if (isCloud()) return api.post("/customers/upsert", { name, phone, gstin, amount })
+    const d = localRead()
+    if (!d.customers) d.customers = []
+    const key = phone || name
+    const idx = d.customers.findIndex(c =>
+      (phone && c.phone === phone) || (!phone && c.name === name)
+    )
+    const now = new Date().toISOString()
+    if (idx >= 0) {
+      d.customers[idx] = {
+        ...d.customers[idx],
+        name,
+        phone: phone || d.customers[idx].phone,
+        gstin: gstin || d.customers[idx].gstin,
+        total_spent: Math.round(((d.customers[idx].total_spent || 0) + amount) * 100) / 100,
+        visit_count: (d.customers[idx].visit_count || 0) + 1,
+        last_visited: now,
+        updated_at:   now,
+      }
+    } else {
+      d.customers.push({
+        id: "cust-" + Date.now(),
+        vendor_id: "local",
+        name, phone: phone || null, gstin: gstin || null,
+        total_spent: amount, visit_count: 1,
+        last_visited: now, created_at: now, updated_at: now,
+      })
+    }
+    localWrite(d)
+  },
+
+  async get(id) {
+    if (isCloud()) return api.get("/customers/" + id)
+    const { customers = [] } = localRead()
+    return customers.find(c => c.id === id) || null
+  },
+
+  async invoices(id) {
+    // Get all invoices for a customer by name/phone
+    if (isCloud()) return api.get("/customers/" + id + "/invoices")
+    const { invoices = [], customers = [] } = localRead()
+    const cust = customers.find(c => c.id === id)
+    if (!cust) return []
+    return invoices.filter(inv =>
+      inv.customer_name === cust.name ||
+      (cust.phone && inv.customer_phone === cust.phone)
+    ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  },
+
+  async delete(id) {
+    if (isCloud()) return api.del("/customers/" + id)
+    const d = localRead()
+    d.customers = (d.customers || []).filter(c => c.id !== id)
+    localWrite(d)
+  },
+}
+
+// Patch: add update method to Customers (for manual edit)
+const _CustomersUpdate = async (id, updates) => {
+  if (isCloud()) return api.patch("/customers/" + id, updates)
+  const d = localRead()
+  const idx = (d.customers||[]).findIndex(c => c.id === id)
+  if (idx < 0) throw new Error("Customer not found")
+  d.customers[idx] = { ...d.customers[idx], ...updates, updated_at: new Date().toISOString() }
+  localWrite(d)
+  return d.customers[idx]
+}
+Customers.update = _CustomersUpdate
