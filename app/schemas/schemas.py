@@ -66,6 +66,7 @@ class ProductCreate(BaseModel):
     name: str
     sku: Optional[str] = None
     category: Optional[str] = None
+    unit: Optional[str] = "piece"
     stock: int = 0
     min_stock: int = 10
     mrp: float
@@ -77,6 +78,7 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     sku: Optional[str] = None
     category: Optional[str] = None
+    unit: Optional[str] = None
     stock: Optional[int] = None
     min_stock: Optional[int] = None
     mrp: Optional[float] = None
