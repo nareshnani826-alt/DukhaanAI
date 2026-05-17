@@ -1,5 +1,8 @@
 import os
 from supabase import create_client, Client
+from dotenv import load_dotenv
+
+load_dotenv()  # ← this loads the .env file locally
 
 _client: Client | None = None
 
