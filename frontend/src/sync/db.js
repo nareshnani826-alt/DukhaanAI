@@ -1,5 +1,5 @@
 // ── API Client ────────────────────────────────────────────
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
+const BASE = "http://localhost:8000"
 const LS   = "dukaanai_data"
 const TOK  = "dk_access"
 const REF  = "dk_refresh"
@@ -249,3 +249,93 @@ const _CustomersUpdate = async (id, updates) => {
   return d.customers[idx]
 }
 Customers.update = _CustomersUpdate
+
+// ── Udhar Khata ───────────────────────────────────────────
+export const Udhar = {
+
+  // ── Customers ─────────────────────────────────────────
+  async listCustomers({ search } = {}) {
+    if (isCloud()) {
+      const q = search ? `?search=${encodeURIComponent(search)}` : ""
+      return api.get("/udhar/customers" + q)
+    }
+    const d = localRead()
+    let list = d.udhar_customers || []
+    if (search) list = list.filter(c =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.phone||"").includes(search)
+    )
+    return list.sort((a,b) => (b.total_due||0) - (a.total_due||0))
+  },
+
+  async addCustomer({ name, phone, address }) {
+    if (isCloud()) return api.post("/udhar/customers", { name, phone, address })
+    const d = localRead()
+    if (!d.udhar_customers) d.udhar_customers = []
+    if (!d.udhar_txns)      d.udhar_txns      = []
+    const c = {
+      id: "uc-" + Date.now(), vendor_id:"local",
+      name, phone: phone||null, address: address||null,
+      total_due: 0, last_txn_at: null,
+      created_at: new Date().toISOString()
+    }
+    d.udhar_customers.push(c); localWrite(d); return c
+  },
+
+  async deleteCustomer(id) {
+    if (isCloud()) return api.del("/udhar/customers/" + id)
+    const d = localRead()
+    d.udhar_customers = (d.udhar_customers||[]).filter(c => c.id !== id)
+    d.udhar_txns      = (d.udhar_txns||[]).filter(t => t.customer_id !== id)
+    localWrite(d)
+  },
+
+  // ── Transactions ──────────────────────────────────────
+  async transactions(customerId) {
+    if (isCloud()) return api.get("/udhar/customers/" + customerId + "/transactions")
+    const d = localRead()
+    return (d.udhar_txns||[])
+      .filter(t => t.customer_id === customerId)
+      .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+  },
+
+  async addCredit({ customerId, amount, note, invoiceId }) {
+    if (isCloud()) return api.post("/udhar/transactions", {
+      customer_id: customerId, type:"credit", amount, note, invoice_id: invoiceId||null
+    })
+    return _localTxn({ customerId, type:"credit", amount, note })
+  },
+
+  async addPayment({ customerId, amount, note }) {
+    if (isCloud()) return api.post("/udhar/transactions", {
+      customer_id: customerId, type:"payment", amount, note
+    })
+    return _localTxn({ customerId, type:"payment", amount, note })
+  },
+
+  async summary() {
+    if (isCloud()) return api.get("/udhar/summary")
+    const d    = localRead()
+    const list = d.udhar_customers || []
+    const total_due     = list.reduce((s,c) => s + (c.total_due||0), 0)
+    const overdue_count = list.filter(c => c.total_due > 0).length
+    return { total_due, overdue_count, customer_count: list.length }
+  }
+}
+
+function _localTxn({ customerId, type, amount, note }) {
+  const d = localRead()
+  if (!d.udhar_customers) d.udhar_customers = []
+  if (!d.udhar_txns)      d.udhar_txns      = []
+  const ci = d.udhar_customers.findIndex(c => c.id === customerId)
+  if (ci < 0) throw new Error("Customer not found")
+  const delta = type === "credit" ? +amount : -amount
+  d.udhar_customers[ci].total_due   = Math.max(0, Math.round(((d.udhar_customers[ci].total_due||0) + delta)*100)/100)
+  d.udhar_customers[ci].last_txn_at = new Date().toISOString()
+  const txn = {
+    id: "ut-" + Date.now(), vendor_id:"local", customer_id: customerId,
+    type, amount: +amount, note: note||null,
+    created_at: new Date().toISOString()
+  }
+  d.udhar_txns.push(txn); localWrite(d); return txn
+}
