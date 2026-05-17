@@ -24,130 +24,136 @@
   .td         { @apply px-2 py-1.5 text-xs text-gray-700 border-b border-gray-50; }
 }
 
-/* ── Desktop layout ──────────────────────────────────────── */
-.desktop-layout {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
-.desktop-layout aside {
-  width: 192px;
-  flex-shrink: 0;
-}
-.desktop-layout main {
-  flex: 1;
-  overflow: hidden;
-  min-width: 0;
-}
+/* ── Desktop ─────────────────────────────────────────────── */
+.app-shell { display:flex; height:100vh; overflow:hidden; }
+.app-sidebar { width:192px; flex-shrink:0; display:flex; flex-direction:column; }
+.app-main { flex:1; overflow:hidden; min-width:0; display:flex; flex-direction:column; }
 
-/* ── Mobile layout ───────────────────────────────────────── */
+/* ── Mobile ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  body { overflow: hidden; height: 100vh; height: 100dvh; }
+  html, body { height:100%; height:100dvh; overflow:hidden; }
 
-  .desktop-layout {
+  .app-shell {
     flex-direction: column;
     height: 100vh;
     height: 100dvh;
-  }
-
-  /* Sidebar becomes bottom navigation */
-  .desktop-layout aside {
-    width: 100% !important;
-    height: 60px !important;
-    flex-shrink: 0;
-    order: 2;
-    border-right: none !important;
-    border-top: 1px solid #f0f0f0 !important;
-    background: #fff;
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    z-index: 100;
     overflow: hidden;
   }
 
-  /* Hide logo header and account footer on mobile */
-  .desktop-layout aside > div:first-child,
-  .desktop-layout aside > div:last-child {
-    display: none !important;
+  /* Sidebar → bottom tab bar */
+  .app-sidebar {
+    width: 100% !important;
+    height: 58px !important;
+    flex-direction: row !important;
+    order: 2;
+    border-right: none !important;
+    border-top: 1px solid #eee !important;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 50;
+    background: #fff;
+    flex-shrink: 0 !important;
   }
 
-  /* Nav becomes horizontal row */
-  .desktop-layout aside nav {
+  /* Hide logo + account footer */
+  .app-sidebar .sidebar-logo,
+  .app-sidebar .sidebar-footer { display: none !important; }
+
+  /* Nav row */
+  .app-sidebar nav {
     display: flex !important;
     flex-direction: row !important;
-    height: 60px;
+    width: 100%;
+    height: 58px;
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    margin: 0 !important;
-    padding: 0 !important;
   }
-  .desktop-layout aside nav::-webkit-scrollbar { display: none; }
+  .app-sidebar nav::-webkit-scrollbar { display: none; }
 
-  /* Nav links become icon+label tiles */
-  .desktop-layout aside nav a {
+  /* Each tab */
+  .app-sidebar nav a {
+    display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    min-width: 68px !important;
-    height: 60px !important;
-    padding: 6px 8px !important;
+    min-width: 64px !important;
+    height: 58px !important;
+    padding: 4px 8px !important;
     gap: 3px !important;
     border-left: none !important;
-    border-top: 2px solid transparent;
+    border-top: 2px solid transparent !important;
     font-size: 9px !important;
+    color: #9ca3af;
     flex-shrink: 0;
-    text-align: center;
+    text-decoration: none;
   }
-  .desktop-layout aside nav a.text-primary {
+  .app-sidebar nav a.text-primary,
+  .app-sidebar nav a[aria-current="page"] {
+    color: #1D9E75 !important;
     border-top: 2px solid #1D9E75 !important;
-    border-left: none !important;
     background: #f0faf6 !important;
+    border-left: none !important;
   }
-  .desktop-layout aside nav a svg {
-    width: 20px !important;
-    height: 20px !important;
-  }
-  .desktop-layout aside nav a span.flex-1 { flex: none !important; }
-  .desktop-layout aside nav a span.text-\[9px\] { display: none; }
+  .app-sidebar nav a svg { width:20px !important; height:20px !important; }
+  .app-sidebar nav a .flex-1 { flex: none !important; }
+  .app-sidebar nav a span[class*="text-[9px]"] { display: none !important; }
 
-  /* Main content scrollable above bottom nav */
-  .desktop-layout main {
+  /* Main content */
+  .app-main {
     order: 1;
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-bottom: 70px;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 68px !important;
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Fix overflow — stack everything */
+  .app-main > * { max-width: 100%; overflow-x: hidden; }
+
+  /* Stack all grids to single column */
+  .grid.grid-cols-2,
+  .grid.grid-cols-3,
+  .grid.grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Stack flex rows */
+  .flex.gap-3 > *,
+  .flex.gap-2 > * {
     min-width: 0;
   }
 
-  /* Stack 2-col grids on mobile */
-  .grid.grid-cols-2 { grid-template-columns: 1fr !important; }
-  .grid.grid-cols-3 { grid-template-columns: 1fr 1fr !important; }
-  .grid.grid-cols-4 { grid-template-columns: 1fr 1fr !important; }
+  /* Customer page — hide right panel on mobile, show as full page */
+  .customer-split { flex-direction: column !important; }
+  .customer-list  { width: 100% !important; }
+  .customer-detail { width: 100% !important; }
 
-  /* Bigger tap targets */
-  .btn { min-height: 36px; }
-  .input { font-size: 16px !important; padding: 10px 12px !important; }
+  /* Tables scroll horizontally */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  /* Full width on mobile */
-  .card { border-radius: 12px !important; margin: 0 !important; }
+  /* Inputs — prevent zoom on iOS */
+  input, select, textarea { font-size: 16px !important; }
 
-  /* Overflow tables scroll horizontally */
-  .overflow-x-scroll-mobile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table { min-width: 500px; }
+  /* Bigger buttons for touch */
+  .btn { min-height: 38px; font-size: 12px !important; }
+
+  /* Prevent horizontal scroll */
+  .p-4 { padding: 12px !important; }
 }
 
-/* Safe area for iPhone notch */
-@supports (padding: max(0px)) {
+/* iPhone safe area */
+@supports (padding: env(safe-area-inset-bottom)) {
   @media (max-width: 768px) {
-    .desktop-layout aside {
-      padding-bottom: env(safe-area-inset-bottom) !important;
-      height: calc(60px + env(safe-area-inset-bottom)) !important;
+    .app-sidebar {
+      height: calc(58px + env(safe-area-inset-bottom)) !important;
+      padding-bottom: env(safe-area-inset-bottom);
     }
-    .desktop-layout main {
-      padding-bottom: calc(70px + env(safe-area-inset-bottom));
+    .app-main {
+      padding-bottom: calc(68px + env(safe-area-inset-bottom)) !important;
     }
   }
 }

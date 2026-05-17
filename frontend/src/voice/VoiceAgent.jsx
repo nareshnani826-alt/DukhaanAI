@@ -5,6 +5,7 @@ import { LANGUAGES } from "./languages.js"
 import { Products } from "../sync/db.js"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
 import { detectUnit } from "./unitDetector.js"
+import { detectPlatform } from "./engine.js"
 
 const pulseStyle = `
   @keyframes mic-pulse { 0%{box-shadow:0 0 0 0 rgba(29,158,117,0.6)} 70%{box-shadow:0 0 0 16px rgba(29,158,117,0)} 100%{box-shadow:0 0 0 0 rgba(29,158,117,0)} }
@@ -26,9 +27,13 @@ export default function VoiceAgent({ onAddToBill }) {
   const [products,   setProducts]   = useState([])
   const [supported,  setSupported]  = useState(true)
   const [pending,    setPending]    = useState(null)
+  const [platform,   setPlatform]   = useState({})
   const bottomRef = useRef(null)
 
-  useEffect(() => { Products.list().then(setProducts) }, [])
+  useEffect(() => {
+    Products.list().then(setProducts)
+    setPlatform(detectPlatform())
+  }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }) }, [history])
 
   useEffect(() => {
@@ -232,7 +237,21 @@ export default function VoiceAgent({ onAddToBill }) {
         ))}
       </div>
 
-      {!supported && (
+      {!supported && platform.isIOS && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3 text-xs text-amber-800">
+          <div className="font-semibold text-sm mb-2">🍎 Enable voice on iPhone</div>
+          <div className="space-y-1.5 text-amber-700">
+            <div>1. Open <b>Settings</b> on your iPhone</div>
+            <div>2. Scroll down → tap <b>Safari</b></div>
+            <div>3. Tap <b>Microphone</b> → select <b>Allow</b></div>
+            <div>4. Come back here and reload the page</div>
+          </div>
+          <div className="mt-3 p-2 bg-amber-100 rounded-lg text-[10px] text-amber-600">
+            Note: iOS 16.4+ supports voice in Safari. Make sure your iPhone is updated.
+          </div>
+        </div>
+      )}
+      {!supported && !platform.isIOS && (
         <div className="bg-red-50 text-red-700 text-xs p-3 rounded-lg mb-3">
           ⚠ Voice not supported. Use <b>Chrome</b> or <b>Edge</b> browser.
         </div>
