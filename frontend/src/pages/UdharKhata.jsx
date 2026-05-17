@@ -487,7 +487,12 @@ _Powered by DukaanAI_`
                   </button>
                 </div>
 
-                <div className="flex justify-end mt-2">
+                <div className="flex justify-between items-center mt-2">
+                  <button
+                    onClick={() => openModal("edit-customer", selected)}
+                    className="text-[10px] text-primary underline">
+                    ✏ Edit details
+                  </button>
                   <button onClick={e => deleteCustomer(selected, e)}
                     className="text-[10px] text-red-400 hover:text-red-600 underline">
                     Remove from Khata

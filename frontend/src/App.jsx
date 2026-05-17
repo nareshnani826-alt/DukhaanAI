@@ -16,6 +16,8 @@ import Settings          from "./pages/Settings"
 import Help             from "./pages/Help"
 import UdharKhata           from "./pages/UdharKhata"
 import DemandIntelligence   from "./pages/DemandIntelligence"
+import WastageRecording     from "./pages/Wastage"
+import OfflineBanner        from "./components/OfflineBanner"
 
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
@@ -28,6 +30,7 @@ export default function App() {
       <PlanProvider>
         <BrowserRouter>
           <InstallPrompt />
+          <OfflineBanner />
           <Layout>
             <Routes>
               <Route path="/"           element={<Dashboard />} />
@@ -37,6 +40,7 @@ export default function App() {
               <Route path="/help"        element={<Help />} />
               <Route path="/udhar"       element={<UdharKhata />} />
               <Route path="/demand"      element={<DemandIntelligence />} />
+              <Route path="/wastage"     element={<WastageRecording />} />
               <Route path="/agent"      element={<Agent />} />
 
               {/* Gated routes — show upgrade wall if plan doesn't include feature */}
