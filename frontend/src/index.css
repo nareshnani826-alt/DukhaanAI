@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  body { @apply bg-gray-50 text-gray-900 h-screen overflow-hidden; }
+  body { @apply bg-gray-50 text-gray-900; }
   * { box-sizing: border-box; }
 }
 
@@ -22,4 +22,132 @@
   .stat-card  { @apply bg-white border border-gray-100 rounded-xl p-3; }
   .th         { @apply text-left px-2 py-1.5 text-[10px] text-gray-400 font-medium border-b border-gray-50; }
   .td         { @apply px-2 py-1.5 text-xs text-gray-700 border-b border-gray-50; }
+}
+
+/* ── Desktop layout ──────────────────────────────────────── */
+.desktop-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+.desktop-layout aside {
+  width: 192px;
+  flex-shrink: 0;
+}
+.desktop-layout main {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Mobile layout ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  body { overflow: hidden; height: 100vh; height: 100dvh; }
+
+  .desktop-layout {
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Sidebar becomes bottom navigation */
+  .desktop-layout aside {
+    width: 100% !important;
+    height: 60px !important;
+    flex-shrink: 0;
+    order: 2;
+    border-right: none !important;
+    border-top: 1px solid #f0f0f0 !important;
+    background: #fff;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 100;
+    overflow: hidden;
+  }
+
+  /* Hide logo header and account footer on mobile */
+  .desktop-layout aside > div:first-child,
+  .desktop-layout aside > div:last-child {
+    display: none !important;
+  }
+
+  /* Nav becomes horizontal row */
+  .desktop-layout aside nav {
+    display: flex !important;
+    flex-direction: row !important;
+    height: 60px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .desktop-layout aside nav::-webkit-scrollbar { display: none; }
+
+  /* Nav links become icon+label tiles */
+  .desktop-layout aside nav a {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 68px !important;
+    height: 60px !important;
+    padding: 6px 8px !important;
+    gap: 3px !important;
+    border-left: none !important;
+    border-top: 2px solid transparent;
+    font-size: 9px !important;
+    flex-shrink: 0;
+    text-align: center;
+  }
+  .desktop-layout aside nav a.text-primary {
+    border-top: 2px solid #1D9E75 !important;
+    border-left: none !important;
+    background: #f0faf6 !important;
+  }
+  .desktop-layout aside nav a svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  .desktop-layout aside nav a span.flex-1 { flex: none !important; }
+  .desktop-layout aside nav a span.text-\[9px\] { display: none; }
+
+  /* Main content scrollable above bottom nav */
+  .desktop-layout main {
+    order: 1;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 70px;
+    min-width: 0;
+  }
+
+  /* Stack 2-col grids on mobile */
+  .grid.grid-cols-2 { grid-template-columns: 1fr !important; }
+  .grid.grid-cols-3 { grid-template-columns: 1fr 1fr !important; }
+  .grid.grid-cols-4 { grid-template-columns: 1fr 1fr !important; }
+
+  /* Bigger tap targets */
+  .btn { min-height: 36px; }
+  .input { font-size: 16px !important; padding: 10px 12px !important; }
+
+  /* Full width on mobile */
+  .card { border-radius: 12px !important; margin: 0 !important; }
+
+  /* Overflow tables scroll horizontally */
+  .overflow-x-scroll-mobile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 500px; }
+}
+
+/* Safe area for iPhone notch */
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    .desktop-layout aside {
+      padding-bottom: env(safe-area-inset-bottom) !important;
+      height: calc(60px + env(safe-area-inset-bottom)) !important;
+    }
+    .desktop-layout main {
+      padding-bottom: calc(70px + env(safe-area-inset-bottom));
+    }
+  }
 }
