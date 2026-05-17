@@ -53,7 +53,9 @@ export default function UdharKhata() {
     setModal(type)
     setForm(type === "add-customer"
       ? { name:"", phone:"", address:"" }
-      : { amount:"", note:"" }
+      : type === "edit-customer"
+        ? { name: customer?.name||"", phone: customer?.phone||"", address: customer?.address||"" }
+        : { amount:"", note:"" }
     )
   }
 
@@ -65,6 +67,9 @@ export default function UdharKhata() {
       if (modal === "add-customer") {
         await Udhar.addCustomer({ name:form.name, phone:form.phone||null, address:form.address||null })
         showNotif("Customer added!")
+      } else if (modal === "edit-customer") {
+        await Udhar.updateCustomer(selected.id, { name:form.name, phone:form.phone||null, address:form.address||null })
+        showNotif("Customer updated!")
       } else if (modal === "credit") {
         await Udhar.addCredit({ customerId:selected.id, amount:+form.amount, note:form.note||null })
         showNotif(`₹${form.amount} credit added`)
@@ -251,7 +256,7 @@ _Powered by DukaanAI_`
               <button onClick={()=>setModal(null)} className="text-gray-300 hover:text-gray-500 text-xl">×</button>
             </div>
 
-            {modal === "add-customer" ? (
+            {(modal === "add-customer" || modal === "edit-customer") ? (
               <div className="space-y-2.5">
                 <div><label className="label">Name *</label>
                   <input className="input" value={form.name||""} onChange={e=>set("name",e.target.value)}
@@ -303,9 +308,10 @@ _Powered by DukaanAI_`
               }`}
               style={modal==="credit" ? { background:"#EF9F27", color:"#fff", border:"none" } : {}}>
               {saving ? "Saving..." :
-               modal==="add-customer" ? "Add Customer" :
-               modal==="credit"       ? "Add Udhar" :
-                                        "Record Payment"}
+               modal==="add-customer"  ? "Add Customer" :
+               modal==="edit-customer" ? "Save Changes" :
+               modal==="credit"        ? "Add Udhar" :
+                                         "Record Payment"}
             </button>
           </div>
         </div>
