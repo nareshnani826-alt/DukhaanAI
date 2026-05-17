@@ -10,11 +10,13 @@ router = APIRouter(prefix="/wastage", tags=["wastage"])
 
 REASONS = ["expired", "damaged", "stolen", "other"]
 
+
 class WastageCreate(BaseModel):
-    product_id:  str
-    qty:         float
-    reason:      str
-    note:        Optional[str] = None
+    product_id: str
+    qty: float
+    reason: str
+    note: Optional[str] = None
+
 
 @router.get("/")
 async def list_wastage(vendor=Depends(get_current_vendor)):
@@ -25,6 +27,7 @@ async def list_wastage(vendor=Depends(get_current_vendor)):
         .order("created_at", desc=True)\
         .limit(100).execute().data
 
+
 @router.post("/", status_code=201)
 async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
@@ -33,26 +36,24 @@ async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)
     if body.qty <= 0:
         raise HTTPException(400, "qty must be positive")
 
-    # Get product
     prod = db.table("products").select("*")\
-        .eq("id", body.product_id).eq("vendor_id", vendor["id"]).execute()
+        .eq("id", body.product_id)\
+        .eq("vendor_id", vendor["id"])\
+        .execute()
     if not prod.data:
         raise HTTPException(404, "Product not found")
     product = prod.data[0]
 
-    # Convert qty — use int if whole number to avoid type errors
-    qty = int(body.qty) if body.qty == int(body.qty) else float(body.qty)
+    raw_qty = float(body.qty)
+    qty = int(raw_qty) if raw_qty == int(raw_qty) else raw_qty
 
-    # Deduct stock
     current_stock = float(product["stock"] or 0)
-    new_stock     = round(max(0, current_stock - qty), 2)
-    db.table("products").update({ "stock": new_stock })\
+    new_stock = round(max(0, current_stock - raw_qty), 2)
+    db.table("products").update({"stock": new_stock})\
         .eq("id", body.product_id).execute()
 
-    # Calculate loss value
-    loss_value = round(qty * float(product["cost_price"] or 0), 2)
+    loss_value = round(raw_qty * float(product["cost_price"] or 0), 2)
 
-    # Record wastage
     record = db.table("wastage_records").insert({
         "vendor_id":   vendor["id"],
         "product_id":  body.product_id,
@@ -68,29 +69,25 @@ async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)
 
     return record
 
+
 @router.get("/summary")
 async def wastage_summary(vendor=Depends(get_current_vendor)):
     db = get_db()
-    records     = db.table("wastage_records").select("*")\
+    records = db.table("wastage_records").select("*")\
         .eq("vendor_id", vendor["id"]).execute().data
-    total_loss  = sum(float(r["loss_value"] or 0) for r in records)
-    by_reason   = {}
+    total_loss = sum(float(r["loss_value"] or 0) for r in records)
+    by_reason = {}
     for r in records:
         by_reason[r["reason"]] = by_reason.get(r["reason"], 0) + float(r["loss_value"] or 0)
-    this_month  = sum(
+    this_month = sum(
         float(r["loss_value"] or 0) for r in records
         if r.get("created_at") and
-        datetime.fromisoformat(r["created_at"].replace("Z","+00:00")).month
+        datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")).month
         == datetime.now(timezone.utc).month
     )
     return {
         "total_loss":  round(total_loss, 2),
         "total_items": len(records),
-        "by_reason":   {k: round(v,2) for k,v in by_reason.items()},
+        "by_reason":   {k: round(v, 2) for k, v in by_reason.items()},
         "this_month":  round(this_month, 2),
     }
-
-class CustomerUpdate(BaseModel):
-    name:    Optional[str] = None
-    phone:   Optional[str] = None
-    address: Optional[str] = None
