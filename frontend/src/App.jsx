@@ -13,6 +13,7 @@ import Voice             from "./pages/Voice"
 import Customers         from "./pages/Customers"
 import DayOps            from "./pages/DayOps"
 import Settings          from "./pages/Settings"
+import Help             from "./pages/Help"
 
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="/inventory"  element={<Inventory />} />
               <Route path="/billing"    element={<Billing />} />
               <Route path="/settings"   element={<Settings />} />
+              <Route path="/help"        element={<Help />} />
               <Route path="/agent"      element={<Agent />} />
 
               {/* Gated routes — show upgrade wall if plan doesn't include feature */}
