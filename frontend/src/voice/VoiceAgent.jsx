@@ -71,7 +71,10 @@ export default function VoiceAgent({ onAddToBill }) {
     // ── Detect action ─────────────────────────────────────
     const isStockQuery = /kitna|how many|stock|bacha|enta|evvalavu|eshtu/i.test(tl)
     const isAddStock   = /aaya|vacchindi|received|restock|add stock|stock mein|kondi/i.test(tl)
-    const isAddBill    = /bill|invoice|charge|becho|add|daalo|cheyyi|seer|pannu/i.test(tl) || !isStockQuery
+    // isAddBill only if explicit bill keyword OR has quantity mentioned
+    const hasBillKw    = /bill|invoice|charge|becho|daalo|seer|pannu/i.test(tl)
+    const hasQty       = /\d+|kilo|litre|gram|packet|bottle|ek|do|teen|okati|rendu|moodu/i.test(tl)
+    const isAddBill    = hasBillKw || (hasQty && !isStockQuery && !isAddStock)
 
     // ── Extract qty + unit ────────────────────────────────
     const { qty, unit } = extractQtyUnit(text)
@@ -101,32 +104,38 @@ export default function VoiceAgent({ onAddToBill }) {
       return
     }
 
+    // ── Reject if nothing recognized ─────────────────────
+    if (!invMatch && !validation.found) {
+      const msg = "No product recognized. Please say a product name clearly, like 'Tata Salt' or 'Amul Milk'."
+      speak(msg, lang)
+      setStatus("error")
+      setStatusMsg(msg)
+      addHistory({ type:"error", original, result: msg })
+      return
+    }
+
     // ── Build confirmation data ───────────────────────────
     const confirmData = {
       original, text, qty, unit,
-      action:       isAddStock ? "ADD_STOCK" : "ADD_BILL",
-      invMatch,                          // existing product in inventory
-      validation,                        // known product from database
-      stdName:      stdName || (invMatch?.name) || extractProductName(text),
+      action:   isAddStock ? "ADD_STOCK" : "ADD_BILL",
+      invMatch,
+      validation,
+      stdName:  stdName || invMatch?.name,
       variant,
-      isNewProduct: !invMatch && isAddStock,
     }
 
     setPending(confirmData)
     setStatus("confirm")
 
-    // Build confirmation message
     let confirmMsg = ""
     if (invMatch) {
       confirmMsg = isAddStock
-        ? `Add ${qty} ${unit} to ${invMatch.name}? Current stock: ${invMatch.stock}`
+        ? `Add ${qty} ${unit} to ${invMatch.name}? Current: ${invMatch.stock}`
         : `${invMatch.name} × ${qty} — add to bill?`
-    } else if (validation.found) {
-      confirmMsg = isAddStock
-        ? `Add new product "${stdName}" with ${qty} ${unit} stock?`
-        : `"${stdName}" not in your inventory. Add to bill anyway?`
     } else {
-      confirmMsg = `"${confirmData.stdName}" not recognized. ${isAddStock ? "Add as new product?" : "Add to bill anyway?"}`
+      confirmMsg = isAddStock
+        ? `New product "${stdName}" — add with ${qty} ${unit} stock?`
+        : `"${stdName}" not in inventory. Add to bill anyway?`
     }
 
     setStatusMsg(confirmMsg)
