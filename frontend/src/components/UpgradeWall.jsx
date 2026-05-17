@@ -14,21 +14,34 @@ export default function UpgradeWall({ feature, children }) {
 
   // ── Turned off by vendor ──────────────────────────────────
   if (toggled) {
+    function enableNow() {
+      try {
+        const t = JSON.parse(localStorage.getItem("dk_feature_toggles") || "{}")
+        delete t[feature]  // remove the false — defaults back to ON
+        localStorage.setItem("dk_feature_toggles", JSON.stringify(t))
+        window.location.reload()
+      } catch(e) { console.error(e) }
+    }
+
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
-          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl">
+          <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4 text-3xl">
             🔕
           </div>
-          <h2 className="text-sm font-semibold text-gray-800 mb-1">
+          <h2 className="text-sm font-semibold text-gray-800 mb-2">
             {info.name} is turned off
           </h2>
           <p className="text-xs text-gray-400 mb-6">
-            You disabled this feature in Settings. Turn it back on to use it.
+            You disabled this feature. Your plan supports it — tap below to turn it back on.
           </p>
-          <button onClick={() => navigate("/settings")}
+          <button onClick={enableNow}
             className="btn btn-primary w-full py-2.5 text-xs font-semibold mb-2">
-            Go to Settings to enable
+            Turn on {info.name}
+          </button>
+          <button onClick={() => navigate("/settings")}
+            className="btn w-full text-xs text-gray-500 mb-2">
+            Manage in Settings
           </button>
           <button onClick={() => navigate(-1)} className="btn w-full text-xs text-gray-400">
             Go back
