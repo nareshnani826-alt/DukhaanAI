@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, products, sales, invoices, subscriptions, admin, customers, day_sessions
+from app.routers import auth, products, sales, invoices, subscriptions, admin, customers, day_sessions, udhar
 
 app = FastAPI(
     title="DukaanAI API",
@@ -15,11 +15,12 @@ app = FastAPI(
 # ── CORS ─────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[settings.frontend_url, "http://localhost:3000", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # ── Routers ──────────────────────────────────────────────────
 app.include_router(auth.router)
 app.include_router(products.router)
@@ -29,6 +30,7 @@ app.include_router(subscriptions.router)
 app.include_router(admin.router)
 app.include_router(customers.router)
 app.include_router(day_sessions.router)
+app.include_router(udhar.router)
 
 
 # ── Health check ─────────────────────────────────────────────
