@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react"
 import { Products, Invoices, Customers } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
+import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
 
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
 export default function Billing() {
   const { vendor }  = useAuth()
+  const { hasFeature } = usePlan()
   const [products,  setProducts]  = useState([])
   const [rows,      setRows]      = useState([])
   const [cust,      setCust]      = useState("")
@@ -147,7 +149,7 @@ Thank you for shopping! 🙏`
         </div>
       )}
 
-      {scanner && (
+      {scanner && hasFeature("barcode_scanner") && (
         <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />
       )}
 
@@ -173,7 +175,7 @@ Thank you for shopping! 🙏`
           <button onClick={() => lookupBarcode()} className="btn btn-primary btn-sm px-4">
             Search
           </button>
-          {hasCamera() && (
+          {hasCamera() && hasFeature("barcode_scanner") && (
             <button onClick={() => setScanner(true)} className="btn btn-sm px-3" title="Use camera scanner">
               📷
             </button>
