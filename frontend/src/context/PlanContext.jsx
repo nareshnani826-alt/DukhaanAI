@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react"
+import { createContext, useContext, useState, useEffect } from "react"
 import { useAuth } from "./AuthContext"
 
 // ── Plan feature map ──────────────────────────────────────
@@ -66,25 +66,52 @@ const FEATURE_LABELS = {
 
 const PlanCtx = createContext(null)
 
+// Read toggles from localStorage
+function getToggles() {
+  try { return JSON.parse(localStorage.getItem("dk_feature_toggles") || "{}") }
+  catch { return {} }
+}
+
 export function PlanProvider({ children }) {
   const { vendor } = useAuth()
-  const plan = vendor?.plan || "free"
+  const plan     = vendor?.plan || "free"
   const features = PLAN_FEATURES[plan] || PLAN_FEATURES.free
+  const [toggles, setToggles] = useState(getToggles)
+
+  // Listen for toggle changes from Settings page
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key === "dk_feature_toggles") setToggles(getToggles())
+    }
+    window.addEventListener("storage", onStorage)
+    // Also poll every second for same-tab changes
+    const interval = setInterval(() => setToggles(getToggles()), 1000)
+    return () => { window.removeEventListener("storage", onStorage); clearInterval(interval) }
+  }, [])
 
   function hasFeature(feature) {
-    return features.includes(feature)
+    // 1. Plan must include the feature
+    if (!features.includes(feature)) return false
+    // 2. Feature must not be toggled OFF by vendor
+    if (toggles[feature] === false) return false
+    return true
   }
 
   function requirePlan(feature) {
-    // Returns null if allowed, or the required plan string if blocked
-    if (hasFeature(feature)) return null
-    const info = FEATURE_LABELS[feature]
-    return info?.plan || "pro"
+    if (!features.includes(feature)) {
+      const info = FEATURE_LABELS[feature]
+      return info?.plan || "pro"
+    }
+    return null
+  }
+
+  function isToggledOff(feature) {
+    return features.includes(feature) && toggles[feature] === false
   }
 
   return (
     <PlanCtx.Provider value={{
-      plan, features, hasFeature, requirePlan,
+      plan, features, hasFeature, requirePlan, isToggledOff,
       planLabel: PLAN_LABELS[plan] || PLAN_LABELS.free,
       PLAN_LABELS, FEATURE_LABELS,
     }}>
