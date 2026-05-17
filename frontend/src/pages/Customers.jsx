@@ -219,10 +219,10 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <div className="flex gap-3 flex-1 overflow-hidden min-h-0">
+      <div className="customer-split flex gap-3 flex-1 overflow-hidden min-h-0">
 
         {/* Left — customer list */}
-        <div className="w-72 flex flex-col flex-shrink-0">
+        <div className="customer-list w-72 flex flex-col flex-shrink-0">
           <input className="input mb-2" placeholder="Search name or phone..."
             value={search} onChange={e => setSearch(e.target.value)} />
 
@@ -274,7 +274,7 @@ export default function CustomersPage() {
         </div>
 
         {/* Right — detail panel */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div className="customer-detail flex-1 overflow-y-auto min-w-0">
           {!selected ? (
             <div className="card h-64 flex items-center justify-center flex-col gap-3 text-center">
               <div className="text-5xl">👈</div>

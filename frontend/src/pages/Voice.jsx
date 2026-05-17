@@ -4,6 +4,8 @@ import { Invoices } from "../sync/db.js"
 
 export default function Voice() {
   const [billItems, setBillItems] = useState([])
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  const isIOS    = /iphone|ipad|ipod/i.test(navigator.userAgent)
   const [notif,     setNotif]     = useState("")
 
   function showNotif(msg) {
@@ -72,6 +74,18 @@ export default function Voice() {
       {notif && (
         <div className="fixed top-4 right-4 bg-primary text-white px-4 py-2 rounded-lg text-xs z-50 max-w-xs shadow-lg">
           {notif}
+        </div>
+      )}
+
+      {(isSafari || isIOS) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
+          <b>⚠ Safari/iPhone:</b> Voice input requires <b>Chrome</b> or <b>Edge</b> browser.
+          <br/>
+          <a href="https://dukhaan-ai.vercel.app/voice"
+            className="text-primary underline mt-1 inline-block"
+            onClick={e => { e.preventDefault(); window.location.href="googlechrome://dukhaan-ai.vercel.app/voice" }}>
+            Open in Chrome →
+          </a>
         </div>
       )}
 
