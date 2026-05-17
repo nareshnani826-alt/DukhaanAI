@@ -188,7 +188,7 @@ export default function CustomersPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="page-sticky-header flex items-center justify-between mb-4">
         <div>
           <h1 className="text-sm font-semibold">Customers</h1>
           <p className="text-[10px] text-gray-400">Auto-saved from invoices · Add manually · Resend on WhatsApp</p>

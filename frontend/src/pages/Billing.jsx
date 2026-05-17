@@ -153,7 +153,7 @@ Thank you for shopping! 🙏`
         <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />
       )}
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="page-sticky-header flex items-center justify-between mb-4">
         <h1 className="text-sm font-semibold">GST Billing</h1>
         <span className="badge badge-green">Auto CGST + SGST</span>
       </div>
