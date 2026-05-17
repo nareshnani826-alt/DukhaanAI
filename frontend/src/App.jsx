@@ -1,32 +1,47 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
-import { AuthProvider } from "./context/AuthContext"
-import Layout from "./components/Layout"
-import Dashboard  from "./pages/Dashboard"
-import Inventory  from "./pages/Inventory"
-import Billing    from "./pages/Billing"
-import Agent      from "./pages/Agent"
-import Insights   from "./pages/Insights"
-import Voice      from "./pages/Voice"
-import Customers  from "./pages/Customers"
-import DayOps     from "./pages/DayOps"
+import { AuthProvider }  from "./context/AuthContext"
+import { PlanProvider }  from "./context/PlanContext"
+import Layout            from "./components/Layout"
+import UpgradeWall       from "./components/UpgradeWall"
+import InstallPrompt     from "./components/InstallPrompt"
+import Dashboard         from "./pages/Dashboard"
+import Inventory         from "./pages/Inventory"
+import Billing           from "./pages/Billing"
+import Agent             from "./pages/Agent"
+import Insights          from "./pages/Insights"
+import Voice             from "./pages/Voice"
+import Customers         from "./pages/Customers"
+import DayOps            from "./pages/DayOps"
+import Settings          from "./pages/Settings"
+
+// Wrapper that gates a page behind a plan feature
+function Gated({ feature, children }) {
+  return <UpgradeWall feature={feature}>{children}</UpgradeWall>
+}
 
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/"           element={<Dashboard />} />
-            <Route path="/inventory"  element={<Inventory />} />
-            <Route path="/billing"    element={<Billing />} />
-            <Route path="/agent"      element={<Agent />} />
-            <Route path="/insights"   element={<Insights />} />
-            <Route path="/voice"      element={<Voice />} />
-            <Route path="/customers"  element={<Customers />} />
-            <Route path="/day"         element={<DayOps />} />
-          </Routes>
-        </Layout>
-      </BrowserRouter>
+      <PlanProvider>
+        <BrowserRouter>
+          <InstallPrompt />
+          <Layout>
+            <Routes>
+              <Route path="/"           element={<Dashboard />} />
+              <Route path="/inventory"  element={<Inventory />} />
+              <Route path="/billing"    element={<Billing />} />
+              <Route path="/settings"   element={<Settings />} />
+              <Route path="/agent"      element={<Agent />} />
+
+              {/* Gated routes — show upgrade wall if plan doesn't include feature */}
+              <Route path="/voice"      element={<Gated feature="voice_agent"><Voice /></Gated>} />
+              <Route path="/customers"  element={<Gated feature="customer_history"><Customers /></Gated>} />
+              <Route path="/day"        element={<Gated feature="day_ops"><DayOps /></Gated>} />
+              <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
+            </Routes>
+          </Layout>
+        </BrowserRouter>
+      </PlanProvider>
     </AuthProvider>
   )
 }
