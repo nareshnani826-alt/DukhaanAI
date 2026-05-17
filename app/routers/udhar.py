@@ -132,3 +132,26 @@ async def summary(vendor=Depends(get_current_vendor)):
         "overdue_count":  overdue_count,
         "customer_count": len(customers),
     }
+
+
+class CustomerUpdate(BaseModel):
+    name:    Optional[str] = None
+    phone:   Optional[str] = None
+    address: Optional[str] = None
+
+
+@router.patch("/customers/{customer_id}")
+async def update_customer(
+    customer_id: str,
+    body: CustomerUpdate,
+    vendor=Depends(get_current_vendor),
+):
+    db = get_db()
+    existing = db.table("udhar_customers").select("id")\
+        .eq("id", customer_id).eq("vendor_id", vendor["id"]).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    result = db.table("udhar_customers").update(updates)\
+        .eq("id", customer_id).execute()
+    return result.data[0]
