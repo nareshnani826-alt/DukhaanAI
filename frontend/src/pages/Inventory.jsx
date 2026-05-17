@@ -5,6 +5,7 @@ import { usePlan } from "../context/PlanContext.jsx"
 import { useVoiceField, MicButton } from "../voice/useVoiceField.jsx"
 import { detectUnit, parseSpokenQty, UNIT_TYPES } from "../voice/unitDetector.js"
 import { LANGUAGES } from "../voice/languages.js"
+import { lookupPrice, getVariants } from "../data/productPrices.js"
 
 const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
 const GSTS = [0,5,12,18,28]
@@ -58,28 +59,63 @@ function VoiceInput({ label, value, onChange, placeholder, type="text",
 
 // ── Product form modal ────────────────────────────────────
 function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose }) {
-  const [form,      setForm]      = useState(initialForm)
-  const [saving,    setSaving]    = useState(false)
-  const [notif,     setNotif]     = useState("")
+  const [form,         setForm]         = useState(initialForm)
+  const [saving,       setSaving]       = useState(false)
+  const [notif,        setNotif]        = useState("")
   const [unitDetected, setUnitDetected] = useState(false)
-  const [lang,      setLang]      = useState(initialLang || "hi-IN")
+  const [lang,         setLang]         = useState(initialLang || "hi-IN")
+  const [priceLookup,  setPriceLookup]  = useState(null)  // auto-price suggestion
+  const [variants,     setVariants]     = useState([])    // size variants
 
   function set(k, v) { setForm(f => ({...f, [k]: v})) }
 
-  // Auto-detect unit + qty when product name changes
+  // Auto-detect unit + qty + price when product name changes
   function handleNameChange(name) {
     set("name", name)
     if (name.length > 2) {
+      // Unit detection
       const detected = detectUnit(name)
       if (detected.found) {
         set("unit", detected.unit)
         setUnitDetected(true)
-        // If qty embedded in name (e.g. "500g"), pre-fill a note
-        if (detected.qty) setNotif(`Detected: ${detected.qty} ${detected.unit}`)
-        else setNotif(`Unit auto-set: ${detected.unit}`)
-        setTimeout(() => setNotif(""), 2500)
       }
+
+      // Price lookup from database
+      const priceInfo = lookupPrice(name)
+      if (priceInfo) {
+        setPriceLookup(priceInfo)
+        setVariants(priceInfo.allVariants || [])
+        // Auto-fill prices if fields are empty
+        setForm(f => ({
+          ...f,
+          name,
+          unit:       detected.found ? detected.unit : (priceInfo.unit || f.unit),
+          mrp:        f.mrp         ? f.mrp         : String(priceInfo.mrp),
+          cost_price: f.cost_price  ? f.cost_price  : String(priceInfo.wholesale),
+          gst_percent:f.gst_percent ? f.gst_percent : 5,
+        }))
+        setNotif(`✓ Prices auto-filled from database — verify before saving`)
+        setTimeout(() => setNotif(""), 3500)
+      } else {
+        setPriceLookup(null)
+        setVariants([])
+      }
+    } else {
+      setPriceLookup(null)
+      setVariants([])
     }
+  }
+
+  // When vendor selects a different size variant
+  function handleVariantChange(variant) {
+    setForm(f => ({
+      ...f,
+      mrp:        String(variant.mrp),
+      cost_price: String(variant.wholesale),
+      unit:       variant.unit,
+    }))
+    setNotif(`Prices updated for ${variant.size}`)
+    setTimeout(() => setNotif(""), 2000)
   }
 
   // Voice: full product name field — smart parse
@@ -158,6 +194,42 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
           {notif && (
             <div className="bg-primary-light text-primary-dark text-[10px] px-3 py-2 rounded-lg">
               {notif}
+            </div>
+          )}
+
+          {/* Price lookup suggestion banner */}
+          {priceLookup && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">🏷️</span>
+                <div className="text-[10px] font-semibold text-blue-700">
+                  Market price found for {priceLookup.productName}
+                </div>
+              </div>
+              <div className="flex gap-3 text-[10px] text-blue-600 mb-2">
+                <span>MRP: <strong>₹{priceLookup.mrp}</strong></span>
+                <span>Wholesale: <strong>₹{priceLookup.wholesale}</strong></span>
+                <span>Margin: <strong>{priceLookup.margin}%</strong></span>
+              </div>
+              {variants.length > 1 && (
+                <div>
+                  <div className="text-[10px] text-blue-500 mb-1">Select size:</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {variants.map(v => (
+                      <button key={v.size}
+                        onClick={() => handleVariantChange(v)}
+                        className="text-[10px] px-2.5 py-1 rounded-lg border transition-all font-medium"
+                        style={{
+                          background: form.mrp == v.mrp ? "#1D9E75" : "#fff",
+                          color:      form.mrp == v.mrp ? "#fff"     : "#378ADD",
+                          borderColor:form.mrp == v.mrp ? "#1D9E75"  : "#bfdbfe",
+                        }}>
+                        {v.size} — ₹{v.mrp}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
