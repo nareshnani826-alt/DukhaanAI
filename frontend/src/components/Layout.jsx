@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext"
 import { useState, useEffect } from "react"
 import AuthModal from "./AuthModal"
 import { isCloud, api } from "../sync/db"
+import { usePlan } from "../context/PlanContext"
 
 function useDayPrompt(loggedIn) {
   const [show, setShow] = useState(false)
@@ -68,10 +69,12 @@ const NAV = [
   { to:"/voice",     label:"Voice",      icon:"M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v4 M8 23h8" },
   { to:"/agent",     label:"AI Agent",   icon:"M12 2a10 10 0 100 20A10 10 0 0012 2z M12 6v6l4 2" },
   { to:"/insights",  label:"Insights",   icon:"M18 20V10 M12 20V4 M6 20v-6" },
+  { to:"/settings",  label:"Settings",   icon:"M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" },
 ]
 
 export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, logout } = useAuth()
+  const { plan, planLabel } = usePlan()
   const [showAuth, setShowAuth] = useState(false)
 
   return (
@@ -114,10 +117,18 @@ export default function Layout({ children }) {
         <div className="sidebar-footer px-4 py-3 border-t border-gray-100">
           <div className="text-xs font-medium text-gray-700 truncate">{vendor?.store_name || "DukaanAI"}</div>
           <div className="text-[10px] mt-1">
-            {cloud ? <span className="text-primary">● Cloud sync ON</span>
-              : loggedIn ? <span className="text-amber-600">● Free plan</span>
-              : <span className="text-gray-400">● Local only</span>}
+            {cloud
+              ? <span className="text-primary">● Cloud sync ON</span>
+              : loggedIn
+                ? <span className="text-amber-600">● Free plan</span>
+                : <span className="text-gray-400">● Local only</span>}
           </div>
+          {loggedIn && (
+            <div className="text-[10px] mt-0.5 font-medium"
+              style={{ color: planLabel?.color || "#888" }}>
+              {planLabel?.name} plan
+            </div>
+          )}
           <div className="mt-2">
             {!loggedIn
               ? <button onClick={() => setShowAuth(true)} className="text-[10px] text-primary underline">Login / Register</button>
