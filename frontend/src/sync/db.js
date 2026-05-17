@@ -349,3 +349,53 @@ function _localTxn({ customerId, type, amount, note }) {
   }
   d.udhar_txns.push(txn); localWrite(d); return txn
 }
+
+// ── Wastage Recording ─────────────────────────────────────
+export const Wastage = {
+  async list() {
+    if (isCloud()) return api.get("/wastage/")
+    const d = localRead()
+    return (d.wastage_records || []).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+  },
+
+  async record({ productId, qty, reason, note }) {
+    if (isCloud()) return api.post("/wastage/", { product_id:productId, qty, reason, note })
+    const d = localRead()
+    if (!d.wastage_records) d.wastage_records = []
+    const prod = (d.products||[]).find(p => p.id === productId)
+    if (!prod) throw new Error("Product not found")
+    const newStock = Math.max(0, (prod.stock||0) - qty)
+    const lossVal  = Math.round(qty * (prod.cost_price||0) * 100) / 100
+    // Update stock
+    const pi = d.products.findIndex(p => p.id === productId)
+    if (pi >= 0) d.products[pi].stock = newStock
+    // Record
+    const rec = {
+      id: "wr-" + Date.now(), vendor_id:"local",
+      product_id: productId, product_name: prod.name,
+      qty, unit: prod.unit||"piece", reason, note: note||null,
+      loss_value: lossVal, stock_before: prod.stock||0, stock_after: newStock,
+      created_at: new Date().toISOString()
+    }
+    d.wastage_records.push(rec)
+    localWrite(d)
+    return rec
+  },
+
+  async summary() {
+    if (isCloud()) return api.get("/wastage/summary")
+    const d       = localRead()
+    const records = d.wastage_records || []
+    const month   = new Date().getMonth()
+    const total_loss  = records.reduce((s,r) => s + (r.loss_value||0), 0)
+    const this_month  = records
+      .filter(r => new Date(r.created_at).getMonth() === month)
+      .reduce((s,r) => s + (r.loss_value||0), 0)
+    const by_reason = {}
+    records.forEach(r => {
+      by_reason[r.reason] = (by_reason[r.reason]||0) + (r.loss_value||0)
+    })
+    return { total_loss: Math.round(total_loss*100)/100, total_items: records.length,
+             by_reason, this_month: Math.round(this_month*100)/100 }
+  }
+}
