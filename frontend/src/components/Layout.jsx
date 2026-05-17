@@ -12,9 +12,8 @@ function useDayPrompt(loggedIn) {
     if (!loggedIn) return
     const today = new Date().toISOString().slice(0, 10)
     const lastPrompt = localStorage.getItem("dk_day_prompt_date")
-    if (lastPrompt === today) return  // already prompted today
+    if (lastPrompt === today) return
 
-    // Check if day is open
     async function check() {
       try {
         let sess = null
@@ -38,17 +37,6 @@ function useDayPrompt(loggedIn) {
 
   return { show, dismiss: () => setShow(false), navigate }
 }
-
-const NAV = [
-  { to:"/",          label:"Dashboard",  icon:"M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" },
-  { to:"/inventory", label:"Inventory",  icon:"M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" },
-  { to:"/billing",   label:"GST Billing",icon:"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8" },
-  { to:"/day",       label:"Day Ops",    icon:"M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", badge:"" },
-  { to:"/customers", label:"Customers",  icon:"M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75" },
-  { to:"/voice",     label:"Voice Agent",icon:"M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v4 M8 23h8", badge:"NEW" },
-  { to:"/agent",     label:"AI Agent",   icon:"M12 2a10 10 0 100 20A10 10 0 0012 2z M12 6v6l4 2" },
-  { to:"/insights",  label:"Insights",   icon:"M18 20V10 M12 20V4 M6 20v-6" },
-]
 
 function DayPromptBanner({ loggedIn }) {
   const { show, dismiss, navigate } = useDayPrompt(loggedIn)
@@ -86,14 +74,26 @@ function DayPromptBanner({ loggedIn }) {
   )
 }
 
+const NAV = [
+  { to:"/",          label:"Dashboard",  icon:"M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" },
+  { to:"/inventory", label:"Inventory",  icon:"M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" },
+  { to:"/billing",   label:"GST Billing",icon:"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8" },
+  { to:"/day",       label:"Day Ops",    icon:"M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+  { to:"/customers", label:"Customers",  icon:"M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75" },
+  { to:"/voice",     label:"Voice Agent",icon:"M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v4 M8 23h8", badge:"NEW" },
+  { to:"/agent",     label:"AI Agent",   icon:"M12 2a10 10 0 100 20A10 10 0 0012 2z M12 6v6l4 2" },
+  { to:"/insights",  label:"Insights",   icon:"M18 20V10 M12 20V4 M6 20v-6" },
+]
+
 export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, logout } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
 
   return (
-    <div className="flex h-screen">
+    <div className="desktop-layout">
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       <DayPromptBanner loggedIn={loggedIn} />
+
       <aside className="w-48 bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
         <div className="px-4 py-3.5 border-b border-gray-100">
           <div className="flex items-center gap-1.5 text-primary font-semibold text-sm">
