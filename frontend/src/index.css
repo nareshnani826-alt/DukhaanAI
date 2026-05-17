@@ -3,157 +3,138 @@
 @tailwind utilities;
 
 @layer base {
-  body { @apply bg-gray-50 text-gray-900; }
+  body { @apply bg-gray-50 text-gray-900; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   * { box-sizing: border-box; }
 }
 
 @layer components {
-  .btn        { @apply px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 transition-colors cursor-pointer; }
+  .btn        { @apply px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer; }
   .btn-primary{ @apply bg-primary text-white border-primary hover:bg-primary-dark; }
   .btn-sm     { @apply px-2 py-1 text-[10px]; }
-  .card       { @apply bg-white border border-gray-100 rounded-xl p-3.5; }
-  .input      { @apply w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-primary; }
-  .label      { @apply block text-[10px] font-medium text-gray-500 mb-1; }
+  .card       { @apply bg-white border border-gray-100 rounded-2xl p-4 shadow-sm; }
+  .input      { @apply w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all; }
+  .label      { @apply block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1; }
   .badge      { @apply inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium; }
   .badge-green{ @apply bg-primary-light text-primary-dark; }
   .badge-red  { @apply bg-red-50 text-red-700; }
   .badge-amber{ @apply bg-amber-50 text-amber-700; }
   .badge-blue { @apply bg-blue-50 text-blue-700; }
-  .stat-card  { @apply bg-white border border-gray-100 rounded-xl p-3; }
-  .th         { @apply text-left px-2 py-1.5 text-[10px] text-gray-400 font-medium border-b border-gray-50; }
-  .td         { @apply px-2 py-1.5 text-xs text-gray-700 border-b border-gray-50; }
+  .stat-card  { @apply bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden; }
+  .th         { @apply text-left px-3 py-2 text-[10px] text-gray-400 font-semibold uppercase tracking-wide border-b border-gray-50; }
+  .td         { @apply px-3 py-2 text-xs text-gray-700 border-b border-gray-50; }
 }
 
-/* ── Desktop ─────────────────────────────────────────────── */
-.app-shell { display:flex; height:100vh; overflow:hidden; }
-.app-sidebar { width:192px; flex-shrink:0; display:flex; flex-direction:column; }
-.app-main { flex:1; overflow:hidden; min-width:0; display:flex; flex-direction:column; }
+/* ── App shell ───────────────────────────────────────────── */
+.app-shell   { display:flex; height:100vh; overflow:hidden; }
+.app-sidebar { width:200px; flex-shrink:0; display:flex; flex-direction:column;
+               background:#0F6E56; }
+.app-main    { flex:1; overflow:hidden; min-width:0; display:flex; flex-direction:column; }
+
+/* ── Sidebar styles ──────────────────────────────────────── */
+.sidebar-logo   { padding:18px 16px; border-bottom:1px solid rgba(255,255,255,0.1); }
+.sidebar-nav    { flex:1; overflow-y:auto; overflow-x:hidden; padding:6px 0; }
+.sidebar-footer { padding:12px 16px; border-top:1px solid rgba(255,255,255,0.1); flex-shrink:0; }
+
+.nav-link {
+  display:flex; align-items:center; gap:9px;
+  padding:9px 16px; font-size:12px; font-weight:400;
+  color:rgba(255,255,255,0.65);
+  border-left:3px solid transparent;
+  transition:all 0.15s; cursor:pointer; text-decoration:none;
+}
+.nav-link:hover { background:rgba(255,255,255,0.08); color:#fff; }
+.nav-link.active {
+  background:rgba(255,255,255,0.12);
+  color:#fff; font-weight:500;
+  border-left:3px solid #5DCAA5;
+}
+.nav-link svg { width:15px; height:15px; flex-shrink:0; opacity:0.85; }
+.nav-link.active svg { opacity:1; }
+
+/* ── Stat card accent bar ────────────────────────────────── */
+.stat-bar { position:absolute; top:0; left:0; right:0; height:3px; border-radius:2px 2px 0 0; }
+.stat-icon-box {
+  position:absolute; right:14px; top:14px;
+  width:34px; height:34px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px;
+}
+
+/* ── Table improvements ──────────────────────────────────── */
+.data-table { width:100%; border-collapse:collapse; }
+.data-table th { @apply th; }
+.data-table td { @apply td; }
+.data-table tr:hover td { background:#fafafa; }
+.data-table tr:last-child td { border-bottom:none; }
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes fade-in  { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+@keyframes slide-up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+@keyframes mic-pulse {
+  0%   { box-shadow:0 0 0 0 rgba(29,158,117,0.6); }
+  70%  { box-shadow:0 0 0 16px rgba(29,158,117,0); }
+  100% { box-shadow:0 0 0 0 rgba(29,158,117,0); }
+}
+@keyframes wave  { 0%,100%{height:8px} 50%{height:24px} }
+@keyframes spin  { to{transform:rotate(360deg)} }
+@keyframes mic-pulse-btn {
+  0%,100%{box-shadow:0 0 0 0 rgba(29,158,117,0.4)}
+  50%    {box-shadow:0 0 0 5px rgba(29,158,117,0)}
+}
+
+.animate-fade-in  { animation:fade-in 0.2s ease both; }
+.animate-slide-up { animation:slide-up 0.25s ease both; }
 
 /* ── Mobile ──────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  html, body { height:100%; height:100dvh; overflow:hidden; }
+@media (max-width:768px) {
+  html,body { height:100%; height:100dvh; overflow:hidden; }
 
-  .app-shell {
-    flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
-    overflow: hidden;
-  }
+  .app-shell { flex-direction:column; height:100vh; height:100dvh; }
 
-  /* Sidebar → bottom tab bar */
   .app-sidebar {
-    width: 100% !important;
-    height: 58px !important;
-    flex-direction: row !important;
-    order: 2;
-    border-right: none !important;
-    border-top: 1px solid #eee !important;
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    z-index: 50;
-    background: #fff;
-    flex-shrink: 0 !important;
+    width:100% !important; height:58px !important;
+    flex-direction:row !important; order:2;
+    border-right:none !important;
+    border-top:1px solid rgba(255,255,255,0.1) !important;
+    position:fixed; bottom:0; left:0; right:0; z-index:50;
   }
-
-  /* Hide logo + account footer */
-  .app-sidebar .sidebar-logo,
-  .app-sidebar .sidebar-footer { display: none !important; }
-
-  /* Nav row */
-  .app-sidebar nav {
-    display: flex !important;
-    flex-direction: row !important;
-    width: 100%;
-    height: 58px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+  .sidebar-logo, .sidebar-footer { display:none !important; }
+  .sidebar-nav {
+    display:flex !important; flex-direction:row !important;
+    width:100%; height:58px; overflow-x:auto; overflow-y:hidden;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch;
+    padding:0 !important;
   }
-  .app-sidebar nav::-webkit-scrollbar { display: none; }
+  .sidebar-nav::-webkit-scrollbar { display:none; }
 
-  /* Each tab */
-  .app-sidebar nav a {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    min-width: 64px !important;
-    height: 58px !important;
-    padding: 4px 8px !important;
-    gap: 3px !important;
-    border-left: none !important;
-    border-top: 2px solid transparent !important;
-    font-size: 9px !important;
-    color: #9ca3af;
-    flex-shrink: 0;
-    text-decoration: none;
+  .nav-link {
+    flex-direction:column !important;
+    align-items:center !important; justify-content:center !important;
+    min-width:64px !important; height:58px !important;
+    padding:4px 8px !important; gap:3px !important;
+    border-left:none !important; border-top:2px solid transparent !important;
+    font-size:9px !important; flex-shrink:0; text-align:center;
   }
-  .app-sidebar nav a.text-primary,
-  .app-sidebar nav a[aria-current="page"] {
-    color: #1D9E75 !important;
-    border-top: 2px solid #1D9E75 !important;
-    background: #f0faf6 !important;
-    border-left: none !important;
+  .nav-link.active {
+    border-left:none !important; border-top:2px solid #5DCAA5 !important;
+    background:rgba(255,255,255,0.15) !important;
   }
-  .app-sidebar nav a svg { width:20px !important; height:20px !important; }
-  .app-sidebar nav a .flex-1 { flex: none !important; }
-  .app-sidebar nav a span[class*="text-[9px]"] { display: none !important; }
+  .nav-link svg { width:20px !important; height:20px !important; }
 
-  /* Main content */
   .app-main {
-    order: 1;
-    flex: 1;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    padding-bottom: 68px !important;
-    min-width: 0;
-    width: 100%;
+    order:1; flex:1; overflow-y:auto !important; overflow-x:hidden !important;
+    padding-bottom:68px !important; min-width:0; width:100%;
   }
-
-  /* Fix overflow — stack everything */
-  .app-main > * { max-width: 100%; overflow-x: hidden; }
-
-  /* Stack all grids to single column */
-  .grid.grid-cols-2,
-  .grid.grid-cols-3,
-  .grid.grid-cols-4 {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Stack flex rows */
-  .flex.gap-3 > *,
-  .flex.gap-2 > * {
-    min-width: 0;
-  }
-
-  /* Customer page — hide right panel on mobile, show as full page */
-  .customer-split { flex-direction: column !important; }
-  .customer-list  { width: 100% !important; }
-  .customer-detail { width: 100% !important; }
-
-  /* Tables scroll horizontally */
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-  /* Inputs — prevent zoom on iOS */
-  input, select, textarea { font-size: 16px !important; }
-
-  /* Bigger buttons for touch */
-  .btn { min-height: 38px; font-size: 12px !important; }
-
-  /* Prevent horizontal scroll */
-  .p-4 { padding: 12px !important; }
+  .grid.grid-cols-2 { grid-template-columns:1fr !important; }
+  .grid.grid-cols-3 { grid-template-columns:1fr 1fr !important; }
+  .grid.grid-cols-4 { grid-template-columns:1fr 1fr !important; }
+  input,select,textarea { font-size:16px !important; }
+  .p-4 { padding:12px !important; }
 }
 
-/* iPhone safe area */
-@supports (padding: env(safe-area-inset-bottom)) {
-  @media (max-width: 768px) {
-    .app-sidebar {
-      height: calc(58px + env(safe-area-inset-bottom)) !important;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    .app-main {
-      padding-bottom: calc(68px + env(safe-area-inset-bottom)) !important;
-    }
+@supports (padding:env(safe-area-inset-bottom)) {
+  @media (max-width:768px) {
+    .app-sidebar { height:calc(58px + env(safe-area-inset-bottom)) !important; padding-bottom:env(safe-area-inset-bottom); }
+    .app-main   { padding-bottom:calc(68px + env(safe-area-inset-bottom)) !important; }
   }
 }
