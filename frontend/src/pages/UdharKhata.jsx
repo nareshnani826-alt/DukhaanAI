@@ -128,6 +128,104 @@ ${c.total_due > 0 ? "Kripya jaldi payment karein 🙏" : "✅ Account clear hai!
     WA(c.phone, msg)
   }
 
+  // Generate a proof receipt for a single transaction
+  function sendProof(c, txn) {
+    if (!c.phone) return showNotif("No phone number saved for this customer")
+    const txnId   = txn.id.slice(-6).toUpperCase()
+    const typeStr = txn.type === "credit" ? "Udhar (Credit)" : "Payment Received"
+    const msg =
+`🧾 *${typeStr} Receipt*
+━━━━━━━━━━━━━━━━━━━━
+Receipt No: *#UD-${txnId}*
+Date: ${fmtTime(txn.created_at)}
+━━━━━━━━━━━━━━━━━━━━
+Store: *${vendor?.store_name || "DukaanAI"}*
+Customer: *${c.name}*
+${c.phone ? `Phone: ${c.phone}` : ""}
+${c.address ? `Address: ${c.address}` : ""}
+━━━━━━━━━━━━━━━━━━━━
+Amount: *${INR(txn.amount)}*
+Type: ${typeStr}
+${txn.note ? `Note: ${txn.note}` : ""}
+━━━━━━━━━━━━━━━━━━━━
+Balance after: *${INR(c.total_due)}*
+
+✅ This message is your proof of ${txn.type === "credit" ? "purchase on credit" : "payment"}.
+Please save this message for your records.
+
+_Powered by DukaanAI_`
+    WA(c.phone, msg)
+    showNotif("Proof sent on WhatsApp!")
+  }
+
+  // Print a proof receipt
+  function printProof(c, txn) {
+    const txnId = txn.id.slice(-6).toUpperCase()
+    const win   = window.open("", "_blank")
+    win.document.write(`
+      <!DOCTYPE html><html><head>
+        <title>Receipt #UD-${txnId}</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 320px; margin: 20px auto; font-size: 13px; }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .divider { border-top: 1px dashed #ccc; margin: 8px 0; }
+          .row { display: flex; justify-content: space-between; margin: 4px 0; }
+          .big { font-size: 20px; font-weight: bold; color: ${txn.type==="credit"?"#EF9F27":"#1D9E75"}; }
+          .proof-box { border: 2px solid #333; padding: 12px; margin-top: 12px; font-size: 11px; }
+          .signature { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size: 10px; }
+          @media print { button { display:none; } }
+        </style>
+      </head><body>
+        <div class="center">
+          <div class="bold" style="font-size:16px">${vendor?.store_name || "DukaanAI"}</div>
+          <div style="font-size:11px;color:#666">${vendor?.gstin ? "GSTIN: "+vendor.gstin : ""}</div>
+        </div>
+        <div class="divider"></div>
+        <div class="center bold">UDHAR ${txn.type==="credit"?"CREDIT":"PAYMENT"} RECEIPT</div>
+        <div class="center" style="color:#666;font-size:11px">Receipt #UD-${txnId}</div>
+        <div class="divider"></div>
+        <div class="row"><span>Date:</span><span>${fmtTime(txn.created_at)}</span></div>
+        <div class="row"><span>Customer:</span><span class="bold">${c.name}</span></div>
+        ${c.phone ? `<div class="row"><span>Phone:</span><span>${c.phone}</span></div>` : ""}
+        ${c.address ? `<div class="row"><span>Address:</span><span>${c.address}</span></div>` : ""}
+        <div class="divider"></div>
+        <div class="row"><span>${txn.type==="credit"?"Amount taken on credit:":"Payment received:"}</span></div>
+        <div class="center big">${INR(txn.amount)}</div>
+        ${txn.note ? `<div class="center" style="color:#666;font-size:11px">${txn.note}</div>` : ""}
+        <div class="divider"></div>
+        <div class="row"><span>Total balance due:</span><span class="bold">${INR(c.total_due)}</span></div>
+        <div class="proof-box">
+          <div class="bold">⚠ Proof of Transaction</div>
+          <div style="margin-top:4px">This receipt confirms that on ${fmtTime(txn.created_at)},
+          ${txn.type==="credit"
+            ? `<b>${c.name}</b> has taken goods worth <b>${INR(txn.amount)}</b> on credit from <b>${vendor?.store_name||"this store"}</b>.`
+            : `<b>${c.name}</b> has paid <b>${INR(txn.amount)}</b> to <b>${vendor?.store_name||"this store"}</b>.`
+          }
+          Total remaining balance: <b>${INR(c.total_due)}</b></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
+          <div>
+            <div class="signature">Customer signature</div>
+            <div style="font-size:10px;color:#666">${c.name}</div>
+          </div>
+          <div>
+            <div class="signature">Store signature</div>
+            <div style="font-size:10px;color:#666">${vendor?.store_name||"Store"}</div>
+          </div>
+        </div>
+        <div class="center" style="margin-top:16px">
+          <button onclick="window.print()" style="background:#1D9E75;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px">
+            Print Receipt
+          </button>
+        </div>
+        <div class="center" style="margin-top:8px;font-size:10px;color:#aaa">Powered by DukaanAI</div>
+      </body></html>
+    `)
+    win.document.close()
+    setTimeout(() => win.print(), 500)
+  }
+
   // Color coding by amount
   const dueColor = due => due > 5000 ? "#E24B4A" : due > 1000 ? "#EF9F27" : "#1D9E75"
 
@@ -436,6 +534,19 @@ ${c.total_due > 0 ? "Kripya jaldi payment karein 🙏" : "✅ Account clear hai!
                         color: t.type==="credit" ? "#EF9F27" : "#1D9E75"
                       }}>
                         {t.type === "credit" ? "+" : "-"}{INR(t.amount)}
+                      </div>
+                      <div className="flex gap-1 mt-1 justify-end">
+                        {selected.phone && (
+                          <button onClick={()=>sendProof(selected, t)}
+                            className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+                            style={{ background:"#25D366", color:"#fff", border:"none", cursor:"pointer" }}>
+                            WA Proof
+                          </button>
+                        )}
+                        <button onClick={()=>printProof(selected, t)}
+                          className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-gray-200 bg-white text-gray-500 cursor-pointer">
+                          Print
+                        </button>
                       </div>
                     </div>
                   </div>
