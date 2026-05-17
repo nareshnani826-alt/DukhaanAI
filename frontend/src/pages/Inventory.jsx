@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Products } from "../sync/db.js"
 import BarcodeGenerator from "../components/BarcodeGenerator.jsx"
+import { usePlan } from "../context/PlanContext.jsx"
 import { useVoiceField, MicButton } from "../voice/useVoiceField.jsx"
 import { detectUnit, parseSpokenQty, UNIT_TYPES } from "../voice/unitDetector.js"
 import { LANGUAGES } from "../voice/languages.js"
@@ -304,6 +305,7 @@ export default function Inventory() {
   const [notif,    setNotif]    = useState("")
   const [barcodeProduct, setBarcodeProduct] = useState(null)
   const [voiceLang, setVoiceLang] = useState("hi-IN")
+  const { hasFeature } = usePlan()
 
   async function load() {
     setLoading(true)

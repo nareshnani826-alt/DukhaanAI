@@ -40,7 +40,26 @@ export default function Settings() {
 
   function isEnabled(key) {
     if (!hasFeature(key)) return false
-    return toggles[key] !== false // default ON if plan allows
+    // If explicitly set to false → off. Otherwise ON by default
+    return toggles[key] !== false
+  }
+
+  function isPlanAllowed(key) {
+    // Check plan without toggle state
+    const { vendor } = { vendor: null }
+    const plan = localStorage.getItem("dk_vendor")
+      ? JSON.parse(localStorage.getItem("dk_vendor"))?.plan || "free"
+      : "free"
+    const FEATURES = {
+      free: ["basic_inventory","gst_billing","whatsapp_share","dashboard"],
+      pro:  ["basic_inventory","gst_billing","whatsapp_share","dashboard","cloud_sync",
+             "voice_agent","barcode_scanner","customer_history","day_ops","insights",
+             "low_stock_alerts","unlimited_invoices"],
+      wholesale: ["basic_inventory","gst_billing","whatsapp_share","dashboard","cloud_sync",
+                  "voice_agent","barcode_scanner","customer_history","day_ops","insights",
+                  "low_stock_alerts","unlimited_invoices","multi_staff","ai_vision","audit_log","bulk_export"],
+    }
+    return (FEATURES[plan] || FEATURES.free).includes(key)
   }
 
   const planI = PLAN_INFO[plan] || PLAN_INFO.free
@@ -112,8 +131,8 @@ export default function Settings() {
         </div>
         <div className="space-y-1">
           {TOGGLE_FEATURES.map(f => {
-            const allowed  = hasFeature(f.key)
-            const enabled  = isEnabled(f.key)
+            const allowed  = isPlanAllowed(f.key)
+            const enabled  = toggles[f.key] !== false
             const reqPlan  = PLAN_INFO[f.plan]
 
             return (
@@ -142,13 +161,21 @@ export default function Settings() {
                     <span className="absolute top-0.5 transition-all rounded-full bg-white w-5 h-5"
                       style={{ left: enabled ? "18px" : "2px" }} />
                   </button>
-                ) : (
-                  // Locked — show upgrade prompt
+                ) : allowed ? (
+                  // Plan allows it but toggled off — show Enable button
                   <button
-                    onClick={() => navigate("/settings")}
+                    onClick={() => setToggle(f.key, true)}
+                    className="flex-shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg border font-medium"
+                    style={{ borderColor:"#1D9E75", color:"#1D9E75" }}>
+                    Enable
+                  </button>
+                ) : (
+                  // Plan doesn't allow — show Upgrade button
+                  <button
+                    onClick={() => {}}
                     className="flex-shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg border font-medium"
                     style={{ borderColor: reqPlan.color, color: reqPlan.color }}>
-                    Unlock
+                    Upgrade
                   </button>
                 )}
               </div>
