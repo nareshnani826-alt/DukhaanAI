@@ -13,14 +13,14 @@ REASONS = ["expired", "damaged", "stolen", "other"]
 class WastageCreate(BaseModel):
     product_id:  str
     qty:         float
-    reason:      str  # expired | damaged | stolen | other
+    reason:      str
     note:        Optional[str] = None
 
 @router.get("/")
 async def list_wastage(vendor=Depends(get_current_vendor)):
     db = get_db()
     return db.table("wastage_records")\
-        .select("*, products(name, unit, cost_price)")\
+        .select("*")\
         .eq("vendor_id", vendor["id"])\
         .order("created_at", desc=True)\
         .limit(100).execute().data
@@ -40,25 +40,29 @@ async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)
         raise HTTPException(404, "Product not found")
     product = prod.data[0]
 
+    # Convert qty — use int if whole number to avoid type errors
+    qty = int(body.qty) if body.qty == int(body.qty) else float(body.qty)
+
     # Deduct stock
-    new_stock = max(0, (product["stock"] or 0) - body.qty)
+    current_stock = float(product["stock"] or 0)
+    new_stock     = round(max(0, current_stock - qty), 2)
     db.table("products").update({ "stock": new_stock })\
         .eq("id", body.product_id).execute()
 
     # Calculate loss value
-    loss_value = round(body.qty * (product["cost_price"] or 0), 2)
+    loss_value = round(qty * float(product["cost_price"] or 0), 2)
 
     # Record wastage
     record = db.table("wastage_records").insert({
         "vendor_id":   vendor["id"],
         "product_id":  body.product_id,
         "product_name":product["name"],
-        "qty":         body.qty,
+        "qty":         qty,
         "unit":        product["unit"] or "piece",
         "reason":      body.reason,
         "note":        body.note,
         "loss_value":  loss_value,
-        "stock_before":product["stock"] or 0,
+        "stock_before":current_stock,
         "stock_after": new_stock,
     }).execute().data[0]
 
@@ -67,18 +71,26 @@ async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)
 @router.get("/summary")
 async def wastage_summary(vendor=Depends(get_current_vendor)):
     db = get_db()
-    records = db.table("wastage_records").select("*")\
+    records     = db.table("wastage_records").select("*")\
         .eq("vendor_id", vendor["id"]).execute().data
-    total_loss   = sum(r["loss_value"] or 0 for r in records)
-    by_reason    = {}
+    total_loss  = sum(float(r["loss_value"] or 0) for r in records)
+    by_reason   = {}
     for r in records:
-        by_reason[r["reason"]] = by_reason.get(r["reason"], 0) + (r["loss_value"] or 0)
+        by_reason[r["reason"]] = by_reason.get(r["reason"], 0) + float(r["loss_value"] or 0)
+    this_month  = sum(
+        float(r["loss_value"] or 0) for r in records
+        if r.get("created_at") and
+        datetime.fromisoformat(r["created_at"].replace("Z","+00:00")).month
+        == datetime.now(timezone.utc).month
+    )
     return {
-        "total_loss":   round(total_loss, 2),
-        "total_items":  len(records),
-        "by_reason":    by_reason,
-        "this_month":   round(sum(r["loss_value"] or 0 for r in records
-                           if r["created_at"] and
-                           datetime.fromisoformat(r["created_at"].replace("Z","+00:00")).month
-                           == datetime.now(timezone.utc).month), 2)
+        "total_loss":  round(total_loss, 2),
+        "total_items": len(records),
+        "by_reason":   {k: round(v,2) for k,v in by_reason.items()},
+        "this_month":  round(this_month, 2),
     }
+
+class CustomerUpdate(BaseModel):
+    name:    Optional[str] = None
+    phone:   Optional[str] = None
+    address: Optional[str] = None
