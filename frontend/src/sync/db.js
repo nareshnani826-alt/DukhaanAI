@@ -282,6 +282,16 @@ export const Udhar = {
     d.udhar_customers.push(c); localWrite(d); return c
   },
 
+  async updateCustomer(id, { name, phone, address }) {
+    if (isCloud()) return api.patch("/udhar/customers/" + id, { name, phone, address })
+    const d = localRead()
+    const idx = (d.udhar_customers||[]).findIndex(c => c.id === id)
+    if (idx < 0) throw new Error("Customer not found")
+    d.udhar_customers[idx] = { ...d.udhar_customers[idx], name, phone: phone||null, address: address||null }
+    localWrite(d)
+    return d.udhar_customers[idx]
+  },
+
   async deleteCustomer(id) {
     if (isCloud()) return api.del("/udhar/customers/" + id)
     const d = localRead()
