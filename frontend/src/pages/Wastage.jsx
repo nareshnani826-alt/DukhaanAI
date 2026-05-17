@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Wastage, Products } from "../sync/db.js"
+import { Wastage as WastageDB, Products } from "../sync/db.js"
 
 const INR    = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 const fmtDt  = iso => new Date(iso).toLocaleString("en-IN",{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })
@@ -31,7 +31,7 @@ export default function Wastage() {
   async function load() {
     setLoading(true)
     try {
-      const [p, r, s] = await Promise.all([Products.list(), Wastage.list(), Wastage.summary()])
+      const [p, r, s] = await Promise.all([Products.list(), WastageDB.list(), WastageDB.summary()])
       setProducts(p); setRecords(r); setSummary(s)
     } finally { setLoading(false) }
   }
@@ -44,7 +44,7 @@ export default function Wastage() {
     if (!form.qty || +form.qty <= 0) return showNotif("Enter valid quantity")
     setSaving(true)
     try {
-      await Wastage.record({
+      await WastageDB.record({
         productId: form.productId,
         qty:       +form.qty,
         reason:    form.reason,
