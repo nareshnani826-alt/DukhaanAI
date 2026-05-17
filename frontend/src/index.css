@@ -138,3 +138,34 @@
     .app-main   { padding-bottom:calc(68px + env(safe-area-inset-bottom)) !important; }
   }
 }
+
+/* ── Mobile header ───────────────────────────────────────── */
+.mobile-header {
+  display: none;  /* hidden on desktop */
+}
+
+@media (max-width: 768px) {
+  .mobile-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    flex-shrink: 0;
+  }
+
+  /* Sticky page header — keeps title + action button visible while scrolling */
+  .page-sticky-header {
+    position: sticky !important;
+    top: 54px !important;  /* below mobile header */
+    z-index: 30;
+    background: #f8f9fa;
+    padding: 10px 12px !important;
+    margin: 0 -12px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+}

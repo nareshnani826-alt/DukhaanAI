@@ -391,11 +391,10 @@ export default function Inventory() {
         />
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      {/* Header — sticky so Add Product button stays visible while scrolling */}
+      <div className="page-sticky-header flex items-center justify-between mb-4">
         <h1 className="text-sm font-semibold">Inventory</h1>
         <div className="flex items-center gap-2">
-          {/* Voice language selector */}
           <select value={voiceLang} onChange={e => setVoiceLang(e.target.value)}
             className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600">
             {LANGUAGES.map(l => (

@@ -154,8 +154,8 @@ export default function Layout({ children }) {
       </aside>
 
       <main className="app-main">
-        {/* Mobile top bar */}
-        <div style={{ display:"none" }} className="mobile-header">
+        {/* Mobile top bar — visible only on mobile via CSS */}
+        <div className="mobile-header">
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <svg width="18" height="18" fill="none" stroke="#1D9E75" strokeWidth="2" viewBox="0 0 24 24">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
@@ -164,11 +164,15 @@ export default function Layout({ children }) {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:10, color:cloud?"#1D9E75":"#aaa" }}>
-              {cloud?"● Cloud":"● Local"}
+              {cloud ? "● Cloud" : "● Local"}
             </span>
             {!loggedIn
               ? <button onClick={()=>setShowAuth(true)} className="btn btn-primary btn-sm">Login</button>
-              : <button onClick={logout} style={{ fontSize:10, color:"#aaa", background:"none", border:"none", cursor:"pointer" }}>Logout</button>
+              : <button onClick={logout}
+                  style={{ fontSize:10, color:"#888", background:"none", border:"1px solid #eee",
+                    borderRadius:6, padding:"3px 8px", cursor:"pointer" }}>
+                  Logout
+                </button>
             }
           </div>
         </div>
