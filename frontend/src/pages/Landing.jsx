@@ -1,27 +1,9 @@
-import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+
+const LANDING_CSS = `@import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`
 
 export default function Landing() {
   const navigate = useNavigate()
-
-  useEffect(() => {
-    // Inject landing page styles into head
-    const style = document.createElement("style")
-    style.id = "landing-styles"
-    style.textContent = LANDING_CSS
-    document.head.appendChild(style)
-
-    // Remove app's default body background
-    document.body.style.background = "#140b06"
-    document.body.style.overflow = "auto"
-
-    return () => {
-      // Cleanup on unmount
-      document.getElementById("landing-styles")?.remove()
-      document.body.style.background = ""
-      document.body.style.overflow = ""
-    }
-  }, [])
 
   function goToApp() { navigate("/dashboard") }
 
@@ -370,6 +352,3 @@ export default function Landing() {
   )
 }
 
-const LANDING_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-`
