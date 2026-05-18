@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import VoiceAgent from "../voice/VoiceAgent.jsx"
-import { Invoices } from "../sync/db.js"
+import { Invoices, Products } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
@@ -302,7 +302,20 @@ Thank you! 🙏`
                     <div style={{ fontSize:11, fontWeight:600, color:"#222", flex:1, paddingRight:8 }}>
                       {item.name}
                     </div>
-                    <button onClick={() => setBillItems(b => b.filter((_,bi) => bi !== i))}
+                    <button onClick={async () => {
+                        // Restore stock when item removed from bill
+                        if (item.id && !item.id.startsWith("voice-")) {
+                          try {
+                            const prods = await Products.list()
+                            const prod  = prods.find(p => p.id === item.id)
+                            if (prod) {
+                              await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
+                            }
+                          } catch(e) { console.error("Stock restore failed:", e) }
+                        }
+                        setBillItems(b => b.filter((_,bi) => bi !== i))
+                        showNotif(`${item.name} removed — stock restored`)
+                      }}
                       style={{ background:"none", border:"none", color:"#ccc",
                         cursor:"pointer", fontSize:16, lineHeight:1 }}>
                       ×
@@ -348,7 +361,23 @@ Thank you! 🙏`
               }}>
                 {generating ? "Generating..." : "🧾 Generate Invoice"}
               </button>
-              <button onClick={() => { setBillItems([]); localStorage.removeItem("dk_voice_bill"); }} style={{
+              <button onClick={async () => {
+                  // Restore stock for ALL items when bill is cleared
+                  try {
+                    const prods = await Products.list()
+                    for (const item of billItems) {
+                      if (item.id && !item.id.startsWith("voice-")) {
+                        const prod = prods.find(p => p.id === item.id)
+                        if (prod) {
+                          await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
+                        }
+                      }
+                    }
+                  } catch(e) { console.error("Stock restore failed:", e) }
+                  setBillItems([])
+                  localStorage.removeItem("dk_voice_bill")
+                  showNotif("Bill cleared — stock restored")
+                }} style={{
                 width:"100%", padding:"8px",
                 background:"#f5f5f5", color:"#888",
                 border:"none", borderRadius:10,
