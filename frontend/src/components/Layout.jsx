@@ -248,6 +248,43 @@ export default function Layout({ children }) {
         {children}
       </main>
 
+      {/* ── Mobile bottom nav ──────────────────────────────── */}
+      <nav style={{
+        display:"none", position:"fixed", bottom:0, left:0, right:0,
+        height:60, background:"#fff", borderTop:"1px solid #f0f0f0",
+        zIndex:100, boxShadow:"0 -4px 20px rgba(0,0,0,0.08)",
+      }} className="mobile-bottom-nav">
+        {NAV.map(nav => {
+          const active = isActive(nav)
+          return (
+            <div key={nav.label}
+              onClick={() => navigate(nav.to)}
+              style={{
+                flex:1, display:"flex", flexDirection:"column",
+                alignItems:"center", justifyContent:"center",
+                gap:3, cursor:"pointer", padding:"6px 4px",
+                borderTop: active ? "2px solid #1D9E75" : "2px solid transparent",
+                background: active ? "#f0faf6" : "transparent",
+              }}>
+              <span style={{
+                width:22, height:22, display:"flex",
+                alignItems:"center", justifyContent:"center",
+                color: active ? "#0F6E56" : "#94a3b8",
+              }}>
+                {nav.icon}
+              </span>
+              <span style={{
+                fontSize:9, fontWeight: active ? 700 : 500,
+                color: active ? "#0F6E56" : "#94a3b8",
+                letterSpacing:"-0.2px",
+              }}>
+                {nav.label}
+              </span>
+            </div>
+          )
+        })}
+      </nav>
+
       {/* ── Floating mic ─────────────────────────────────── */}
       <button onClick={() => navigate("/voice")} title="Voice Entry"
         style={{
