@@ -157,23 +157,34 @@ export default function Layout({ children }) {
       </aside>
 
       <main className="app-main">
-        {/* Mobile top bar — visible only on mobile via CSS */}
-        <div className="mobile-header">
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <svg width="18" height="18" fill="none" stroke="#1D9E75" strokeWidth="2" viewBox="0 0 24 24">
+        {/* Mobile top bar */}
+        <div className="mobile-header" style={{ 
+          display:"none",
+          alignItems:"center", justifyContent:"space-between",
+          padding:"8px 14px",
+          background:"#fff", borderBottom:"1px solid #f0f0f0",
+          position:"sticky", top:0, zIndex:40,
+          boxShadow:"0 1px 3px rgba(0,0,0,0.06)",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <svg width="16" height="16" fill="none" stroke="#1D9E75" strokeWidth="2" viewBox="0 0 24 24">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
             </svg>
-            <span style={{ fontWeight:600, color:"#1D9E75", fontSize:14 }}>DukaanAI</span>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:10, color:cloud?"#1D9E75":"#aaa" }}>
+            <span style={{ fontWeight:700, color:"#1D9E75", fontSize:13 }}>DukaanAI</span>
+            <span style={{ fontSize:9, color:cloud?"#1D9E75":"#aaa", marginLeft:4 }}>
               {cloud ? "● Cloud" : "● Local"}
             </span>
+          </div>
+          <div>
             {!loggedIn
-              ? <button onClick={()=>setShowAuth(true)} className="btn btn-primary btn-sm">Login</button>
+              ? <button onClick={()=>setShowAuth(true)}
+                  style={{ background:"#1D9E75", color:"#fff", border:"none",
+                    borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+                  Login
+                </button>
               : <button onClick={logout}
-                  style={{ fontSize:10, color:"#888", background:"none", border:"1px solid #eee",
-                    borderRadius:6, padding:"3px 8px", cursor:"pointer" }}>
+                  style={{ background:"#f5f5f5", color:"#666", border:"none",
+                    borderRadius:8, padding:"5px 10px", fontSize:10, cursor:"pointer" }}>
                   Logout
                 </button>
             }
