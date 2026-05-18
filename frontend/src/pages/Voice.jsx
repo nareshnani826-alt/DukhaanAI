@@ -4,8 +4,19 @@ import { Invoices } from "../sync/db.js"
 
 export default function Voice() {
   const [billItems, setBillItems] = useState([])
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-  const isIOS    = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const isSafari    = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  const isIOS       = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const isCapacitor = !!(window.Capacitor?.isNativePlatform?.())
+
+  function openInChrome() {
+    const url = "https://dukhaan-ai.vercel.app/voice"
+    // Try to open in Chrome on Android
+    try {
+      window.open(`intent://${url.replace("https://","")}#Intent;scheme=https;package=com.android.chrome;end`, "_blank")
+    } catch {
+      window.open(url, "_blank")
+    }
+  }
   const [notif,     setNotif]     = useState("")
 
   function showNotif(msg) {
@@ -74,6 +85,23 @@ export default function Voice() {
       {notif && (
         <div className="fixed top-4 right-4 bg-primary text-white px-4 py-2 rounded-lg text-xs z-50 max-w-xs shadow-lg">
           {notif}
+        </div>
+      )}
+
+      {isCapacitor && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-xs text-blue-800">
+          <div className="font-semibold mb-1">📱 Using DukaanAI App?</div>
+          <div className="text-blue-600 mb-2">
+            Voice works best in Chrome browser. Tap below to open voice in Chrome — it takes 2 seconds!
+          </div>
+          <button onClick={openInChrome}
+            className="w-full py-2 rounded-lg text-xs font-semibold text-white"
+            style={{ background:"#1D9E75" }}>
+            🎤 Open Voice in Chrome
+          </button>
+          <div className="text-[10px] text-blue-400 mt-1.5 text-center">
+            Or continue below — voice may work on some Android devices
+          </div>
         </div>
       )}
 
