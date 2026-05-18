@@ -45,7 +45,12 @@ export default function BulkImport() {
   const [step,       setStep]       = useState(1) // 1=select, 2=preview, 3=done
   const [communityProducts, setCommunityProducts] = useState([])
   const [communityLoading, setCommunityLoading] = useState(false)
+  const [quantities, setQuantities] = useState({}) // productName → qty
   const fileRef = useRef()
+
+  function setQty(name, qty) {
+    setQuantities(q => ({ ...q, [name]: Math.max(0, parseInt(qty)||0) }))
+  }
 
   function showNotif(m) { setNotif(m); setTimeout(() => setNotif(""), 3000) }
 
@@ -150,7 +155,7 @@ export default function BulkImport() {
           updated++
         } else {
           // New product — add it
-          await Products.add({
+          await Products.create({
             name:        item.name,
             category:    item.category || "Other",
             unit:        item.unit     || "pc",
@@ -397,7 +402,7 @@ export default function BulkImport() {
                       {p.category} · {p.unit}
                       {p.gst > 0 && ` · GST ${p.gst}%`}
                     </div>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                       <div>
                         <div style={{ fontSize:13, fontWeight:700, color:"#0F6E56" }}>
                           {INR(p.mrp)}
@@ -412,6 +417,22 @@ export default function BulkImport() {
                         {Math.round((p.mrp-p.cost)/p.mrp*100)}% margin
                       </div>
                     </div>
+                    {sel && (
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}
+                        onClick={e => e.stopPropagation()}>
+                        <span style={{ fontSize:10, color:"#555", whiteSpace:"nowrap" }}>Qty in stock:</span>
+                        <input
+                          type="number" min="0"
+                          value={quantities[p.name] ?? ""}
+                          onChange={e => setQty(p.name, e.target.value)}
+                          placeholder="0"
+                          style={{ width:"100%", border:"1.5px solid #1D9E75", borderRadius:7,
+                            padding:"4px 8px", fontSize:12, outline:"none", fontWeight:600,
+                            color:"#0F6E56", textAlign:"center" }}
+                        />
+                        <span style={{ fontSize:10, color:"#94a3b8", whiteSpace:"nowrap" }}>{p.unit}</span>
+                      </div>
+                    )}
                   </div>
                 )
               })}
