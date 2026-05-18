@@ -1,73 +1,67 @@
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import VoiceAgent from "../voice/VoiceAgent.jsx"
 import { Invoices } from "../sync/db.js"
+import { useAuth } from "../context/AuthContext.jsx"
+
+const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 
 export default function Voice() {
+  const { vendor } = useAuth()
   const [billItems, setBillItems] = useState(() => {
-    try {
-      const saved = localStorage.getItem("dk_voice_bill")
-      return saved ? JSON.parse(saved) : []
-    } catch { return [] }
+    try { return JSON.parse(localStorage.getItem("dk_voice_bill") || "[]") }
+    catch { return [] }
   })
+  const [notif,    setNotif]    = useState("")
+  const [invoice,  setInvoice]  = useState(null)
+  const [customer, setCustomer] = useState("")
+  const [payment,  setPayment]  = useState("Cash")
+  const [generating, setGenerating] = useState(false)
 
-  // Save bill items to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem("dk_voice_bill", JSON.stringify(billItems))
-  }, [billItems])
   const isSafari    = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
   const isIOS       = /iphone|ipad|ipod/i.test(navigator.userAgent)
   const isCapacitor = !!(window.Capacitor?.isNativePlatform?.())
 
+  useEffect(() => {
+    localStorage.setItem("dk_voice_bill", JSON.stringify(billItems))
+  }, [billItems])
+
+  function showNotif(msg) { setNotif(msg); setTimeout(() => setNotif(""), 3000) }
+
   function openInChrome() {
     const url = "https://dukhaan-ai.vercel.app/voice"
-    // Try to open in Chrome on Android
     try {
       window.open(`intent://${url.replace("https://","")}#Intent;scheme=https;package=com.android.chrome;end`, "_blank")
-    } catch {
-      window.open(url, "_blank")
-    }
-  }
-  const [notif,     setNotif]     = useState("")
-
-  function showNotif(msg) {
-    setNotif(msg)
-    setTimeout(() => setNotif(""), 3000)
+    } catch { window.open(url, "_blank") }
   }
 
-  // ── Called by VoiceAgent when user confirms an ADD_BILL ──
   function handleAddToBill({ product, productName, qty, unit, price }) {
     try {
-      // Use product data if matched, otherwise use spoken name
-      const name     = product?.name  || productName || "Unknown item"
-      const mrp      = product?.mrp   || price || 0
-      const gst      = product?.gst_percent || 0
-      const id       = product?.id    || ("voice-" + Date.now())
-      const lineTotal = Math.round(mrp * qty * (1 + gst / 100) * 100) / 100
-
+      const name      = product?.name || productName || "Unknown item"
+      const mrp       = product?.mrp  || price || 0
+      const gst       = product?.gst_percent || 0
+      const id        = product?.id   || ("voice-" + Date.now())
+      const lineTotal = Math.round(mrp * qty * 100) / 100
+      setInvoice(null) // clear previous invoice
       setBillItems(items => {
-        // If same product already in bill, increase qty
         const existing = items.findIndex(i => i.id === id)
         if (existing >= 0) {
           const updated = [...items]
           updated[existing] = {
             ...updated[existing],
             qty: updated[existing].qty + qty,
-            lineTotal: Math.round(updated[existing].lineTotal + lineTotal),
+            lineTotal: Math.round((updated[existing].lineTotal + lineTotal) * 100) / 100,
           }
           return updated
         }
         return [...items, { id, name, mrp, gst, qty, unit, lineTotal }]
       })
-
-      showNotif(`✓ ${name} × ${qty} added to voice bill`)
-    } catch (e) {
-      showNotif("Error adding to bill: " + e.message)
-      console.error("handleAddToBill error:", e)
-    }
+      showNotif(`✓ ${name} × ${qty} added`)
+    } catch(e) { showNotif("Error: " + e.message) }
   }
 
   async function generateVoiceBill() {
-    if (!billItems.length) return showNotif("No items in voice bill yet")
+    if (!billItems.length) return showNotif("No items in bill yet")
+    setGenerating(true)
     try {
       const items = billItems.map(i => ({
         name:        i.name,
@@ -76,131 +70,294 @@ export default function Voice() {
         gst_percent: i.gst,
       }))
       const inv = await Invoices.generate({
-        customer_name: "Voice Customer",
-        payment_mode:  "Cash",
+        customer_name: customer || "Walk-in Customer",
+        payment_mode:  payment,
         items,
       })
-      showNotif(`✓ Invoice ${inv.invoice_no} generated! Total: ₹${inv.total}`)
-      setBillItems([]); localStorage.removeItem("dk_voice_bill")
-    } catch(e) {
-      showNotif("Error: " + e.message)
-      console.error("generateVoiceBill error:", e)
-    }
+      setInvoice(inv)
+      setBillItems([])
+      localStorage.removeItem("dk_voice_bill")
+      showNotif(`✓ Invoice ${inv.invoice_no} generated!`)
+    } catch(e) { showNotif("Error: " + e.message) }
+    finally { setGenerating(false) }
   }
 
-  const grandTotal = billItems.reduce((sum, i) => sum + i.lineTotal, 0)
+  function sendWhatsApp() {
+    if (!invoice) return
+    const lines = (invoice.items||[]).map(i =>
+      `• ${i.name} × ${i.qty} = ${INR(i.total)}`
+    ).join("\n")
+    const msg =
+`🧾 *Invoice from ${vendor?.store_name || "DukaanAI"}*
+Invoice No: ${invoice.invoice_no}
+Customer: ${invoice.customer_name}
+Date: ${new Date().toLocaleDateString("en-IN")}
+
+${lines}
+
+Subtotal: ${INR(invoice.subtotal)}
+GST: ${INR(invoice.gst_amount)}
+*Total: ${INR(invoice.total)}*
+
+Payment: ${invoice.payment_mode}
+Thank you! 🙏`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank")
+  }
+
+  const grandTotal    = billItems.reduce((s,i) => s + i.lineTotal, 0)
+  const totalGST      = billItems.reduce((s,i) => s + (i.lineTotal * i.gst / (100 + i.gst)), 0)
+  const totalSubtotal = grandTotal - totalGST
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col p-4">
+    <div className="flex-1 overflow-hidden flex flex-col" style={{ background:"#f8f9fa" }}>
       {notif && (
-        <div className="fixed top-4 right-4 bg-primary text-white px-4 py-2 rounded-lg text-xs z-50 max-w-xs shadow-lg">
+        <div style={{
+          position:"fixed", top:16, right:16, zIndex:100,
+          background:"#1D9E75", color:"#fff",
+          padding:"10px 16px", borderRadius:12, fontSize:12,
+          boxShadow:"0 4px 20px rgba(0,0,0,0.15)", fontWeight:500,
+        }}>
           {notif}
         </div>
       )}
 
-      {isCapacitor && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-xs text-blue-800">
-          <div className="font-semibold mb-1">📱 Using DukaanAI App?</div>
-          <div className="text-blue-600 mb-2">
-            Voice works best in Chrome browser. Tap below to open voice in Chrome — it takes 2 seconds!
+      {/* Header */}
+      <div style={{
+        background:"linear-gradient(135deg, #0F6E56 0%, #1D9E75 100%)",
+        padding:"16px 20px", color:"#fff", flexShrink:0,
+      }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <div style={{ fontSize:16, fontWeight:700 }}>🎤 Voice Agent</div>
+            <div style={{ fontSize:11, opacity:0.8, marginTop:2 }}>
+              Telugu · Hindi · Tamil · Kannada · 6 more languages
+            </div>
           </div>
-          <button onClick={openInChrome}
-            className="w-full py-2 rounded-lg text-xs font-semibold text-white"
-            style={{ background:"#1D9E75" }}>
-            🎤 Open Voice in Chrome
-          </button>
-          <div className="text-[10px] text-blue-400 mt-1.5 text-center">
-            Or continue below — voice may work on some Android devices
+          <div style={{
+            background:"rgba(255,255,255,0.2)", borderRadius:20,
+            padding:"4px 10px", fontSize:10, fontWeight:500,
+          }}>
+            Free · No API cost
           </div>
         </div>
-      )}
 
-      {(isSafari || isIOS) && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
-          <b>⚠ Safari/iPhone:</b> Voice input requires <b>Chrome</b> or <b>Edge</b> browser.
-          <br/>
-          <a href="https://dukhaan-ai.vercel.app/voice"
-            className="text-primary underline mt-1 inline-block"
-            onClick={e => { e.preventDefault(); window.location.href="googlechrome://dukhaan-ai.vercel.app/voice" }}>
-            Open in Chrome →
-          </a>
-        </div>
-      )}
+        {/* APK banner */}
+        {isCapacitor && (
+          <div style={{
+            marginTop:12, background:"rgba(255,255,255,0.15)",
+            borderRadius:10, padding:"10px 12px",
+          }}>
+            <div style={{ fontSize:11, marginBottom:6, fontWeight:500 }}>
+              📱 For best voice experience:
+            </div>
+            <button onClick={openInChrome} style={{
+              background:"#fff", color:"#0F6E56", border:"none",
+              borderRadius:8, padding:"7px 16px", fontSize:11,
+              fontWeight:600, cursor:"pointer", width:"100%",
+            }}>
+              🌐 Open Voice in Chrome browser
+            </button>
+          </div>
+        )}
 
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-sm font-semibold">Voice Agent</h1>
-          <p className="text-[10px] text-gray-400">Speak in Telugu, Hindi, Tamil, Kannada and more</p>
-        </div>
-        <span className="badge badge-green">Free — No API cost</span>
+        {(isSafari || isIOS) && !isCapacitor && (
+          <div style={{
+            marginTop:12, background:"rgba(255,255,255,0.15)",
+            borderRadius:10, padding:"10px 12px", fontSize:11,
+          }}>
+            ⚠ Use Safari on iPhone → Settings → Safari → Microphone → Allow
+          </div>
+        )}
       </div>
 
-      <div className="flex gap-3 flex-1 overflow-hidden min-h-0">
+      <div style={{ flex:1, overflow:"hidden", display:"flex", gap:0 }}>
 
-        {/* Left: voice agent */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Left — Voice Agent */}
+        <div style={{ flex:1, overflowY:"auto", padding:16 }}>
           <VoiceAgent onAddToBill={handleAddToBill} />
         </div>
 
-        {/* Right: live voice bill */}
-        <div className="w-60 flex flex-col flex-shrink-0">
-          <div className="card flex-1 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-medium text-gray-600">Voice Bill</div>
-              {billItems.length > 0 && (
-                <span className="badge badge-green">{billItems.length} items</span>
-              )}
+        {/* Right — Bill panel */}
+        <div style={{
+          width:260, flexShrink:0, borderLeft:"1px solid #f0f0f0",
+          background:"#fff", display:"flex", flexDirection:"column",
+          overflowY:"auto",
+        }}>
+          {/* Bill header */}
+          <div style={{
+            padding:"12px 14px", borderBottom:"1px solid #f0f0f0",
+            background:"#f8fffe",
+          }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"#0F6E56", marginBottom:8 }}>
+              🧾 Voice Bill
             </div>
+            <input
+              value={customer}
+              onChange={e => setCustomer(e.target.value)}
+              placeholder="Customer name..."
+              style={{
+                width:"100%", border:"1px solid #e5e7eb", borderRadius:8,
+                padding:"6px 10px", fontSize:11, marginBottom:6,
+                outline:"none", boxSizing:"border-box",
+              }}
+            />
+            <select value={payment} onChange={e => setPayment(e.target.value)}
+              style={{
+                width:"100%", border:"1px solid #e5e7eb", borderRadius:8,
+                padding:"6px 10px", fontSize:11, background:"#fff",
+                outline:"none", boxSizing:"border-box",
+              }}>
+              <option>Cash</option>
+              <option>UPI</option>
+              <option>Credit</option>
+              <option>Cheque</option>
+            </select>
+          </div>
 
-            {billItems.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center text-[10px] text-gray-300 text-center px-4">
-                Items you confirm by voice will appear here
+          {/* Bill items */}
+          <div style={{ flex:1, overflowY:"auto", padding:"10px 14px" }}>
+            {billItems.length === 0 && !invoice ? (
+              <div style={{
+                textAlign:"center", padding:"40px 16px",
+                color:"#ccc", fontSize:11,
+              }}>
+                <div style={{ fontSize:40, marginBottom:8 }}>🎤</div>
+                Speak a product name to add to bill
+              </div>
+            ) : invoice ? (
+              /* Invoice receipt */
+              <div>
+                <div style={{
+                  background:"#E1F5EE", borderRadius:10,
+                  padding:"10px 12px", marginBottom:10,
+                  textAlign:"center",
+                }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#0F6E56" }}>
+                    ✅ Invoice Generated!
+                  </div>
+                  <div style={{ fontSize:11, color:"#1D9E75", marginTop:2 }}>
+                    {invoice.invoice_no}
+                  </div>
+                </div>
+
+                <div style={{ fontSize:11, color:"#333", marginBottom:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ color:"#888" }}>Customer</span>
+                    <span style={{ fontWeight:500 }}>{invoice.customer_name}</span>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ color:"#888" }}>Payment</span>
+                    <span>{invoice.payment_mode}</span>
+                  </div>
+                </div>
+
+                <div style={{ borderTop:"1px dashed #e5e7eb", paddingTop:8, marginBottom:8 }}>
+                  {(invoice.items||[]).map((item, i) => (
+                    <div key={i} style={{
+                      display:"flex", justifyContent:"space-between",
+                      fontSize:10, marginBottom:4, color:"#555",
+                    }}>
+                      <span style={{ flex:1, marginRight:4 }}>{item.name} ×{item.qty}</span>
+                      <span style={{ fontWeight:500 }}>{INR(item.total)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop:"1px solid #e5e7eb", paddingTop:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#888", marginBottom:2 }}>
+                    <span>Subtotal</span><span>{INR(invoice.subtotal)}</span>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#888", marginBottom:6 }}>
+                    <span>GST</span><span>{INR(invoice.gst_amount)}</span>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:14, fontWeight:700, color:"#0F6E56" }}>
+                    <span>Total</span><span>{INR(invoice.total)}</span>
+                  </div>
+                </div>
+
+                <button onClick={sendWhatsApp} style={{
+                  width:"100%", marginTop:12, padding:"10px",
+                  background:"#25D366", color:"#fff", border:"none",
+                  borderRadius:10, fontSize:12, fontWeight:600,
+                  cursor:"pointer",
+                }}>
+                  📲 Send on WhatsApp
+                </button>
+                <button onClick={() => setInvoice(null)} style={{
+                  width:"100%", marginTop:6, padding:"8px",
+                  background:"#f5f5f5", color:"#888", border:"none",
+                  borderRadius:10, fontSize:11, cursor:"pointer",
+                }}>
+                  New Bill
+                </button>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto space-y-2 mb-3">
-                {billItems.map((item, i) => (
-                  <div key={item.id} className="bg-gray-50 rounded-lg p-2.5">
-                    <div className="flex justify-between items-start">
-                      <div className="text-xs font-medium text-gray-700 flex-1 truncate pr-2">
-                        {item.name}
-                      </div>
-                      <button
-                        onClick={() => setBillItems(b => b.filter((_, bi) => bi !== i))}
-                        className="text-gray-300 hover:text-red-400 text-sm flex-shrink-0">
-                        ×
-                      </button>
+              billItems.map((item, i) => (
+                <div key={item.id} style={{
+                  background:"#f8fffe", borderRadius:10,
+                  padding:"8px 10px", marginBottom:8,
+                  border:"1px solid #e8f5f0",
+                }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                    <div style={{ fontSize:11, fontWeight:600, color:"#222", flex:1, paddingRight:8 }}>
+                      {item.name}
                     </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-[10px] text-gray-400">
-                        {item.qty} {item.unit} × ₹{item.mrp}
-                        {item.gst > 0 && ` + ${item.gst}% GST`}
-                      </span>
-                      <span className="text-[10px] font-semibold text-primary">
-                        ₹{item.lineTotal}
-                      </span>
-                    </div>
+                    <button onClick={() => setBillItems(b => b.filter((_,bi) => bi !== i))}
+                      style={{ background:"none", border:"none", color:"#ccc",
+                        cursor:"pointer", fontSize:16, lineHeight:1 }}>
+                      ×
+                    </button>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {billItems.length > 0 && (
-              <div className="border-t border-gray-100 pt-3 mt-auto">
-                <div className="flex justify-between text-xs font-semibold mb-3">
-                  <span>Grand Total</span>
-                  <span className="text-primary text-sm">₹{Math.round(grandTotal * 100) / 100}</span>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                    <span style={{ fontSize:10, color:"#888" }}>
+                      {item.qty} {item.unit} × {INR(item.mrp)}
+                      {item.gst > 0 && ` + ${item.gst}%GST`}
+                    </span>
+                    <span style={{ fontSize:11, fontWeight:700, color:"#1D9E75" }}>
+                      {INR(item.lineTotal)}
+                    </span>
+                  </div>
                 </div>
-                <button onClick={generateVoiceBill}
-                  className="btn btn-primary w-full text-xs mb-1.5 py-2">
-                  Generate GST Invoice
-                </button>
-                <button onClick={() => { setBillItems([]); localStorage.removeItem("dk_voice_bill"); }}
-                  className="btn w-full text-xs text-gray-400">
-                  Clear Bill
-                </button>
-              </div>
+              ))
             )}
           </div>
+
+          {/* Bill footer */}
+          {billItems.length > 0 && !invoice && (
+            <div style={{
+              padding:"12px 14px", borderTop:"1px solid #f0f0f0",
+              background:"#fff", flexShrink:0,
+            }}>
+              <div style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#888", marginBottom:2 }}>
+                  <span>Subtotal</span><span>{INR(totalSubtotal)}</span>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#888", marginBottom:6 }}>
+                  <span>GST</span><span>{INR(totalGST)}</span>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700, color:"#0F6E56" }}>
+                  <span>Total</span><span>{INR(grandTotal)}</span>
+                </div>
+              </div>
+              <button onClick={generateVoiceBill} disabled={generating} style={{
+                width:"100%", padding:"11px",
+                background:"linear-gradient(135deg, #0F6E56, #1D9E75)",
+                color:"#fff", border:"none", borderRadius:10,
+                fontSize:12, fontWeight:600, cursor:"pointer",
+                marginBottom:6, opacity: generating ? 0.7 : 1,
+              }}>
+                {generating ? "Generating..." : "🧾 Generate Invoice"}
+              </button>
+              <button onClick={() => { setBillItems([]); localStorage.removeItem("dk_voice_bill"); }} style={{
+                width:"100%", padding:"8px",
+                background:"#f5f5f5", color:"#888",
+                border:"none", borderRadius:10,
+                fontSize:11, cursor:"pointer",
+              }}>
+                Clear Bill
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
