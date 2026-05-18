@@ -34,28 +34,30 @@ export default function App() {
         <BrowserRouter>
           <InstallPrompt />
           <OfflineBanner />
-          <Layout>
-            <Routes>
-              <Route path="/"           element={<Landing />} />
-              <Route path="/dashboard"  element={<Dashboard />} />
-              <Route path="/inventory"  element={<Inventory />} />
-              <Route path="/billing"    element={<Billing />} />
-              <Route path="/settings"   element={<Settings />} />
-              <Route path="/help"        element={<Help />} />
-              <Route path="/udhar"       element={<UdharKhata />} />
-              <Route path="/demand"      element={<DemandIntelligence />} />
-              <Route path="/wastage"     element={<WastageRecording />} />
-              <Route path="/install"     element={<InstallGuide />} />
-              <Route path="/bulk-import" element={<BulkImport />} />
-              <Route path="/agent"      element={<Agent />} />
-
-              {/* Gated routes — show upgrade wall if plan doesn't include feature */}
-              <Route path="/voice"      element={<Gated feature="voice_agent"><Voice /></Gated>} />
-              <Route path="/customers"  element={<Gated feature="customer_history"><Customers /></Gated>} />
-              <Route path="/day"        element={<Gated feature="day_ops"><DayOps /></Gated>} />
-              <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
-            </Routes>
-          </Layout>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/*" element={
+              <Layout>
+                <Routes>
+                  <Route path="/dashboard"  element={<Dashboard />} />
+                  <Route path="/inventory"  element={<Inventory />} />
+                  <Route path="/billing"    element={<Billing />} />
+                  <Route path="/settings"   element={<Settings />} />
+                  <Route path="/help"       element={<Help />} />
+                  <Route path="/udhar"      element={<UdharKhata />} />
+                  <Route path="/demand"     element={<DemandIntelligence />} />
+                  <Route path="/wastage"    element={<WastageRecording />} />
+                  <Route path="/install"    element={<InstallGuide />} />
+                  <Route path="/bulk-import" element={<BulkImport />} />
+                  <Route path="/agent"      element={<Agent />} />
+                  <Route path="/voice"      element={<Gated feature="voice_agent"><Voice /></Gated>} />
+                  <Route path="/customers"  element={<Gated feature="customer_history"><Customers /></Gated>} />
+                  <Route path="/day"        element={<Gated feature="day_ops"><DayOps /></Gated>} />
+                  <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
+                </Routes>
+              </Layout>
+            } />
+          </Routes>
         </BrowserRouter>
       </PlanProvider>
     </AuthProvider>
