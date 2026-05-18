@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import VoiceAgent from "../voice/VoiceAgent.jsx"
 import { Invoices } from "../sync/db.js"
 
@@ -194,7 +194,7 @@ export default function Voice() {
                   className="btn btn-primary w-full text-xs mb-1.5 py-2">
                   Generate GST Invoice
                 </button>
-                <button onClick={() => setBillItems([]); localStorage.removeItem("dk_voice_bill")}
+                <button onClick={() => { setBillItems([]); localStorage.removeItem("dk_voice_bill"); }}
                   className="btn w-full text-xs text-gray-400">
                   Clear Bill
                 </button>
