@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, products, sales, invoices, subscriptions, admin, customers, day_sessions, udhar, wastage
+from app.routers import auth, products, sales, invoices, subscriptions, admin, customers, day_sessions, udhar, wastage, community_catalog
 
 app = FastAPI(
     title="DukaanAI API",
@@ -15,14 +15,8 @@ app = FastAPI(
 # ── CORS ─────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "*",
-        "capacitor://localhost",
-        "http://localhost",
-        "ionic://localhost",
-        "https://dukhaan-ai.vercel.app",
-    ],
-    allow_credentials=False,
+    allow_origins=[settings.frontend_url, "http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -38,6 +32,7 @@ app.include_router(customers.router)
 app.include_router(day_sessions.router)
 app.include_router(udhar.router)
 app.include_router(wastage.router)
+app.include_router(community_catalog.router)
 
 
 # ── Health check ─────────────────────────────────────────────

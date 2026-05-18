@@ -1,6 +1,8 @@
 import { useState, useRef } from "react"
 import { Products } from "../sync/db.js"
 import { CATALOG, CATEGORIES, getCatalogByCategory } from "../data/productCatalog.js"
+import { CommunityCatalog } from "../sync/db.js"
+import { fuzzySearch } from "../data/productCatalog.js"
 
 const INR = n => "₹" + (n||0).toLocaleString("en-IN")
 
@@ -41,9 +43,36 @@ export default function BulkImport() {
   const [done,       setDone]       = useState(null)
   const [notif,      setNotif]      = useState("")
   const [step,       setStep]       = useState(1) // 1=select, 2=preview, 3=done
+  const [communityProducts, setCommunityProducts] = useState([])
+  const [communityLoading, setCommunityLoading] = useState(false)
   const fileRef = useRef()
 
   function showNotif(m) { setNotif(m); setTimeout(() => setNotif(""), 3000) }
+
+  async function handleSearch(query) {
+    if (!query || query.length < 2) {
+      setCommunityProducts([])
+      return
+    }
+
+    // 1. First check fuzzy search on built-in catalog (instant)
+    const fuzzyResults = fuzzySearch(query)
+
+    // 2. Also search community catalog (if logged in)
+    let communityResults = []
+    setCommunityLoading(true)
+    try {
+      communityResults = await CommunityCatalog.search(query)
+    } catch {}
+    setCommunityLoading(false)
+
+    // Merge — community products that aren't in built-in catalog
+    const builtInNames = fuzzyResults.map(p => p.name.toLowerCase())
+    const newCommunity = communityResults.filter(p =>
+      !builtInNames.includes(p.name.toLowerCase())
+    )
+    setCommunityProducts(newCommunity)
+  }
 
   // ── Catalog tab ───────────────────────────────────────
   const filtered = getCatalogByCategory(category).filter(p =>
@@ -88,8 +117,10 @@ export default function BulkImport() {
 
   // ── Import ─────────────────────────────────────────────
   async function importProducts() {
+    const catalogItems   = CATALOG.filter(p => selected.has(p.name))
+    const communityItems = communityProducts.filter(p => selected.has(p.name))
     const items = tab === "catalog"
-      ? CATALOG.filter(p => selected.has(p.name))
+      ? [...catalogItems, ...communityItems]
       : csvData
 
     if (items.length === 0) return showNotif("Select at least one product")
@@ -286,6 +317,57 @@ export default function BulkImport() {
 
           {/* Product grid */}
           <div style={{ flex:1, overflowY:"auto", padding:20 }}>
+            {/* Community products from other vendors */}
+            {communityProducts.length > 0 && (
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#7F77DD",
+                  marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                  <span>👥 From Community (other vendors added these)</span>
+                  <span style={{ background:"#EEEDFE", color:"#7F77DD",
+                    fontSize:9, padding:"2px 7px", borderRadius:10 }}>
+                    {communityProducts.length} found
+                  </span>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10, marginBottom:16 }}>
+                  {communityProducts.map(p => {
+                    const sel = selected.has(p.name)
+                    return (
+                      <div key={p.name} onClick={() => toggleSelect(p.name)}
+                        style={{
+                          background:"#fff", borderRadius:14, padding:14,
+                          border: sel ? "2px solid #7F77DD" : "1.5px solid #EEEDFE",
+                          cursor:"pointer", position:"relative",
+                          boxShadow: sel ? "0 2px 16px rgba(127,119,221,0.15)" : "none",
+                        }}>
+                        <div style={{ position:"absolute", top:8, right:8,
+                          background:"#EEEDFE", color:"#7F77DD",
+                          fontSize:8, fontWeight:700, padding:"2px 6px", borderRadius:8 }}>
+                          Community
+                        </div>
+                        <div style={{ width:18, height:18, borderRadius:5, position:"absolute", top:8, left:8,
+                          background: sel ? "#7F77DD" : "#f0f0f0",
+                          display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          {sel && <svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </div>
+                        <div style={{ fontSize:12, fontWeight:600, color:"#1a1a1a",
+                          marginBottom:4, paddingLeft:26, paddingRight:36, lineHeight:1.4 }}>
+                          {p.name}
+                        </div>
+                        <div style={{ fontSize:10, color:"#94a3b8", marginBottom:8 }}>
+                          {p.category} · {p.unit}{p.gst > 0 ? ` · GST ${p.gst}%` : ""}
+                          {p.usage_count > 1 && ` · Used by ${p.usage_count} vendors`}
+                        </div>
+                        <div style={{ display:"flex", justifyContent:"space-between" }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#0F6E56" }}>{INR(p.mrp)}</div>
+                          <div style={{ fontSize:10, color:"#94a3b8" }}>Cost: {INR(p.cost)}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <hr style={{ border:"none", borderTop:"1.5px dashed #EEEDFE", marginBottom:16 }}/>
+              </div>
+            )}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10 }}>
               {filtered.map(p => {
                 const sel = selected.has(p.name)
@@ -334,6 +416,7 @@ export default function BulkImport() {
                 )
               })}
             </div>
+          </div>
           </div>
 
           {/* Bottom bar */}

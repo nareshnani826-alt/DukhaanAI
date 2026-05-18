@@ -1,6 +1,5 @@
 // ── API Client ────────────────────────────────────────────
-//const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
-const BASE = "https://web-production-0dbe4.up.railway.app"
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
 const LS   = "dukaanai_data"
 const TOK  = "dk_access"
 const REF  = "dk_refresh"
@@ -398,5 +397,37 @@ export const Wastage = {
     })
     return { total_loss: Math.round(total_loss*100)/100, total_items: records.length,
              by_reason, this_month: Math.round(this_month*100)/100 }
+  }
+}
+
+// ── Community Catalog ─────────────────────────────────────
+export const CommunityCatalog = {
+  // Search community products
+  async search(query) {
+    if (isCloud()) {
+      return api.get("/community-catalog/search?q=" + encodeURIComponent(query))
+    }
+    return [] // community only works when logged in
+  },
+
+  // Add product to community when vendor adds it manually
+  async contribute(product) {
+    if (!isCloud()) return
+    try {
+      await api.post("/community-catalog/contribute", {
+        name:     product.name,
+        category: product.category || "Other",
+        unit:     product.unit     || "pc",
+        mrp:      product.mrp      || 0,
+        cost:     product.cost_price || 0,
+        gst:      product.gst_percent || 0,
+      })
+    } catch {} // silent fail - community is optional
+  },
+
+  // Get trending/popular community products
+  async trending() {
+    if (isCloud()) return api.get("/community-catalog/trending")
+    return []
   }
 }
