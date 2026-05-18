@@ -36,7 +36,8 @@ export default function App() {
           <OfflineBanner />
           <Layout>
             <Routes>
-              <Route path="/"           element={<Dashboard />} />
+              <Route path="/"           element={<Landing />} />
+              <Route path="/dashboard"  element={<Dashboard />} />
               <Route path="/inventory"  element={<Inventory />} />
               <Route path="/billing"    element={<Billing />} />
               <Route path="/settings"   element={<Settings />} />

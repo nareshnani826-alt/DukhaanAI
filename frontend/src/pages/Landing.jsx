@@ -26,7 +26,12 @@ export default function Landing() {
   function goToApp() { navigate("/dashboard") }
 
   return (
-    <div style={{ fontFamily:"'Plus Jakarta Sans', system-ui, sans-serif", background:"#140b06", color:"#f4e4c1", minHeight:"100vh" }}>
+    <div style={{
+      position:"fixed", inset:0, zIndex:200,
+      overflowY:"auto", overflowX:"hidden",
+      fontFamily:"'Plus Jakarta Sans', system-ui, sans-serif",
+      background:"#140b06", color:"#f4e4c1",
+    }}>
 
       {/* NAV */}
       <nav style={{
