@@ -3,7 +3,17 @@ import VoiceAgent from "../voice/VoiceAgent.jsx"
 import { Invoices } from "../sync/db.js"
 
 export default function Voice() {
-  const [billItems, setBillItems] = useState([])
+  const [billItems, setBillItems] = useState(() => {
+    try {
+      const saved = localStorage.getItem("dk_voice_bill")
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
+
+  // Save bill items to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem("dk_voice_bill", JSON.stringify(billItems))
+  }, [billItems])
   const isSafari    = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
   const isIOS       = /iphone|ipad|ipod/i.test(navigator.userAgent)
   const isCapacitor = !!(window.Capacitor?.isNativePlatform?.())
@@ -71,7 +81,7 @@ export default function Voice() {
         items,
       })
       showNotif(`✓ Invoice ${inv.invoice_no} generated! Total: ₹${inv.total}`)
-      setBillItems([])
+      setBillItems([]); localStorage.removeItem("dk_voice_bill")
     } catch(e) {
       showNotif("Error: " + e.message)
       console.error("generateVoiceBill error:", e)
@@ -184,7 +194,7 @@ export default function Voice() {
                   className="btn btn-primary w-full text-xs mb-1.5 py-2">
                   Generate GST Invoice
                 </button>
-                <button onClick={() => setBillItems([])}
+                <button onClick={() => setBillItems([]); localStorage.removeItem("dk_voice_bill")}
                   className="btn w-full text-xs text-gray-400">
                   Clear Bill
                 </button>
