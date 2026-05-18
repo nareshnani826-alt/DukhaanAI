@@ -44,6 +44,7 @@ export default function UdharKhata() {
     setSelected(c)
     const t = await Udhar.transactions(c.id)
     setTxns(t)
+    if (window.innerWidth <= 768) setShowDetail(true)
   }
 
   function showNotif(m) { setNotif(m); setTimeout(()=>setNotif(""), 3000) }
@@ -353,10 +354,10 @@ _Powered by DukaanAI_`
         </div>
       </div>
 
-      <div className="flex gap-3 flex-1 overflow-hidden min-h-0">
+      <div className="flex gap-3 flex-1 overflow-hidden min-h-0" style={{ flexDirection: window.innerWidth <= 768 ? "column" : "row" }}>
 
         {/* Left — customer list */}
-        <div className="w-72 flex flex-col flex-shrink-0">
+        <div style={{ width: window.innerWidth <= 768 ? "100%" : "288px", flexShrink:0, display: window.innerWidth <= 768 && showDetail ? "none" : "flex", flexDirection:"column" }}>
           <input className="input mb-2" placeholder="Search customer or phone..."
             value={search} onChange={e => setSearch(e.target.value)} />
 
@@ -413,7 +414,15 @@ _Powered by DukaanAI_`
         </div>
 
         {/* Right — customer detail */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div style={{ flex:1, overflowY:"auto", minWidth:0, display: window.innerWidth <= 768 && !showDetail ? "none" : "block" }}>
+          {window.innerWidth <= 768 && showDetail && selected && (
+            <button onClick={() => setShowDetail(false)}
+              style={{ display:"flex", alignItems:"center", gap:6, color:"#1D9E75",
+                fontSize:12, fontWeight:500, padding:"8px 0", marginBottom:8,
+                background:"none", border:"none", cursor:"pointer" }}>
+              ← Back to customers
+            </button>
+          )}
           {!selected ? (
             <div className="card h-64 flex items-center justify-center flex-col gap-3 text-center">
               <div className="text-5xl">👈</div>
