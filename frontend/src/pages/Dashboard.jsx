@@ -13,12 +13,18 @@ function greeting() {
 }
 
 const QUICK_ACTIONS = [
-  { label:"New Sale",    icon:"🧾", color:"#E1F5EE", stroke:"#0F6E56", to:"/billing" },
-  { label:"Add Stock",   icon:"📦", color:"#EFF6FF", stroke:"#378ADD", to:"/inventory" },
-  { label:"Add Udhar",   icon:"📒", color:"#FFFBEB", stroke:"#EF9F27", to:"/udhar" },
-  { label:"Scan Item",   icon:"📷", color:"#F5F3FF", stroke:"#7F77DD", to:"/billing" },
-  { label:"Voice Entry", icon:"🎤", color:"#FFF1F2", stroke:"#E24B4A", to:"/voice" },
-  { label:"Day Report",  icon:"📊", color:"#F0FDF4", stroke:"#16A34A", to:"/day" },
+  { label:"New Sale",    color:"#E1F5EE", stroke:"#0F6E56", to:"/billing",
+    icon:<svg fill="none" stroke="#0F6E56" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> },
+  { label:"Add Stock",   color:"#EFF6FF", stroke:"#378ADD", to:"/inventory",
+    icon:<svg fill="none" stroke="#378ADD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> },
+  { label:"Add Udhar",   color:"#FFFBEB", stroke:"#EF9F27", to:"/udhar",
+    icon:<svg fill="none" stroke="#EF9F27" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="12" y1="11" x2="12" y2="7"/><line x1="10" y1="9" x2="14" y2="9"/></svg> },
+  { label:"Scan Item",   color:"#F5F3FF", stroke:"#7F77DD", to:"/billing",
+    icon:<svg fill="none" stroke="#7F77DD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2"/><path d="M17 3h2a2 2 0 012 2v2"/><path d="M21 17v2a2 2 0 01-2 2h-2"/><path d="M7 21H5a2 2 0 01-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg> },
+  { label:"Voice Entry", color:"#FFF1F2", stroke:"#E24B4A", to:"/voice",
+    icon:<svg fill="none" stroke="#E24B4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> },
+  { label:"Day Report",  color:"#F0FDF4", stroke:"#16A34A", to:"/day",
+    icon:<svg fill="none" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
 ]
 
 export default function Dashboard() {
@@ -166,11 +172,14 @@ export default function Dashboard() {
               onMouseEnter={e => { e.currentTarget.style.borderColor=qa.stroke; e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=`0 4px 16px ${qa.color}` }}
               onMouseLeave={e => { e.currentTarget.style.borderColor="#eef2ee"; e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none" }}>
               <div style={{
-                width:42, height:42, borderRadius:12,
+                width:44, height:44, borderRadius:13,
                 background:qa.color, display:"flex", alignItems:"center",
-                justifyContent:"center", margin:"0 auto 8px", fontSize:20,
+                justifyContent:"center", margin:"0 auto 8px",
               }}>
-                {qa.icon}
+                <svg width="22" height="22" fill="none" viewBox="0 0 24 24"
+                  stroke={qa.stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {qa.icon.props.children}
+                </svg>
               </div>
               <div style={{ fontSize:10, fontWeight:600, color:"#444" }}>{qa.label}</div>
             </button>
