@@ -34,10 +34,30 @@ export function speak(text, lang = "hi-IN") {
 // ── Detect platform ───────────────────────────────────────
 export function detectPlatform() {
   const ua = navigator.userAgent
-  const isIOS     = /iphone|ipad|ipod/i.test(ua)
-  const isAndroid = /android/i.test(ua)
+  const isIOS       = /iphone|ipad|ipod/i.test(ua)
+  const isAndroid   = /android/i.test(ua)
+  const isCapacitor = !!(window.Capacitor?.isNativePlatform?.())
   const hasSpeechAPI = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
-  return { isIOS, isAndroid, hasSpeechAPI }
+  return { isIOS, isAndroid, isCapacitor, hasSpeechAPI }
+}
+
+// ── Request microphone permission for APK ─────────────────
+export async function requestMicPermission() {
+  try {
+    // Try native Capacitor permission first
+    if (window.Capacitor?.isNativePlatform?.()) {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(t => t.stop())
+      return true
+    }
+    // Web browser
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    stream.getTracks().forEach(t => t.stop())
+    return true
+  } catch(e) {
+    console.error("Mic permission denied:", e)
+    return false
+  }
 }
 
 // ── Main VoiceEngine ──────────────────────────────────────
@@ -93,7 +113,16 @@ export class VoiceEngine {
     return rec
   }
 
-  start() {
+  async start() {
+    if (this.isListening) return
+
+    // Request mic permission first (important for APK)
+    const hasPerm = await requestMicPermission()
+    if (!hasPerm) {
+      this.onError?.("Microphone permission denied. Please allow microphone access in your phone Settings → Apps → DukaanAI → Permissions → Microphone → Allow")
+      return
+    }
+
     if (!this.supported) {
       if (this.isIOS) {
         this.onError?.(
@@ -105,7 +134,7 @@ export class VoiceEngine {
       }
       return
     }
-    if (this.isListening) return
+
     this.recognition = this._initRecognition()
     if (!this.recognition) {
       this.onError?.("Could not start voice recognition.")
