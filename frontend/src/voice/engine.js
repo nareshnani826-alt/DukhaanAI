@@ -89,7 +89,7 @@ export class VoiceEngine {
         if (this.isListening) {
           try { rec.stop() } catch {}
         }
-      }, 8000)
+      }, 30000)
     }
 
     rec.onend = () => {
