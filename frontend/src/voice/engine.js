@@ -116,19 +116,18 @@ export class VoiceEngine {
   async start() {
     if (this.isListening) return
 
-    // Request mic permission first (important for APK)
-    const hasPerm = await requestMicPermission()
-    if (!hasPerm) {
-      this.onError?.("Microphone permission denied. Please allow microphone access in your phone Settings → Apps → DukaanAI → Permissions → Microphone → Allow")
-      return
+    // Only request permission explicitly for native APK
+    if (window.Capacitor?.isNativePlatform?.()) {
+      const hasPerm = await requestMicPermission()
+      if (!hasPerm) {
+        this.onError?.("Microphone permission denied. Go to phone Settings → Apps → DukaanAI → Permissions → Microphone → Allow")
+        return
+      }
     }
 
     if (!this.supported) {
       if (this.isIOS) {
-        this.onError?.(
-          "Voice input needs microphone permission. " +
-          "Go to Settings → Safari → Microphone → Allow, then reload the page."
-        )
+        this.onError?.("Voice needs microphone permission. Go to Settings → Safari → Microphone → Allow")
       } else {
         this.onError?.("Voice not supported. Use Chrome or Edge browser.")
       }
