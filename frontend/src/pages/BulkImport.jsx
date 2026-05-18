@@ -128,7 +128,7 @@ export default function BulkImport() {
       ? [...catalogItems, ...communityItems]
       : csvData
 
-    if (items.length === 0) return showNotif("Select at least one product")
+    if (items.length === 0) return showNotif("Please select at least one product first")
 
     setImporting(true)
     let added = 0, updated = 0, failed = 0
@@ -155,19 +155,22 @@ export default function BulkImport() {
           updated++
         } else {
           // New product — add it
+          const qty = quantities[item.name] !== undefined
+            ? Number(quantities[item.name])
+            : Number(item.stock || 0)
           await Products.create({
             name:        item.name,
             category:    item.category || "Other",
             unit:        item.unit     || "pc",
-            mrp:         item.mrp      || 0,
-            cost_price:  item.cost     || 0,
-            stock:       item.stock    || 0,
+            mrp:         Number(item.mrp)       || 0,
+            cost_price:  Number(item.cost)      || 0,
+            stock:       qty,
             min_stock:   5,
-            gst_percent: item.gst      || 0,
+            gst_percent: Number(item.gst)       || 0,
           })
           added++
         }
-      } catch { failed++ }
+      } catch(e) { console.error('Import failed for', item.name, e.message); failed++ }
     }
 
     setDone({ added, updated, failed, total: items.length })
