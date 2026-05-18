@@ -267,13 +267,53 @@ export default function VoiceAgent({ onAddToBill }) {
       )}
 
       {/* Mic button */}
-      <div className="flex flex-col items-center py-4 mb-3">
+      <div className="flex flex-col items-center py-4 mb-3" style={{ position:"relative" }}>
         <button onClick={handleMic} disabled={!supported || status === "confirm"}
-          className={`w-20 h-20 rounded-full flex items-center justify-center transition-all text-white text-3xl disabled:opacity-40 ${
-            listening ? "mic-listening" : "bg-primary hover:bg-primary-dark"
-          }`}>
-          {listening ? "⏹" : "🎤"}
+          style={{
+            width:88, height:88, borderRadius:"50%",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            background: listening
+              ? "linear-gradient(135deg, #E24B4A, #FF6B6B)"
+              : "linear-gradient(135deg, #0F6E56, #1D9E75)",
+            border:"none", cursor:"pointer", outline:"none",
+            boxShadow: listening
+              ? "0 0 0 0 rgba(226,75,74,0.4), 0 8px 32px rgba(226,75,74,0.3)"
+              : "0 8px 32px rgba(29,158,117,0.35)",
+            animation: listening ? "mic-pulse 1.2s ease-out infinite" : "none",
+            transition:"all 0.3s ease",
+            opacity: (!supported || status === "confirm") ? 0.4 : 1,
+          }}>
+          {listening ? (
+            <svg width="28" height="28" fill="white" viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="2"/>
+            </svg>
+          ) : (
+            <svg width="28" height="28" fill="none" stroke="white" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+              <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          )}
         </button>
+
+        {/* Pulsing rings when listening */}
+        {listening && (
+          <div style={{ position:"absolute", pointerEvents:"none" }}>
+            {[1,2,3].map(i => (
+              <div key={i} style={{
+                position:"absolute", top:"50%", left:"50%",
+                transform:"translate(-50%, -50%)",
+                width: 88 + i*28, height: 88 + i*28,
+                borderRadius:"50%",
+                border:"2px solid rgba(226,75,74," + (0.4 - i*0.1) + ")",
+                animation:`mic-pulse ${0.8 + i*0.3}s ease-out infinite`,
+                animationDelay: i*0.2 + "s",
+              }} />
+            ))}
+          </div>
+        )}
 
         {listening && (
           <div className="flex items-center gap-1 mt-3 h-8">
