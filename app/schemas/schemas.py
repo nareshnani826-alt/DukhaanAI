@@ -67,8 +67,8 @@ class ProductCreate(BaseModel):
     sku: Optional[str] = None
     category: Optional[str] = None
     unit: Optional[str] = "piece"
-    stock: int = 0
-    min_stock: int = 10
+    stock: float = 0
+    min_stock: float = 10
     mrp: float
     cost_price: float
     gst_percent: Literal[0, 5, 12, 18, 28] = 5
@@ -79,8 +79,8 @@ class ProductUpdate(BaseModel):
     sku: Optional[str] = None
     category: Optional[str] = None
     unit: Optional[str] = None
-    stock: Optional[int] = None
-    min_stock: Optional[int] = None
+    stock: Optional[float] = None
+    min_stock: Optional[float] = None
     mrp: Optional[float] = None
     cost_price: Optional[float] = None
     gst_percent: Optional[Literal[0, 5, 12, 18, 28]] = None
@@ -93,8 +93,8 @@ class ProductOut(BaseModel):
     name: str
     sku: Optional[str]
     category: Optional[str]
-    stock: int
-    min_stock: int
+    stock: float
+    min_stock: float
     mrp: float
     cost_price: float
     gst_percent: int

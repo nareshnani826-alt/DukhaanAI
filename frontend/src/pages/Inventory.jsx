@@ -394,20 +394,39 @@ export default function Inventory() {
   }
 
   function openEdit(p) {
-    setInitForm({
+    setModal(false) // close first to force fresh mount
+    const form = {
       name: p.name, sku: p.sku||"", category: p.category||"Staples",
-      unit: p.unit||"piece", stock: String(p.stock), min_stock: String(p.min_stock),
-      mrp: String(p.mrp), cost_price: String(p.cost_price), gst_percent: p.gst_percent,
-    })
+      unit: p.unit||"piece", stock: String(p.stock||0), min_stock: String(p.min_stock||5),
+      mrp: String(p.mrp||0), cost_price: String(p.cost_price||0), gst_percent: String(p.gst_percent||0),
+    }
+    setInitForm(form)
     setEditId(p.id)
-    setModal(true)
+    setTimeout(() => setModal(true), 50) // small delay ensures fresh mount
   }
 
   async function handleSave(id, data) {
-    if (id) await Products.update(id, data)
-    else await Products.create(data)
-    showNotif(id ? "Product updated!" : "Product added!")
-    load()
+    try {
+      if (id) {
+        await Products.update(id, {
+          name:        data.name,
+          category:    data.category,
+          unit:        data.unit,
+          stock:       +data.stock || 0,
+          min_stock:   +data.min_stock || 5,
+          mrp:         +data.mrp || 0,
+          cost_price:  +data.cost_price || 0,
+          gst_percent: +data.gst_percent || 0,
+          sku:         data.sku || null,
+        })
+      } else {
+        await Products.create(data)
+      }
+      showNotif(id ? "Product updated!" : "Product added!")
+      load()
+    } catch(e) {
+      showNotif("Error: " + e.message)
+    }
   }
 
   async function del(id) {

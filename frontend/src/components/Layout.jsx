@@ -58,7 +58,6 @@ export default function Layout({ children }) {
   const location = useLocation()
 
   function isActive(nav) {
-    if (nav.exact) return location.pathname === "/"
     if (nav.sub) return nav.sub.some(s => location.pathname.startsWith(s.to))
     return location.pathname.startsWith(nav.to)
   }
