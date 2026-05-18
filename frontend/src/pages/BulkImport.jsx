@@ -417,7 +417,6 @@ export default function BulkImport() {
               })}
             </div>
           </div>
-          </div>
 
           {/* Bottom bar */}
           {selected.size > 0 && (
