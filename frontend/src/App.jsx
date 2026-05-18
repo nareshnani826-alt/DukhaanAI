@@ -17,6 +17,8 @@ import Help             from "./pages/Help"
 import UdharKhata           from "./pages/UdharKhata"
 import DemandIntelligence   from "./pages/DemandIntelligence"
 import WastageRecording     from "./pages/Wastage"
+import InstallGuide         from "./pages/InstallGuide"
+import BulkImport           from "./pages/BulkImport"
 import OfflineBanner        from "./components/OfflineBanner"
 
 // Wrapper that gates a page behind a plan feature
@@ -41,6 +43,8 @@ export default function App() {
               <Route path="/udhar"       element={<UdharKhata />} />
               <Route path="/demand"      element={<DemandIntelligence />} />
               <Route path="/wastage"     element={<WastageRecording />} />
+              <Route path="/install"     element={<InstallGuide />} />
+              <Route path="/bulk-import" element={<BulkImport />} />
               <Route path="/agent"      element={<Agent />} />
 
               {/* Gated routes — show upgrade wall if plan doesn't include feature */}
