@@ -19,6 +19,7 @@ import DemandIntelligence   from "./pages/DemandIntelligence"
 import WastageRecording     from "./pages/Wastage"
 import InstallGuide         from "./pages/InstallGuide"
 import BulkImport           from "./pages/BulkImport"
+import Landing              from "./pages/Landing"
 import OfflineBanner        from "./components/OfflineBanner"
 
 // Wrapper that gates a page behind a plan feature

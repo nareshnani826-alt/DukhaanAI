@@ -71,7 +71,7 @@ export default function Layout({ children }) {
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
 
       {/* ── Sidebar ─────────────────────────────────────── */}
-      <aside className="app-sidebar" style={{ background:"#fff", borderRight:"1px solid #e8f0e8" }}>
+      {!isLanding && <aside className="app-sidebar" style={{ background:"#fff", borderRight:"1px solid #e8f0e8" }}>
 
         {/* Logo */}
         <div style={{ padding:"18px 16px 14px", borderBottom:"1px solid #f0f7f0" }}>
@@ -212,7 +212,7 @@ export default function Layout({ children }) {
             }
           </div>
         </div>
-      </aside>
+      </aside>}
 
       {/* ── Main ────────────────────────────────────────── */}
       <main className="app-main">
@@ -285,8 +285,10 @@ export default function Layout({ children }) {
         })}
       </nav>
 
+      {/* ── Floating mic (hidden on landing) */}
+      {!isLanding && false && <div/>}
       {/* ── Floating mic ─────────────────────────────────── */}
-      <button onClick={() => navigate("/voice")} title="Voice Entry"
+      {!isLanding && <button onClick={() => navigate("/voice")} title="Voice Entry"
         style={{
           position:"fixed", bottom:24, right:24, zIndex:50,
           width:54, height:54, borderRadius:"50%",
@@ -305,7 +307,7 @@ export default function Layout({ children }) {
           <line x1="12" y1="19" x2="12" y2="23"/>
           <line x1="8" y1="23" x2="16" y2="23"/>
         </svg>
-      </button>
+      </button>}
     </div>
   )
 }
