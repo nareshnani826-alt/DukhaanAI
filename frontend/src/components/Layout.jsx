@@ -20,7 +20,7 @@ const NAV = [
     sub:[{to:"/voice",label:"Voice Agent"},{to:"/agent",label:"AI Agent"}] },
   { label:"More", to:"/day",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
-    sub:[{to:"/day",label:"Day Ops"},{to:"/insights",label:"Insights"},{to:"/help",label:"Help"},{to:"/settings",label:"Settings"},{to:"/install",label:"Install App"}] },
+    sub:[{to:"/day",label:"Day Ops"},{to:"/insights",label:"Insights"},{to:"/app-screens",label:"App Screens"},{to:"/help",label:"Help"},{to:"/settings",label:"Settings"},{to:"/install",label:"Install App"}] },
 ]
 
 const MOB_TABS = [

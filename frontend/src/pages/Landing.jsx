@@ -9,6 +9,7 @@ export default function Landing() {
   const [showAuth, setShowAuth] = useState(false)
 
   function goToApp() { navigate("/dashboard") }
+  function goToScreens() { navigate("/app-screens") }
 
   return (
     <div style={{
@@ -57,6 +58,10 @@ export default function Landing() {
           <button onClick={() => setShowAuth(true)}
             style={{ color:"#f4e4c1", fontSize:14, fontWeight:500, background:"none", border:"none", cursor:"pointer" }}>
             Sign in
+          </button>
+          <button onClick={goToScreens}
+            style={{ color:"#f4e4c1", fontSize:14, fontWeight:500, background:"none", border:"none", cursor:"pointer" }}>
+            Preview screens
           </button>
           <button onClick={goToApp}
             style={{
