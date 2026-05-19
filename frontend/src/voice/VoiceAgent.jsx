@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { voiceEngine, speak } from "./engine.js"
 import { parseVoiceCommand, formatConfirmation, splitMultiProduct, parseMultipleProducts } from "./nlp.js"
+import { t, getSavedLang, saveLang } from "./i18n.js"
 import { LANGUAGES } from "./languages.js"
 import { Products } from "../sync/db.js"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
@@ -18,8 +19,8 @@ const pulseStyle = `
   .wave-bar:nth-child(4){animation-delay:.3s} .wave-bar:nth-child(5){animation-delay:.15s}
 `
 
-export default function VoiceAgent({ onAddToBill }) {
-  const [lang,       setLang]       = useState("te-IN")
+export default function VoiceAgent({ onAddToBill, onLangChange }) {
+  const [lang,       setLang]       = useState(getSavedLang)
   const [listening,  setListening]  = useState(false)
   const [transcript, setTranscript] = useState("")
   const [translated, setTranslated] = useState("")
@@ -43,7 +44,7 @@ export default function VoiceAgent({ onAddToBill }) {
 
     voiceEngine.onStart = () => {
       setListening(true); setStatus("listening")
-      setStatusMsg("Listening... speak now")
+      setStatusMsg(t("listening", lang))
       setTranscript(""); setTranslated(""); setPending(null)
     }
     voiceEngine.onEnd   = () => setListening(false)
@@ -119,11 +120,11 @@ export default function VoiceAgent({ onAddToBill }) {
 
     // ── Reject if nothing recognized ─────────────────────
     if (!invMatch && !validation.found) {
-      const msg = "No product recognized. Please say a product name clearly, like 'Tata Salt' or 'Amul Milk'."
-      speak(msg, lang)
+      const msg = t("not_found", lang)
+      speak(t("not_found", lang), lang)
       setStatus("error")
-      setStatusMsg(msg)
-      addHistory({ type:"error", original, result: msg })
+      setStatusMsg(t("not_found", lang))
+      addHistory({ type:"error", original, result: t("not_found", lang) })
       return
     }
 
@@ -144,7 +145,7 @@ export default function VoiceAgent({ onAddToBill }) {
     if (invMatch) {
       confirmMsg = isAddStock
         ? `Add ${qty} ${unit} to ${invMatch.name}? Current: ${invMatch.stock}`
-        : `${invMatch.name} × ${qty} — add to bill?`
+        : t("confirm_question", lang, invMatch.name, qty)
     } else {
       confirmMsg = isAddStock
         ? `New product "${stdName}" — add with ${qty} ${unit} stock?`
@@ -238,7 +239,7 @@ export default function VoiceAgent({ onAddToBill }) {
           const newStock = Math.max(0, invMatch.stock - qty)
           await Products.update(invMatch.id, { stock: newStock })
           onAddToBill?.({ product: invMatch, qty, unit })
-          const msg = `${invMatch.name} × ${qty} added to bill. Stock: ${newStock}`
+          const msg = t("added_to_bill", lang, invMatch.name, qty)
           speak(msg, lang)
           addHistory({ type:"bill", original, result: msg })
           setStatus("done"); setStatusMsg(msg)
@@ -298,7 +299,7 @@ export default function VoiceAgent({ onAddToBill }) {
   }
 
   function cancelAction() {
-    speak("Cancelled", lang)
+    speak(t("cancelled", lang), lang)
     setPending(null); setStatus("idle"); setStatusMsg("")
     addHistory({ type:"cancel", text:"Cancelled" })
   }
@@ -405,7 +406,7 @@ export default function VoiceAgent({ onAddToBill }) {
 
         <div className={`mt-3 text-xs text-center max-w-xs ${statusColors[status] || "text-gray-400"}`}>
           {status === "idle" && !statusMsg
-            ? `🎙️ Tap mic to speak in ${LANGUAGES.find(l => l.code === lang)?.name || "your language"}`
+            ? t("tap_to_speak", lang)
             : statusMsg}
         </div>
 

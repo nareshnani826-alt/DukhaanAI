@@ -13,6 +13,7 @@ export default function Voice() {
   })
   const [notif,    setNotif]    = useState("")
   const [invoice,  setInvoice]  = useState(null)
+  const [lang, setLang]     = useState(getSavedLang)
   const [customer, setCustomer] = useState("")
   const [payment,  setPayment]  = useState("Cash")
   const [generating, setGenerating] = useState(false)
@@ -174,7 +175,7 @@ Thank you! 🙏`
 
         {/* Left — Voice Agent */}
         <div style={{ flex:1, overflowY:"auto", padding:16 }}>
-          <VoiceAgent onAddToBill={handleAddToBill} />
+          <VoiceAgent onAddToBill={handleAddToBill} onLangChange={setLang} />
         </div>
 
         {/* Right — Bill panel */}
@@ -194,7 +195,7 @@ Thank you! 🙏`
             <input
               value={customer}
               onChange={e => setCustomer(e.target.value)}
-              placeholder="Customer name..."
+              placeholder={t("customer_name", lang)}
               style={{
                 width:"100%", border:"1px solid var(--rule)", borderRadius:8,
                 padding:"6px 10px", fontSize:11, marginBottom:6,
@@ -359,7 +360,7 @@ Thank you! 🙏`
                 fontSize:12, fontWeight:600, cursor:"pointer",
                 marginBottom:6, opacity: generating ? 0.7 : 1,
               }}>
-                {generating ? "Generating..." : "🧾 Generate Invoice"}
+                {generating ? "Generating..." : `🧾 ${t("generate_invoice", lang)}`}
               </button>
               <button onClick={async () => {
                   // Restore stock for ALL items when bill is cleared
