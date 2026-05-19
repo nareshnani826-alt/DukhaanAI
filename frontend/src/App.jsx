@@ -19,6 +19,7 @@ import DemandIntelligence   from "./pages/DemandIntelligence"
 import WastageRecording     from "./pages/Wastage"
 import InstallGuide         from "./pages/InstallGuide"
 import BulkImport           from "./pages/BulkImport"
+import AppScreens           from "./pages/AppScreens"
 import Landing              from "./pages/Landing"
 import OfflineBanner        from "./components/OfflineBanner"
 
@@ -49,6 +50,7 @@ export default function App() {
                   <Route path="/wastage"    element={<WastageRecording />} />
                   <Route path="/install"    element={<InstallGuide />} />
                   <Route path="/bulk-import" element={<BulkImport />} />
+                  <Route path="/app-screens" element={<AppScreens />} />
                   <Route path="/agent"      element={<Agent />} />
                   <Route path="/voice"      element={<Gated feature="voice_agent"><Voice /></Gated>} />
                   <Route path="/customers"  element={<Gated feature="customer_history"><Customers /></Gated>} />
