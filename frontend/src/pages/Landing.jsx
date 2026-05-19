@@ -1,15 +1,13 @@
-import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import AuthModal from "../components/AuthModal"
 
 const LANDING_CSS = `@import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`
 
 export default function Landing() {
   const navigate = useNavigate()
-  const [showAuth, setShowAuth] = useState(false)
 
   function goToApp() { navigate("/dashboard") }
   function goToScreens() { navigate("/app-screens") }
+  function goToLogin() { navigate("/dashboard", { state: { showLogin: true } }) }
 
   return (
     <div style={{
@@ -55,7 +53,7 @@ export default function Landing() {
         </nav>
 
         <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-          <button onClick={() => setShowAuth(true)}
+          <button onClick={goToLogin}
             style={{ color:"#f4e4c1", fontSize:14, fontWeight:500, background:"none", border:"none", cursor:"pointer" }}>
             Sign in
           </button>
@@ -355,7 +353,6 @@ export default function Landing() {
           </div>
         </div>
       </footer>
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       </div>
   )
 }

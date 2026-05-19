@@ -17,8 +17,8 @@ export default function AuthModal({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={e => e.target===e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl p-6 w-80 shadow-xl">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center animate-fade-in" onClick={e => e.target===e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl p-6 w-80 shadow-xl animate-slide-up">
         <div className="flex justify-between items-start mb-4">
           <div>
             <div className="text-base font-semibold text-primary">DukaanAI Cloud</div>

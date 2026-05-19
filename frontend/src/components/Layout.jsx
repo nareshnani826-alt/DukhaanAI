@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import AuthModal from "./AuthModal"
 
 const NAV = [
@@ -43,6 +43,13 @@ export default function Layout({ children }) {
   const [expanded, setExpanded] = useState(null)
   const navigate  = useNavigate()
   const location  = useLocation()
+
+  useEffect(() => {
+    if (location.state?.showLogin) {
+      setShowAuth(true)
+      navigate(location.pathname, { replace: true, state: { ...location.state, showLogin: false } })
+    }
+  }, [location.state, location.pathname, navigate])
 
   function isActive(nav) {
     if (nav.sub) return nav.sub.some(s => location.pathname.startsWith(s.to))
