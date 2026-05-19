@@ -170,3 +170,52 @@ export function formatConfirmation(parsed, lang = "en-IN") {
   const actionMsgs = msgs[action] || msgs.ADD_BILL
   return actionMsgs[lang] || actionMsgs["en-IN"]
 }
+
+// ── Split multi-product utterance into segments ───────────
+// Handles: "rendu palu, okati uppu, aidu biscuit"
+// or: "do doodh aur ek namak aur paanch biscuit"
+// Returns array of raw text segments, each containing one product
+export function splitMultiProduct(text) {
+  if (!text) return [text]
+
+  // Split on connectors: aur, and, comma, semicolon, also, plus
+  // Telugu: mariyu, inkaa, kooda
+  // Tamil: mattum, um
+  // Kannada: mattu, kuda
+  const connectors = /\s*(?:,|;|aur|and|also|plus|mariyu|inkaa|kooda|mattu|kuda|mattum|\bum\b)\s*/gi
+  const segments = text.split(connectors).map(s => s.trim()).filter(s => s.length > 1)
+  return segments.length > 0 ? segments : [text]
+}
+
+// ── Parse multiple products from one utterance ────────────
+// Returns array of { qty, unit, rawText } for each segment
+export function parseMultipleProducts(text, translatedText, products) {
+  const origSegments = splitMultiProduct(text)
+  const transSegments = splitMultiProduct(translatedText)
+
+  // Use whichever gave more segments (better split)
+  const segments = origSegments.length >= transSegments.length ? origSegments : transSegments
+
+  return segments.map((seg, i) => {
+    // Use corresponding segment from other language if available
+    const origSeg = origSegments[i] || seg
+    const transSeg = transSegments[i] || seg
+
+    const aliased = applyGroceryAliases(transSeg || origSeg)
+    const { qty, unit } = parseQuantity(aliased || transSeg || origSeg)
+    const action = detectAction(aliased || transSeg || origSeg)
+    const product = matchProduct(origSeg, aliased || transSeg, products)
+
+    let productName = product?.name || null
+    if (!productName) {
+      productName = resolveGroceryName(origSeg) || resolveGroceryName(transSeg)
+    }
+    if (!productName) {
+      const stopWords = new Set(["add","to","bill","the","a","an","of","and","please","karo","daalo","cheyyi","pannu","mein","ko","ka","ki","ke","hai","do","ek","teen","char"])
+      const words = (aliased || transSeg || "").toLowerCase().split(/\s+/)
+      productName = words.find(w => w.length > 2 && !stopWords.has(w)) || seg
+    }
+
+    return { qty, unit, rawText: origSeg, translatedText: transSeg, product, productName, action }
+  }).filter(r => r.productName || r.product)
+}

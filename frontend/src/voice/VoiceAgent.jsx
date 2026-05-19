@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { voiceEngine, speak } from "./engine.js"
-import { parseVoiceCommand, formatConfirmation } from "./nlp.js"
+import { parseVoiceCommand, formatConfirmation, splitMultiProduct, parseMultipleProducts } from "./nlp.js"
 import { LANGUAGES } from "./languages.js"
 import { Products } from "../sync/db.js"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
@@ -69,6 +69,17 @@ export default function VoiceAgent({ onAddToBill }) {
   async function handleCommand(original, translated) {
     const text = translated || original
     const tl   = text.toLowerCase()
+
+    // ── Detect multi-product utterance ────────────────────
+    // If text contains "aur", "and", comma etc — split and handle all at once
+    const segments = splitMultiProduct(original)
+    const transSegments = splitMultiProduct(translated || original)
+    const isMulti = segments.length > 1 || transSegments.length > 1
+
+    if (isMulti) {
+      await handleMultiProduct(original, translated)
+      return
+    }
 
     // ── Detect action ─────────────────────────────────────
     const isStockQuery = /kitna|how many|stock|bacha|enta|evvalavu|eshtu/i.test(tl)
@@ -142,6 +153,76 @@ export default function VoiceAgent({ onAddToBill }) {
 
     setStatusMsg(confirmMsg)
     speak(confirmMsg, lang)
+  }
+
+  // ── Handle multi-product utterance ───────────────────────
+  async function handleMultiProduct(original, translated) {
+    const origSegs  = splitMultiProduct(original)
+    const transSegs = splitMultiProduct(translated || original)
+    const count     = Math.max(origSegs.length, transSegs.length)
+
+    const parsed = []
+    for (let i = 0; i < count; i++) {
+      const orig  = origSegs[i]  || origSegs[0]
+      const trans = transSegs[i] || transSegs[0]
+
+      const { qty, unit } = extractQtyUnit(trans || orig)
+      const validation    = validateProduct(trans || orig)
+      const variant       = validation.product ? extractVariant(trans || orig, validation.product) : null
+      const stdName       = validation.product ? buildProductName(validation.product, variant) : null
+      const invMatch      = findInInventory(trans || orig, stdName, products)
+
+      if (!invMatch && !validation.found) continue // skip unrecognized
+
+      parsed.push({
+        original: orig, text: trans || orig, qty, unit,
+        action: "ADD_BILL",
+        invMatch, validation, stdName: stdName || invMatch?.name, variant,
+      })
+    }
+
+    if (parsed.length === 0) {
+      const msg = "No products recognized. Please speak clearly."
+      speak(msg, lang); setStatus("error"); setStatusMsg(msg)
+      return
+    }
+
+    // Show multi-confirmation UI
+    setMultiPending(parsed)
+    setStatus("confirm")
+    const names = parsed.map(p => `${p.stdName || p.invMatch?.name} × ${p.qty}`).join(", ")
+    setStatusMsg(`Found ${parsed.length} items: ${names} — confirm?`)
+    speak(`I heard ${parsed.length} items: ${names}. Confirm to add all?`, lang)
+  }
+
+  // ── Confirm ALL multi-product items ───────────────────────
+  async function confirmMultiAction() {
+    if (!multiPending.length) return
+    const items = [...multiPending]
+    setMultiPending([])
+
+    let added = 0
+    for (const item of items) {
+      const { action, qty, unit, invMatch, stdName } = item
+      try {
+        if (action === "ADD_BILL") {
+          if (invMatch) {
+            const newStock = Math.max(0, invMatch.stock - qty)
+            await Products.update(invMatch.id, { stock: newStock })
+            onAddToBill?.({ product: invMatch, qty, unit })
+          } else {
+            onAddToBill?.({ product: null, productName: stdName, qty, unit, price: 0 })
+          }
+          addHistory({ type:"bill", original: item.original, result: `${stdName || invMatch?.name} × ${qty} added` })
+          added++
+        }
+      } catch(e) { console.error("Multi-add error:", e) }
+    }
+
+    const msg = `${added} item${added > 1 ? "s" : ""} added to bill!`
+    speak(msg, lang)
+    setStatus("done"); setStatusMsg(msg)
+    Products.list().then(setProducts)
   }
 
   // ── Confirm action ────────────────────────────────────────
@@ -342,8 +423,66 @@ export default function VoiceAgent({ onAddToBill }) {
           </div>
         )}
 
-        {/* Confirmation card */}
-        {status === "confirm" && pending && (
+        {/* Multi-product confirmation card */}
+        {status === "confirm" && multiPending.length > 0 && (
+          <div style={{ marginTop:12, width:"100%", maxWidth:400,
+            border:"2px solid var(--saffron,#e87722)", borderRadius:16,
+            background:"rgba(232,119,34,0.06)", padding:16 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"var(--saffron,#e87722)",
+              textAlign:"center", marginBottom:12 }}>
+              🎤 Heard {multiPending.length} items — confirm all?
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:14 }}>
+              {multiPending.map((item, i) => (
+                <div key={i} style={{ background:"var(--bg1,#fff)", borderRadius:10,
+                  padding:"10px 12px", border:"1px solid var(--rule,rgba(0,0,0,0.08))",
+                  display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:"var(--ink,#1a0c04)" }}>
+                      {item.invMatch?.name || item.stdName}
+                      {!item.invMatch && (
+                        <span style={{ fontSize:10, color:"var(--ember,#c0392b)", marginLeft:6 }}>
+                          (not in inventory)
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint,#888)", marginTop:2 }}>
+                      {item.qty} {item.unit}
+                      {item.invMatch?.mrp ? ` · ₹${Math.round(item.invMatch.mrp * item.qty)}` : ""}
+                    </div>
+                  </div>
+                  <button onClick={() => setMultiPending(mp => mp.filter((_,j) => j !== i))}
+                    style={{ background:"none", border:"none", color:"var(--ink-faint,#aaa)",
+                      fontSize:18, cursor:"pointer", lineHeight:1 }}>×</button>
+                </div>
+              ))}
+            </div>
+            {multiPending.length > 0 && (
+              <div style={{ fontSize:11, color:"var(--ink-faint,#888)",
+                textAlign:"center", marginBottom:10 }}>
+                Total: ₹{multiPending.reduce((sum, item) =>
+                  sum + Math.round((item.invMatch?.mrp || 0) * item.qty), 0).toLocaleString("en-IN")}
+              </div>
+            )}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <button onClick={() => { setMultiPending([]); setStatus("idle"); setStatusMsg("") }}
+                style={{ padding:"10px", borderRadius:10, fontSize:12, fontWeight:600,
+                  background:"var(--bg2,#f5f5f5)", border:"1px solid var(--rule,#e0e0e0)",
+                  color:"var(--ink-dim,#666)", cursor:"pointer" }}>
+                ✕ Cancel all
+              </button>
+              <button onClick={confirmMultiAction}
+                style={{ padding:"10px", borderRadius:10, fontSize:12, fontWeight:700,
+                  background:"var(--saffron,#e87722)", border:"none",
+                  color:"#fff", cursor:"pointer" }}>
+                ✓ Add {multiPending.length} items
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Single confirmation card */}
+        {status === "confirm" && pending && multiPending.length === 0 && (
           <div className="mt-3 w-full max-w-sm border-2 border-amber-300 bg-amber-50 rounded-xl p-4">
             <div className="text-xs font-semibold text-amber-800 mb-3 text-center">✋ Confirm this action</div>
             <div className="bg-white rounded-lg p-3 mb-3 text-xs space-y-1.5">
@@ -399,8 +538,8 @@ export default function VoiceAgent({ onAddToBill }) {
         <div className="text-[10px] font-medium text-gray-500 mb-2">Try saying:</div>
         <div className="grid grid-cols-2 gap-1.5">
           {[
-            { lang:"Telugu", ex:'"Amul Milk 2 litres stock lo add cheyyi"' },
-            { lang:"Hindi",  ex:'"Tata Salt 10 kilo aaya"' },
+            { lang:"Telugu", ex:'"Amul Milk 2 litres, Tata Salt 1 kilo"' },
+            { lang:"Hindi",  ex:'"Do doodh aur ek namak aur paanch biscuit"' },
             { lang:"Stock",  ex:'"Maggi kitna bacha?"' },
             { lang:"Bill",   ex:'"Parle-G 5 packet bill mein daalo"' },
           ].map(e => (
