@@ -2,8 +2,10 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import AuthModal from "./AuthModal"
+import { LANG_KEY, getSavedLang } from "../voice/i18n"
+import { getToken } from "../sync/db"
 
 const NAV = [
   { label:"Home", to:"/dashboard",
@@ -35,6 +37,328 @@ const MOB_TABS = [
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
+// ── Quick chips per language ──────────────────────────────
+const CHIPS_BY_LANG = {
+  "en-IN": ["Check stock", "Today's sales", "Low stock", "Udhaar dues"],
+  "te-IN": ["స్టాక్ చెక్", "ఈరోజు అమ్మకాలు", "తక్కువ స్టాక్", "ఉధార్ బాకీలు"],
+  "hi-IN": ["स्टॉक चेक", "आज की बिक्री", "कम स्टॉक", "उधार बकाया"],
+  "ta-IN": ["ஸ்டாக் பார்", "இன்றைய விற்பனை", "குறைந்த ஸ்டாக்", "கடன் நிலுவை"],
+  "kn-IN": ["ಸ್ಟಾಕ್ ಚೆಕ್", "ಇಂದಿನ ಮಾರಾಟ", "ಕಡಿಮೆ ಸ್ಟಾಕ್", "ಉಧಾರ್ ಬಾಕಿ"],
+  "ml-IN": ["സ്റ്റോക്ക്", "ഇന്നത്തെ വിൽപ്പന", "കുറഞ്ഞ സ്റ്റോക്ക്", "കടം ബാക്കി"],
+  "mr-IN": ["स्टॉक तपासा", "आजची विक्री", "कमी स्टॉक", "उधार थकबाकी"],
+  "bn-IN": ["স্টক চেক", "আজকের বিক্রয়", "কম স্টক", "উধার বকেয়া"],
+  "gu-IN": ["સ્ટોક ચેક", "આજનું વેચાણ", "ઓછો સ્ટોક", "ઉધાર બાકી"],
+  "pa-IN": ["ਸਟਾਕ ਚੈੱਕ", "ਅੱਜ ਦੀ ਵਿਕਰੀ", "ਘੱਟ ਸਟਾਕ", "ਉਧਾਰ ਬਕਾਇਆ"],
+}
+
+const API = import.meta.env.VITE_API_URL
+
+function timestamp() {
+  return new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })
+}
+function needsUdhar(q)   { return /udh|khata|due|baki|bakaya|baaki|கடன்|ఉధార్|उधार/i.test(q) }
+function needsWastage(q) { return /wast|expire|damage|nashan|waste/i.test(q) }
+
+// ── Floating AI Chat Widget ───────────────────────────────
+function AIChatWidget() {
+  const [open, setOpen]           = useState(false)
+  const [lang, setLang]           = useState(getSavedLang)
+  const [messages, setMessages]   = useState([
+    { id:1, role:"assistant",
+      text:"నమస్కారం! 👋 I'm your Shop Assistant.\nAsk me anything about stock, sales, or udhaar!",
+      time:timestamp() }
+  ])
+  const [input, setInput]         = useState("")
+  const [loading, setLoading]     = useState(false)
+  const [chipsUsed, setChipsUsed] = useState(false)
+  const msgsRef  = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight
+  }, [messages, loading, open])
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 100)
+  }, [open])
+
+  async function fetchStoreContext(question) {
+    const token   = getToken()
+    const headers = { Authorization:`Bearer ${token}` }
+    const ctx     = {}
+    try {
+      const [prodRes, salesRes] = await Promise.all([
+        fetch(`${API}/api/products?limit=1000`, { headers }),
+        fetch(`${API}/api/sales/summary`, { headers }),
+      ])
+      ctx.products = prodRes.ok  ? await prodRes.json()  : []
+      ctx.sales    = salesRes.ok ? await salesRes.json() : {}
+      if (needsUdhar(question)) {
+        const ucRes = await fetch(`${API}/api/udhar/customers`, { headers })
+        ctx.udhar_customers = ucRes.ok ? await ucRes.json() : []
+      }
+      if (needsWastage(question)) {
+        const wRes  = await fetch(`${API}/api/wastage?limit=50`, { headers })
+        ctx.wastage = wRes.ok ? await wRes.json() : []
+      }
+    } catch(e) { console.error("ctx fetch:", e) }
+    return ctx
+  }
+
+  async function send(text) {
+    const q = (text || input).trim()
+    if (!q || loading) return
+    setInput("")
+    setChipsUsed(true)
+    setMessages(p => [...p, { id:Date.now(), role:"user", text:q, time:timestamp() }])
+    setLoading(true)
+    try {
+      const storeContext = await fetchStoreContext(q)
+      const token        = getToken()
+      const res = await fetch(`${API}/api/chat`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body:JSON.stringify({ message:q, language:lang, store_context:storeContext }),
+      })
+      const data  = res.ok ? await res.json() : null
+      const reply = data?.response || data?.reply || data?.message
+        || "Sorry, couldn't get a response. Please try again."
+      setMessages(p => [...p, { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }])
+    } catch(e) {
+      setMessages(p => [...p, { id:Date.now()+1, role:"assistant",
+        text:"⚠️ Connection error. Please try again.", time:timestamp() }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function startMic() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    const rec    = new SR()
+    rec.lang     = lang
+    rec.onresult = (e) => setInput(e.results[0][0].transcript)
+    rec.start()
+  }
+
+  const chips = CHIPS_BY_LANG[lang] || CHIPS_BY_LANG["en-IN"]
+
+  return (
+    <>
+      {/* ── Popup chat window ── */}
+      {open && (
+        <div style={{
+          position:"fixed", bottom:90, right:24, zIndex:200,
+          width:340, height:480,
+          borderRadius:18,
+          background:"var(--bg1, #f7f4f2)",
+          boxShadow:"0 8px 40px rgba(0,0,0,0.18)",
+          border:"1px solid var(--rule, #eee)",
+          display:"flex", flexDirection:"column",
+          overflow:"hidden",
+          animation:"chatPop 0.2s ease-out",
+        }}>
+          {/* Header */}
+          <div style={{ background:"var(--saffron, #e87722)", padding:"12px 14px",
+            display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <div style={{ width:34, height:34, borderRadius:"50%",
+              background:"rgba(255,255,255,0.2)", border:"2px solid rgba(255,255,255,0.35)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, flexShrink:0 }}>
+              🤖
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ color:"white", fontWeight:700, fontSize:13, lineHeight:1 }}>Shop Assistant</div>
+              <div style={{ color:"rgba(255,255,255,0.85)", fontSize:10, marginTop:2,
+                display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ width:6, height:6, borderRadius:"50%", background:"#a3f0c4", display:"inline-block" }}/>
+                Online · AI powered
+              </div>
+            </div>
+            {/* Language */}
+            <select value={lang} onChange={e => setLang(e.target.value)}
+              style={{ fontSize:10, borderRadius:20, padding:"3px 8px", border:"none",
+                background:"rgba(255,255,255,0.9)", color:"var(--saffron, #e87722)",
+                outline:"none", cursor:"pointer", fontWeight:600 }}>
+              <option value="en-IN">EN</option>
+              <option value="te-IN">తె</option>
+              <option value="hi-IN">हि</option>
+              <option value="ta-IN">த</option>
+              <option value="kn-IN">ಕ</option>
+              <option value="ml-IN">മ</option>
+              <option value="mr-IN">म</option>
+              <option value="bn-IN">ব</option>
+              <option value="gu-IN">ગ</option>
+              <option value="pa-IN">ਪ</option>
+            </select>
+            {/* Close */}
+            <button onClick={() => setOpen(false)}
+              style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:"50%",
+                width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", color:"white", fontSize:14, flexShrink:0 }}>
+              ✕
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div ref={msgsRef} style={{ flex:1, overflowY:"auto", padding:"12px 10px",
+            display:"flex", flexDirection:"column", gap:8,
+            background:"var(--bg1, #f7f4f2)", scrollbarWidth:"none" }}>
+
+            {messages.map(msg => (
+              <div key={msg.id} style={{ display:"flex", alignItems:"flex-end", gap:6,
+                flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
+                {msg.role === "assistant" && (
+                  <div style={{ width:26, height:26, borderRadius:"50%", flexShrink:0,
+                    background:"var(--saffron, #e87722)", display:"flex",
+                    alignItems:"center", justifyContent:"center", fontSize:13 }}>🤖</div>
+                )}
+                <div style={{ maxWidth:"78%" }}>
+                  <div style={{
+                    padding:"9px 12px", fontSize:12, lineHeight:1.5,
+                    whiteSpace:"pre-wrap",
+                    borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                    background: msg.role === "user" ? "var(--saffron, #e87722)" : "var(--bg0, #fff)",
+                    color: msg.role === "user" ? "white" : "var(--ink, #1a1a1a)",
+                    border: msg.role === "assistant" ? "0.5px solid var(--rule, #eee)" : "none",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+                  }}>
+                    {msg.text}
+                  </div>
+                  <div style={{ fontSize:9, color:"var(--ink-faint, #bbb)", marginTop:2,
+                    textAlign: msg.role === "user" ? "right" : "left" }}>
+                    {msg.time}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Typing dots */}
+            {loading && (
+              <div style={{ display:"flex", alignItems:"flex-end", gap:6 }}>
+                <div style={{ width:26, height:26, borderRadius:"50%", flexShrink:0,
+                  background:"var(--saffron, #e87722)", display:"flex",
+                  alignItems:"center", justifyContent:"center", fontSize:13 }}>🤖</div>
+                <div style={{ padding:"10px 14px", borderRadius:"14px 14px 14px 4px",
+                  background:"var(--bg0, #fff)", border:"0.5px solid var(--rule, #eee)",
+                  display:"flex", gap:4, alignItems:"center" }}>
+                  {[0,1,2].map(i => (
+                    <span key={i} style={{ width:6, height:6, borderRadius:"50%",
+                      background:"var(--saffron, #e87722)", display:"inline-block",
+                      animation:"dukaanTyping 1.1s infinite",
+                      animationDelay:`${i*0.18}s`, opacity:0.4 }}/>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick chips */}
+            {!chipsUsed && (
+              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:2 }}>
+                {chips.map(chip => (
+                  <button key={chip} onClick={() => send(chip)}
+                    style={{ fontSize:11, fontWeight:500, borderRadius:20,
+                      padding:"5px 11px", cursor:"pointer", transition:"all 0.15s",
+                      background:"var(--bg0, white)",
+                      border:"1.5px solid var(--saffron, #e87722)",
+                      color:"var(--saffron, #e87722)" }}
+                    onMouseEnter={e => { e.currentTarget.style.background="var(--saffron, #e87722)"; e.currentTarget.style.color="white" }}
+                    onMouseLeave={e => { e.currentTarget.style.background="var(--bg0, white)"; e.currentTarget.style.color="var(--saffron, #e87722)" }}>
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div style={{ background:"var(--bg0, #fff)", borderTop:"0.5px solid var(--rule, #eee)",
+            padding:"8px 10px", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            <div style={{ flex:1, display:"flex", alignItems:"center", gap:6,
+              background:"var(--bg1, #f7f4f2)", borderRadius:20,
+              border:"0.5px solid var(--rule, #eee)", padding:"0 10px", minHeight:36 }}>
+              <input ref={inputRef} type="text" value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
+                placeholder="Type your message..."
+                disabled={loading}
+                style={{ flex:1, border:"none", outline:"none", background:"transparent",
+                  fontSize:12, color:"var(--ink, #1a1a1a)", fontFamily:"inherit", padding:"7px 0" }}/>
+              <button onClick={startMic} aria-label="Voice input"
+                style={{ background:"none", border:"none", cursor:"pointer", padding:"2px 0",
+                  color:"var(--saffron, #e87722)", display:"flex", alignItems:"center", flexShrink:0 }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="2" width="6" height="11" rx="3"/>
+                  <path d="M5 10a7 7 0 0 0 14 0"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                  <line x1="9" y1="22" x2="15" y2="22"/>
+                </svg>
+              </button>
+            </div>
+            <button onClick={() => send()} disabled={loading || !input.trim()} aria-label="Send"
+              style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, border:"none",
+                background:"var(--saffron, #e87722)", color:"white",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                cursor: loading || !input.trim() ? "not-allowed" : "pointer",
+                opacity: loading || !input.trim() ? 0.5 : 1 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+
+          <div style={{ textAlign:"center", fontSize:9, color:"var(--ink-faint, #ccc)",
+            padding:"4px", background:"var(--bg0, white)" }}>
+            Powered by Claude AI
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating AI bubble button ── */}
+      <button onClick={() => setOpen(o => !o)}
+        title="AI Assistant"
+        style={{ position:"fixed", bottom:24, right:24, zIndex:201,
+          width:52, height:52, borderRadius:"50%",
+          background: open
+            ? "var(--ink, #333)"
+            : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
+          border:"3px solid var(--bg1, #fff)",
+          boxShadow:"0 4px 20px rgba(232,119,34,0.45)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          cursor:"pointer", transition:"all 0.2s" }}
+        onMouseEnter={e => { e.currentTarget.style.transform="scale(1.1)" }}
+        onMouseLeave={e => { e.currentTarget.style.transform="scale(1)" }}>
+        {open ? (
+          <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        ) : (
+          <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        )}
+      </button>
+
+      <style>{`
+        @keyframes chatPop {
+          from { opacity:0; transform:scale(0.92) translateY(10px); }
+          to   { opacity:1; transform:scale(1) translateY(0); }
+        }
+        @keyframes dukaanTyping {
+          0%,80%,100% { transform:translateY(0); opacity:0.3; }
+          40%          { transform:translateY(-4px); opacity:1; }
+        }
+      `}</style>
+    </>
+  )
+}
+
+// ── Main Layout ───────────────────────────────────────────
 export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, logout } = useAuth()
   const { planLabel } = usePlan()
@@ -47,7 +371,7 @@ export default function Layout({ children }) {
   useEffect(() => {
     if (location.state?.showLogin) {
       setShowAuth(true)
-      navigate(location.pathname, { replace: true, state: { ...location.state, showLogin: false } })
+      navigate(location.pathname, { replace:true, state:{ ...location.state, showLogin:false } })
     }
   }, [location.state, location.pathname, navigate])
 
@@ -62,8 +386,6 @@ export default function Layout({ children }) {
 
       {/* ── Sidebar ─────────────────────────────────── */}
       <aside className="app-sidebar">
-
-        {/* Logo */}
         <div className="sidebar-logo">
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
@@ -90,16 +412,14 @@ export default function Layout({ children }) {
           )}
         </div>
 
-        {/* Nav items */}
         <nav className="sidebar-nav">
           <div style={{ fontSize:9, fontWeight:700, color:"var(--ink-faint)",
             letterSpacing:"1.5px", padding:"10px 16px 4px", textTransform:"uppercase" }}>Menu</div>
 
           {NAV.map(nav => {
-            const active  = isActive(nav)
-            const isOpen  = expanded === nav.label
-            const hasSub  = !!nav.sub?.length
-
+            const active = isActive(nav)
+            const isOpen = expanded === nav.label
+            const hasSub = !!nav.sub?.length
             return (
               <div key={nav.label}>
                 <div onClick={() => hasSub ? setExpanded(isOpen ? null : nav.label) : navigate(nav.to)}
@@ -121,7 +441,6 @@ export default function Layout({ children }) {
                     </svg>
                   )}
                 </div>
-
                 {hasSub && isOpen && (
                   <div style={{ background:"var(--bg2)" }}>
                     {nav.sub.map(s => {
@@ -150,7 +469,6 @@ export default function Layout({ children }) {
           })}
         </nav>
 
-        {/* Footer */}
         <div className="sidebar-footer">
           <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>
             {vendor?.store_name || "DukaanAI"}
@@ -158,8 +476,6 @@ export default function Layout({ children }) {
           <div style={{ fontSize:10, color: cloud ? "var(--jade)" : "var(--ink-faint)", marginBottom:10 }}>
             {cloud ? "● Cloud sync ON" : loggedIn ? "● Free plan" : "● Local only"}
           </div>
-
-          {/* Theme toggle */}
           <button onClick={toggleTheme}
             style={{ display:"flex", alignItems:"center", gap:8, width:"100%",
               background:"var(--bg2)", border:"1px solid var(--rule)",
@@ -171,7 +487,6 @@ export default function Layout({ children }) {
             <span style={{ fontSize:15 }}>{isDark ? "☀️" : "🌙"}</span>
             {isDark ? "Switch to Light" : "Switch to Dark"}
           </button>
-
           {!loggedIn
             ? <button onClick={() => setShowAuth(true)} className="btn btn-primary btn-sm" style={{ width:"100%" }}>
                 Login / Register
@@ -185,8 +500,6 @@ export default function Layout({ children }) {
 
       {/* ── Main ─────────────────────────────────────── */}
       <main className="app-main">
-
-        {/* Mobile header */}
         <div className="mobile-header">
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ width:30, height:30, borderRadius:8, flexShrink:0,
@@ -216,7 +529,6 @@ export default function Layout({ children }) {
             }
           </div>
         </div>
-
         {children}
       </main>
 
@@ -255,9 +567,9 @@ export default function Layout({ children }) {
         })}
       </nav>
 
-      {/* ── Floating mic ─────────────────────────────── */}
+      {/* ── Floating mic — moved left to make room for chat bubble ── */}
       <button onClick={() => navigate("/voice")} title="Voice Entry"
-        style={{ position:"fixed", bottom:24, right:24, zIndex:50,
+        style={{ position:"fixed", bottom:24, right:86, zIndex:50,
           width:52, height:52, borderRadius:"50%",
           background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
           border:"3px solid var(--bg1)",
@@ -274,6 +586,9 @@ export default function Layout({ children }) {
           <line x1="8" y1="23" x2="16" y2="23"/>
         </svg>
       </button>
+
+      {/* ── Floating AI chat bubble ── */}
+      <AIChatWidget />
     </div>
   )
 }
