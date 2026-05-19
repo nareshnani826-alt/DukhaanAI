@@ -196,7 +196,7 @@ export default function InstallGuide() {
             className={`card cursor-pointer transition-all ${
               step === i ? "border-primary shadow-md" : "border-gray-100"
             }`}
-            style={step === i ? { borderColor:"#1D9E75", borderWidth:1.5 } : {}}>
+            style={step === i ? { borderColor:"var(--jade)", borderWidth:1.5 } : {}}>
             <div className="flex items-start gap-3">
               <div className="text-2xl flex-shrink-0">{s.img}</div>
               <div className="flex-1">

@@ -186,7 +186,7 @@ Thank you! 🙏`
           {/* Bill header */}
           <div style={{
             padding:"12px 14px", borderBottom:"1px solid var(--rule-soft)",
-            background:"#f8fffe",
+            background:"var(--bg2)",
           }}>
             <div style={{ fontSize:12, fontWeight:600, color:"var(--jade)", marginBottom:8 }}>
               🧾 Voice Bill
@@ -228,7 +228,7 @@ Thank you! 🙏`
               /* Invoice receipt */
               <div>
                 <div style={{
-                  background:"#E1F5EE", borderRadius:10,
+                  background:"var(--jade-bg)", borderRadius:10,
                   padding:"10px 12px", marginBottom:10,
                   textAlign:"center",
                 }}>
@@ -294,7 +294,7 @@ Thank you! 🙏`
             ) : (
               billItems.map((item, i) => (
                 <div key={item.id} style={{
-                  background:"#f8fffe", borderRadius:10,
+                  background:"var(--bg2)", borderRadius:10,
                   padding:"8px 10px", marginBottom:8,
                   border:"1px solid #e8f5f0",
                 }}>

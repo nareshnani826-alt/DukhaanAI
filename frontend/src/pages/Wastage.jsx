@@ -11,7 +11,7 @@ const REASONS = [
     desc:"Broken, wet or damaged" },
   { key:"stolen",   label:"Stolen",   icon:"🚨", color:"#7F77DD", bg:"#EEEDFE",
     desc:"Theft or missing stock" },
-  { key:"other",    label:"Other",    icon:"📝", color:"#888",    bg:"#f5f5f5",
+  { key:"other",    label:"Other",    icon:"📝", color:"var(--ink-faint)",    bg:"var(--bg2)",
     desc:"Any other reason" },
 ]
 
@@ -113,7 +113,7 @@ export default function Wastage() {
                   placeholder="1" />
                 {selectedProduct && form.qty && (
                   <div className="text-[10px] mt-1 font-medium"
-                    style={{ color: +form.qty > selectedProduct.stock ? "#E24B4A" : "#1D9E75" }}>
+                    style={{ color: +form.qty > selectedProduct.stock ? "#E24B4A" : "var(--jade)" }}>
                     {+form.qty > selectedProduct.stock
                       ? `⚠ More than current stock (${selectedProduct.stock})`
                       : `Loss value: ₹${Math.round(+form.qty * (selectedProduct.cost_price||0))}`}
@@ -130,9 +130,9 @@ export default function Wastage() {
                       onClick={() => set("reason", r.key)}
                       className="flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all text-xs"
                       style={{
-                        background:  form.reason === r.key ? r.bg : "#fff",
+                        background:  form.reason === r.key ? r.bg : "var(--bg1)",
                         borderColor: form.reason === r.key ? r.color : "#e5e7eb",
-                        color:       form.reason === r.key ? r.color : "#666",
+                        color:       form.reason === r.key ? r.color : "var(--ink-dim)",
                         fontWeight:  form.reason === r.key ? 600 : 400,
                       }}>
                       <span>{r.icon}</span>
@@ -181,7 +181,7 @@ export default function Wastage() {
 
               <button onClick={save} disabled={saving}
                 className="btn w-full py-2.5 text-xs font-semibold mt-1"
-                style={{ background:"#E24B4A", color:"#fff", border:"none" }}>
+                style={{ background:"#E24B4A", color:"var(--bg1)", border:"none" }}>
                 {saving ? "Recording..." : "Record Wastage — Deduct Stock"}
               </button>
             </div>
@@ -196,7 +196,7 @@ export default function Wastage() {
           <p className="text-[10px] text-gray-400">Track expired, damaged or stolen items</p>
         </div>
         <button onClick={() => setModal(true)} className="btn btn-sm"
-          style={{ background:"#E24B4A", color:"#fff", border:"none" }}>
+          style={{ background:"#E24B4A", color:"var(--bg1)", border:"none" }}>
           + Record Wastage
         </button>
       </div>
@@ -210,7 +210,7 @@ export default function Wastage() {
           { label:"Top Reason",
             value: Object.keys(summary.by_reason).sort((a,b) => summary.by_reason[b]-summary.by_reason[a])[0]
                    || "—",
-            color:"#888", bg:"#f5f5f5", icon:"⚠" },
+            color:"var(--ink-faint)", bg:"var(--bg2)", icon:"⚠" },
         ].map((s,i) => (
           <div key={i} className="stat-card">
             <div className="stat-bar" style={{ background:s.color }} />

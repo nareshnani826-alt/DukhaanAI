@@ -299,11 +299,11 @@ export default function VoiceAgent({ onAddToBill }) {
               position:"relative", zIndex:1,
             }}>
             {listening ? (
-              <svg width="26" height="26" fill="white" viewBox="0 0 24 24">
+              <svg width="26" height="26" fill="var(--bg1)" viewBox="0 0 24 24">
                 <rect x="6" y="6" width="12" height="12" rx="2"/>
               </svg>
             ) : (
-              <svg width="26" height="26" fill="none" stroke="white" strokeWidth="2"
+              <svg width="26" height="26" fill="none" stroke="var(--bg1)" strokeWidth="2"
                 strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                 <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
                 <path d="M19 10v2a7 7 0 01-14 0v-2"/>
