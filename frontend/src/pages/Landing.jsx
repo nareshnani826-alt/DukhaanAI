@@ -355,6 +355,7 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       </div>
   )
 }
