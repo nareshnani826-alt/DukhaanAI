@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { voiceEngine, speak } from "./engine.js"
 import { parseVoiceCommand, formatConfirmation, splitMultiProduct, parseMultipleProducts } from "./nlp.js"
 import { t, getSavedLang, saveLang } from "./i18n.js"
+import { recordProductUse, recordCorrection } from "./sessionMemory.js"
+import { getConfidenceLevel } from "./phonetic.js"
 import { LANGUAGES } from "./languages.js"
 import { Products } from "../sync/db.js"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
@@ -34,7 +36,11 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
-    Products.list().then(setProducts)
+    Products.list().then(p => {
+      setProducts(p)
+      // Improvement 5: Feed product names as grammar hints to speech engine
+      voiceEngine.setGrammarHints(p.map(pr => pr.name))
+    })
     setPlatform(detectPlatform())
   }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }) }, [history])
@@ -230,6 +236,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
   async function confirmAction() {
     if (!pending) return
     const { original, action, qty, unit, invMatch, validation, stdName, variant, isNewProduct } = pending
+    const correctionOriginal = pending.original
     setPending(null)
 
     try {
@@ -239,11 +246,13 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
           const newStock = Math.max(0, invMatch.stock - qty)
           await Products.update(invMatch.id, { stock: newStock })
           onAddToBill?.({ product: invMatch, qty, unit })
+          // Improvement 3: Record product use for frequency boost
+          recordProductUse(invMatch.id, invMatch.name)
           const msg = t("added_to_bill", lang, invMatch.name, qty)
           speak(msg, lang)
           addHistory({ type:"bill", original, result: msg })
           setStatus("done"); setStatusMsg(msg)
-          Products.list().then(setProducts) // refresh
+          Products.list().then(p => { setProducts(p); voiceEngine.setGrammarHints(p.map(pr => pr.name)) })
         } else {
           onAddToBill?.({ product: null, productName: stdName, qty, unit, price: 0 })
           const msg = `"${stdName}" added to bill — set price manually`
@@ -486,13 +495,26 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
         {status === "confirm" && pending && multiPending.length === 0 && (
           <div className="mt-3 w-full max-w-sm border-2 border-amber-300 bg-amber-50 rounded-xl p-4">
             <div className="text-xs font-semibold text-amber-800 mb-3 text-center">✋ Confirm this action</div>
-            <div className="bg-white rounded-lg p-3 mb-3 text-xs space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Product</span>
-                <span className={`font-medium ${pending.invMatch ? "text-gray-800" : "text-amber-600"}`}>
+            <div style={{background:"var(--bg1,#fff)",borderRadius:10,padding:"10px 12px",marginBottom:10,fontSize:12}}>
+              {/* Improvement 4: Confidence indicator */}
+              {pending.invMatch?._confidence && (
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,alignItems:"center"}}>
+                  <span style={{fontSize:10,color:"var(--ink-faint,#888)"}}>Match confidence</span>
+                  <span style={{
+                    fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:20,
+                    background: pending.invMatch._confidence >= 0.85 ? "rgba(26,122,74,0.15)" : pending.invMatch._confidence >= 0.60 ? "rgba(232,119,34,0.15)" : "rgba(192,57,43,0.15)",
+                    color: pending.invMatch._confidence >= 0.85 ? "var(--jade,#1a7a4a)" : pending.invMatch._confidence >= 0.60 ? "var(--saffron,#e87722)" : "var(--ember,#c0392b)",
+                  }}>
+                    {pending.invMatch._confidence >= 0.85 ? "✓ High" : pending.invMatch._confidence >= 0.60 ? "~ Medium" : "? Low"} 
+                    {" "}({Math.round((pending.invMatch._confidence||0.8)*100)}%)
+                  </span>
+                </div>
+              )}
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{color:"var(--ink-faint,#888)"}}>Product</span>
+                <span style={{fontWeight:600,color:"var(--ink,#1a0c04)"}}>
                   {pending.invMatch?.name || pending.stdName}
-                  {!pending.invMatch && pending.validation.found && <span className="text-[10px] text-primary ml-1">(from database)</span>}
-                  {!pending.invMatch && !pending.validation.found && <span className="text-[10px] text-red-500 ml-1">(unrecognized)</span>}
+                  {!pending.invMatch && <span style={{fontSize:10,color:"var(--ember,#c0392b)",marginLeft:6}}>(not in inventory)</span>}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -522,12 +544,15 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={cancelAction}
-                className="py-2.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">
-                ✕ Cancel
+                style={{padding:"10px",borderRadius:10,fontSize:11,fontWeight:500,
+                  background:"var(--bg2,#f5f5f5)",border:"1px solid var(--rule,#e0e0e0)",
+                  color:"var(--ink-dim,#666)",cursor:"pointer"}}>
+                ✕ {t("cancel",lang)}
               </button>
               <button onClick={confirmAction}
-                className="py-2.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary-dark">
-                ✓ Confirm
+                style={{padding:"10px",borderRadius:10,fontSize:12,fontWeight:700,
+                  background:"var(--saffron,#e87722)",border:"none",color:"#fff",cursor:"pointer"}}>
+                ✓ {t("add_to_bill",lang)}
               </button>
             </div>
           </div>

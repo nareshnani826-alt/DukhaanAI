@@ -1,6 +1,8 @@
 // ── Voice NLP Parser ──────────────────────────────────────
 import { NUMBER_WORDS, UNIT_ALIASES, ACTION_KEYWORDS } from "./languages.js"
 import { applyGroceryAliases, resolveGroceryName, GROCERY_ALIASES } from "./groceryAliases.js"
+import { phoneticMatch, getConfidenceLevel } from "./phonetic.js"
+import { getFrequencyBoost, findCorrection, recordProductUse } from "./sessionMemory.js"
 
 // ── Detect action intent ──────────────────────────────────
 export function detectAction(text) {
@@ -45,41 +47,53 @@ export function resolveUnit(raw) {
 }
 
 // ── Match product against inventory ──────────────────────
-// 3-layer matching: alias map → exact name → word-by-word
+// 5-layer matching with confidence scoring:
+// 1. Community corrections (vendor's own fixes)
+// 2. Alias map (regional name dictionary)
+// 3. Exact/partial name match
+// 4. Word-by-word scoring + frequency boost
+// 5. Phonetic matching (fuzzy brand names)
 export function matchProduct(originalText, translatedText, products) {
   if (!products || !products.length) return null
 
-  // Layer 1: check BOTH original and translated against alias map
-  // e.g. "kandi pappu" → "toor dal", then find "toor dal" in inventory
   const textsToCheck = [originalText, translatedText].filter(Boolean)
 
+  // ── Layer 0: Community corrections (highest priority) ──
+  for (const text of textsToCheck) {
+    const corrected = findCorrection(text)
+    if (corrected) {
+      const found = products.find(p =>
+        p.name.toLowerCase() === corrected.toLowerCase() ||
+        p.name.toLowerCase().includes(corrected.toLowerCase())
+      )
+      if (found) return { ...found, _confidence: 0.99, _method: "correction" }
+    }
+  }
+
+  // ── Layer 1: Alias map ──────────────────────────────────
   for (const text of textsToCheck) {
     const lower = text.toLowerCase()
-    // Sort aliases longest first so "sona masoori rice" wins over "rice"
     const aliasKeys = Object.keys(GROCERY_ALIASES).sort((a,b) => b.length - a.length)
-
     for (const alias of aliasKeys) {
       if (lower.includes(alias)) {
         const standardName = GROCERY_ALIASES[alias]
-        // Now find standardName in inventory
         const found = products.find(p =>
           p.name.toLowerCase().includes(standardName) ||
           standardName.includes(p.name.toLowerCase())
         )
-        if (found) return found
+        if (found) return { ...found, _confidence: 0.95, _method: "alias" }
       }
     }
   }
 
-  // Layer 2: direct name match against inventory (exact/partial)
+  // ── Layer 2: Direct exact/partial name match ────────────
   for (const text of textsToCheck) {
     const t = text.toLowerCase()
-    // Exact full name match
     const exact = products.find(p => t.includes(p.name.toLowerCase()))
-    if (exact) return exact
+    if (exact) return { ...exact, _confidence: 0.90, _method: "exact" }
   }
 
-  // Layer 3: word-by-word scoring
+  // ── Layer 3: Word scoring + frequency boost ─────────────
   let best = null, bestScore = 0
   for (const text of textsToCheck) {
     const t = text.toLowerCase()
@@ -91,10 +105,27 @@ export function matchProduct(originalText, translatedText, products) {
         if (word.length > 2 && t.includes(word)) score += 20
       }
       if (product.sku && t.includes(product.sku.toLowerCase())) score += 50
+      // Session frequency boost — products used more today score higher
+      score += getFrequencyBoost(product.id, product.name)
       if (score > bestScore) { bestScore = score; best = product }
     }
   }
-  return bestScore > 15 ? best : null
+  if (bestScore > 15 && best) {
+    const confidence = Math.min(0.88, 0.50 + (bestScore / 120))
+    return { ...best, _confidence: confidence, _method: "word-score" }
+  }
+
+  // ── Layer 4: Phonetic matching ──────────────────────────
+  const productNames = products.map(p => p.name)
+  for (const text of textsToCheck) {
+    const phoneticResult = phoneticMatch(text, productNames)
+    if (phoneticResult) {
+      const found = products.find(p => p.name === phoneticResult.product)
+      if (found) return { ...found, _confidence: phoneticResult.confidence, _method: "phonetic" }
+    }
+  }
+
+  return null
 }
 
 // ── Full parse ────────────────────────────────────────────

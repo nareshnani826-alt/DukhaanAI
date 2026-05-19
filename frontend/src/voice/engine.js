@@ -5,7 +5,25 @@
 const TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
 
 // ── Translation ───────────────────────────────────────────
+// ── Improvement 1: Pre-translate blocklist ───────────────
+// These terms are known grocery words — skip Google Translate
+// to avoid wrong translations like "kandi pappu" → "peas"
+const SKIP_TRANSLATE_PATTERNS = [
+  // Known product words — translate would mangle them
+  /\b(amul|tata|parle|maggi|aashirvaad|fortune|haldiram|britannia|dettol|lifebuoy|patanjali|dabur|colgate|nestl|nescaf|horlick|bournvit|complan|glucon|vicks|savlon|vim|surf|ariel|rin|tide|harpic|lizol|good\s*knight|all\s*out)\b/i,
+  // Known regional grocery terms — let alias map handle these directly
+  /\b(kandi|pappu|pesara|togari|bele|tuvaram|paruppu|minapa|senaga|masoor|rajma|chana|moong|urad|toor|arhar)\b/i,
+  /\b(doodh|dudh|chawal|gehun|atta|maida|besan|suji|cheeni|shakkar|namak|tel|ghee|dahi|paneer)\b/i,
+  /\b(palu|uppu|biyyam|pindi|nune|palli|bellam|jaggery|gur|gud)\b/i,
+  /\b(rendu|moodu|naalugu|aidu|okati|ek|do|teen|char|paanch|onnu|moonu|naangu|anju)\b/i,
+]
+
 export async function translateToEnglish(text, sourceLang = "auto") {
+  // If text contains known grocery terms, skip translation entirely
+  // The alias map will handle matching directly from original language
+  if (SKIP_TRANSLATE_PATTERNS.some(p => p.test(text))) {
+    return text // return original — alias map handles it
+  }
   try {
     const lang = sourceLang.split("-")[0]
     const url  = `${TRANSLATE_URL}?client=gtx&sl=${lang}&tl=en&dt=t&q=${encodeURIComponent(text)}`
@@ -71,6 +89,24 @@ export class VoiceEngine {
     if (this.recognition) this.recognition.lang = code
   }
 
+  // Improvement 5: Set product name grammar hints
+  setGrammarHints(productNames = []) {
+    this._grammarHints = productNames.slice(0, 200) // top 200 products
+  }
+
+  _buildGrammar(productNames) {
+    try {
+      const SRG = window.SpeechGrammarList || window.webkitSpeechGrammarList
+      if (!SRG || !productNames?.length) return null
+      const list = new SRG()
+      // JSGF grammar biases recognition toward known product names
+      const phrases = productNames.map(n => n.toLowerCase()).join(" | ")
+      const grammar = `#JSGF V1.0; grammar products; public <product> = ${phrases} ;`
+      list.addFromString(grammar, 1) // weight = 1 (max influence)
+      return list
+    } catch { return null }
+  }
+
   _initRecognition() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) return null
@@ -78,7 +114,13 @@ export class VoiceEngine {
     rec.lang            = this.currentLang
     rec.continuous      = false
     rec.interimResults  = false
-    rec.maxAlternatives = 3
+    rec.maxAlternatives = 5 // increased for better alternatives
+
+    // Apply grammar hints if available
+    if (this._grammarHints?.length) {
+      const grammar = this._buildGrammar(this._grammarHints)
+      if (grammar) rec.grammars = grammar
+    }
 
     let autoStopTimer = null
 
