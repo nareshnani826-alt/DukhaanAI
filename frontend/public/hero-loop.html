@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DukaanAI — Hero Loop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%;background:#0a0a0a}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+// ─── EASING ──────────────────────────────────────────────────────
+const Easing = {
+  linear: t => t,
+  easeInQuad:    t => t*t,
+  easeOutQuad:   t => t*(2-t),
+  easeInOutQuad: t => t<0.5?2*t*t:-1+(4-2*t)*t,
+  easeInCubic:   t => t*t*t,
+  easeOutCubic:  t => (--t)*t*t+1,
+  easeInOutCubic:t => t<0.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1,
+  easeInQuart:   t => t*t*t*t,
+  easeOutQuart:  t => 1-(--t)*t*t*t,
+  easeOutExpo:   t => t===1?1:1-Math.pow(2,-10*t),
+  easeOutSine:   t => Math.sin((t*Math.PI)/2),
+  easeOutBack: t => { const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2); },
+  easeInBack:  t => { const c1=1.70158,c3=c1+1; return c3*t*t*t-c1*t*t; },
+  easeOutElastic: t => {
+    const c4=(2*Math.PI)/3;
+    if(t===0)return 0; if(t===1)return 1;
+    return Math.pow(2,-10*t)*Math.sin((t*10-0.75)*c4)+1;
+  },
+};
+
+const clamp = (v,min,max) => Math.max(min,Math.min(max,v));
+
+function animate({from=0,to=1,start=0,end=1,ease=Easing.easeInOutCubic}){
+  return t => {
+    if(t<=start)return from; if(t>=end)return to;
+    return from+(to-from)*ease((t-start)/(end-start));
+  };
+}
+
+// ─── TIMELINE ────────────────────────────────────────────────────
+const TimelineCtx = React.createContext({time:0,duration:34});
+const useTime = () => React.useContext(TimelineCtx).time;
+const useTimeline = () => React.useContext(TimelineCtx);
+
+const SpriteCtx = React.createContext({localTime:0,progress:0,duration:0,visible:true});
+const useSprite = () => React.useContext(SpriteCtx);
+
+function Sprite({start=0,end=Infinity,children,keepMounted=false}){
+  const {time} = useTimeline();
+  const visible = time>=start && time<=end;
+  if(!visible && !keepMounted)return null;
+  const dur = end-start;
+  const lt = Math.max(0,time-start);
+  const prog = dur>0&&isFinite(dur)?clamp(lt/dur,0,1):0;
+  const val = {localTime:lt,progress:prog,duration:dur,visible};
+  return (
+    <SpriteCtx.Provider value={val}>
+      {typeof children==='function'?children(val):children}
+    </SpriteCtx.Provider>
+  );
+}
+
+// ─── PALETTE & FONTS ─────────────────────────────────────────────
+const D = {
+  bg:'#140b06', bgDeep:'#0b0603', bgWarm:'#1d1108',
+  cream:'#f4e4c1', creamDim:'#b9a382', muted:'#7a6a51',
+  saffron:'#e87722', saffronLight:'#ff8e35',
+  gold:'#f6c768', goldMid:'#c08a3a', goldDeep:'#5a3e18',
+  green:'#7ec98a', red:'#e26d5a', paper:'#e8d8b0',
+  paperShadow:'#b59a64', ink:'#3a2410',
+  serif:"'Tiro Devanagari Hindi','Fraunces',Georgia,serif",
+  sans:"'Plus Jakarta Sans',system-ui,sans-serif",
+  mono:"'IBM Plex Mono',ui-monospace,monospace",
+};
+
+// ─── STAGE ───────────────────────────────────────────────────────
+function Stage({width=1920,height=1080,duration=34,background='#140b06',loop=true,persistKey='dk-hero',children}){
+  const [time,setTime] = React.useState(()=>{
+    try{ const v=parseFloat(localStorage.getItem(persistKey+':t')||'0'); return isFinite(v)?clamp(v,0,duration):0; }
+    catch{return 0;}
+  });
+  const [playing,setPlaying] = React.useState(true);
+  const [hoverTime,setHoverTime] = React.useState(null);
+  const [scale,setScale] = React.useState(1);
+  const stageRef = React.useRef(null);
+  const rafRef = React.useRef(null);
+  const lastTsRef = React.useRef(null);
+
+  React.useEffect(()=>{
+    try{localStorage.setItem(persistKey+':t',String(time));}catch{}
+  },[time,persistKey]);
+
+  React.useEffect(()=>{
+    if(!stageRef.current)return;
+    const el=stageRef.current;
+    const measure=()=>{
+      const barH=48;
+      const s=Math.min(el.clientWidth/width,(el.clientHeight-barH)/height);
+      setScale(Math.max(0.05,s));
+    };
+    measure();
+    const ro=new ResizeObserver(measure);
+    ro.observe(el); window.addEventListener('resize',measure);
+    return ()=>{ro.disconnect();window.removeEventListener('resize',measure);};
+  },[width,height]);
+
+  React.useEffect(()=>{
+    if(!playing){lastTsRef.current=null;return;}
+    const step=ts=>{
+      if(lastTsRef.current==null)lastTsRef.current=ts;
+      const dt=(ts-lastTsRef.current)/1000; lastTsRef.current=ts;
+      setTime(t=>{
+        let next=t+dt;
+        if(next>=duration){if(loop)next=next%duration;else{next=duration;setPlaying(false);}}
+        return next;
+      });
+      rafRef.current=requestAnimationFrame(step);
+    };
+    rafRef.current=requestAnimationFrame(step);
+    return ()=>{if(rafRef.current)cancelAnimationFrame(rafRef.current);lastTsRef.current=null;};
+  },[playing,duration,loop]);
+
+  React.useEffect(()=>{
+    const onKey=e=>{
+      if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
+      if(e.code==='Space'){e.preventDefault();setPlaying(p=>!p);}
+      else if(e.code==='ArrowLeft')setTime(t=>clamp(t-(e.shiftKey?1:0.1),0,duration));
+      else if(e.code==='ArrowRight')setTime(t=>clamp(t+(e.shiftKey?1:0.1),0,duration));
+      else if(e.key==='0'||e.code==='Home')setTime(0);
+    };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[duration]);
+
+  const displayTime = hoverTime!=null?hoverTime:time;
+  const ctx = React.useMemo(()=>({time:displayTime,duration,playing,setTime,setPlaying}),[displayTime,duration,playing]);
+
+  return (
+    <div ref={stageRef} style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',background:'#0a0a0a',fontFamily:D.sans}}>
+      <div style={{flex:1,width:'100%',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',minHeight:0}}>
+        <div style={{width,height,background,position:'relative',transform:`scale(${scale})`,transformOrigin:'center',flexShrink:0,boxShadow:'0 20px 60px rgba(0,0,0,0.5)',overflow:'hidden'}}>
+          <TimelineCtx.Provider value={ctx}>
+            {children}
+          </TimelineCtx.Provider>
+        </div>
+      </div>
+      <PlaybackBar time={displayTime} duration={duration} playing={playing}
+        onPlayPause={()=>setPlaying(p=>!p)}
+        onReset={()=>setTime(0)}
+        onSeek={t=>setTime(t)}
+        onHover={t=>setHoverTime(t)}
+      />
+    </div>
+  );
+}
+
+function PlaybackBar({time,duration,playing,onPlayPause,onReset,onSeek,onHover}){
+  const trackRef=React.useRef(null);
+  const [dragging,setDragging]=React.useState(false);
+  const timeFrom=React.useCallback(e=>{
+    const r=trackRef.current.getBoundingClientRect();
+    return clamp((e.clientX-r.left)/r.width,0,1)*duration;
+  },[duration]);
+  const onMove=e=>{ if(!trackRef.current)return; if(dragging)onSeek(timeFrom(e)); else onHover(timeFrom(e)); };
+  const onLeave=()=>{ if(!dragging)onHover(null); };
+  const onDown=e=>{ setDragging(true); onSeek(timeFrom(e)); onHover(null); };
+  React.useEffect(()=>{
+    if(!dragging)return;
+    const up=()=>setDragging(false);
+    const mv=e=>{ if(!trackRef.current)return; onSeek(timeFrom(e)); };
+    window.addEventListener('mouseup',up); window.addEventListener('mousemove',mv);
+    return ()=>{ window.removeEventListener('mouseup',up); window.removeEventListener('mousemove',mv); };
+  },[dragging,timeFrom,onSeek]);
+  const pct=duration>0?(time/duration)*100:0;
+  const fmt=t=>{ const m=Math.floor(t/60),s=Math.floor(t%60),cs=Math.floor((t*100)%100);
+    return `${m}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`; };
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',background:'rgba(18,10,4,0.96)',borderTop:'1px solid rgba(244,228,193,0.08)',width:'100%',maxWidth:700,alignSelf:'center',borderRadius:8,color:D.cream,userSelect:'none',flexShrink:0}}>
+      <Btn onClick={onReset} title="Return to start (0)">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2v10M12 2L5 7l7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round"/></svg>
+      </Btn>
+      <Btn onClick={onPlayPause} title="Play/pause (Space)">
+        {playing
+          ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="3" y="2" width="3" height="10" fill="currentColor"/><rect x="8" y="2" width="3" height="10" fill="currentColor"/></svg>
+          : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2l9 5-9 5V2z" fill="currentColor"/></svg>
+        }
+      </Btn>
+      <div style={{fontFamily:D.mono,fontSize:12,width:64,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(time)}</div>
+      {/* Scene labels */}
+      <div ref={trackRef} onMouseMove={onMove} onMouseLeave={onLeave} onMouseDown={onDown}
+        style={{flex:1,height:22,position:'relative',cursor:'pointer',display:'flex',alignItems:'center'}}>
+        <div style={{position:'absolute',left:0,right:0,height:4,background:'rgba(244,228,193,0.10)',borderRadius:2}}/>
+        {/* Scene markers */}
+        {[[7/34,''], [10/34,''], [15/34,''], [20/34,''], [25.5/34,''], [28/34,''], [32/34,'']].map(([p],i)=>(
+          <div key={i} style={{position:'absolute',left:`${p*100}%`,top:'50%',width:2,height:10,marginTop:-5,background:'rgba(232,119,34,0.5)',borderRadius:1}}/>
+        ))}
+        <div style={{position:'absolute',left:0,width:`${pct}%`,height:4,background:D.saffron,borderRadius:2}}/>
+        <div style={{position:'absolute',left:`${pct}%`,top:'50%',width:12,height:12,marginLeft:-6,marginTop:-6,background:'#fff',borderRadius:6,boxShadow:'0 2px 6px rgba(0,0,0,0.5)'}}/>
+      </div>
+      <div style={{fontFamily:D.mono,fontSize:12,width:64,color:'rgba(244,228,193,0.4)',fontVariantNumeric:'tabular-nums'}}>{fmt(duration)}</div>
+    </div>
+  );
+}
+
+function Btn({children,onClick,title}){
+  const [h,setH]=React.useState(false);
+  return <button onClick={onClick} title={title} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+    style={{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',background:h?'rgba(244,228,193,0.12)':'rgba(244,228,193,0.04)',border:'1px solid rgba(244,228,193,0.1)',borderRadius:6,color:D.cream,cursor:'pointer',padding:0,transition:'background 120ms'}}>{children}</button>;
+}
+
+// ─── SHARED COMPONENTS ───────────────────────────────────────────
+function StageBackground(){
+  const t=useTime();
+  const gx=50+Math.sin(t*0.25)*6, gy=45+Math.cos(t*0.2)*4;
+  return (
+    <div style={{position:'absolute',inset:0,background:`radial-gradient(ellipse 70% 55% at ${gx}% ${gy}%,rgba(232,119,34,0.08),transparent 60%),radial-gradient(ellipse 90% 70% at 50% 110%,rgba(90,62,24,0.18),transparent 60%),${D.bg}`,pointerEvents:'none'}}>
+      <div style={{position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(255,210,140,0.03) 1px,transparent 1px)',backgroundSize:'3px 3px',mixBlendMode:'screen',opacity:0.6}}/>
+    </div>
+  );
+}
+
+function Vignette(){
+  return <div style={{position:'absolute',inset:0,pointerEvents:'none',background:'radial-gradient(ellipse 100% 80% at 50% 50%,transparent 55%,rgba(0,0,0,0.45) 100%)',zIndex:999}}/>;
+}
+
+function FadeOverlay(){
+  const t=useTime(), dur=useTimeline().duration;
+  let a=0;
+  if(t<0.5)a=1-t/0.5;
+  else if(t>dur-0.5)a=(t-(dur-0.5))/0.5;
+  if(a<=0)return null;
+  return <div style={{position:'absolute',inset:0,pointerEvents:'none',background:'#000',opacity:clamp(a,0,1),zIndex:1000}}/>;
+}
+
+function Caption({hi,en,x=960,y=940,align='center',accent=D.saffron}){
+  const tx=align==='center'?'-50%':align==='right'?'-100%':'0';
+  return (
+    <div style={{position:'absolute',left:x,top:y,transform:`translateX(${tx})`,textAlign:align,color:D.cream,width:1400}}>
+      {hi&&<div style={{fontFamily:D.serif,fontSize:56,lineHeight:1.05,color:D.cream,letterSpacing:'-0.5px'}}>{hi}</div>}
+      {en&&<div style={{fontFamily:D.mono,fontSize:14,marginTop:14,letterSpacing:'0.22em',textTransform:'uppercase',color:accent,fontWeight:500}}>{en}</div>}
+    </div>
+  );
+}
+
+function Chip({children,color=D.saffron,bg,dot=false,style={}}){
+  return (
+    <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 12px',borderRadius:999,background:bg||'rgba(232,119,34,0.12)',border:'1px solid rgba(232,119,34,0.32)',color,fontFamily:D.mono,fontSize:11,fontWeight:600,letterSpacing:'0.10em',textTransform:'uppercase',whiteSpace:'nowrap',...style}}>
+      {dot&&<div style={{width:6,height:6,borderRadius:999,background:color,boxShadow:`0 0 10px ${color}`}}/>}
+      {children}
+    </div>
+  );
+}
+
+function PhoneFrame({x=760,y=100,width=400,height=820,scale=1,rotate=0,glow=true,children}){
+  const si=14;
+  return (
+    <div style={{position:'absolute',left:x,top:y,width,height,transform:`scale(${scale}) rotate(${rotate}deg)`,transformOrigin:'center'}}>
+      {glow&&<div style={{position:'absolute',inset:-60,background:'radial-gradient(ellipse 60% 50% at 50% 50%,rgba(255,142,53,0.22),transparent 60%)',filter:'blur(20px)',pointerEvents:'none'}}/>}
+      <div style={{position:'absolute',inset:0,borderRadius:56,background:'linear-gradient(160deg,#2a1c10,#100802 70%)',boxShadow:`0 60px 120px rgba(0,0,0,0.6),0 0 0 1.5px rgba(244,228,193,0.08),inset 0 1px 0 rgba(244,228,193,0.10)`}}>
+        <div style={{position:'absolute',left:-3,top:180,width:4,height:70,borderRadius:2,background:'#2a1c10'}}/>
+        <div style={{position:'absolute',right:-3,top:220,width:4,height:100,borderRadius:2,background:'#2a1c10'}}/>
+        <div style={{position:'absolute',left:si,top:si,right:si,bottom:si,borderRadius:44,background:D.bg,overflow:'hidden'}}>
+          {/* Status bar */}
+          <div style={{position:'absolute',top:0,left:0,right:0,height:36,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',zIndex:10,fontFamily:D.sans,fontSize:13,fontWeight:600,color:D.cream}}>
+            <div>9:41</div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{display:'flex',alignItems:'flex-end',gap:2}}>{[3,5,7,9].map(h=><div key={h} style={{width:3,height:h,background:D.cream,borderRadius:1}}/>)}</div>
+              <div style={{width:22,height:11,borderRadius:3,border:`1px solid ${D.cream}`,position:'relative',padding:1}}><div style={{width:'78%',height:'100%',background:D.cream,borderRadius:1}}/></div>
+            </div>
+          </div>
+          <div style={{position:'absolute',top:8,left:'50%',transform:'translateX(-50%)',width:110,height:30,borderRadius:20,background:'#000',zIndex:11}}/>
+          <div style={{position:'absolute',inset:0,paddingTop:36}}>{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CountUp({from,to,t}){
+  return Math.round(from+(to-from)*Easing.easeOutCubic(t)).toLocaleString('en-IN');
+}
+
+function Row({label,value,big=false,muted=false}){
+  return (
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginTop:big?4:0}}>
+      <div style={{fontFamily:D.mono,fontSize:big?13:11,color:muted?D.muted:D.creamDim,letterSpacing:'0.15em',textTransform:'uppercase'}}>{label}</div>
+      <div style={{fontFamily:D.serif,fontSize:big?30:16,color:big?D.saffron:D.cream,fontWeight:big?700:500}}>{value}</div>
+    </div>
+  );
+}
+
+// ─── SCENE 1: PROBLEM (0–7.2s) ───────────────────────────────────
+function PaperLedger({progress}){
+  const sc=0.92+progress*0.10, rot=-2.5+Math.sin(progress*2)*0.4;
+  return (
+    <div style={{position:'absolute',left:320,top:80,width:1280,height:940,transform:`scale(${sc}) rotate(${rot}deg)`,transformOrigin:'50% 60%'}}>
+      <div style={{position:'absolute',inset:'24px -16px -28px 18px',background:'#d4be8d',borderRadius:4,boxShadow:'0 30px 60px rgba(0,0,0,0.55)',transform:'rotate(1.6deg)'}}/>
+      <div style={{position:'absolute',inset:'12px 22px -16px -22px',background:'#decb9f',borderRadius:4,boxShadow:'0 24px 50px rgba(0,0,0,0.45)',transform:'rotate(-1deg)'}}/>
+      <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 30% 20%,#f3e4be 0%,#e8d8b0 40%,#cdb784 100%)',borderRadius:4,boxShadow:'0 30px 80px rgba(0,0,0,0.6),inset 0 0 90px rgba(120,85,40,0.22)',overflow:'hidden'}}>
+        {[...Array(18)].map((_,i)=><div key={i} style={{position:'absolute',left:60,right:60,top:110+i*44,height:1,background:'rgba(90,62,24,0.18)'}}/>)}
+        <div style={{position:'absolute',left:60,right:60,top:100,bottom:60,borderLeft:'1px solid rgba(160,40,30,0.35)',borderRight:'1px solid rgba(160,40,30,0.35)'}}/>
+        <div style={{position:'absolute',left:60,right:60,top:50,height:50,borderBottom:'2px solid rgba(160,40,30,0.6)',display:'flex',alignItems:'flex-end',fontFamily:`'Tiro Devanagari Hindi',serif`,fontSize:28,color:'#7a2418',fontStyle:'italic',paddingBottom:6}}>
+          बही‑खाता &nbsp;<span style={{fontSize:16,color:'#5a3e18',opacity:0.7}}>— सोमवार</span>
+        </div>
+        <div style={{position:'absolute',right:80,top:200,width:180,height:180,background:'radial-gradient(circle,rgba(120,70,30,0.35),transparent 70%)',borderRadius:'50%'}}/>
+        <div style={{position:'absolute',left:200,bottom:110,width:120,height:120,background:'radial-gradient(circle,rgba(80,40,20,0.28),transparent 70%)',borderRadius:'50%'}}/>
+        {[0.18,0.5,0.82].map((p,i)=><div key={i} style={{position:'absolute',left:24,top:`${p*100}%`,width:16,height:16,borderRadius:'50%',background:'rgba(40,20,10,0.22)'}}/>)}
+      </div>
+    </div>
+  );
+}
+
+function ScribbleLine({start,hi,en,amount,top,status='ok',appearance='ink'}){
+  const {localTime}=useSprite();
+  const local=localTime-start;
+  if(local<0)return null;
+  const t=Math.min(1,local/0.35);
+  const inkColor=appearance==='red'?'#7a2418':'#3a2410';
+  const strikeP=clamp((local-0.6)/0.4,0,1);
+  return (
+    <div style={{position:'absolute',left:0,right:0,top,transform:`translateX(${(1-t)*-10}px)`,opacity:t,fontFamily:"'Caveat',cursive",fontSize:22,color:inkColor,fontStyle:'italic',display:'flex',alignItems:'baseline',gap:18,paddingLeft:96,paddingRight:96,pointerEvents:'none'}}>
+      <div style={{fontFamily:`'Tiro Devanagari Hindi',serif`,fontSize:26,minWidth:220}}>{hi}</div>
+      <div style={{flex:1,fontFamily:"'Caveat',cursive",fontSize:24,color:'#5a3e18',transform:`rotate(${-1+Math.sin(start*12)*1.5}deg)`}}>{en}</div>
+      <div style={{fontFamily:`'Tiro Devanagari Hindi',serif`,fontSize:26,minWidth:140,textAlign:'right'}}>{amount}</div>
+      {status==='strike'&&<div style={{position:'absolute',left:96+220,right:96+140,top:18,height:2,background:'#7a2418',transform:`scaleX(${strikeP})`,transformOrigin:'left',opacity:0.9,borderRadius:2}}/>}
+      {status==='question'&&<div style={{position:'absolute',right:96+80,top:-4,fontFamily:"'Caveat',cursive",color:'#7a2418',fontSize:34,fontWeight:700,transform:`rotate(8deg) scale(${0.6+strikeP*0.6})`,opacity:strikeP}}>??</div>}
+    </div>
+  );
+}
+
+function UdhaarSlip({start,x,y,rotate,who,amount}){
+  const {localTime}=useSprite();
+  const local=localTime-start;
+  if(local<0)return null;
+  const t=clamp(local/0.4,0,1), eased=Easing.easeOutBack(t);
+  const sc=0.4+0.6*eased;
+  const wobble=local>0.4?Math.sin((local-0.4)*18)*(Math.max(0,0.25-(local-0.4))/0.25)*1.5:0;
+  return (
+    <div style={{position:'absolute',left:x,top:y,width:240,height:130,padding:16,transform:`scale(${sc}) rotate(${rotate+wobble}deg)`,transformOrigin:'center',background:'#f5e8c4',boxShadow:'0 18px 28px rgba(0,0,0,0.45),0 0 0 1px rgba(120,80,30,0.25)',opacity:t,fontFamily:"'Caveat',cursive",color:'#3a2410'}}>
+      <div style={{fontFamily:`'Tiro Devanagari Hindi',serif`,fontSize:13,color:'#8a5a20',letterSpacing:'0.2em',textTransform:'uppercase'}}>उधार</div>
+      <div style={{fontSize:26,marginTop:4,fontWeight:700,lineHeight:1}}>{who}</div>
+      <div style={{fontFamily:`'Tiro Devanagari Hindi',serif`,fontSize:26,marginTop:10,color:'#7a2418'}}>₹{amount}</div>
+    </div>
+  );
+}
+
+function SceneProblem({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({progress,localTime,duration})=>{
+        const fadeOut=clamp((localTime-(duration-0.8))/0.8,0,1);
+        const sc=0.92+progress*0.10, rot=-2.5+Math.sin(progress*2)*0.4;
+        return (
+          <div style={{position:'absolute',inset:0,opacity:1-fadeOut}}>
+            <PaperLedger progress={progress}/>
+            <div style={{position:'absolute',left:320,top:80,width:1280,height:940,transform:`scale(${sc}) rotate(${rot}deg)`,transformOrigin:'50% 60%',pointerEvents:'none'}}>
+              <ScribbleLine start={0.4}  top={170} hi="आटा 2 किलो"    en="atta 2kg"      amount="₹120"/>
+              <ScribbleLine start={0.9}  top={214} hi="तेल 1 लिटर"    en="oil sunflower" amount="₹180"/>
+              <ScribbleLine start={1.3}  top={258} hi="चीनी 1 किलो"   en="cheeni"        amount="₹50" status="strike"/>
+              <ScribbleLine start={1.7}  top={302} hi="साबुन 5 पीस"   en="lifebuoy x5"   amount="₹175"/>
+              <ScribbleLine start={2.05} top={346} hi="रमेश भाई — उधार" en="ramesh — bhula?" amount="₹ ?" status="question" appearance="red"/>
+              <ScribbleLine start={2.4}  top={390} hi="दूध 2 लिटर"    en="milk"          amount="₹110"/>
+              <ScribbleLine start={2.75} top={434} hi="मसाला डिब्बा"  en="masala box"    amount="₹230" status="strike"/>
+              <ScribbleLine start={3.05} top={478} hi="सुनीता दीदी"   en="sunita — kal lenge" amount="₹ ?" appearance="red" status="question"/>
+            </div>
+            <UdhaarSlip start={3.4}  x={1380} y={120} rotate={6}  who="Ramesh"  amount="450"/>
+            <UdhaarSlip start={3.7}  x={1420} y={220} rotate={-4} who="Sunita"  amount="180"/>
+            <UdhaarSlip start={4.0}  x={1360} y={340} rotate={9}  who="Vikas"   amount="720"/>
+            <UdhaarSlip start={4.3}  x={1440} y={460} rotate={-7} who="Anil ji" amount="265"/>
+            <UdhaarSlip start={4.55} x={1380} y={580} rotate={3}  who="???"     amount="???"/>
+            <Sprite start={1.5} end={6.5}>
+              <Caption hi={<>रोज़ का यही चक्कर...</>} en="Pen. Paper. Pareshani." y={920}/>
+            </Sprite>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── PHONE POSITION ──────────────────────────────────────────────
+const PHONE={x:1180,y:80,w:460,h:940};
+
+// ─── SCENE 2: PHONE INTRO (7–10.2s) ─────────────────────────────
+function HomeScreen({micPulse=0}){
+  const t=useTime();
+  const pulse=1+Math.sin(t*4)*0.05*micPulse;
+  return (
+    <div style={{position:'absolute',inset:0,padding:'20px 24px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginTop:6}}>
+        <div style={{width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${D.gold},${D.goldDeep})`}}/>
+        <div style={{fontFamily:D.serif,fontSize:18,color:D.cream}}>दुकान<span style={{color:D.saffron}}>•</span>AI</div>
+      </div>
+      <div style={{marginTop:70,textAlign:'center',fontFamily:D.mono,fontSize:11,letterSpacing:'0.22em',textTransform:'uppercase',color:D.muted}}>Tap and speak — any language</div>
+      <div style={{position:'absolute',top:360,left:'50%',transform:`translateX(-50%) scale(${pulse})`,width:200,height:200,borderRadius:'50%',background:`radial-gradient(circle at 35% 30%,${D.saffronLight},${D.saffron} 50%,#a23f10 100%)`,boxShadow:`0 0 80px rgba(255,142,53,${0.4+micPulse*0.5}),0 20px 40px rgba(0,0,0,0.5)`,display:'flex',alignItems:'center',justifyContent:'center',opacity:0.4+micPulse*0.6}}>
+        <svg width="72" height="72" viewBox="0 0 24 24" fill="none">
+          <rect x="9" y="3" width="6" height="12" rx="3" fill="#fff8e8"/>
+          <path d="M5 11a7 7 0 0014 0" stroke="#fff8e8" strokeWidth="2" strokeLinecap="round" fill="none"/>
+          <line x1="12" y1="18" x2="12" y2="21" stroke="#fff8e8" strokeWidth="2" strokeLinecap="round"/>
+          <line x1="9" y1="21" x2="15" y2="21" stroke="#fff8e8" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+        {[0,1,2].map(i=>{
+          const r=((t*0.6+i*0.33)%1);
+          return <div key={i} style={{position:'absolute',inset:0,borderRadius:'50%',border:`2px solid rgba(255,142,53,${(1-r)*0.5*micPulse})`,transform:`scale(${1+r*0.8})`}}/>;
+        })}
+      </div>
+      <div style={{position:'absolute',bottom:90,left:0,right:0,display:'flex',flexWrap:'wrap',justifyContent:'center',gap:8,padding:'0 30px'}}>
+        {['हिंदी','English','मराठी','தமிழ்','বাংলা','ગુજરાતી','ਪੰਜਾਬੀ'].map((l,i)=>(
+          <div key={l} style={{padding:'6px 12px',borderRadius:999,background:i===0?'rgba(232,119,34,0.18)':'rgba(244,228,193,0.06)',border:`1px solid ${i===0?'rgba(232,119,34,0.45)':'rgba(244,228,193,0.12)'}`,color:i===0?D.saffron:D.creamDim,fontFamily:D.sans,fontSize:12,fontWeight:600}}>{l}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ScenePhoneIntro({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({localTime,duration,progress})=>{
+        const t=Easing.easeOutBack(clamp(localTime/1.2,0,1));
+        const ty=(1-t)*240, sc=0.85+t*0.15;
+        const fadeOut=clamp((localTime-(duration-0.4))/0.4,0,1);
+        const micT=clamp((localTime-1.0)/0.8,0,1);
+        return (
+          <>
+            <div style={{position:'absolute',left:PHONE.x-200,top:PHONE.y-100,width:PHONE.w+400,height:PHONE.h+200,background:'radial-gradient(ellipse 50% 40% at 50% 50%,rgba(232,119,34,0.25),transparent 70%)',opacity:t*(1-fadeOut),pointerEvents:'none',filter:'blur(8px)'}}/>
+            <div style={{position:'absolute',left:PHONE.x,top:PHONE.y+ty,transform:`scale(${sc})`,transformOrigin:'center',opacity:1-fadeOut}}>
+              <PhoneFrame x={0} y={0} width={PHONE.w} height={PHONE.h} glow={false}><HomeScreen micPulse={micT}/></PhoneFrame>
+            </div>
+            <div style={{position:'absolute',left:120,top:380,width:880,opacity:t*(1-fadeOut)}}>
+              <Chip dot accent={D.saffron}>NEW WAY</Chip>
+              <div style={{fontFamily:D.serif,fontSize:110,lineHeight:0.95,color:D.cream,marginTop:24,letterSpacing:'-2px'}}>
+                बस <span style={{color:D.saffron}}>बोलिए।</span>
+              </div>
+              <div style={{fontFamily:D.sans,fontSize:28,color:D.creamDim,marginTop:24,lineHeight:1.4}}>
+                No typing. No tapping.<br/><span style={{color:D.cream}}>Sirf bolo</span> — app sun raha hai.
+              </div>
+            </div>
+          </>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── SCENE 3: VOICE BILLING (10–15.2s) ───────────────────────────
+function VoiceBillScreen({localTime}){
+  const items=[
+    {hi:'आटा',   en:'Atta',   qty:'2 kg', price:120,at:0.6},
+    {hi:'तेल',   en:'Tel',    qty:'1 L',  price:180,at:1.3},
+    {hi:'साबुन', en:'Saabun', qty:'5 pc', price:175,at:2.0},
+    {hi:'चीनी',  en:'Cheeni', qty:'1 kg', price:50, at:2.7},
+  ];
+  const totalT=clamp((localTime-3.4)/0.4,0,1);
+  const stampT=clamp((localTime-4.0)/0.5,0,1);
+  const phrases=['दो किलो आटा...','दो किलो आटा, एक लिटर तेल...','आटा, तेल, पाँच साबुन...','आटा, तेल, साबुन, एक किलो चीनी...','Total nikalo, GST add karo...'];
+  const transcript=phrases[Math.min(phrases.length-1,Math.floor(localTime/0.85))];
+  const total=items.filter(it=>localTime>it.at).reduce((a,it)=>a+it.price,0);
+  const gst=Math.round(total*0.05), grand=total+gst;
+  return (
+    <div style={{position:'absolute',inset:0,padding:'20px 18px',display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:6}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:22,height:22,borderRadius:6,background:`linear-gradient(135deg,${D.gold},${D.goldDeep})`}}/>
+          <div style={{fontFamily:D.serif,fontSize:15,color:D.cream}}>नया बिल</div>
+        </div>
+        <div style={{padding:'4px 10px',borderRadius:999,background:'rgba(126,201,138,0.14)',border:'1px solid rgba(126,201,138,0.35)',color:D.green,fontFamily:D.mono,fontSize:9,letterSpacing:'0.15em',textTransform:'uppercase',fontWeight:600}}>● Listening</div>
+      </div>
+      <div style={{marginTop:16,padding:'14px 16px',borderRadius:14,background:'rgba(232,119,34,0.10)',border:'1px solid rgba(232,119,34,0.32)',fontFamily:D.serif,fontSize:18,color:D.cream,lineHeight:1.3,minHeight:56}}>
+        <div style={{fontFamily:D.mono,fontSize:9,color:D.saffron,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:6}}>You said</div>
+        "{transcript}"<span style={{opacity:(localTime*2%1)>0.5?1:0}}>▌</span>
+      </div>
+      <div style={{marginTop:18,display:'flex',flexDirection:'column',gap:10}}>
+        {items.map((it,i)=>{
+          if(localTime<=it.at)return null;
+          const t=clamp((localTime-it.at)/0.3,0,1), e=Easing.easeOutCubic(t);
+          return (
+            <div key={i} style={{opacity:t,transform:`translateX(${(1-e)*-20}px)`,padding:'10px 14px',borderRadius:10,background:'rgba(244,228,193,0.04)',border:'1px solid rgba(244,228,193,0.10)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontFamily:D.serif,fontSize:18,color:D.cream,lineHeight:1}}>{it.hi}</div>
+                <div style={{fontFamily:D.mono,fontSize:10,color:D.muted,marginTop:3,letterSpacing:'0.1em',textTransform:'uppercase'}}>{it.en} · {it.qty}</div>
+              </div>
+              <div style={{fontFamily:D.sans,fontSize:18,fontWeight:700,color:D.cream}}>₹{it.price}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{flex:1}}/>
+      <div style={{opacity:totalT,transform:`translateY(${(1-totalT)*10}px)`,padding:'14px 16px',borderRadius:12,background:'rgba(244,228,193,0.06)',border:'1px solid rgba(244,228,193,0.12)',marginBottom:12}}>
+        <Row label="Subtotal" value={`₹${total}`}/>
+        <Row label="GST (5%)" value={`₹${gst}`} muted/>
+        <div style={{height:1,background:'rgba(244,228,193,0.1)',margin:'10px 0'}}/>
+        <Row label="कुल" value={`₹${grand}`} big/>
+      </div>
+      <div style={{position:'absolute',right:30,top:280,transform:`rotate(-8deg) scale(${Easing.easeOutBack(stampT)})`,opacity:stampT,padding:'8px 16px',borderRadius:8,border:`3px solid ${D.green}`,color:D.green,fontFamily:D.sans,fontSize:18,fontWeight:800,letterSpacing:'0.05em',textTransform:'uppercase',background:'rgba(126,201,138,0.08)'}}>Bill ✓</div>
+    </div>
+  );
+}
+
+function LanguageTicker({localTime}){
+  const langs=[
+    {name:'हिंदी',  phrase:'do kilo aata, ek liter tel'},
+    {name:'मराठी',  phrase:'don kilo pith, ek liter tel'},
+    {name:'தமிழ்',  phrase:'rendu kilo maavu, oru liter ennai'},
+    {name:'বাংলা',  phrase:'dui kilo aata, ek liter tel'},
+    {name:'ગુજરાતી',phrase:'be kilo lot, ek liter tel'},
+    {name:'ਪੰਜਾਬੀ', phrase:'do kilo aata, ik liter tel'},
+  ];
+  const idx=Math.floor(localTime/0.7)%langs.length;
+  const within=(localTime%0.7)/0.7;
+  const lang=langs[idx];
+  const fade=within<0.15?within/0.15:within>0.85?(1-within)/0.15:1;
+  return (
+    <div style={{display:'flex',alignItems:'baseline',gap:24,height:80}}>
+      <div style={{fontFamily:D.serif,fontSize:64,color:D.saffron,opacity:fade,minWidth:240,lineHeight:1}}>{lang.name}</div>
+      <div style={{fontFamily:D.mono,fontSize:18,color:D.creamDim,opacity:fade*0.8,letterSpacing:'0.02em'}}>"{lang.phrase}"</div>
+    </div>
+  );
+}
+
+function SceneVoice({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({localTime,duration})=>{
+        const fadeIn=clamp(localTime/0.5,0,1), fadeOut=clamp((localTime-(duration-0.4))/0.4,0,1);
+        return (
+          <div style={{opacity:fadeIn*(1-fadeOut)}}>
+            <PhoneFrame x={PHONE.x} y={PHONE.y} width={PHONE.w} height={PHONE.h} glow={false}><VoiceBillScreen localTime={localTime}/></PhoneFrame>
+            <div style={{position:'absolute',left:120,top:140,width:920}}>
+              <Chip dot>VOICE BILLING</Chip>
+              <div style={{fontFamily:D.serif,fontSize:96,lineHeight:0.98,color:D.cream,marginTop:22,letterSpacing:'-2px'}}>
+                बोलो — <span style={{color:D.saffron}}>bill ban gaya.</span>
+              </div>
+              <div style={{marginTop:36,fontFamily:D.sans,fontSize:24,color:D.creamDim,lineHeight:1.5,maxWidth:720}}>
+                Items, prices, GST — sab kuch aapki<br/><span style={{color:D.cream}}>aawaaz se</span>, 10 भाषाओं में।
+              </div>
+              <div style={{marginTop:80,display:'flex',flexDirection:'column',gap:10}}>
+                <div style={{fontFamily:D.mono,fontSize:11,letterSpacing:'0.22em',textTransform:'uppercase',color:D.muted}}>Listening in</div>
+                <LanguageTicker localTime={localTime}/>
+              </div>
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── SCENE 4: UDHAAR (15–20.2s) ──────────────────────────────────
+function UdhaarScreen({localTime}){
+  const customers=[
+    {name:'रमेश भाई',   en:'Ramesh',  amt:450,days:3,at:0.4,status:'open'},
+    {name:'सुनीता दीदी', en:'Sunita',  amt:180,days:0,at:0.9,status:'today'},
+    {name:'विकास जी',   en:'Vikas',   amt:720,days:5,at:1.4,status:'overdue'},
+    {name:'अनिल भाई',   en:'Anil',    amt:265,days:1,at:1.9,status:'open'},
+    {name:'पूजा देवी',   en:'Pooja',   amt:95, days:2,at:2.4,status:'open'},
+  ];
+  const visible=customers.filter(c=>localTime>c.at);
+  const running=visible.reduce((a,c)=>a+c.amt,0);
+  return (
+    <div style={{position:'absolute',inset:0,padding:'20px 18px',display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:6}}>
+        <div style={{fontFamily:D.serif,fontSize:18,color:D.cream}}>उधार खाता</div>
+        <div style={{fontFamily:D.mono,fontSize:10,color:D.muted,letterSpacing:'0.18em',textTransform:'uppercase'}}>September</div>
+      </div>
+      <div style={{marginTop:16,padding:'18px',borderRadius:16,background:'linear-gradient(135deg,rgba(232,119,34,0.18),rgba(232,119,34,0.04))',border:'1px solid rgba(232,119,34,0.32)'}}>
+        <div style={{fontFamily:D.mono,fontSize:10,color:D.saffron,letterSpacing:'0.22em',textTransform:'uppercase'}}>कुल उधार · Outstanding</div>
+        <div style={{display:'flex',alignItems:'baseline',gap:8,marginTop:6}}>
+          <div style={{fontFamily:D.serif,fontSize:40,color:D.cream,lineHeight:1}}>₹{running.toLocaleString('en-IN')}</div>
+          <div style={{fontFamily:D.sans,fontSize:12,color:D.creamDim,fontWeight:500}}>from {visible.length} customers</div>
+        </div>
+      </div>
+      <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:8}}>
+        {customers.map((c,i)=>{
+          if(localTime<c.at)return null;
+          const t=clamp((localTime-c.at)/0.35,0,1), e=Easing.easeOutCubic(t);
+          const cc={open:{bg:'rgba(244,228,193,0.04)',accent:D.creamDim,label:`${c.days}d ago`},today:{bg:'rgba(126,201,138,0.10)',accent:D.green,label:'आज'},overdue:{bg:'rgba(226,109,90,0.12)',accent:D.red,label:`${c.days}d overdue`}}[c.status];
+          return (
+            <div key={i} style={{opacity:t,transform:`translateY(${(1-e)*12}px)`,padding:'12px 14px',borderRadius:12,background:cc.bg,border:'1px solid rgba(244,228,193,0.10)',display:'flex',alignItems:'center',gap:12}}>
+              <div style={{width:36,height:36,borderRadius:'50%',background:`linear-gradient(135deg,${D.gold},${D.goldDeep})`,display:'flex',alignItems:'center',justifyContent:'center',color:D.bg,fontFamily:D.serif,fontSize:16,fontWeight:700,flexShrink:0}}>{c.name[0]}</div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:D.serif,fontSize:16,color:D.cream,lineHeight:1}}>{c.name}</div>
+                <div style={{fontFamily:D.mono,fontSize:9,color:cc.accent,marginTop:4,letterSpacing:'0.12em',textTransform:'uppercase'}}>{cc.label}</div>
+              </div>
+              <div style={{fontFamily:D.sans,fontSize:18,fontWeight:700,color:D.cream}}>₹{c.amt}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{flex:1}}/>
+      {localTime>3.0&&(
+        <div style={{padding:'10px 14px',borderRadius:10,background:'rgba(126,201,138,0.14)',border:'1px solid rgba(126,201,138,0.35)',display:'flex',alignItems:'center',gap:10,opacity:clamp((localTime-3.0)/0.4,0,1),transform:`translateY(${(1-clamp((localTime-3.0)/0.4,0,1))*10}px)`,marginBottom:12}}>
+          <div style={{width:24,height:24,borderRadius:999,background:D.green,color:D.bg,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,fontFamily:D.sans}}>✓</div>
+          <div style={{fontFamily:D.sans,fontSize:13,color:D.cream,lineHeight:1.2}}>
+            SMS भेज दिया — Vikas ji को<br/><span style={{color:D.creamDim,fontSize:11}}>"Aap ka ₹720 ka udhaar pending hai..."</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SceneUdhaar({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({localTime,duration})=>{
+        const fadeIn=clamp(localTime/0.5,0,1),fadeOut=clamp((localTime-(duration-0.4))/0.4,0,1);
+        return (
+          <div style={{opacity:fadeIn*(1-fadeOut)}}>
+            <PhoneFrame x={PHONE.x} y={PHONE.y} width={PHONE.w} height={PHONE.h} glow={false}><UdhaarScreen localTime={localTime}/></PhoneFrame>
+            <div style={{position:'absolute',left:120,top:180,width:920}}>
+              <Chip dot>UDHAAR KHATA</Chip>
+              <div style={{fontFamily:D.serif,fontSize:96,lineHeight:0.98,color:D.cream,marginTop:22,letterSpacing:'-2px'}}>
+                हर नाम,<br/>हर <span style={{color:D.saffron}}>रुपया</span>.
+              </div>
+              <div style={{marginTop:36,fontFamily:D.sans,fontSize:24,color:D.creamDim,lineHeight:1.5,maxWidth:700}}>
+                App yaad rakhega — kab kisne kya udhaar liya.<br/><span style={{color:D.cream}}>SMS reminders</span> auto-send.
+              </div>
+              <div style={{marginTop:60,display:'flex',gap:60,alignItems:'flex-end'}}>
+                <div>
+                  <div style={{fontFamily:D.mono,fontSize:11,color:D.muted,letterSpacing:'0.2em',textTransform:'uppercase'}}>Total recovery this month</div>
+                  <div style={{fontFamily:D.serif,fontSize:64,color:D.saffron,lineHeight:1,marginTop:10}}>₹<CountUp from={0} to={48650} t={clamp(localTime/2,0,1)}/></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── SCENE 5: DEMAND AI (20–25.7s) ───────────────────────────────
+function DemandScreen({localTime}){
+  const calT=clamp((localTime-0.2)/0.6,0,1);
+  const barT=clamp((localTime-1.6)/1.5,0,1);
+  const alertT=clamp((localTime-3.2)/0.5,0,1);
+  const festivals={24:'Diwali',21:'Dhanteras',25:'Govardhan'};
+  const cells=[...Array(2).fill(null),...Array(31).fill(0).map((_,i)=>i+1)];
+  return (
+    <div style={{position:'absolute',inset:0,padding:'20px 18px',display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:6}}>
+        <div style={{fontFamily:D.serif,fontSize:18,color:D.cream}}>Demand Forecast</div>
+        <div style={{padding:'3px 8px',borderRadius:999,background:'rgba(232,119,34,0.18)',border:'1px solid rgba(232,119,34,0.4)',color:D.saffron,fontFamily:D.mono,fontSize:9,letterSpacing:'0.18em',textTransform:'uppercase',fontWeight:600}}>◆ AI</div>
+      </div>
+      <div style={{marginTop:16,padding:14,borderRadius:14,background:'rgba(244,228,193,0.04)',border:'1px solid rgba(244,228,193,0.10)',opacity:calT}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
+          <div style={{fontFamily:D.serif,fontSize:14,color:D.cream}}>October 2025</div>
+          <div style={{fontFamily:D.mono,fontSize:9,color:D.muted,letterSpacing:'0.15em',textTransform:'uppercase'}}>2 weeks ahead</div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
+          {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} style={{textAlign:'center',fontFamily:D.mono,fontSize:8,color:D.muted}}>{d}</div>)}
+          {cells.map((d,i)=>{
+            const isF=d&&festivals[d], isD=d===24;
+            return (
+              <div key={i} style={{aspectRatio:'1',borderRadius:6,background:isD?D.saffron:(isF?'rgba(232,119,34,0.22)':'rgba(244,228,193,0.03)'),display:'flex',alignItems:'center',justifyContent:'center',fontFamily:D.mono,fontSize:10,color:isD?D.bg:(isF?D.saffron:(d?D.creamDim:'transparent')),fontWeight:isF?700:500,boxShadow:isD&&calT>0.8?`0 0 14px ${D.saffron}`:'none',position:'relative'}}>
+                {d||''}
+                {isF&&<div style={{position:'absolute',bottom:1,fontFamily:D.mono,fontSize:5.5,color:isD?D.bg:D.saffron,fontWeight:700}}>{festivals[d].slice(0,3).toUpperCase()}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{marginTop:14,padding:14,borderRadius:14,background:'rgba(244,228,193,0.04)',border:'1px solid rgba(244,228,193,0.10)',opacity:clamp((localTime-1.4)/0.4,0,1)}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}}>
+          <div style={{fontFamily:D.serif,fontSize:14,color:D.cream}}>मिठाई demand · weekly</div>
+          <div style={{fontFamily:D.mono,fontSize:9,color:D.saffron,letterSpacing:'0.15em',textTransform:'uppercase'}}>×3 forecast</div>
+        </div>
+        <div style={{height:100,display:'flex',alignItems:'flex-end',gap:6}}>
+          {[1,1.05,1.1,1.15,1.4,2.2,3.0].map((v,i)=>{
+            const targetH=(v/3.0)*100, h=targetH*barT, isP=i===6;
+            return (
+              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
+                <div style={{width:'100%',height:`${h}%`,minHeight:3,background:isP?`linear-gradient(180deg,${D.saffronLight},${D.saffron})`:'linear-gradient(180deg,rgba(244,228,193,0.4),rgba(244,228,193,0.15))',borderRadius:4,boxShadow:isP?`0 0 14px rgba(232,119,34,0.5)`:'none',alignSelf:'flex-end'}}/>
+                <div style={{fontFamily:D.mono,fontSize:8,color:isP?D.saffron:D.muted}}>W{i+1}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{flex:1}}/>
+      <div style={{padding:'12px 14px',borderRadius:12,background:'linear-gradient(135deg,rgba(232,119,34,0.18),rgba(232,119,34,0.06))',border:'1px solid rgba(232,119,34,0.45)',opacity:alertT,transform:`translateY(${(1-alertT)*12}px)`,marginBottom:12}}>
+        <div style={{fontFamily:D.mono,fontSize:9,color:D.saffron,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:4,fontWeight:700}}>◆ AI suggestion</div>
+        <div style={{fontFamily:D.serif,fontSize:14,color:D.cream,lineHeight:1.4}}>Diwali se 10 din pehle —<br/><span style={{color:D.saffron}}>3× mithai</span> aur <span style={{color:D.saffron}}>2× diya stock</span> order karen.</div>
+      </div>
+    </div>
+  );
+}
+
+function SceneDemand({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({localTime,duration})=>{
+        const fadeIn=clamp(localTime/0.5,0,1),fadeOut=clamp((localTime-(duration-0.4))/0.4,0,1);
+        return (
+          <div style={{opacity:fadeIn*(1-fadeOut)}}>
+            <PhoneFrame x={PHONE.x} y={PHONE.y} width={PHONE.w} height={PHONE.h} glow={false}><DemandScreen localTime={localTime}/></PhoneFrame>
+            <div style={{position:'absolute',left:120,top:180,width:920}}>
+              <Chip dot>DEMAND AI</Chip>
+              <div style={{fontFamily:D.serif,fontSize:96,lineHeight:0.98,color:D.cream,marginTop:22,letterSpacing:'-2px'}}>
+                त्योहार से पहले,<br/><span style={{color:D.saffron}}>तैयार।</span>
+              </div>
+              <div style={{marginTop:36,fontFamily:D.sans,fontSize:24,color:D.creamDim,lineHeight:1.5,maxWidth:720}}>
+                AI sees Diwali coming. Tells you what to stock,<br/><span style={{color:D.cream}}>kitna</span>, and <span style={{color:D.cream}}>kab</span>.
+              </div>
+              <div style={{marginTop:60,display:'flex',gap:60}}>
+                {[['3×','mithai demand · Diwali week'],['2 wks','lead-time alert'],['+38%','overall festive uplift']].map(([top,sub],i)=>(
+                  <div key={i}>
+                    <div style={{fontFamily:D.serif,fontSize:60,color:D.saffron,lineHeight:1}}>{top}</div>
+                    <div style={{fontFamily:D.mono,fontSize:11,color:D.creamDim,marginTop:10,letterSpacing:'0.15em',textTransform:'uppercase',maxWidth:200,lineHeight:1.5}}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── SCENE 6: OFFLINE (25.5–28.2s) ───────────────────────────────
+function SceneOffline({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({localTime,duration})=>{
+        const fadeIn=clamp(localTime/0.4,0,1),fadeOut=clamp((localTime-(duration-0.4))/0.4,0,1);
+        const crossT=clamp((localTime-0.4)/0.3,0,1);
+        const tickT=clamp((localTime-1.0)/0.4,0,1);
+        return (
+          <div style={{position:'absolute',inset:0,opacity:fadeIn*(1-fadeOut)}}>
+            <div style={{position:'absolute',left:480,top:320,width:280,height:280}}>
+              <svg width="280" height="280" viewBox="0 0 100 100" fill="none">
+                <path d="M50 40 a30 30 0 0 1 30 30" stroke={D.cream} strokeWidth="3" strokeLinecap="round" opacity="0.35"/>
+                <path d="M50 52 a18 18 0 0 1 18 18" stroke={D.cream} strokeWidth="3" strokeLinecap="round" opacity="0.55"/>
+                <circle cx="50" cy="70" r="4" fill={D.cream} opacity="0.8"/>
+                <path d="M50 40 a30 30 0 0 0 -30 30" stroke={D.cream} strokeWidth="3" strokeLinecap="round" opacity="0.35"/>
+                <path d="M50 52 a18 18 0 0 0 -18 18" stroke={D.cream} strokeWidth="3" strokeLinecap="round" opacity="0.55"/>
+                <line x1="20" y1="20" x2={20+crossT*60} y2={20+crossT*60} stroke={D.red} strokeWidth="6" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div style={{position:'absolute',left:880,top:280,width:900}}>
+              <Chip dot color={D.green} bg="rgba(126,201,138,0.14)" style={{borderColor:'rgba(126,201,138,0.4)'}}>OFFLINE-FIRST</Chip>
+              <div style={{fontFamily:D.serif,fontSize:110,lineHeight:0.95,color:D.cream,marginTop:22,letterSpacing:'-2px'}}>
+                Network <span style={{color:D.red,textDecoration:'line-through',textDecorationThickness:6}}>nahi</span>?<br/>
+                <span style={{color:D.green}}>Tab bhi chalega.</span>
+              </div>
+              <div style={{marginTop:36,fontFamily:D.sans,fontSize:24,color:D.creamDim,lineHeight:1.5,maxWidth:760}}>
+                Bills, udhaar, stock — sab kuch local pe save.<br/>
+                Network aate hi <span style={{color:D.cream}}>auto-sync</span>. ✓
+              </div>
+              <div style={{marginTop:60,display:'flex',alignItems:'center',gap:16,opacity:tickT,transform:`translateX(${(1-tickT)*20}px)`}}>
+                <div style={{width:56,height:56,borderRadius:'50%',background:D.green,color:D.bg,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:D.sans,fontSize:32,fontWeight:800,boxShadow:`0 0 30px rgba(126,201,138,0.5)`}}>✓</div>
+                <div>
+                  <div style={{fontFamily:D.serif,fontSize:28,color:D.cream,lineHeight:1}}>24 bills synced</div>
+                  <div style={{fontFamily:D.mono,fontSize:11,color:D.muted,marginTop:6,letterSpacing:'0.18em',textTransform:'uppercase'}}>when wifi came back</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── SCENE 7: OUTCOME (28–32.2s) ─────────────────────────────────
+function ShopAmbient({localTime}){
+  return (
+    <div style={{position:'absolute',inset:0,background:`radial-gradient(ellipse 90% 50% at 50% 70%,rgba(232,119,34,0.10),transparent 60%),radial-gradient(ellipse 50% 30% at 20% 20%,rgba(192,138,58,0.08),transparent 60%),radial-gradient(ellipse 50% 30% at 80% 20%,rgba(192,138,58,0.08),transparent 60%)`,pointerEvents:'none'}}>
+      {[...Array(18)].map((_,i)=>{
+        const x=80+(i*137)%1760, y=60+(i*211)%960+Math.sin(localTime+i)*8;
+        const op=0.15+Math.sin(localTime*0.15*Math.PI*2+i)*0.1;
+        return <div key={i} style={{position:'absolute',left:x,top:y,width:4,height:4,borderRadius:'50%',background:D.saffronLight,opacity:Math.max(0,op),boxShadow:`0 0 14px ${D.saffronLight}`}}/>;
+      })}
+    </div>
+  );
+}
+
+function DashboardScreen({localTime}){
+  const heroT=clamp(localTime/0.6,0,1), sparkT=clamp((localTime-0.4)/1.5,0,1);
+  const points=[];
+  for(let i=0;i<30;i++){
+    const x=(i/29)*320, base=50+Math.sin(i*0.5)*8, trend=(i/29)*-30, noise=Math.sin(i*1.7)*5;
+    points.push([x,base+trend+noise]);
+  }
+  const vp=points.slice(0,Math.floor(sparkT*30));
+  const d=vp.map((p,i)=>(i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
+  const last=vp[vp.length-1];
+  return (
+    <div style={{position:'absolute',inset:0,padding:'20px 18px',display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:6}}>
+        <div style={{fontFamily:D.serif,fontSize:18,color:D.cream}}>नमस्ते, रवि जी</div>
+        <div style={{padding:'3px 8px',borderRadius:999,background:'rgba(126,201,138,0.18)',border:'1px solid rgba(126,201,138,0.4)',color:D.green,fontFamily:D.mono,fontSize:9,letterSpacing:'0.18em',textTransform:'uppercase',fontWeight:600}}>▲ +32%</div>
+      </div>
+      <div style={{marginTop:20,padding:'22px 18px',borderRadius:18,background:'linear-gradient(135deg,rgba(232,119,34,0.22),rgba(232,119,34,0.05))',border:'1px solid rgba(232,119,34,0.4)',opacity:heroT,transform:`translateY(${(1-heroT)*10}px)`}}>
+        <div style={{fontFamily:D.mono,fontSize:10,color:D.saffron,letterSpacing:'0.22em',textTransform:'uppercase',fontWeight:700}}>September Earnings</div>
+        <div style={{fontFamily:D.serif,fontSize:44,color:D.cream,lineHeight:1,marginTop:8}}>₹<CountUp from={0} to={84500} t={clamp(localTime/2,0,1)}/></div>
+        <div style={{fontFamily:D.sans,fontSize:12,color:D.creamDim,marginTop:8}}>↑ ₹20,400 vs. last month</div>
+      </div>
+      <div style={{marginTop:14,padding:16,borderRadius:14,background:'rgba(244,228,193,0.04)',border:'1px solid rgba(244,228,193,0.10)',opacity:clamp((localTime-0.3)/0.5,0,1)}}>
+        <div style={{fontFamily:D.serif,fontSize:13,color:D.cream}}>Daily sales · 30 days</div>
+        <svg width="100%" height="80" viewBox="0 0 320 80" style={{marginTop:6}}>
+          {last&&<>
+            <path d={d+` L${last[0]},80 L0,80 Z`} fill={D.saffron} opacity="0.18"/>
+            <path d={d} stroke={D.saffron} strokeWidth="2.5" fill="none" strokeLinejoin="round" strokeLinecap="round"/>
+            <circle cx={last[0]} cy={last[1]} r="4" fill={D.cream} stroke={D.saffron} strokeWidth="2"/>
+          </>}
+        </svg>
+      </div>
+      <div style={{marginTop:14,padding:'14px 16px',borderRadius:14,background:'rgba(126,201,138,0.10)',border:'1px solid rgba(126,201,138,0.32)',opacity:clamp((localTime-1.4)/0.5,0,1),transform:`translateY(${(1-clamp((localTime-1.4)/0.5,0,1))*12}px)`}}>
+        <div style={{fontFamily:D.mono,fontSize:9,color:D.green,letterSpacing:'0.22em',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>✓ Diwali week</div>
+        <div style={{fontFamily:D.serif,fontSize:14,color:D.cream,lineHeight:1.4}}>Zero stock-outs.<br/><span style={{color:D.green}}>Mithai sold out in 4 days.</span></div>
+      </div>
+      <div style={{flex:1}}/>
+      <div style={{display:'flex',justifyContent:'space-around',gap:6,padding:'10px 0',borderTop:'1px solid rgba(244,228,193,0.08)'}}>
+        {['Home','Voice','Udhaar','Stock','You'].map((l,i)=><div key={l} style={{fontFamily:D.mono,fontSize:9,color:i===0?D.saffron:D.muted,letterSpacing:'0.15em',textTransform:'uppercase',fontWeight:600}}>{l}</div>)}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({x,y,delay,hi,kpi,sub,localTime,accent}){
+  const t=clamp((localTime-delay)/0.5,0,1), e=Easing.easeOutBack(t);
+  const drift=Math.sin(localTime*0.6+x*0.01)*4;
+  return (
+    <div style={{position:'absolute',left:x,top:y+drift,width:320,padding:'22px 24px',borderRadius:18,background:'rgba(20,11,6,0.75)',backdropFilter:'blur(8px)',border:`1px solid ${accent}55`,boxShadow:`0 30px 60px rgba(0,0,0,0.5),0 0 24px ${accent}25`,opacity:t,transform:`scale(${0.85+e*0.15}) translateY(${(1-e)*14}px)`}}>
+      <div style={{fontFamily:D.mono,fontSize:10,color:accent,letterSpacing:'0.22em',textTransform:'uppercase',fontWeight:700}}>◆ {hi}</div>
+      <div style={{fontFamily:D.serif,fontSize:56,color:D.cream,lineHeight:1,marginTop:8,letterSpacing:'-1px'}}>{kpi}</div>
+      <div style={{fontFamily:D.sans,fontSize:13,color:D.creamDim,marginTop:10,lineHeight:1.3}}>{sub}</div>
+    </div>
+  );
+}
+
+function SceneOutcome({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({localTime,duration})=>{
+        const fadeIn=clamp(localTime/0.5,0,1),fadeOut=clamp((localTime-(duration-0.6))/0.6,0,1);
+        return (
+          <div style={{position:'absolute',inset:0,opacity:fadeIn*(1-fadeOut)}}>
+            <ShopAmbient localTime={localTime}/>
+            <PhoneFrame x={760} y={80} width={400} height={880}><DashboardScreen localTime={localTime}/></PhoneFrame>
+            <StatCard x={140}  y={180} delay={0.4} hi="कमाई बढ़ी" kpi="+₹84,500" sub="this month · +32%"              localTime={localTime} accent={D.saffron}/>
+            <StatCard x={140}  y={460} delay={0.9} hi="समय बचा"   kpi="12 घंटे"  sub="saved per week"              localTime={localTime} accent={D.green}/>
+            <StatCard x={140}  y={740} delay={1.4} hi="उधार वसूली" kpi="₹48,650" sub="recovered · auto SMS"       localTime={localTime} accent={D.gold}/>
+            <StatCard x={1300} y={180} delay={0.6} hi="बिल बने"   kpi="312"      sub="GST invoices · auto"         localTime={localTime} accent={D.saffron}/>
+            <StatCard x={1300} y={460} delay={1.1} hi="स्टॉक सही" kpi="0 गलती"  sub="zero stock-outs in Diwali week" localTime={localTime} accent={D.green}/>
+            <StatCard x={1300} y={740} delay={1.6} hi="ग्राहक"    kpi="218 vapas" sub="repeat customers · +44%"   localTime={localTime} accent={D.gold}/>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── SCENE 8: LOGO (32–34s) ──────────────────────────────────────
+function SceneLogo({start,end}){
+  return (
+    <Sprite start={start} end={end}>
+      {({localTime})=>{
+        const fadeIn=clamp(localTime/0.5,0,1), e=Easing.easeOutCubic(fadeIn);
+        return (
+          <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',opacity:e}}>
+            <div style={{position:'absolute',width:1200,height:600,background:'radial-gradient(ellipse 50% 50% at 50% 50%,rgba(232,119,34,0.22),transparent 70%)',filter:'blur(20px)',pointerEvents:'none'}}/>
+            <div style={{width:110,height:110,borderRadius:28,background:`linear-gradient(135deg,${D.gold},${D.goldMid},${D.goldDeep})`,boxShadow:`0 20px 60px rgba(192,138,58,0.55)`,transform:`scale(${0.7+e*0.3}) rotate(${(1-e)*-10}deg)`,transformOrigin:'center',marginBottom:28}}/>
+            <div style={{fontFamily:D.serif,fontSize:200,lineHeight:0.9,color:D.cream,letterSpacing:'-3px',transform:`translateY(${(1-e)*20}px)`}}>
+              दुकान<span style={{color:D.saffron}}>•</span>AI
+            </div>
+            <div style={{fontFamily:D.serif,fontSize:56,color:D.cream,marginTop:32,letterSpacing:'-1px',opacity:clamp((localTime-0.5)/0.5,0,1),transform:`translateY(${(1-clamp((localTime-0.5)/0.5,0,1))*14}px)`}}>
+              बोलो. <span style={{color:D.saffron}}>Bill ban gaya.</span>
+            </div>
+            <div style={{marginTop:40,display:'flex',gap:32,opacity:clamp((localTime-0.9)/0.5,0,1)}}>
+              {['10 भाषाएँ','Works offline','Free forever'].map(l=>(
+                <div key={l} style={{padding:'10px 22px',borderRadius:999,border:'1px solid rgba(244,228,193,0.18)',fontFamily:D.mono,fontSize:13,color:D.cream,letterSpacing:'0.2em',textTransform:'uppercase',fontWeight:500}}>{l}</div>
+              ))}
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// ─── TIMESTAMP LABEL ─────────────────────────────────────────────
+function TimestampLabel(){
+  const t=useTime();
+  React.useEffect(()=>{
+    const s=Math.floor(t);
+    const root=document.getElementById('root');
+    if(root)root.setAttribute('data-screen-label',`${String(s).padStart(2,'0')}s`);
+  },[Math.floor(t)]);
+  return null;
+}
+
+// ─── APP ─────────────────────────────────────────────────────────
+function App(){
+  return (
+    <Stage width={1920} height={1080} duration={34} background="#140b06" loop persistKey="dukhaan-hero">
+      <StageBackground/>
+      <TimestampLabel/>
+      <SceneProblem    start={0}    end={7.2}/>
+      <ScenePhoneIntro start={7.0}  end={10.2}/>
+      <SceneVoice      start={10.0} end={15.2}/>
+      <SceneUdhaar     start={15.0} end={20.2}/>
+      <SceneDemand     start={20.0} end={25.7}/>
+      <SceneOffline    start={25.5} end={28.2}/>
+      <SceneOutcome    start={28.0} end={32.2}/>
+      <SceneLogo       start={32.0} end={34.0}/>
+      <Vignette/>
+      <FadeOverlay/>
+    </Stage>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

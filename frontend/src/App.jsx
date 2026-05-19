@@ -21,6 +21,7 @@ import WastageRecording     from "./pages/Wastage"
 import InstallGuide         from "./pages/InstallGuide"
 import BulkImport           from "./pages/BulkImport"
 import AppScreens           from "./pages/AppScreens"
+import HeroLoop             from "./pages/HeroLoop"
 import Landing              from "./pages/Landing"
 import OfflineBanner        from "./components/OfflineBanner"
 
@@ -39,6 +40,7 @@ export default function App() {
           <OfflineBanner />
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/hero-loop" element={<HeroLoop />} />
             <Route path="/*" element={
               <Layout>
                 <Routes>

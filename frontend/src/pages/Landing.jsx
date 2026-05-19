@@ -1,13 +1,14 @@
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import AuthModal from "../components/AuthModal"
 
 const LANDING_CSS = `@import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`
 
 export default function Landing() {
   const navigate = useNavigate()
+  const [showAuth, setShowAuth] = useState(false)
 
   function goToApp() { navigate("/dashboard") }
-  function goToScreens() { navigate("/app-screens") }
-  function goToLogin() { navigate("/dashboard", { state: { showLogin: true } }) }
 
   return (
     <div style={{
@@ -53,13 +54,9 @@ export default function Landing() {
         </nav>
 
         <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-          <button onClick={goToLogin}
+          <button onClick={() => setShowAuth(true)}
             style={{ color:"#f4e4c1", fontSize:14, fontWeight:500, background:"none", border:"none", cursor:"pointer" }}>
             Sign in
-          </button>
-          <button onClick={goToScreens}
-            style={{ color:"#f4e4c1", fontSize:14, fontWeight:500, background:"none", border:"none", cursor:"pointer" }}>
-            Preview screens
           </button>
           <button onClick={goToApp}
             style={{
@@ -192,13 +189,13 @@ export default function Landing() {
             </svg>
             Tap &amp; speak — try it now
           </button>
-          <button onClick={goToApp} style={{
+          <button onClick={() => navigate("/hero-loop")} style={{
             background:"transparent", color:"#f4e4c1",
             border:"1px solid #c08a3a", borderRadius:999,
             padding:"18px 28px", fontSize:17, fontWeight:600, cursor:"pointer",
             display:"flex", alignItems:"center", gap:10,
           }}>
-            <span style={{ fontSize:18 }}>▶</span> Open the app
+            <span style={{ fontSize:18 }}>▶</span> Watch 34s demo
           </button>
         </div>
 
@@ -210,6 +207,95 @@ export default function Landing() {
               <div style={{ fontSize:10, color:"#7a6a51", letterSpacing:"1px", textTransform:"uppercase", fontWeight:600, marginTop:4 }}>{l}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* HERO LOOP PREVIEW */}
+      <section style={{ padding:"80px 64px", borderTop:"1px solid rgba(244,228,193,0.10)" }}>
+        <div style={{ maxWidth:1100, margin:"0 auto", textAlign:"center" }}>
+          <div style={{ fontSize:11, color:"#e87722", fontWeight:700, letterSpacing:"2.5px",
+            textTransform:"uppercase", marginBottom:14 }}>
+            See it in action
+          </div>
+          <h2 style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+            fontSize:"clamp(32px,3.5vw,48px)", color:"#f4e4c1",
+            letterSpacing:"-0.5px", lineHeight:1.05, marginBottom:20 }}>
+            34 seconds. <span style={{ color:"#c08a3a" }}>Poori kahani.</span>
+          </h2>
+          <p style={{ fontSize:15, color:"#b9a382", lineHeight:1.6, maxWidth:560, margin:"0 auto 40px" }}>
+            From paper ledger chaos to voice-first billing — watch the full DukaanAI story in under a minute.
+          </p>
+
+          {/* Preview frame */}
+          <div style={{ position:"relative", borderRadius:20, overflow:"hidden",
+            border:"1px solid rgba(244,228,193,0.12)",
+            boxShadow:"0 40px 80px rgba(0,0,0,0.6)",
+            background:"#140b06", marginBottom:28, cursor:"pointer",
+            maxWidth:900, margin:"0 auto 28px" }}
+            onClick={() => navigate("/hero-loop")}>
+            {/* Fake preview with scene labels */}
+            <div style={{ padding:"48px 32px", display:"flex", flexDirection:"column",
+              alignItems:"center", justifyContent:"center", minHeight:280,
+              background:"radial-gradient(ellipse 70% 55% at 50% 50%, rgba(232,119,34,0.08), transparent 60%), #140b06" }}>
+              {/* Animated dot */}
+              <div style={{ width:80, height:80, borderRadius:"50%",
+                background:"linear-gradient(135deg,#ff8e35,#e87722,#a23f10)",
+                boxShadow:"0 0 60px rgba(232,119,34,0.5)",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                marginBottom:24 }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 3l14 9-14 9V3z" fill="white"/>
+                </svg>
+              </div>
+              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+                fontSize:28, color:"#f4e4c1", marginBottom:8 }}>
+                बोलो. <span style={{ color:"#e87722" }}>Bill ban gaya.</span>
+              </div>
+              <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:11,
+                color:"#7a6a51", letterSpacing:"2px", textTransform:"uppercase" }}>
+                Click to play · 34 seconds
+              </div>
+            </div>
+
+            {/* Scene timeline preview */}
+            <div style={{ display:"flex", borderTop:"1px solid rgba(244,228,193,0.08)" }}>
+              {[
+                { label:"Problem",    time:"0s",  color:"#7a6a51" },
+                { label:"बस बोलिए",  time:"7s",  color:"#e87722" },
+                { label:"Voice Bill", time:"10s", color:"#e87722" },
+                { label:"Udhaar",     time:"15s", color:"#c08a3a" },
+                { label:"Demand AI",  time:"20s", color:"#e87722" },
+                { label:"Offline",    time:"25s", color:"#7ec98a" },
+                { label:"Outcome",    time:"28s", color:"#f6c768" },
+                { label:"Logo",       time:"32s", color:"#e87722" },
+              ].map((scene, i) => (
+                <div key={i} style={{ flex:1, padding:"10px 6px", textAlign:"center",
+                  borderRight: i < 7 ? "1px solid rgba(244,228,193,0.06)" : "none",
+                  background:"rgba(244,228,193,0.02)" }}>
+                  <div style={{ fontFamily:"'IBM Plex Mono',monospace",
+                    fontSize:8, color:scene.color, fontWeight:700,
+                    letterSpacing:"0.8px", marginBottom:3 }}>{scene.time}</div>
+                  <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif",
+                    fontSize:9, color:"#7a6a51" }}>{scene.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={() => navigate("/hero-loop")}
+            style={{
+              background:"linear-gradient(135deg,#e87722,#ff8e35)",
+              color:"#1a0c04", border:"none", borderRadius:999,
+              padding:"14px 32px", fontSize:14, fontWeight:700,
+              cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif",
+              boxShadow:"0 8px 24px rgba(232,119,34,0.4)",
+              display:"inline-flex", alignItems:"center", gap:10,
+            }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M5 3l14 9-14 9V3z" fill="#1a0c04"/>
+            </svg>
+            Watch full demo
+          </button>
         </div>
       </section>
 
@@ -326,7 +412,7 @@ export default function Landing() {
                 दुकान<span style={{ color:"#e87722" }}>•</span>AI
               </div>
               <div style={{ fontSize:13, color:"#7a6a51", lineHeight:1.6, maxWidth:300 }}>
-                Built in Hyderabad for kirana shops that run India. Voice, vernacular, no jargon.
+                Built in Hyderabad for the 12 million kirana shops that run India. Voice, vernacular, no jargon.
               </div>
             </div>
             {[
@@ -354,6 +440,7 @@ export default function Landing() {
         </div>
       </footer>
       </div>
+    </>
   )
 }
 
