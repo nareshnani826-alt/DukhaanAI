@@ -33,6 +33,9 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
   const [supported,  setSupported]  = useState(true)
   const [pending,    setPending]    = useState(null)
   const [platform,   setPlatform]   = useState({})
+  const [multiPending, setMultiPending] = useState([])
+  const [showCorrection, setShowCorrection] = useState(false)
+  const [correctionText, setCorrectionText] = useState("")
   const bottomRef = useRef(null)
 
   useEffect(() => {

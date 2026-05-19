@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import VoiceAgent from "../voice/VoiceAgent.jsx"
 import { Invoices, Products } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
+import { t, getSavedLang } from "../voice/i18n.js"
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 
