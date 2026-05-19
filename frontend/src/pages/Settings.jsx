@@ -16,8 +16,8 @@ const TOGGLE_FEATURES = [
 ]
 
 const PLAN_INFO = {
-  free:      { name:"Free",      price:"₹0",    color:"#888",    bg:"#f3f4f6" },
-  pro:       { name:"Pro",       price:"₹299",  color:"#1D9E75", bg:"#E1F5EE" },
+  free:      { name:"Free",      price:"₹0",    color:"var(--ink-faint)",    bg:"#f3f4f6" },
+  pro:       { name:"Pro",       price:"₹299",  color:"var(--jade)", bg:"#E1F5EE" },
   wholesale: { name:"Wholesale", price:"₹799",  color:"#7F77DD", bg:"#EEEDFE" },
 }
 
@@ -157,7 +157,7 @@ export default function Settings() {
                   <button
                     onClick={() => setToggle(f.key, !enabled)}
                     className="flex-shrink-0 w-10 h-6 rounded-full transition-colors relative"
-                    style={{ background: enabled ? "#1D9E75" : "#d1d5db" }}>
+                    style={{ background: enabled ? "var(--jade)" : "#d1d5db" }}>
                     <span className="absolute top-0.5 transition-all rounded-full bg-white w-5 h-5"
                       style={{ left: enabled ? "18px" : "2px" }} />
                   </button>
@@ -166,7 +166,7 @@ export default function Settings() {
                   <button
                     onClick={() => setToggle(f.key, true)}
                     className="flex-shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg border font-medium"
-                    style={{ borderColor:"#1D9E75", color:"#1D9E75" }}>
+                    style={{ borderColor:"var(--jade)", color:"var(--jade)" }}>
                     Enable
                   </button>
                 ) : (

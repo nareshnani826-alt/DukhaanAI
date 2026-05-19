@@ -92,7 +92,7 @@ export default function DemandIntelligence() {
   }, [])
 
   const urgencyColor = days =>
-    days === 0 ? "#E24B4A" : days <= 3 ? "#E24B4A" : days <= 7 ? "#EF9F27" : "#1D9E75"
+    days === 0 ? "#E24B4A" : days <= 3 ? "#E24B4A" : days <= 7 ? "#EF9F27" : "var(--jade)"
 
   const urgencyLabel = days =>
     days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `${days} days`
@@ -212,7 +212,7 @@ export default function DemandIntelligence() {
                 </div>
                 {alert.urgent && (
                   <span className="text-[9px] font-bold px-2 py-1 rounded-full flex-shrink-0"
-                    style={{ background: alert.color, color: "#fff" }}>
+                    style={{ background: alert.color, color: "var(--bg1)" }}>
                     URGENT
                   </span>
                 )}
@@ -253,11 +253,11 @@ export default function DemandIntelligence() {
                   <div className="h-full rounded-full transition-all"
                     style={{
                       width: fest.boost + "%",
-                      background: fest.boost >= 80 ? "#E24B4A" : fest.boost >= 50 ? "#EF9F27" : "#1D9E75"
+                      background: fest.boost >= 80 ? "#E24B4A" : fest.boost >= 50 ? "#EF9F27" : "var(--jade)"
                     }} />
                 </div>
                 <span className="text-[10px] font-semibold w-8"
-                  style={{ color: fest.boost >= 80 ? "#E24B4A" : fest.boost >= 50 ? "#EF9F27" : "#1D9E75" }}>
+                  style={{ color: fest.boost >= 80 ? "#E24B4A" : fest.boost >= 50 ? "#EF9F27" : "var(--jade)" }}>
                   +{fest.boost}%
                 </span>
               </div>
@@ -273,8 +273,8 @@ export default function DemandIntelligence() {
                   return (
                     <span key={p} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                       style={{
-                        background: isLow ? "#FCEBEB" : inInv ? "#E1F5EE" : "#f5f5f5",
-                        color:      isLow ? "#A32D2D" : inInv ? "#085041" : "#888",
+                        background: isLow ? "#FCEBEB" : inInv ? "#E1F5EE" : "var(--bg2)",
+                        color:      isLow ? "#A32D2D" : inInv ? "#085041" : "var(--ink-faint)",
                       }}>
                       {isLow ? "⚠ " : inInv ? "✓ " : ""}{p}
                     </span>

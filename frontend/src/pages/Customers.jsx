@@ -319,7 +319,7 @@ export default function CustomersPage() {
                       <button
                         onClick={() => openWA(selected.phone)}
                         className="btn btn-sm py-1.5 text-[10px] font-medium"
-                        style={{ background:"#25D366", color:"#fff", border:"none" }}>
+                        style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
                         WhatsApp
                       </button>
                     )}
@@ -389,7 +389,7 @@ export default function CustomersPage() {
                           onClick={() => sendInvoiceWA(inv, selected.phone)}
                           className="btn btn-sm text-[10px] py-1"
                           style={selected.phone
-                            ? { background:"#25D366", color:"#fff", border:"none" }
+                            ? { background:"#25D366", color:"var(--bg1)", border:"none" }
                             : {}
                           }>
                           {selected.phone ? "Resend WhatsApp" : "No phone saved"}

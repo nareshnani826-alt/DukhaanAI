@@ -304,7 +304,7 @@ _Sent from DukaanAI_`
                     <button onClick={load} className="btn btn-sm">Refresh</button>
                     <button onClick={closeDay} disabled={acting}
                       className="btn px-5 py-2 text-xs font-semibold"
-                      style={{ background:"#185FA5", color:"#fff", border:"none" }}>
+                      style={{ background:"#185FA5", color:"var(--bg1)", border:"none" }}>
                       {acting ? "Closing..." : "Close Day"}
                     </button>
                   </>
@@ -313,7 +313,7 @@ _Sent from DukaanAI_`
                   <div className="flex gap-2">
                     <button onClick={sendCloseWhatsApp}
                       className="btn btn-sm py-1.5 text-[10px] font-medium"
-                      style={{ background:"#25D366", color:"#fff", border:"none" }}>
+                      style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
                       Share Report
                     </button>
                   </div>
@@ -358,7 +358,7 @@ _Sent from DukaanAI_`
                 </div>
                 <button onClick={sendLowStockWhatsApp}
                   className="btn btn-sm text-[10px] font-medium"
-                  style={{ background:"#25D366", color:"#fff", border:"none" }}>
+                  style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
                   Send Reorder List on WhatsApp
                 </button>
               </div>

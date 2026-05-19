@@ -3,45 +3,22 @@ import { useNavigate } from "react-router-dom"
 import { Products, Sales } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
 
-const T = {
-  bg0:"#140b06",bg1:"#1c1209",bg2:"#261810",bg3:"#33200f",
-  ink:"#f4e4c1",inkDim:"#b9a382",inkFaint:"#7a6a51",
-  rule:"rgba(244,228,193,0.12)",ruleSoft:"rgba(244,228,193,0.06)",
-  brass:"#c08a3a",brassLite:"#f6c768",
-  saffron:"#e87722",saffronHot:"#ff8e35",
-  ember:"#b3261e",emberLite:"#ff8e7a",
-  jade:"#3a8a6b",jadeLite:"#4cb892",
-}
-
 const INR = n => "₹" + (n||0).toLocaleString("en-IN")
 
 function greeting() {
   const h = new Date().getHours()
-  if (h < 12) return "नमस्ते"
-  if (h < 17) return "नमस्कार"
-  return "प्रणाम"
-}
-
-function StatTile({ label, value, sub, tone=T.brassLite, loading }) {
-  return (
-    <div className="stat-card">
-      <div className="stat-bar" style={{ background:tone }}/>
-      <div style={{ fontSize:9,color:"var(--ink-faint)",letterSpacing:"1.2px",fontWeight:700,textTransform:"uppercase",marginTop:4 }}>{label}</div>
-      <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:22,color:"var(--ink)",fontWeight:700,marginTop:6,lineHeight:1 }}>
-        {loading ? <span style={{color:"var(--ink-faint)"}}>—</span> : value}
-      </div>
-      {sub && <div style={{ fontSize:9,color:tone,marginTop:4,fontWeight:600 }}>{loading?"...":sub}</div>}
-    </div>
-  )
+  if (h < 12) return "Good morning"
+  if (h < 17) return "Good afternoon"
+  return "Good evening"
 }
 
 const QUICK = [
-  { label:"New Sale",    emoji:"🧾", tone:T.saffron,   to:"/billing" },
-  { label:"Add Stock",   emoji:"📦", tone:T.brassLite, to:"/inventory" },
-  { label:"Add Udhar",   emoji:"📒", tone:T.ember,     to:"/udhar" },
-  { label:"Scan Item",   emoji:"📷", tone:T.jadeLite,  to:"/billing" },
-  { label:"Voice Entry", emoji:"🎤", tone:T.emberLite, to:"/voice" },
-  { label:"Bulk Import", emoji:"📥", tone:T.brassLite, to:"/bulk-import" },
+  { label:"New Sale",    icon:"🧾", color:"var(--saffron-bg)", border:"rgba(232,119,34,0.25)", to:"/billing" },
+  { label:"Add Stock",   icon:"📦", color:"var(--brass-bg)",   border:"rgba(184,134,11,0.25)",  to:"/inventory" },
+  { label:"Add Udhar",   icon:"📒", color:"var(--ember-bg)",   border:"rgba(192,57,43,0.25)",   to:"/udhar" },
+  { label:"Scan Item",   icon:"📷", color:"var(--jade-bg)",    border:"rgba(26,122,74,0.25)",   to:"/billing" },
+  { label:"Voice Entry", icon:"🎤", color:"var(--saffron-bg)", border:"rgba(232,119,34,0.25)", to:"/voice" },
+  { label:"Bulk Import", icon:"📥", color:"var(--brass-bg)",   border:"rgba(184,134,11,0.25)",  to:"/bulk-import" },
 ]
 
 export default function Dashboard() {
@@ -65,137 +42,165 @@ export default function Dashboard() {
     <div style={{ flex:1, overflowY:"auto", background:"var(--bg0)" }}>
 
       {/* Top bar */}
-      <div style={{ background:"var(--bg1)", backdropFilter:"blur(8px)",
-        borderBottom:`1px solid ${T.rule}`, padding:"14px 20px",
-        display:"flex", alignItems:"center", justifyContent:"space-between",
-        position:"sticky", top:0, zIndex:10, flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:38,height:38,borderRadius:10,
-            background:`linear-gradient(135deg,${T.brass},${T.saffron})`,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            fontFamily:"'Tiro Devanagari Hindi',serif",fontWeight:700,fontSize:18,color:"#1a0c04" }}>
+      <div style={{ background:"var(--bg1)", borderBottom:"1px solid var(--rule)",
+        padding:"14px 20px", display:"flex", alignItems:"center",
+        justifyContent:"space-between", position:"sticky", top:0, zIndex:10,
+        boxShadow:"0 1px 6px var(--shadow)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:40, height:40, borderRadius:12, flexShrink:0,
+            background:"linear-gradient(135deg,#e87722,#d45f00)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:20, color:"#fff",
+            boxShadow:"0 2px 8px rgba(232,119,34,0.3)" }}>
             {vendor?.store_name?.charAt(0) || "न"}
           </div>
           <div>
-            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:15,color:"var(--ink)",fontWeight:600,lineHeight:1 }}>
-              {greeting()}, {vendor?.store_name?.split(" ")[0] || "ji"} 🙏
+            <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)" }}>
+              {greeting()}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
             </div>
-            <div style={{ fontSize:10,color:"var(--ink-faint)",marginTop:2 }}>
+            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
               {vendor?.store_name || "DukaanAI"} · {new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
             </div>
           </div>
         </div>
-        <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-          <span style={{ fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,
-            background: cloud ? "rgba(58,138,107,0.18)" : "rgba(244,228,193,0.06)",
-            color: cloud ? T.jadeLite : T.inkFaint,
-            border: `1px solid ${cloud ? "rgba(58,138,107,0.3)" : T.rule}` }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <span style={{ fontSize:10, fontWeight:600, padding:"4px 10px", borderRadius:20,
+            background: cloud ? "var(--jade-bg)" : "var(--bg2)",
+            color: cloud ? "var(--jade)" : "var(--ink-faint)",
+            border: `1px solid ${cloud ? "rgba(26,122,74,0.3)" : "var(--rule)"}` }}>
             {cloud ? "● Cloud sync" : "● Local"}
           </span>
-          <button onClick={() => navigate("/billing")} className="btn btn-primary btn-sm" style={{ gap:6 }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Invoice
+          <button onClick={() => navigate("/billing")} className="btn btn-primary btn-sm">
+            + New Invoice
           </button>
         </div>
       </div>
 
-      <div style={{ padding:"14px 18px" }}>
+      <div style={{ padding:"20px" }}>
 
-        {/* Hero takings */}
-        <div style={{ background:`linear-gradient(135deg,${T.bg2} 0%,${T.bg3} 100%)`,
-          borderRadius:18, padding:"20px 20px",
-          border:"1px solid rgba(192,138,58,0.25)", position:"relative", overflow:"hidden", marginBottom:14 }}>
-          <svg viewBox="0 0 200 200" style={{ position:"absolute",top:-30,right:-30,width:200,height:200,opacity:0.15,pointerEvents:"none" }}>
-            {[...Array(12)].map((_,i) => <circle key={i} cx="100" cy="100" r={20+i*9} fill="none" stroke={T.brassLite} strokeWidth="0.7"/>)}
-          </svg>
+        {/* Hero card */}
+        <div style={{ background:"var(--bg1)", borderRadius:18, padding:"24px",
+          border:"1px solid var(--rule)", marginBottom:16,
+          boxShadow:"0 2px 12px var(--shadow)", position:"relative", overflow:"hidden" }}>
+          {/* decorative circles */}
+          <div style={{ position:"absolute", right:-40, top:-40, width:180, height:180,
+            borderRadius:"50%", background:"var(--saffron-bg)", pointerEvents:"none" }}/>
+          <div style={{ position:"absolute", right:20, top:-20, width:100, height:100,
+            borderRadius:"50%", background:"var(--saffron-bg)", pointerEvents:"none" }}/>
           <div style={{ position:"relative" }}>
-            <div style={{ fontSize:10,color:"var(--brass-lite)",letterSpacing:"1.5px",fontWeight:700,textTransform:"uppercase" }}>Today's takings</div>
-            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:48,color:"var(--ink)",fontWeight:700,lineHeight:1,marginTop:8,letterSpacing:"-1px" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"var(--ink-faint)",
+              letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>Today's Sales</div>
+            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+              fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
               {loading ? "—" : INR(today.total)}
             </div>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,fontSize:11 }}>
-              <span style={{ color:"var(--jade-lite)",fontWeight:600 }}>
+            <div style={{ display:"flex", gap:20, marginTop:12, fontSize:12, flexWrap:"wrap" }}>
+              <span style={{ color:"var(--jade)", fontWeight:600 }}>
                 {today.count > 0 ? `${today.count} invoices today` : "No sales yet"}
               </span>
-              <span style={{ color:"var(--ink-dim)" }}>{INR(avgInv)} avg · {INR(summary.total_revenue||0)} this month</span>
+              <span style={{ color:"var(--ink-faint)" }}>
+                {INR(avgInv)} avg · {INR(summary.total_revenue||0)} this month
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Stats */}
-        <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14 }}>
-          <StatTile label="Open Udhaar" value="₹0" sub="Check khata" tone={T.ember} loading={loading}/>
-          <StatTile label="Products" value={total} sub={low.length>0?`${low.length} low stock`:"All stocked"} tone={T.brass} loading={loading}/>
-          <StatTile label="Avg Invoice" value={INR(avgInv)} sub="Today" tone={T.jadeLite} loading={loading}/>
+        {/* Stats row */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
+          {[
+            { label:"Open Udhaar", value:"₹0", sub:"Check khata",    color:"var(--ember)",   bar:"#c0392b" },
+            { label:"Products",    value:loading?"—":total, sub:low.length>0?`${low.length} low stock`:"All stocked", color:"var(--brass)", bar:"#b8860b" },
+            { label:"Avg Invoice", value:loading?"—":INR(avgInv), sub:"Today", color:"var(--jade)", bar:"#1a7a4a" },
+          ].map((s,i) => (
+            <div key={i} className="stat-card">
+              <div className="stat-bar" style={{ background:s.bar }}/>
+              <div style={{ fontSize:9, fontWeight:700, color:"var(--ink-faint)",
+                textTransform:"uppercase", letterSpacing:"1.2px", marginTop:4 }}>{s.label}</div>
+              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+                fontSize:22, fontWeight:800, color:"var(--ink)", marginTop:6, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:10, color:s.color, marginTop:4, fontWeight:600 }}>{s.sub}</div>
+            </div>
+          ))}
         </div>
 
         {/* Low stock alert */}
         {low.length > 0 && (
-          <div style={{ background:"rgba(179,38,30,0.08)",border:`1px solid ${T.ember}40`,
-            borderRadius:14,padding:"12px 14px",marginBottom:14,
-            display:"flex",alignItems:"center",gap:10 }}>
-            <div style={{ fontSize:20,flexShrink:0 }}>⚠️</div>
+          <div style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
+            borderRadius:14, padding:"12px 16px", marginBottom:16,
+            display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:20, flexShrink:0 }}>⚠️</span>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:12,fontWeight:700,color:T.ink }}>{low.length} product{low.length>1?"s":""} need restocking</div>
-              <div style={{ fontSize:10,color:"var(--ember-lite)",marginTop:2 }}>{low.slice(0,3).map(p=>p.name).join(", ")}{low.length>3?` +${low.length-3} more`:""}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:"var(--ember)" }}>
+                {low.length} product{low.length>1?"s":""} need restocking
+              </div>
+              <div style={{ fontSize:11, color:"var(--ink-dim)", marginTop:2 }}>
+                {low.slice(0,3).map(p=>p.name).join(", ")}{low.length>3?` +${low.length-3} more`:""}
+              </div>
             </div>
-            <button onClick={()=>navigate("/inventory")} className="btn btn-sm"
-              style={{ background:T.ember,color:"#fff",border:"none",fontWeight:700 }}>Reorder →</button>
+            <button onClick={() => navigate("/inventory")} className="btn btn-sm btn-danger">
+              View →
+            </button>
           </div>
         )}
 
         {/* Quick actions */}
-        <div style={{ fontSize:10,color:"var(--brass-lite)",fontWeight:700,letterSpacing:"2px",
-          textTransform:"uppercase",marginBottom:10 }}>⚡ Quick Actions</div>
-        <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16 }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"var(--ink-faint)",
+          letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:12 }}>⚡ Quick Actions</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
           {QUICK.map((qa,i) => (
-            <button key={i} onClick={()=>navigate(qa.to)}
-              style={{ background:"var(--bg2)",border:"1px solid var(--rule)",borderRadius:12,
-                padding:"12px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6,
-                transition:"all 0.15s" }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=qa.tone;e.currentTarget.style.transform="translateY(-2px)"}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=`rgba(244,228,193,0.12)`;e.currentTarget.style.transform="none"}}>
-              <div style={{ width:36,height:36,borderRadius:10,
-                background:`${qa.tone}18`,border:`1px solid ${qa.tone}40`,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:17 }}>{qa.emoji}</div>
-              <span style={{ fontSize:10,color:"var(--ink)",fontWeight:600 }}>{qa.label}</span>
+            <button key={i} onClick={() => navigate(qa.to)}
+              style={{ background:"var(--bg1)", border:`1px solid var(--rule)`,
+                borderRadius:14, padding:"14px 8px", cursor:"pointer",
+                display:"flex", flexDirection:"column", alignItems:"center", gap:8,
+                transition:"all 0.15s", boxShadow:"0 1px 4px var(--shadow)" }}
+              onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 4px 16px var(--shadow-md)"; e.currentTarget.style.borderColor=`${qa.border}` }}
+              onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="0 1px 4px var(--shadow)"; e.currentTarget.style.borderColor="var(--rule)" }}>
+              <div style={{ width:40, height:40, borderRadius:12,
+                background:qa.color, border:`1px solid ${qa.border}`,
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{qa.icon}</div>
+              <span style={{ fontSize:11, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Two column */}
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20 }}>
+        {/* Two columns */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
 
           {/* Recent sales */}
           <div>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-              <div style={{ fontSize:10,color:"var(--brass-lite)",fontWeight:700,letterSpacing:"2px",textTransform:"uppercase" }}>
-                Recent Sales <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",color:"var(--ink-faint)",fontSize:11 }}>आज की बिक्री</span>
-              </div>
-              <button onClick={()=>navigate("/billing")} style={{ fontSize:10,color:"var(--saffron)",fontWeight:600,background:"none",border:"none",cursor:"pointer" }}>View all →</button>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)" }}>Recent Sales</div>
+              <button onClick={() => navigate("/billing")}
+                style={{ fontSize:11, color:"var(--saffron)", fontWeight:600,
+                  background:"none", border:"none", cursor:"pointer" }}>View all →</button>
             </div>
-            <div style={{ background:"var(--bg2)",borderRadius:14,border:"1px solid var(--rule)",overflow:"hidden" }}>
-              {loading ? (
-                [1,2,3].map(i => <div key={i} style={{ height:52,borderBottom:"1px solid var(--rule-soft)",background:"transparent" }}/>)
-              ) : today.sales.length === 0 ? (
-                <div style={{ padding:"28px 16px",textAlign:"center",color:"var(--ink-faint)",fontSize:12 }}>
-                  <div style={{ fontSize:28,marginBottom:8 }}>🎤</div>
-                  Speak to start your first sale!
+            <div style={{ background:"var(--bg1)", borderRadius:14,
+              border:"1px solid var(--rule)", overflow:"hidden",
+              boxShadow:"0 1px 4px var(--shadow)" }}>
+              {loading ? [1,2,3].map(i => (
+                <div key={i} style={{ height:54, borderBottom:"1px solid var(--rule-soft)",
+                  background:"var(--bg2)", margin:"2px 0" }}/>
+              )) : today.sales.length === 0 ? (
+                <div style={{ padding:"28px 16px", textAlign:"center",
+                  color:"var(--ink-faint)", fontSize:13 }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>🎤</div>
+                  Start your first sale!
                 </div>
               ) : today.sales.slice(0,5).map((s,i) => (
-                <div key={i} style={{ display:"flex",alignItems:"center",gap:10,
-                  padding:"11px 14px",borderBottom:i<4?`1px solid ${T.ruleSoft}`:"none" }}>
-                  <div style={{ width:30,height:30,borderRadius:"50%",flexShrink:0,
-                    background:`linear-gradient(135deg,${T.brass},${T.saffron})`,
-                    color:"#1a0c04",display:"flex",alignItems:"center",justifyContent:"center",
-                    fontWeight:800,fontSize:12 }}>{(s.customer||"W").charAt(0).toUpperCase()}</div>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.customer||"Walk-in"}</div>
-                    <div style={{ fontSize:10,color:"var(--ink-faint)" }}>
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
+                  padding:"12px 14px", borderBottom: i<4 ? "1px solid var(--rule-soft)" : "none" }}>
+                  <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0,
+                    background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+                    color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                    fontWeight:800, fontSize:13 }}>{(s.customer||"W").charAt(0).toUpperCase()}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
+                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.customer||"Walk-in"}</div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
                       {s.qty} items · {new Date(s.sold_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
                     </div>
                   </div>
-                  <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:15,color:"var(--brass-lite)",fontWeight:700 }}>{INR(s.total)}</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"var(--saffron)" }}>{INR(s.total)}</div>
                 </div>
               ))}
             </div>
@@ -203,44 +208,53 @@ export default function Dashboard() {
 
           {/* Low stock */}
           <div>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-              <div style={{ fontSize:10,color:"var(--brass-lite)",fontWeight:700,letterSpacing:"2px",textTransform:"uppercase" }}>
-                {low.length>0?"⚠ Low Stock":"Stock Health"}
-                <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",color:"var(--ink-faint)",fontSize:11,marginLeft:6 }}>कम स्टॉक</span>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)" }}>
+                {low.length > 0 ? "⚠ Low Stock" : "Stock Health"}
               </div>
-              <button onClick={()=>navigate("/inventory")} style={{ fontSize:10,color:"var(--saffron)",fontWeight:600,background:"none",border:"none",cursor:"pointer" }}>View all →</button>
+              <button onClick={() => navigate("/inventory")}
+                style={{ fontSize:11, color:"var(--saffron)", fontWeight:600,
+                  background:"none", border:"none", cursor:"pointer" }}>View all →</button>
             </div>
-            <div style={{ background:"var(--bg2)",borderRadius:14,border:"1px solid var(--rule)",overflow:"hidden" }}>
-              {loading ? (
-                [1,2,3].map(i => <div key={i} style={{ height:52,borderBottom:"1px solid var(--rule-soft)" }}/>)
-              ) : low.length === 0 ? (
-                <div style={{ padding:"28px 16px",textAlign:"center",color:"var(--ink-faint)",fontSize:12 }}>
-                  <div style={{ fontSize:28,marginBottom:8 }}>✅</div>
+            <div style={{ background:"var(--bg1)", borderRadius:14,
+              border:"1px solid var(--rule)", overflow:"hidden",
+              boxShadow:"0 1px 4px var(--shadow)" }}>
+              {loading ? [1,2,3].map(i => (
+                <div key={i} style={{ height:54, borderBottom:"1px solid var(--rule-soft)",
+                  background:"var(--bg2)", margin:"2px 0" }}/>
+              )) : low.length === 0 ? (
+                <div style={{ padding:"28px 16px", textAlign:"center",
+                  color:"var(--ink-faint)", fontSize:13 }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>✅</div>
                   All stock levels healthy!
                 </div>
               ) : low.slice(0,5).map((p,i) => (
-                <div key={i} style={{ display:"flex",alignItems:"center",gap:10,
-                  padding:"11px 14px",borderBottom:i<4?`1px solid ${T.ruleSoft}`:"none" }}>
-                  <div style={{ width:30,height:30,borderRadius:8,flexShrink:0,
-                    background: p.stock<=0?"rgba(179,38,30,0.18)":"rgba(192,138,58,0.18)",
-                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:14 }}>
-                    {p.stock<=0?"🔴":"🟡"}
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
+                  padding:"12px 14px", borderBottom: i<4 ? "1px solid var(--rule-soft)" : "none" }}>
+                  <div style={{ width:34, height:34, borderRadius:10, flexShrink:0,
+                    background: p.stock<=0 ? "var(--ember-bg)" : "var(--brass-bg)",
+                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>
+                    {p.stock<=0 ? "🔴" : "🟡"}
                   </div>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.name}</div>
-                    <div style={{ fontSize:10,color:"var(--ink-faint)" }}>Min: {p.min_stock} · Left: {p.stock}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
+                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Min: {p.min_stock} · Left: {p.stock}</div>
                   </div>
-                  <span style={{ fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:999,textTransform:"uppercase",
-                    background:p.stock<=0?"rgba(179,38,30,0.2)":"rgba(192,138,58,0.2)",
-                    color:p.stock<=0?T.emberLite:T.brassLite,
-                    border:`1px solid ${p.stock<=0?"rgba(179,38,30,0.4)":"rgba(192,138,58,0.4)"}` }}>
-                    {p.stock<=0?"OUT!":"LOW"}
+                  <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:999,
+                    textTransform:"uppercase", letterSpacing:"0.8px",
+                    background: p.stock<=0 ? "var(--ember-bg)" : "var(--brass-bg)",
+                    color: p.stock<=0 ? "var(--ember)" : "var(--brass)",
+                    border: `1px solid ${p.stock<=0 ? "rgba(192,57,43,0.3)" : "rgba(184,134,11,0.3)"}` }}>
+                    {p.stock<=0 ? "OUT!" : "LOW"}
                   </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
+
+        <div style={{ height:24 }}/>
       </div>
     </div>
   )

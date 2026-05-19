@@ -374,7 +374,7 @@ Thank you for shopping! 🙏`
               <div className="flex flex-col gap-2">
                 <button onClick={shareWhatsApp}
                   className="w-full py-2 rounded-lg text-xs font-semibold cursor-pointer"
-                  style={{ background:"#25D366", color:"#fff", border:"none" }}>
+                  style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
                   Send on WhatsApp
                 </button>
                 <button onClick={() => window.print()} className="btn w-full text-xs">

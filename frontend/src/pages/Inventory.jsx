@@ -32,7 +32,7 @@ function VoiceInput({ label, value, onChange, placeholder, type="text",
 
   return (
     <div>
-      <label style={{ fontSize:10, color:"#b9a382", fontWeight:500, display:"block", marginBottom:3 }}>
+      <label style={{ fontSize:10, color:"var(--ink-dim)", fontWeight:500, display:"block", marginBottom:3 }}>
         {label}
       </label>
       <div style={{ display:"flex", gap:4, alignItems:"center" }}>
@@ -48,7 +48,7 @@ function VoiceInput({ label, value, onChange, placeholder, type="text",
         <MicButton listening={listening} onClick={startVoice} />
       </div>
       {hint && !error && (
-        <div style={{ fontSize:10, color:"#aaa", marginTop:2 }}>{hint}</div>
+        <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>{hint}</div>
       )}
       {error && (
         <div style={{ fontSize:10, color:"#dc2626", marginTop:2 }}>{error}</div>
@@ -220,9 +220,9 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
                         onClick={() => handleVariantChange(v)}
                         className="text-[10px] px-2.5 py-1 rounded-lg border transition-all font-medium"
                         style={{
-                          background: form.mrp == v.mrp ? "#1D9E75" : "#fff",
-                          color:      form.mrp == v.mrp ? "#fff"     : "#378ADD",
-                          borderColor:form.mrp == v.mrp ? "#1D9E75"  : "#bfdbfe",
+                          background: form.mrp == v.mrp ? "var(--jade)" : "var(--bg1)",
+                          color:      form.mrp == v.mrp ? "var(--bg1)"     : "#378ADD",
+                          borderColor:form.mrp == v.mrp ? "var(--jade)"  : "#bfdbfe",
                         }}>
                         {v.size} — ₹{v.mrp}
                       </button>

@@ -5,7 +5,7 @@ const SECTIONS = [
     id: "getting-started",
     icon: "🚀",
     title: "Getting Started",
-    color: "#1D9E75",
+    color: "var(--jade)",
     bg: "#E1F5EE",
     articles: [
       {
@@ -191,7 +191,7 @@ Tip: Use the Notes field in Customer profile (Customers → select customer → 
     id: "voice",
     icon: "🎤",
     title: "Voice Agent",
-    color: "#1D9E75",
+    color: "var(--jade)",
     bg: "#E1F5EE",
     articles: [
       {

@@ -109,11 +109,11 @@ Thank you! 🙏`
   const totalSubtotal = grandTotal - totalGST
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col" style={{ background:"#f8f9fa" }}>
+    <div className="flex-1 overflow-hidden flex flex-col" style={{ background:"var(--bg0)" }}>
       {notif && (
         <div style={{
           position:"fixed", top:16, right:16, zIndex:100,
-          background:"#1D9E75", color:"#fff",
+          background:"var(--jade)", color:"var(--bg1)",
           padding:"10px 16px", borderRadius:12, fontSize:12,
           boxShadow:"0 4px 20px rgba(0,0,0,0.15)", fontWeight:500,
         }}>
@@ -124,7 +124,7 @@ Thank you! 🙏`
       {/* Header */}
       <div style={{
         background:"linear-gradient(135deg, #0F6E56 0%, #1D9E75 100%)",
-        padding:"16px 20px", color:"#fff", flexShrink:0,
+        padding:"16px 20px", color:"var(--bg1)", flexShrink:0,
       }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div>
@@ -151,7 +151,7 @@ Thank you! 🙏`
               📱 For best voice experience:
             </div>
             <button onClick={openInChrome} style={{
-              background:"#1c1209", color:"#0F6E56", border:"none",
+              background:"var(--bg1)", color:"var(--jade)", border:"none",
               borderRadius:8, padding:"7px 16px", fontSize:11,
               fontWeight:600, cursor:"pointer", width:"100%",
             }}>
@@ -179,16 +179,16 @@ Thank you! 🙏`
 
         {/* Right — Bill panel */}
         <div style={{
-          width:260, flexShrink:0, borderLeft:"1px solid #f0f0f0",
-          background:"#1c1209", display:"flex", flexDirection:"column",
+          width:260, flexShrink:0, borderLeft:"1px solid var(--rule-soft)",
+          background:"var(--bg1)", display:"flex", flexDirection:"column",
           overflowY:"auto",
         }}>
           {/* Bill header */}
           <div style={{
-            padding:"12px 14px", borderBottom:"1px solid rgba(244,228,193,0.06)",
+            padding:"12px 14px", borderBottom:"1px solid var(--rule-soft)",
             background:"#f8fffe",
           }}>
-            <div style={{ fontSize:12, fontWeight:600, color:"#0F6E56", marginBottom:8 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"var(--jade)", marginBottom:8 }}>
               🧾 Voice Bill
             </div>
             <input
@@ -196,15 +196,15 @@ Thank you! 🙏`
               onChange={e => setCustomer(e.target.value)}
               placeholder="Customer name..."
               style={{
-                width:"100%", border:"1px solid rgba(244,228,193,0.12)", borderRadius:8,
+                width:"100%", border:"1px solid var(--rule)", borderRadius:8,
                 padding:"6px 10px", fontSize:11, marginBottom:6,
                 outline:"none", boxSizing:"border-box",
               }}
             />
             <select value={payment} onChange={e => setPayment(e.target.value)}
               style={{
-                width:"100%", border:"1px solid rgba(244,228,193,0.12)", borderRadius:8,
-                padding:"6px 10px", fontSize:11, background:"#1c1209",
+                width:"100%", border:"1px solid var(--rule)", borderRadius:8,
+                padding:"6px 10px", fontSize:11, background:"var(--bg1)",
                 outline:"none", boxSizing:"border-box",
               }}>
               <option>Cash</option>
@@ -219,7 +219,7 @@ Thank you! 🙏`
             {billItems.length === 0 && !invoice ? (
               <div style={{
                 textAlign:"center", padding:"40px 16px",
-                color:"#7a6a51", fontSize:11,
+                color:"var(--ink-faint)", fontSize:11,
               }}>
                 <div style={{ fontSize:40, marginBottom:8 }}>🎤</div>
                 Speak a product name to add to bill
@@ -232,21 +232,21 @@ Thank you! 🙏`
                   padding:"10px 12px", marginBottom:10,
                   textAlign:"center",
                 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:"#0F6E56" }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"var(--jade)" }}>
                     ✅ Invoice Generated!
                   </div>
-                  <div style={{ fontSize:11, color:"#1D9E75", marginTop:2 }}>
+                  <div style={{ fontSize:11, color:"var(--jade)", marginTop:2 }}>
                     {invoice.invoice_no}
                   </div>
                 </div>
 
-                <div style={{ fontSize:11, color:"#f4e4c1", marginBottom:8 }}>
+                <div style={{ fontSize:11, color:"var(--ink)", marginBottom:8 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ color:"#7a6a51" }}>Customer</span>
+                    <span style={{ color:"var(--ink-faint)" }}>Customer</span>
                     <span style={{ fontWeight:500 }}>{invoice.customer_name}</span>
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ color:"#7a6a51" }}>Payment</span>
+                    <span style={{ color:"var(--ink-faint)" }}>Payment</span>
                     <span>{invoice.payment_mode}</span>
                   </div>
                 </div>
@@ -255,7 +255,7 @@ Thank you! 🙏`
                   {(invoice.items||[]).map((item, i) => (
                     <div key={i} style={{
                       display:"flex", justifyContent:"space-between",
-                      fontSize:10, marginBottom:4, color:"#b9a382",
+                      fontSize:10, marginBottom:4, color:"var(--ink-dim)",
                     }}>
                       <span style={{ flex:1, marginRight:4 }}>{item.name} ×{item.qty}</span>
                       <span style={{ fontWeight:500 }}>{INR(item.total)}</span>
@@ -263,21 +263,21 @@ Thank you! 🙏`
                   ))}
                 </div>
 
-                <div style={{ borderTop:"1px solid #e5e7eb", paddingTop:8 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#7a6a51", marginBottom:2 }}>
+                <div style={{ borderTop:"1px solid var(--rule)", paddingTop:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:2 }}>
                     <span>Subtotal</span><span>{INR(invoice.subtotal)}</span>
                   </div>
-                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#7a6a51", marginBottom:6 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:6 }}>
                     <span>GST</span><span>{INR(invoice.gst_amount)}</span>
                   </div>
-                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:14, fontWeight:700, color:"#0F6E56" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:14, fontWeight:700, color:"var(--jade)" }}>
                     <span>Total</span><span>{INR(invoice.total)}</span>
                   </div>
                 </div>
 
                 <button onClick={sendWhatsApp} style={{
                   width:"100%", marginTop:12, padding:"10px",
-                  background:"#25D366", color:"#fff", border:"none",
+                  background:"#25D366", color:"var(--bg1)", border:"none",
                   borderRadius:10, fontSize:12, fontWeight:600,
                   cursor:"pointer",
                 }}>
@@ -285,7 +285,7 @@ Thank you! 🙏`
                 </button>
                 <button onClick={() => setInvoice(null)} style={{
                   width:"100%", marginTop:6, padding:"8px",
-                  background:"#261810", color:"#7a6a51", border:"none",
+                  background:"var(--bg2)", color:"var(--ink-faint)", border:"none",
                   borderRadius:10, fontSize:11, cursor:"pointer",
                 }}>
                   New Bill
@@ -316,17 +316,17 @@ Thank you! 🙏`
                         setBillItems(b => b.filter((_,bi) => bi !== i))
                         showNotif(`${item.name} removed — stock restored`)
                       }}
-                      style={{ background:"none", border:"none", color:"#7a6a51",
+                      style={{ background:"none", border:"none", color:"var(--ink-faint)",
                         cursor:"pointer", fontSize:16, lineHeight:1 }}>
                       ×
                     </button>
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-                    <span style={{ fontSize:10, color:"#7a6a51" }}>
+                    <span style={{ fontSize:10, color:"var(--ink-faint)" }}>
                       {item.qty} {item.unit} × {INR(item.mrp)}
                       {item.gst > 0 && ` + ${item.gst}%GST`}
                     </span>
-                    <span style={{ fontSize:11, fontWeight:700, color:"#1D9E75" }}>
+                    <span style={{ fontSize:11, fontWeight:700, color:"var(--jade)" }}>
                       {INR(item.lineTotal)}
                     </span>
                   </div>
@@ -338,24 +338,24 @@ Thank you! 🙏`
           {/* Bill footer */}
           {billItems.length > 0 && !invoice && (
             <div style={{
-              padding:"12px 14px", borderTop:"1px solid #f0f0f0",
-              background:"#1c1209", flexShrink:0,
+              padding:"12px 14px", borderTop:"1px solid var(--rule-soft)",
+              background:"var(--bg1)", flexShrink:0,
             }}>
               <div style={{ marginBottom:10 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#7a6a51", marginBottom:2 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:2 }}>
                   <span>Subtotal</span><span>{INR(totalSubtotal)}</span>
                 </div>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#7a6a51", marginBottom:6 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:6 }}>
                   <span>GST</span><span>{INR(totalGST)}</span>
                 </div>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700, color:"#0F6E56" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700, color:"var(--jade)" }}>
                   <span>Total</span><span>{INR(grandTotal)}</span>
                 </div>
               </div>
               <button onClick={generateVoiceBill} disabled={generating} style={{
                 width:"100%", padding:"11px",
                 background:"linear-gradient(135deg, #0F6E56, #1D9E75)",
-                color:"#fff", border:"none", borderRadius:10,
+                color:"var(--bg1)", border:"none", borderRadius:10,
                 fontSize:12, fontWeight:600, cursor:"pointer",
                 marginBottom:6, opacity: generating ? 0.7 : 1,
               }}>
@@ -379,7 +379,7 @@ Thank you! 🙏`
                   showNotif("Bill cleared — stock restored")
                 }} style={{
                 width:"100%", padding:"8px",
-                background:"#261810", color:"#7a6a51",
+                background:"var(--bg2)", color:"var(--ink-faint)",
                 border:"none", borderRadius:10,
                 fontSize:11, cursor:"pointer",
               }}>

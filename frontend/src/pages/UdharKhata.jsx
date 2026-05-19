@@ -177,7 +177,7 @@ _Powered by DukaanAI_`
           .bold { font-weight: bold; }
           .divider { border-top: 1px dashed #ccc; margin: 8px 0; }
           .row { display: flex; justify-content: space-between; margin: 4px 0; }
-          .big { font-size: 20px; font-weight: bold; color: ${txn.type==="credit"?"#EF9F27":"#1D9E75"}; }
+          .big { font-size: 20px; font-weight: bold; color: ${txn.type==="credit"?"#EF9F27":"var(--jade)"}; }
           .proof-box { border: 2px solid #333; padding: 12px; margin-top: 12px; font-size: 11px; }
           .signature { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size: 10px; }
           @media print { button { display:none; } }
@@ -233,7 +233,7 @@ _Powered by DukaanAI_`
   }
 
   // Color coding by amount
-  const dueColor = due => due > 5000 ? "#E24B4A" : due > 1000 ? "#EF9F27" : "#1D9E75"
+  const dueColor = due => due > 5000 ? "#E24B4A" : due > 1000 ? "#EF9F27" : "var(--jade)"
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col p-4">
@@ -307,7 +307,7 @@ _Powered by DukaanAI_`
               className={`btn w-full py-2.5 text-xs font-semibold mt-4 ${
                 modal==="credit" ? "" : "btn-primary"
               }`}
-              style={modal==="credit" ? { background:"#EF9F27", color:"#fff", border:"none" } : {}}>
+              style={modal==="credit" ? { background:"#EF9F27", color:"var(--bg1)", border:"none" } : {}}>
               {saving ? "Saving..." :
                modal==="add-customer"  ? "Add Customer" :
                modal==="edit-customer" ? "Save Changes" :
@@ -417,7 +417,7 @@ _Powered by DukaanAI_`
         <div style={{ flex:1, overflowY:"auto", minWidth:0, display: window.innerWidth <= 768 && !showDetail ? "none" : "block" }}>
           {window.innerWidth <= 768 && showDetail && selected && (
             <button onClick={() => setShowDetail(false)}
-              style={{ display:"flex", alignItems:"center", gap:6, color:"#1D9E75",
+              style={{ display:"flex", alignItems:"center", gap:6, color:"var(--jade)",
                 fontSize:12, fontWeight:500, padding:"8px 0", marginBottom:8,
                 background:"none", border:"none", cursor:"pointer" }}>
               ← Back to customers
@@ -486,12 +486,12 @@ _Powered by DukaanAI_`
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => sendReminder(selected)}
                     className="py-2 rounded-xl text-[10px] font-medium transition-all"
-                    style={{ background:"#25D366", color:"#fff", border:"none" }}>
+                    style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
                     Send Reminder on WhatsApp
                   </button>
                   <button onClick={() => sendStatement(selected, txns)}
                     className="py-2 rounded-xl text-[10px] font-medium transition-all"
-                    style={{ background:"#128C7E", color:"#fff", border:"none" }}>
+                    style={{ background:"#128C7E", color:"var(--bg1)", border:"none" }}>
                     Send Full Statement
                   </button>
                 </div>
@@ -551,7 +551,7 @@ _Powered by DukaanAI_`
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-sm font-bold" style={{
-                        color: t.type==="credit" ? "#EF9F27" : "#1D9E75"
+                        color: t.type==="credit" ? "#EF9F27" : "var(--jade)"
                       }}>
                         {t.type === "credit" ? "+" : "-"}{INR(t.amount)}
                       </div>
@@ -559,7 +559,7 @@ _Powered by DukaanAI_`
                         {selected.phone && (
                           <button onClick={()=>sendProof(selected, t)}
                             className="text-[9px] px-1.5 py-0.5 rounded font-medium"
-                            style={{ background:"#25D366", color:"#fff", border:"none", cursor:"pointer" }}>
+                            style={{ background:"#25D366", color:"var(--bg1)", border:"none", cursor:"pointer" }}>
                             WA Proof
                           </button>
                         )}
