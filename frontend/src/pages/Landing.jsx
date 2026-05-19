@@ -326,7 +326,7 @@ export default function Landing() {
                 दुकान<span style={{ color:"#e87722" }}>•</span>AI
               </div>
               <div style={{ fontSize:13, color:"#7a6a51", lineHeight:1.6, maxWidth:300 }}>
-                Built in Hyderabad for the 12 million kirana shops that run India. Voice, vernacular, no jargon.
+                Built in Hyderabad for kirana shops that run India. Voice, vernacular, no jargon.
               </div>
             </div>
             {[
