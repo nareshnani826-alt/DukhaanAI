@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from "react"
 import { Products, Sales, Invoices, Udhar, Wastage, Customers } from "../sync/db"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
 import { LANGUAGES } from "../voice/languages.js"
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
+import { usePlan } from "../context/PlanContext";
+import { LANG_KEY, getSavedLang } from "../voice/i18n";
+import { getToken } from "../sync/db";
 
 // ── Quick suggestions per language ───────────────────────
 const QUICK_BY_LANG = {
