@@ -26,9 +26,9 @@ function StatTile({ label, value, sub, tone=T.brassLite, loading }) {
   return (
     <div className="stat-card">
       <div className="stat-bar" style={{ background:tone }}/>
-      <div style={{ fontSize:9,color:T.inkFaint,letterSpacing:"1.2px",fontWeight:700,textTransform:"uppercase",marginTop:4 }}>{label}</div>
-      <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:22,color:T.ink,fontWeight:700,marginTop:6,lineHeight:1 }}>
-        {loading ? <span style={{color:T.inkFaint}}>—</span> : value}
+      <div style={{ fontSize:9,color:"var(--ink-faint)",letterSpacing:"1.2px",fontWeight:700,textTransform:"uppercase",marginTop:4 }}>{label}</div>
+      <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:22,color:"var(--ink)",fontWeight:700,marginTop:6,lineHeight:1 }}>
+        {loading ? <span style={{color:"var(--ink-faint)"}}>—</span> : value}
       </div>
       {sub && <div style={{ fontSize:9,color:tone,marginTop:4,fontWeight:600 }}>{loading?"...":sub}</div>}
     </div>
@@ -62,10 +62,10 @@ export default function Dashboard() {
   const avgInv = today.count > 0 ? Math.round(today.total / today.count) : 0
 
   return (
-    <div style={{ flex:1, overflowY:"auto", background:T.bg0 }}>
+    <div style={{ flex:1, overflowY:"auto", background:"var(--bg0)" }}>
 
       {/* Top bar */}
-      <div style={{ background:"rgba(20,11,6,0.9)", backdropFilter:"blur(8px)",
+      <div style={{ background:"var(--bg1)", backdropFilter:"blur(8px)",
         borderBottom:`1px solid ${T.rule}`, padding:"14px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
         position:"sticky", top:0, zIndex:10, flexShrink:0 }}>
@@ -77,10 +77,10 @@ export default function Dashboard() {
             {vendor?.store_name?.charAt(0) || "न"}
           </div>
           <div>
-            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:15,color:T.ink,fontWeight:600,lineHeight:1 }}>
+            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:15,color:"var(--ink)",fontWeight:600,lineHeight:1 }}>
               {greeting()}, {vendor?.store_name?.split(" ")[0] || "ji"} 🙏
             </div>
-            <div style={{ fontSize:10,color:T.inkFaint,marginTop:2 }}>
+            <div style={{ fontSize:10,color:"var(--ink-faint)",marginTop:2 }}>
               {vendor?.store_name || "DukaanAI"} · {new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
             </div>
           </div>
@@ -104,20 +104,20 @@ export default function Dashboard() {
         {/* Hero takings */}
         <div style={{ background:`linear-gradient(135deg,${T.bg2} 0%,${T.bg3} 100%)`,
           borderRadius:18, padding:"20px 20px",
-          border:`1px solid ${T.brass}40`, position:"relative", overflow:"hidden", marginBottom:14 }}>
+          border:"1px solid rgba(192,138,58,0.25)", position:"relative", overflow:"hidden", marginBottom:14 }}>
           <svg viewBox="0 0 200 200" style={{ position:"absolute",top:-30,right:-30,width:200,height:200,opacity:0.15,pointerEvents:"none" }}>
             {[...Array(12)].map((_,i) => <circle key={i} cx="100" cy="100" r={20+i*9} fill="none" stroke={T.brassLite} strokeWidth="0.7"/>)}
           </svg>
           <div style={{ position:"relative" }}>
-            <div style={{ fontSize:10,color:T.brassLite,letterSpacing:"1.5px",fontWeight:700,textTransform:"uppercase" }}>Today's takings</div>
-            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:48,color:T.ink,fontWeight:700,lineHeight:1,marginTop:8,letterSpacing:"-1px" }}>
+            <div style={{ fontSize:10,color:"var(--brass-lite)",letterSpacing:"1.5px",fontWeight:700,textTransform:"uppercase" }}>Today's takings</div>
+            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:48,color:"var(--ink)",fontWeight:700,lineHeight:1,marginTop:8,letterSpacing:"-1px" }}>
               {loading ? "—" : INR(today.total)}
             </div>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,fontSize:11 }}>
-              <span style={{ color:T.jadeLite,fontWeight:600 }}>
+              <span style={{ color:"var(--jade-lite)",fontWeight:600 }}>
                 {today.count > 0 ? `${today.count} invoices today` : "No sales yet"}
               </span>
-              <span style={{ color:T.inkDim }}>{INR(avgInv)} avg · {INR(summary.total_revenue||0)} this month</span>
+              <span style={{ color:"var(--ink-dim)" }}>{INR(avgInv)} avg · {INR(summary.total_revenue||0)} this month</span>
             </div>
           </div>
         </div>
@@ -137,7 +137,7 @@ export default function Dashboard() {
             <div style={{ fontSize:20,flexShrink:0 }}>⚠️</div>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:12,fontWeight:700,color:T.ink }}>{low.length} product{low.length>1?"s":""} need restocking</div>
-              <div style={{ fontSize:10,color:T.emberLite,marginTop:2 }}>{low.slice(0,3).map(p=>p.name).join(", ")}{low.length>3?` +${low.length-3} more`:""}</div>
+              <div style={{ fontSize:10,color:"var(--ember-lite)",marginTop:2 }}>{low.slice(0,3).map(p=>p.name).join(", ")}{low.length>3?` +${low.length-3} more`:""}</div>
             </div>
             <button onClick={()=>navigate("/inventory")} className="btn btn-sm"
               style={{ background:T.ember,color:"#fff",border:"none",fontWeight:700 }}>Reorder →</button>
@@ -145,12 +145,12 @@ export default function Dashboard() {
         )}
 
         {/* Quick actions */}
-        <div style={{ fontSize:10,color:T.brassLite,fontWeight:700,letterSpacing:"2px",
+        <div style={{ fontSize:10,color:"var(--brass-lite)",fontWeight:700,letterSpacing:"2px",
           textTransform:"uppercase",marginBottom:10 }}>⚡ Quick Actions</div>
         <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16 }}>
           {QUICK.map((qa,i) => (
             <button key={i} onClick={()=>navigate(qa.to)}
-              style={{ background:T.bg2,border:`1px solid ${T.rule}`,borderRadius:12,
+              style={{ background:"var(--bg2)",border:"1px solid var(--rule)",borderRadius:12,
                 padding:"12px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6,
                 transition:"all 0.15s" }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor=qa.tone;e.currentTarget.style.transform="translateY(-2px)"}}
@@ -158,7 +158,7 @@ export default function Dashboard() {
               <div style={{ width:36,height:36,borderRadius:10,
                 background:`${qa.tone}18`,border:`1px solid ${qa.tone}40`,
                 display:"flex",alignItems:"center",justifyContent:"center",fontSize:17 }}>{qa.emoji}</div>
-              <span style={{ fontSize:10,color:T.ink,fontWeight:600 }}>{qa.label}</span>
+              <span style={{ fontSize:10,color:"var(--ink)",fontWeight:600 }}>{qa.label}</span>
             </button>
           ))}
         </div>
@@ -169,16 +169,16 @@ export default function Dashboard() {
           {/* Recent sales */}
           <div>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-              <div style={{ fontSize:10,color:T.brassLite,fontWeight:700,letterSpacing:"2px",textTransform:"uppercase" }}>
-                Recent Sales <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",color:T.inkFaint,fontSize:11 }}>आज की बिक्री</span>
+              <div style={{ fontSize:10,color:"var(--brass-lite)",fontWeight:700,letterSpacing:"2px",textTransform:"uppercase" }}>
+                Recent Sales <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",color:"var(--ink-faint)",fontSize:11 }}>आज की बिक्री</span>
               </div>
-              <button onClick={()=>navigate("/billing")} style={{ fontSize:10,color:T.saffron,fontWeight:600,background:"none",border:"none",cursor:"pointer" }}>View all →</button>
+              <button onClick={()=>navigate("/billing")} style={{ fontSize:10,color:"var(--saffron)",fontWeight:600,background:"none",border:"none",cursor:"pointer" }}>View all →</button>
             </div>
-            <div style={{ background:T.bg2,borderRadius:14,border:`1px solid ${T.rule}`,overflow:"hidden" }}>
+            <div style={{ background:"var(--bg2)",borderRadius:14,border:"1px solid var(--rule)",overflow:"hidden" }}>
               {loading ? (
-                [1,2,3].map(i => <div key={i} style={{ height:52,borderBottom:`1px solid ${T.ruleSoft}`,background:"transparent" }}/>)
+                [1,2,3].map(i => <div key={i} style={{ height:52,borderBottom:"1px solid var(--rule-soft)",background:"transparent" }}/>)
               ) : today.sales.length === 0 ? (
-                <div style={{ padding:"28px 16px",textAlign:"center",color:T.inkFaint,fontSize:12 }}>
+                <div style={{ padding:"28px 16px",textAlign:"center",color:"var(--ink-faint)",fontSize:12 }}>
                   <div style={{ fontSize:28,marginBottom:8 }}>🎤</div>
                   Speak to start your first sale!
                 </div>
@@ -190,12 +190,12 @@ export default function Dashboard() {
                     color:"#1a0c04",display:"flex",alignItems:"center",justifyContent:"center",
                     fontWeight:800,fontSize:12 }}>{(s.customer||"W").charAt(0).toUpperCase()}</div>
                   <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.customer||"Walk-in"}</div>
-                    <div style={{ fontSize:10,color:T.inkFaint }}>
+                    <div style={{ fontSize:12,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.customer||"Walk-in"}</div>
+                    <div style={{ fontSize:10,color:"var(--ink-faint)" }}>
                       {s.qty} items · {new Date(s.sold_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
                     </div>
                   </div>
-                  <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:15,color:T.brassLite,fontWeight:700 }}>{INR(s.total)}</div>
+                  <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",fontSize:15,color:"var(--brass-lite)",fontWeight:700 }}>{INR(s.total)}</div>
                 </div>
               ))}
             </div>
@@ -204,17 +204,17 @@ export default function Dashboard() {
           {/* Low stock */}
           <div>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-              <div style={{ fontSize:10,color:T.brassLite,fontWeight:700,letterSpacing:"2px",textTransform:"uppercase" }}>
+              <div style={{ fontSize:10,color:"var(--brass-lite)",fontWeight:700,letterSpacing:"2px",textTransform:"uppercase" }}>
                 {low.length>0?"⚠ Low Stock":"Stock Health"}
-                <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",color:T.inkFaint,fontSize:11,marginLeft:6 }}>कम स्टॉक</span>
+                <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",color:"var(--ink-faint)",fontSize:11,marginLeft:6 }}>कम स्टॉक</span>
               </div>
-              <button onClick={()=>navigate("/inventory")} style={{ fontSize:10,color:T.saffron,fontWeight:600,background:"none",border:"none",cursor:"pointer" }}>View all →</button>
+              <button onClick={()=>navigate("/inventory")} style={{ fontSize:10,color:"var(--saffron)",fontWeight:600,background:"none",border:"none",cursor:"pointer" }}>View all →</button>
             </div>
-            <div style={{ background:T.bg2,borderRadius:14,border:`1px solid ${T.rule}`,overflow:"hidden" }}>
+            <div style={{ background:"var(--bg2)",borderRadius:14,border:"1px solid var(--rule)",overflow:"hidden" }}>
               {loading ? (
-                [1,2,3].map(i => <div key={i} style={{ height:52,borderBottom:`1px solid ${T.ruleSoft}` }}/>)
+                [1,2,3].map(i => <div key={i} style={{ height:52,borderBottom:"1px solid var(--rule-soft)" }}/>)
               ) : low.length === 0 ? (
-                <div style={{ padding:"28px 16px",textAlign:"center",color:T.inkFaint,fontSize:12 }}>
+                <div style={{ padding:"28px 16px",textAlign:"center",color:"var(--ink-faint)",fontSize:12 }}>
                   <div style={{ fontSize:28,marginBottom:8 }}>✅</div>
                   All stock levels healthy!
                 </div>
@@ -227,8 +227,8 @@ export default function Dashboard() {
                     {p.stock<=0?"🔴":"🟡"}
                   </div>
                   <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.name}</div>
-                    <div style={{ fontSize:10,color:T.inkFaint }}>Min: {p.min_stock} · Left: {p.stock}</div>
+                    <div style={{ fontSize:12,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.name}</div>
+                    <div style={{ fontSize:10,color:"var(--ink-faint)" }}>Min: {p.min_stock} · Left: {p.stock}</div>
                   </div>
                   <span style={{ fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:999,textTransform:"uppercase",
                     background:p.stock<=0?"rgba(179,38,30,0.2)":"rgba(192,138,58,0.2)",

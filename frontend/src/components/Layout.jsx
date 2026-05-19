@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom"
+import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useState } from "react"
@@ -46,6 +47,7 @@ const MOB_TABS = [
 
 export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, logout } = useAuth()
+  const { theme, toggleTheme, isDark } = useTheme()
   const { plan, planLabel } = usePlan()
   const [showAuth,  setShowAuth]  = useState(false)
   const [expanded,  setExpanded]  = useState(null)
@@ -160,7 +162,16 @@ export default function Layout({ children }) {
             {cloud ? "● Cloud sync ON" : loggedIn ? "● Free plan" : "● Local only"}
           </div>
           <div style={{ marginTop:8 }}>
-            {!loggedIn
+            {/* Theme toggle */}
+          <button onClick={toggleTheme}
+            style={{ display:"flex",alignItems:"center",gap:8,
+              background:"transparent",border:`1px solid ${T.rule}`,
+              borderRadius:8,padding:"6px 10px",cursor:"pointer",
+              color:T.inkDim,fontSize:10,fontWeight:600,marginBottom:8,width:"100%" }}>
+            <span style={{ fontSize:14 }}>{isDark ? "☀️" : "🌙"}</span>
+            {isDark ? "Light mode" : "Dark mode"}
+          </button>
+          {!loggedIn
               ? <button onClick={()=>setShowAuth(true)} className="btn btn-primary btn-sm">Login / Register</button>
               : <button onClick={logout}
                   style={{ background:"none",color:T.inkFaint,border:"none",fontSize:10,cursor:"pointer",padding:0 }}>
@@ -186,7 +197,12 @@ export default function Layout({ children }) {
               {cloud ? "● Cloud" : "● Local"}
             </span>
           </div>
-          <div>
+          <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+            <button onClick={toggleTheme}
+              style={{ background:"transparent",border:`1px solid ${T.rule}`,
+                borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:14 }}>
+              {isDark ? "☀️" : "🌙"}
+            </button>
             {!loggedIn
               ? <button onClick={()=>setShowAuth(true)} className="btn btn-primary btn-sm">Login</button>
               : <button onClick={logout}

@@ -4,7 +4,8 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ── Dark theme (default) ── */
+:root, [data-theme="dark"] {
   --bg0:#140b06; --bg1:#1c1209; --bg2:#261810; --bg3:#33200f;
   --ink:#f4e4c1; --ink-dim:#b9a382; --ink-faint:#7a6a51;
   --rule:rgba(244,228,193,0.12); --rule-soft:rgba(244,228,193,0.06);
@@ -12,6 +13,21 @@
   --saffron:#e87722; --saffron-hot:#ff8e35;
   --ember:#b3261e; --ember-lite:#ff8e7a;
   --jade:#3a8a6b; --jade-lite:#4cb892;
+  --sidebar-bg:#1c1209; --modal-bg:#1c1209;
+  --shadow:rgba(0,0,0,0.4);
+}
+
+/* ── Light theme ── */
+[data-theme="light"] {
+  --bg0:#faf7f2; --bg1:#ffffff; --bg2:#f5f0e8; --bg3:#ede5d4;
+  --ink:#1a0c04; --ink-dim:#4a3520; --ink-faint:#8a7060;
+  --rule:rgba(26,12,4,0.12); --rule-soft:rgba(26,12,4,0.06);
+  --brass:#9a6a20; --brass-lite:#7a5010;
+  --saffron:#cc5500; --saffron-hot:#e86000;
+  --ember:#9b1c14; --ember-lite:#c0392b;
+  --jade:#2a6a4b; --jade-lite:#2e8b57;
+  --sidebar-bg:#ffffff; --modal-bg:#ffffff;
+  --shadow:rgba(0,0,0,0.1);
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -22,6 +38,7 @@ html,body{
   font-family:'Plus Jakarta Sans',system-ui,sans-serif;
   -webkit-tap-highlight-color:transparent;
   -webkit-touch-callout:none;
+  transition:background 0.3s,color 0.3s;
 }
 
 input,select,textarea,button{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
@@ -112,7 +129,7 @@ input,select,textarea,button{font-family:'Plus Jakarta Sans',system-ui,sans-seri
 .modal-overlay{position:fixed;inset:0;z-index:100;
   background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);
   display:flex;align-items:center;justify-content:center;padding:20px}
-.modal-box{background:var(--bg1);border:1px solid var(--rule);
+.modal-box{background:var(--modal-bg);border:1px solid var(--rule);
   border-radius:20px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto}
 
 .notif-toast{position:fixed;top:16px;right:16px;z-index:200;
@@ -128,7 +145,7 @@ input,select,textarea,button{font-family:'Plus Jakarta Sans',system-ui,sans-seri
   .app-main{order:1;flex:1;overflow-y:auto !important;overflow-x:hidden !important;
     padding-bottom:64px;min-width:0;width:100%;-webkit-overflow-scrolling:touch}
   .mobile-header{display:flex !important;align-items:center;justify-content:space-between;
-    padding:10px 16px;background:rgba(20,11,6,0.92);backdrop-filter:blur(10px);
+    padding:10px 16px;background:var(--bg1);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--rule);position:sticky;top:0;z-index:40;flex-shrink:0}
   .page-sticky-header{position:sticky !important;top:50px !important;z-index:30;
     background:var(--bg0);padding:10px 14px !important;border-bottom:1px solid var(--rule)}

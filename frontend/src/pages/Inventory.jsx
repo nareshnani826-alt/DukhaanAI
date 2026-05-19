@@ -32,7 +32,7 @@ function VoiceInput({ label, value, onChange, placeholder, type="text",
 
   return (
     <div>
-      <label style={{ fontSize:10, color:"#666", fontWeight:500, display:"block", marginBottom:3 }}>
+      <label style={{ fontSize:10, color:"#b9a382", fontWeight:500, display:"block", marginBottom:3 }}>
         {label}
       </label>
       <div style={{ display:"flex", gap:4, alignItems:"center" }}>

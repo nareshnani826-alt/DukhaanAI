@@ -346,7 +346,7 @@ _Powered by DukaanAI_`
           <div className="text-[10px] text-gray-400">Customers with balance</div>
         </div>
         <div className="stat-card">
-          <div className="stat-bar" style={{ background:"#1D9E75" }} />
+          <div className="stat-bar" style={{ background:"linear-gradient(135deg,#e87722,#ff8e35)" }} />
           <div className="stat-icon-box" style={{ background:"#E1F5EE" }}>📒</div>
           <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Total</div>
           <div className="text-xl font-bold text-gray-800">{summary.customer_count}</div>

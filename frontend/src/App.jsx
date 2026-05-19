@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { ThemeProvider } from "./context/ThemeContext"
 import { AuthProvider }  from "./context/AuthContext"
 import { PlanProvider }  from "./context/PlanContext"
 import Layout            from "./components/Layout"
@@ -30,6 +31,7 @@ function Gated({ feature, children }) {
 
 export default function App() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <PlanProvider>
         <BrowserRouter>
@@ -63,5 +65,6 @@ export default function App() {
         </BrowserRouter>
       </PlanProvider>
     </AuthProvider>
+    </ThemeProvider>
   )
 }

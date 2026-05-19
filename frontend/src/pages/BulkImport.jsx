@@ -180,13 +180,13 @@ export default function BulkImport() {
 
   if (step === 3 && done) {
     return (
-      <div className="flex-1 overflow-y-auto p-6 flex items-center justify-center" style={{ background:"#f8faf8" }}>
+      <div className="flex-1 overflow-y-auto p-6 flex items-center justify-center" style={{ background:"#140b06" }}>
         <div style={{ textAlign:"center", maxWidth:380 }}>
           <div style={{ fontSize:64, marginBottom:16 }}>🎉</div>
-          <div style={{ fontSize:22, fontWeight:800, color:"#1a1a1a", marginBottom:8 }}>
+          <div style={{ fontSize:22, fontWeight:800, color:"#f4e4c1", marginBottom:8 }}>
             Import Complete!
           </div>
-          <div style={{ fontSize:14, color:"#94a3b8", marginBottom:24 }}>
+          <div style={{ fontSize:14, color:"#7a6a51", marginBottom:24 }}>
             {done.added} new · {done.updated} stock updated
             {done.failed > 0 && ` · ${done.failed} skipped`}
           </div>
@@ -200,15 +200,15 @@ export default function BulkImport() {
               <div style={{ fontSize:28, fontWeight:800, color:"#378ADD" }}>{done.updated}</div>
               <div style={{ fontSize:11, color:"#378ADD", marginTop:2 }}>Stock Updated</div>
             </div>
-            <div style={{ background:"#f5f5f5", borderRadius:16, padding:16, textAlign:"center" }}>
-              <div style={{ fontSize:28, fontWeight:800, color:"#94a3b8" }}>{done.failed}</div>
-              <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>Skipped</div>
+            <div style={{ background:"#261810", borderRadius:16, padding:16, textAlign:"center" }}>
+              <div style={{ fontSize:28, fontWeight:800, color:"#7a6a51" }}>{done.failed}</div>
+              <div style={{ fontSize:11, color:"#7a6a51", marginTop:2 }}>Skipped</div>
             </div>
           </div>
 
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={() => { setStep(1); setSelected(new Set()); setCsvData([]); setDone(null) }}
-              style={{ flex:1, padding:"12px", background:"#f5f5f5", color:"#555",
+              style={{ flex:1, padding:"12px", background:"#261810", color:"#b9a382",
                 border:"none", borderRadius:12, fontSize:13, fontWeight:600, cursor:"pointer" }}>
               Import More
             </button>
@@ -230,10 +230,10 @@ export default function BulkImport() {
     : csvData
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col" style={{ background:"#f8faf8" }}>
+    <div className="flex-1 overflow-hidden flex flex-col" style={{ background:"#140b06" }}>
       {notif && (
         <div style={{ position:"fixed", top:16, right:16, zIndex:100,
-          background:"#1D9E75", color:"#fff", padding:"10px 16px",
+          background:"linear-gradient(135deg,#e87722,#ff8e35)", color:"#fff", padding:"10px 16px",
           borderRadius:12, fontSize:12, fontWeight:500,
           boxShadow:"0 4px 20px rgba(0,0,0,0.15)" }}>
           {notif}
@@ -241,14 +241,14 @@ export default function BulkImport() {
       )}
 
       {/* Header */}
-      <div style={{ background:"#fff", padding:"0 24px", height:56,
+      <div style={{ background:"#1c1209", padding:"0 24px", height:56,
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        borderBottom:"1px solid #eef2ee", flexShrink:0 }}>
+        borderBottom:"1px solid rgba(244,228,193,0.12)", flexShrink:0 }}>
         <div>
-          <div style={{ fontSize:15, fontWeight:700, color:"#1a1a1a" }}>
+          <div style={{ fontSize:15, fontWeight:700, color:"#f4e4c1" }}>
             📦 Bulk Import Products
           </div>
-          <div style={{ fontSize:11, color:"#94a3b8" }}>
+          <div style={{ fontSize:11, color:"#7a6a51" }}>
             Add 200+ products in seconds — no manual typing needed
           </div>
         </div>
@@ -264,7 +264,7 @@ export default function BulkImport() {
       </div>
 
       {/* Tabs */}
-      <div style={{ background:"#fff", borderBottom:"1px solid #eef2ee",
+      <div style={{ background:"#1c1209", borderBottom:"1px solid rgba(244,228,193,0.12)",
         display:"flex", padding:"0 24px", flexShrink:0 }}>
         {[
           { id:"catalog", label:"📋 Product Catalog", sub:"200+ Indian grocery products" },
@@ -278,7 +278,7 @@ export default function BulkImport() {
               color: tab===t.id ? "#0F6E56" : "#555" }}>
               {t.label}
             </div>
-            <div style={{ fontSize:10, color:"#94a3b8", marginTop:1 }}>{t.sub}</div>
+            <div style={{ fontSize:10, color:"#7a6a51", marginTop:1 }}>{t.sub}</div>
           </button>
         ))}
       </div>
@@ -287,8 +287,8 @@ export default function BulkImport() {
       {tab === "catalog" && (
         <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
           {/* Filters */}
-          <div style={{ background:"#fff", padding:"12px 24px",
-            borderBottom:"1px solid #eef2ee", flexShrink:0 }}>
+          <div style={{ background:"#1c1209", padding:"12px 24px",
+            borderBottom:"1px solid rgba(244,228,193,0.12)", flexShrink:0 }}>
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="🔍 Search products..."
@@ -301,7 +301,7 @@ export default function BulkImport() {
                 Select All
               </button>
               <button onClick={clearAll}
-                style={{ background:"#f5f5f5", color:"#666", border:"none",
+                style={{ background:"#261810", color:"#b9a382", border:"none",
                   borderRadius:9, padding:"8px 14px", fontSize:11,
                   fontWeight:600, cursor:"pointer" }}>
                 Clear
@@ -342,7 +342,7 @@ export default function BulkImport() {
                     return (
                       <div key={p.name} onClick={() => toggleSelect(p.name)}
                         style={{
-                          background:"#fff", borderRadius:14, padding:14,
+                          background:"#1c1209", borderRadius:14, padding:14,
                           border: sel ? "2px solid #7F77DD" : "1.5px solid #EEEDFE",
                           cursor:"pointer", position:"relative",
                           boxShadow: sel ? "0 2px 16px rgba(127,119,221,0.15)" : "none",
@@ -357,17 +357,17 @@ export default function BulkImport() {
                           display:"flex", alignItems:"center", justifyContent:"center" }}>
                           {sel && <svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
                         </div>
-                        <div style={{ fontSize:12, fontWeight:600, color:"#1a1a1a",
+                        <div style={{ fontSize:12, fontWeight:600, color:"#f4e4c1",
                           marginBottom:4, paddingLeft:26, paddingRight:36, lineHeight:1.4 }}>
                           {p.name}
                         </div>
-                        <div style={{ fontSize:10, color:"#94a3b8", marginBottom:8 }}>
+                        <div style={{ fontSize:10, color:"#7a6a51", marginBottom:8 }}>
                           {p.category} · {p.unit}{p.gst > 0 ? ` · GST ${p.gst}%` : ""}
                           {p.usage_count > 1 && ` · Used by ${p.usage_count} vendors`}
                         </div>
                         <div style={{ display:"flex", justifyContent:"space-between" }}>
                           <div style={{ fontSize:13, fontWeight:700, color:"#0F6E56" }}>{INR(p.mrp)}</div>
-                          <div style={{ fontSize:10, color:"#94a3b8" }}>Cost: {INR(p.cost)}</div>
+                          <div style={{ fontSize:10, color:"#7a6a51" }}>Cost: {INR(p.cost)}</div>
                         </div>
                       </div>
                     )
@@ -382,7 +382,7 @@ export default function BulkImport() {
                 return (
                   <div key={p.name} onClick={() => toggleSelect(p.name)}
                     style={{
-                      background:"#fff", borderRadius:14, padding:14,
+                      background:"#1c1209", borderRadius:14, padding:14,
                       border: sel ? "2px solid #1D9E75" : "1.5px solid #eef2ee",
                       cursor:"pointer", transition:"all 0.15s", position:"relative",
                       boxShadow: sel ? "0 2px 16px rgba(29,158,117,0.15)" : "0 1px 4px rgba(0,0,0,0.04)",
@@ -397,11 +397,11 @@ export default function BulkImport() {
                       {sel && <svg width="12" height="12" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
                     </div>
 
-                    <div style={{ fontSize:12, fontWeight:600, color:"#1a1a1a",
+                    <div style={{ fontSize:12, fontWeight:600, color:"#f4e4c1",
                       marginBottom:4, paddingRight:28, lineHeight:1.4 }}>
                       {p.name}
                     </div>
-                    <div style={{ fontSize:10, color:"#94a3b8", marginBottom:8 }}>
+                    <div style={{ fontSize:10, color:"#7a6a51", marginBottom:8 }}>
                       {p.category} · {p.unit}
                       {p.gst > 0 && ` · GST ${p.gst}%`}
                     </div>
@@ -410,7 +410,7 @@ export default function BulkImport() {
                         <div style={{ fontSize:13, fontWeight:700, color:"#0F6E56" }}>
                           {INR(p.mrp)}
                         </div>
-                        <div style={{ fontSize:10, color:"#94a3b8" }}>
+                        <div style={{ fontSize:10, color:"#7a6a51" }}>
                           Cost: {INR(p.cost)}
                         </div>
                       </div>
@@ -423,7 +423,7 @@ export default function BulkImport() {
                     {sel && (
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}
                         onClick={e => e.stopPropagation()}>
-                        <span style={{ fontSize:10, color:"#555", whiteSpace:"nowrap" }}>Qty in stock:</span>
+                        <span style={{ fontSize:10, color:"#b9a382", whiteSpace:"nowrap" }}>Qty in stock:</span>
                         <input
                           type="number" min="0"
                           value={quantities[p.name] ?? ""}
@@ -433,7 +433,7 @@ export default function BulkImport() {
                             padding:"4px 8px", fontSize:12, outline:"none", fontWeight:600,
                             color:"#0F6E56", textAlign:"center" }}
                         />
-                        <span style={{ fontSize:10, color:"#94a3b8", whiteSpace:"nowrap" }}>{p.unit}</span>
+                        <span style={{ fontSize:10, color:"#7a6a51", whiteSpace:"nowrap" }}>{p.unit}</span>
                       </div>
                     )}
                   </div>
@@ -444,15 +444,15 @@ export default function BulkImport() {
 
           {/* Bottom bar */}
           {selected.size > 0 && (
-            <div style={{ background:"#fff", borderTop:"1px solid #eef2ee",
+            <div style={{ background:"#1c1209", borderTop:"1px solid rgba(244,228,193,0.12)",
               padding:"14px 24px", display:"flex", alignItems:"center",
               justifyContent:"space-between", flexShrink:0,
               boxShadow:"0 -4px 20px rgba(0,0,0,0.06)" }}>
               <div>
-                <div style={{ fontSize:13, fontWeight:600, color:"#333" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"#f4e4c1" }}>
                   {selected.size} products selected
                 </div>
-                <div style={{ fontSize:11, color:"#94a3b8" }}>
+                <div style={{ fontSize:11, color:"#7a6a51" }}>
                   All prices editable after import
                 </div>
               </div>
@@ -486,10 +486,10 @@ export default function BulkImport() {
                 <div style={{ fontSize:16, fontWeight:700, color:"#0F6E56", marginBottom:6 }}>
                   Upload your price list
                 </div>
-                <div style={{ fontSize:12, color:"#94a3b8", marginBottom:16 }}>
+                <div style={{ fontSize:12, color:"#7a6a51", marginBottom:16 }}>
                   Supports CSV files (.csv) · Excel files (.xlsx coming soon)
                 </div>
-                <div style={{ background:"#1D9E75", color:"#fff", border:"none",
+                <div style={{ background:"linear-gradient(135deg,#e87722,#ff8e35)", color:"#fff", border:"none",
                   borderRadius:10, padding:"10px 24px", fontSize:12,
                   fontWeight:600, display:"inline-block" }}>
                   Choose File
@@ -499,23 +499,23 @@ export default function BulkImport() {
               </div>
 
               {/* CSV format guide */}
-              <div style={{ background:"#fff", borderRadius:16, padding:20,
-                border:"1px solid #eef2ee", marginBottom:16 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#333", marginBottom:12 }}>
+              <div style={{ background:"#1c1209", borderRadius:16, padding:20,
+                border:"1px solid rgba(244,228,193,0.12)", marginBottom:16 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#f4e4c1", marginBottom:12 }}>
                   📋 CSV Format Guide
                 </div>
-                <div style={{ fontSize:11, color:"#94a3b8", marginBottom:10 }}>
+                <div style={{ fontSize:11, color:"#7a6a51", marginBottom:10 }}>
                   Your CSV file should have these columns (column names are flexible):
                 </div>
                 <div style={{ background:"#1e293b", borderRadius:10, padding:14,
-                  fontFamily:"monospace", fontSize:11, color:"#94a3b8",
+                  fontFamily:"monospace", fontSize:11, color:"#7a6a51",
                   overflowX:"auto", marginBottom:12 }}>
                   <div style={{ color:"#7DD3FC" }}>name, category, unit, mrp, cost, stock, gst</div>
                   <div style={{ color:"#86EFAC" }}>Amul Milk 500ml, Dairy, pc, 28, 25, 50, 0</div>
                   <div style={{ color:"#86EFAC" }}>Tata Salt 1kg, Staples, kg, 24, 21, 100, 0</div>
                   <div style={{ color:"#86EFAC" }}>Fortune Oil 1L, Oils, pc, 135, 122, 30, 5</div>
                 </div>
-                <div style={{ fontSize:11, color:"#94a3b8" }}>
+                <div style={{ fontSize:11, color:"#7a6a51" }}>
                   ✓ Only <b>name</b> is required — all other columns are optional<br/>
                   ✓ Column names can be in any order<br/>
                   ✓ You can also use: "product name", "price", "selling price", "purchase price"
@@ -530,7 +530,7 @@ export default function BulkImport() {
                 const a    = document.createElement("a")
                 a.href = url; a.download = "dukaanai_template.csv"; a.click()
               }}
-                style={{ background:"#fff", color:"#0F6E56",
+                style={{ background:"#1c1209", color:"#0F6E56",
                   border:"1.5px solid #1D9E75", borderRadius:10,
                   padding:"10px 20px", fontSize:12, fontWeight:600,
                   cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
@@ -542,16 +542,16 @@ export default function BulkImport() {
               <div style={{ display:"flex", justifyContent:"space-between",
                 alignItems:"center", marginBottom:16 }}>
                 <div>
-                  <div style={{ fontSize:14, fontWeight:700, color:"#1a1a1a" }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#f4e4c1" }}>
                     ✓ {csvData.length} products ready to import
                   </div>
-                  <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>
+                  <div style={{ fontSize:11, color:"#7a6a51", marginTop:2 }}>
                     Review below then click Import
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={() => { setCsvData([]); fileRef.current.value="" }}
-                    style={{ background:"#f5f5f5", color:"#666", border:"none",
+                    style={{ background:"#261810", color:"#b9a382", border:"none",
                       borderRadius:9, padding:"8px 14px", fontSize:11,
                       fontWeight:600, cursor:"pointer" }}>
                     Upload Different File
@@ -567,16 +567,16 @@ export default function BulkImport() {
               </div>
 
               {/* Preview table */}
-              <div style={{ background:"#fff", borderRadius:16, overflow:"hidden",
-                border:"1px solid #eef2ee" }}>
+              <div style={{ background:"#1c1209", borderRadius:16, overflow:"hidden",
+                border:"1px solid rgba(244,228,193,0.12)" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead>
-                    <tr style={{ background:"#f8faf8" }}>
+                    <tr style={{ background:"#140b06" }}>
                       {["Product Name","Category","Unit","MRP","Cost","Stock","GST%"].map(h => (
                         <th key={h} style={{ padding:"10px 14px", textAlign:"left",
-                          fontSize:10, fontWeight:700, color:"#94a3b8",
+                          fontSize:10, fontWeight:700, color:"#7a6a51",
                           textTransform:"uppercase", letterSpacing:"0.5px",
-                          borderBottom:"1px solid #eef2ee" }}>
+                          borderBottom:"1px solid rgba(244,228,193,0.12)" }}>
                           {h}
                         </th>
                       ))}
@@ -585,20 +585,20 @@ export default function BulkImport() {
                   <tbody>
                     {csvData.slice(0,50).map((p,i) => (
                       <tr key={i} style={{ borderBottom:"1px solid #f5f7f5" }}>
-                        <td style={{ padding:"10px 14px", fontSize:12, fontWeight:500, color:"#333" }}>{p.name}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"#94a3b8" }}>{p.category||"—"}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"#94a3b8" }}>{p.unit||"pc"}</td>
+                        <td style={{ padding:"10px 14px", fontSize:12, fontWeight:500, color:"#f4e4c1" }}>{p.name}</td>
+                        <td style={{ padding:"10px 14px", fontSize:11, color:"#7a6a51" }}>{p.category||"—"}</td>
+                        <td style={{ padding:"10px 14px", fontSize:11, color:"#7a6a51" }}>{p.unit||"pc"}</td>
                         <td style={{ padding:"10px 14px", fontSize:12, fontWeight:600, color:"#0F6E56" }}>{INR(p.mrp)}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"#94a3b8" }}>{INR(p.cost)}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"#94a3b8" }}>{p.stock||0}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"#94a3b8" }}>{p.gst||0}%</td>
+                        <td style={{ padding:"10px 14px", fontSize:11, color:"#7a6a51" }}>{INR(p.cost)}</td>
+                        <td style={{ padding:"10px 14px", fontSize:11, color:"#7a6a51" }}>{p.stock||0}</td>
+                        <td style={{ padding:"10px 14px", fontSize:11, color:"#7a6a51" }}>{p.gst||0}%</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 {csvData.length > 50 && (
-                  <div style={{ padding:"12px 16px", fontSize:11, color:"#94a3b8",
-                    textAlign:"center", borderTop:"1px solid #eef2ee" }}>
+                  <div style={{ padding:"12px 16px", fontSize:11, color:"#7a6a51",
+                    textAlign:"center", borderTop:"1px solid rgba(244,228,193,0.12)" }}>
                     Showing 50 of {csvData.length} products
                   </div>
                 )}
