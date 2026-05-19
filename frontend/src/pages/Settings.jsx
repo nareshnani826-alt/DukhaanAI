@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { LANGUAGES } from "../voice/languages.js"
+import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan } from "../context/PlanContext"
 import { useAuth } from "../context/AuthContext"
 import { useNavigate } from "react-router-dom"
@@ -27,6 +29,13 @@ export default function Settings() {
   const navigate = useNavigate()
 
   // Feature toggles stored locally (premium features can be toggled off even if plan allows)
+  const [voiceLang, setVoiceLang] = useState(() => getSavedLang())
+
+  function handleLangChange(code) {
+    setVoiceLang(code)
+    saveLang(code)
+  }
+
   const [toggles, setToggles] = useState(() => {
     try { return JSON.parse(localStorage.getItem("dk_feature_toggles") || "{}") }
     catch { return {} }

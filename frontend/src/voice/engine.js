@@ -6,23 +6,22 @@ const TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
 
 // ── Translation ───────────────────────────────────────────
 // ── Improvement 1: Pre-translate blocklist ───────────────
-// These terms are known grocery words — skip Google Translate
-// to avoid wrong translations like "kandi pappu" → "peas"
+// ONLY skip translation for very specific multi-word regional phrases
+// Avoid blocking common English words like "do", "ek", "tel"
 const SKIP_TRANSLATE_PATTERNS = [
-  // Known product words — translate would mangle them
-  /\b(amul|tata|parle|maggi|aashirvaad|fortune|haldiram|britannia|dettol|lifebuoy|patanjali|dabur|colgate|nestl|nescaf|horlick|bournvit|complan|glucon|vicks|savlon|vim|surf|ariel|rin|tide|harpic|lizol|good\s*knight|all\s*out)\b/i,
-  // Known regional grocery terms — let alias map handle these directly
-  /\b(kandi|pappu|pesara|togari|bele|tuvaram|paruppu|minapa|senaga|masoor|rajma|chana|moong|urad|toor|arhar)\b/i,
-  /\b(doodh|dudh|chawal|gehun|atta|maida|besan|suji|cheeni|shakkar|namak|tel|ghee|dahi|paneer)\b/i,
-  /\b(palu|uppu|biyyam|pindi|nune|palli|bellam|jaggery|gur|gud)\b/i,
-  /\b(rendu|moodu|naalugu|aidu|okati|ek|do|teen|char|paanch|onnu|moonu|naangu|anju)\b/i,
+  // Only skip for clearly regional multi-word grocery phrases
+  /kandi\s+pappu/i,
+  /pesara\s+pappu/i,
+  /minapa\s+pappu/i,
+  /togari\s+bele/i,
+  /hesaru\s+bele/i,
+  /tuvaram\s+paruppu/i,
 ]
 
 export async function translateToEnglish(text, sourceLang = "auto") {
-  // If text contains known grocery terms, skip translation entirely
-  // The alias map will handle matching directly from original language
+  // Skip translation ONLY for known regional phrases that Google mangles
   if (SKIP_TRANSLATE_PATTERNS.some(p => p.test(text))) {
-    return text // return original — alias map handles it
+    return text
   }
   try {
     const lang = sourceLang.split("-")[0]
@@ -34,7 +33,7 @@ export async function translateToEnglish(text, sourceLang = "auto") {
 }
 
 // ── Text-to-Speech ────────────────────────────────────────
-export function speak(text, lang = "hi-IN") {
+export function speak(text, lang = "en-IN") {
   if (!window.speechSynthesis) return
   window.speechSynthesis.cancel()
   const utterance  = new SpeechSynthesisUtterance(text)

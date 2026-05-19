@@ -224,7 +224,7 @@ export function t(key, lang, ...args) {
 export const LANG_KEY = "dk_voice_lang"
 
 export function getSavedLang() {
-  try { return localStorage.getItem(LANG_KEY) || "hi-IN" } catch { return "hi-IN" }
+  try { return localStorage.getItem(LANG_KEY) || "en-IN" } catch { return "en-IN" }
 }
 
 export function saveLang(code) {

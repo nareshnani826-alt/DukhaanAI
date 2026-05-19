@@ -22,7 +22,7 @@ const pulseStyle = `
 `
 
 export default function VoiceAgent({ onAddToBill, onLangChange }) {
-  const [lang,       setLang]       = useState(getSavedLang)
+  const [lang,       setLang]       = useState(() => getSavedLang())
   const [listening,  setListening]  = useState(false)
   const [transcript, setTranscript] = useState("")
   const [translated, setTranslated] = useState("")
