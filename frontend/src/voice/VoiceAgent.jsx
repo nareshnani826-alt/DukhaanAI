@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { voiceEngine, speak } from "./engine.js"
-import { parseVoiceCommand, formatConfirmation, splitMultiProduct, parseMultipleProducts } from "./nlp.js"
+import { parseVoiceCommand, formatConfirmation, splitMultiProduct, parseMultipleProducts, matchProduct, parseQuantity, applyGroceryAliases } from "./nlp.js"
 import { t, getSavedLang, saveLang } from "./i18n.js"
 import { recordProductUse, recordCorrection } from "./sessionMemory.js"
 import { getConfidenceLevel } from "./phonetic.js"
@@ -169,40 +169,67 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
   async function handleMultiProduct(original, translated) {
     const origSegs  = splitMultiProduct(original)
     const transSegs = splitMultiProduct(translated || original)
-    const count     = Math.max(origSegs.length, transSegs.length)
+
+    // Use whichever split gave more segments
+    const useOrig  = origSegs.length >= transSegs.length
+    const segments = useOrig ? origSegs : transSegs
+    const altSegs  = useOrig ? transSegs : origSegs
 
     const parsed = []
-    for (let i = 0; i < count; i++) {
-      const orig  = origSegs[i]  || origSegs[0]
-      const trans = transSegs[i] || transSegs[0]
+    for (let i = 0; i < segments.length; i++) {
+      const seg    = segments[i]?.trim()
+      const altSeg = altSegs[i]?.trim() || seg
+      if (!seg) continue
 
-      const { qty, unit } = extractQtyUnit(trans || orig)
-      const validation    = validateProduct(trans || orig)
-      const variant       = validation.product ? extractVariant(trans || orig, validation.product) : null
-      const stdName       = validation.product ? buildProductName(validation.product, variant) : null
-      const invMatch      = findInInventory(trans || orig, stdName, products)
+      // ── Use full 5-layer matchProduct from nlp.js ────────
+      // This handles aliases, phonetics, corrections, frequency
+      const aliasedSeg = applyGroceryAliases(seg)
+      const aliasedAlt = applyGroceryAliases(altSeg)
+      const { qty, unit } = parseQuantity(aliasedSeg || seg)
 
-      if (!invMatch && !validation.found) continue // skip unrecognized
+      // Try both original segment and translated alternate
+      let invMatch = matchProduct(seg, altSeg, products)
+                  || matchProduct(aliasedSeg, aliasedAlt, products)
+
+      // Also try the old findInInventory as fallback
+      if (!invMatch) {
+        invMatch = findInInventory(seg, null, products)
+                || findInInventory(altSeg, null, products)
+      }
+
+      // Build display name
+      const displayName = invMatch?.name || seg
 
       parsed.push({
-        original: orig, text: trans || orig, qty, unit,
-        action: "ADD_BILL",
-        invMatch, validation, stdName: stdName || invMatch?.name, variant,
+        original: seg,
+        text:     altSeg,
+        qty,
+        unit,
+        action:   "ADD_BILL",
+        invMatch: invMatch || null,
+        stdName:  displayName,
+        found:    !!invMatch,
       })
     }
 
-    if (parsed.length === 0) {
-      const msg = "No products recognized. Please speak clearly."
+    // Filter out truly empty results
+    const validItems = parsed.filter(p => p.invMatch || p.stdName)
+
+    if (validItems.length === 0) {
+      const msg = t("not_found", lang)
       speak(msg, lang); setStatus("error"); setStatusMsg(msg)
       return
     }
 
-    // Show multi-confirmation UI
-    setMultiPending(parsed)
+    // Show multi-confirmation UI — even for unrecognized items
+    setMultiPending(validItems)
     setStatus("confirm")
-    const names = parsed.map(p => `${p.stdName || p.invMatch?.name} × ${p.qty}`).join(", ")
-    setStatusMsg(`Found ${parsed.length} items: ${names} — confirm?`)
-    speak(`I heard ${parsed.length} items: ${names}. Confirm to add all?`, lang)
+
+    const foundCount   = validItems.filter(p => p.invMatch).length
+    const names        = validItems.map(p => `${p.invMatch?.name || p.stdName} ×${p.qty}`).join(", ")
+    const confirmMsg   = `${validItems.length} items: ${names}`
+    setStatusMsg(confirmMsg)
+    speak(`${validItems.length} items found. Confirm to add all?`, lang)
   }
 
   // ── Confirm ALL multi-product items ───────────────────────

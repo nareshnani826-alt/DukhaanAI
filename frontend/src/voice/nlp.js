@@ -4,6 +4,9 @@ import { applyGroceryAliases, resolveGroceryName, GROCERY_ALIASES } from "./groc
 import { phoneticMatch, getConfidenceLevel } from "./phonetic.js"
 import { getFrequencyBoost, findCorrection, recordProductUse } from "./sessionMemory.js"
 
+// Re-export so VoiceAgent can import everything from one place
+export { applyGroceryAliases } from "./groceryAliases.js"
+
 // ── Detect action intent ──────────────────────────────────
 export function detectAction(text) {
   const t = text.toLowerCase().trim()
