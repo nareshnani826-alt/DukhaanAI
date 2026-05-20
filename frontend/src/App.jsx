@@ -24,7 +24,7 @@ import AppScreens           from "./pages/AppScreens"
 import HeroLoop             from "./pages/HeroLoop"
 import Landing              from "./pages/Landing"
 import OfflineBanner        from "./components/OfflineBanner"
-
+import AITest               from "./pages/AITest"
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
   return <UpgradeWall feature={feature}>{children}</UpgradeWall>
@@ -60,6 +60,7 @@ export default function App() {
                   <Route path="/customers"  element={<Gated feature="customer_history"><Customers /></Gated>} />
                   <Route path="/day"        element={<Gated feature="day_ops"><DayOps /></Gated>} />
                   <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
+                  <Route path="/ai-test" element={<AITest />} />
                 </Routes>
               </Layout>
             } />

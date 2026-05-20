@@ -10,6 +10,9 @@ import { Products } from "../sync/db.js"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
 import { detectUnit } from "./unitDetector.js"
 import { detectPlatform } from "./engine.js"
+// import { createAdaptiveMatcher } from "../voice-ai/adaptiveMatcher"
+// import { rankMatches } from "../voice-ai/rankingEngine"
+// import { learnCorrection } from "../voice-ai/learningStore"
 
 const pulseStyle = `
   @keyframes mic-ring {
@@ -38,13 +41,24 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
   const [showCorrection, setShowCorrection] = useState(false)
   const [correctionText, setCorrectionText] = useState("")
   const bottomRef = useRef(null)
+  // const matcherRef = useRef(null)
 
   useEffect(() => {
-    Products.list().then(p => {
-      setProducts(p)
-      // Improvement 5: Feed product names as grammar hints to speech engine
-      voiceEngine.setGrammarHints(p.map(pr => pr.name))
-    })
+   Products.list().then((res) => {
+  const productList =
+    Array.isArray(res)
+      ? res
+      : (res?.data || [])
+
+  setProducts(productList)
+
+  // matcherRef.current =
+  //   createAdaptiveMatcher(productList)
+
+  voiceEngine.setGrammarHints(
+    productList.map(pr => pr.name)
+  )
+})
     setPlatform(detectPlatform())
   }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }) }, [history])
@@ -109,24 +123,41 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
     const stdName    = validation.product ? buildProductName(validation.product, variant) : null
 
     // ── Try to match against vendor's actual inventory ────
-    const invMatch = findInInventory(text, stdName, products)
 
-    if (isStockQuery) {
-      // Answer stock query immediately
-      if (invMatch) {
-        const msg = invMatch.stock < invMatch.min_stock
-          ? `${invMatch.name}: only ${invMatch.stock} ${invMatch.unit||"units"} left — low stock!`
-          : `${invMatch.name}: ${invMatch.stock} ${invMatch.unit||"units"} in stock`
-        speak(msg, lang)
-        setStatus("done"); setStatusMsg(msg)
-        addHistory({ type:"query", original, result: msg })
-      } else {
-        const msg = `Product not found in your inventory`
-        speak(msg, lang); setStatus("error"); setStatusMsg(msg)
-        addHistory({ type:"error", original, result: msg })
-      }
-      return
-    }
+   const invMatch = findInInventory(text, stdName, products)
+
+// if (matcherRef.current) {
+//   const fuzzyMatches =
+//     matcherRef.current.findMatches(text)
+
+//   const ranked =
+//     rankMatches(text, fuzzyMatches)
+
+//   if (ranked.length > 0) {
+//     invMatch = {
+//       ...ranked[0].product,
+//       _confidence: ranked[0].finalScore,
+//     }
+//   }
+// }
+    // const invMatch = findInInventory(text, stdName, products)
+
+    // if (isStockQuery) {
+    //   // Answer stock query immediately
+    //   if (invMatch) {
+    //     const msg = invMatch.stock < invMatch.min_stock
+    //       ? `${invMatch.name}: only ${invMatch.stock} ${invMatch.unit||"units"} left — low stock!`
+    //       : `${invMatch.name}: ${invMatch.stock} ${invMatch.unit||"units"} in stock`
+    //     speak(msg, lang)
+    //     setStatus("done"); setStatusMsg(msg)
+    //     addHistory({ type:"query", original, result: msg })
+    //   } else {
+    //     const msg = `Product not found in your inventory`
+    //     speak(msg, lang); setStatus("error"); setStatusMsg(msg)
+    //     addHistory({ type:"error", original, result: msg })
+    //   }
+    //   return
+    // }
 
     // ── Reject if nothing recognized ─────────────────────
     if (!invMatch && !validation.found) {
@@ -193,6 +224,8 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
                   || matchProduct(aliasedSeg, aliasedAlt, products)
 
       // Also try the old findInInventory as fallback
+
+
       if (!invMatch) {
         invMatch = findInInventory(seg, null, products)
                 || findInInventory(altSeg, null, products)
@@ -279,6 +312,10 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
           onAddToBill?.({ product: invMatch, qty, unit })
           // Improvement 3: Record product use for frequency boost
           recordProductUse(invMatch.id, invMatch.name)
+          // learnCorrection(
+          //         correctionOriginal,
+          //         invMatch.name
+          //       )
           const msg = t("added_to_bill", lang, invMatch.name, qty)
           speak(msg, lang)
           addHistory({ type:"bill", original, result: msg })
@@ -696,3 +733,5 @@ function extractProductName(text) {
       !["kg","litre","liter","ml","gram","packet","pack","bottle","piece","pc"].includes(w))
   return words.slice(0, 3).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") || "Unknown"
 }
+
+

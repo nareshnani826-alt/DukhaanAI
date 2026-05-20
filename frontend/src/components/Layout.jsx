@@ -19,7 +19,7 @@ const NAV = [
     sub:[{to:"/inventory",label:"Inventory"},{to:"/bulk-import",label:"Bulk Import ✨"},{to:"/wastage",label:"Wastage"},{to:"/demand",label:"Demand Intel"}] },
   { label:"Assistant", to:"/voice",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
-    sub:[{to:"/voice",label:"Voice Agent"},{to:"/agent",label:"AI Agent"}] },
+    sub:[{to:"/voice",label:"Voice Agent"}] },
   { label:"More", to:"/day",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
     sub:[{to:"/day",label:"Day Ops"},{to:"/insights",label:"Insights"},{to:"/app-screens",label:"App Screens"},{to:"/help",label:"Help"},{to:"/settings",label:"Settings"},{to:"/install",label:"Install App"}] },
@@ -56,72 +56,143 @@ function timestamp() {
   return new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })
 }
 
-// ── Rule-based smart reply (no API needed) ────────────────────
-function generateReply(q, data, lang) {
-  const { products = [], sales = {}, udhar_customers = [] } = data
-  const query = q.toLowerCase()
+// ── Detect store-related questions ────────────────────────────
+function isStoreQuestion(q) {
+  return /stock|inventory|price|mrp|cost|margin|profit|sale|revenue|invoice|bill|udh|khata|due|baki|wastage|expire|damage|product|item|low|reorder|categ|brand|sku|unit|స్టాక్|అమ్మకాలు|బాకీ|ధర|ఉధార్|తక్కువ|వస్తువు|లాభ|स्टॉक|बिक्री|उधार|कीमत|लाभ|ஸ்டாக்|விற்பனை|கடன்|ಸ್ಟಾಕ್|ಮಾರಾಟ|ಬಾಕಿ/i.test(q)
+}
 
-  const low   = products.filter(p => parseFloat(p.stock||0) <= parseFloat(p.min_stock||0) && parseFloat(p.stock||0) > 0)
-  const out   = products.filter(p => parseFloat(p.stock||0) === 0)
-  const today = parseFloat(sales.today_total || 0)
-  const month = parseFloat(sales.month_total || 0)
-  const totalDue = udhar_customers.reduce((s,c) => s + parseFloat(c.total_due||0), 0)
+// ── Helper: margin % ──────────────────────────────────────────
+function calcMargin(p) {
+  const mrp  = parseFloat(p.mrp || 0)
+  const cost = parseFloat(p.cost_price || 0)
+  if (mrp <= 0 || cost <= 0) return 0
+  return Math.round((mrp - cost) / mrp * 100)
+}
 
-  // Stock check
-  if (/stock|inventory|items|products|వస్తువు|స్టాక్|स्टॉक|สต็อก|ಸ್ಟಾಕ್|സ്റ്റോക്ക്/.test(query)) {
-    if (/low|less|తక్కువ|कम|குறைந்த|ಕಡಿಮೆ|കുറഞ്ഞ/.test(query)) {
-      if (low.length === 0) return lang === "te-IN" ? "అన్ని వస్తువులు తగినంత స్టాక్‌లో ఉన్నాయి! ✅" : "All items have sufficient stock! ✅"
-      return `⚠️ Low stock items (${low.length}):\n` + low.slice(0,8).map(p => `• ${p.name} — ${p.stock} ${p.unit||""}`).join("\n")
-    }
-    if (/out|zero|అయిపో|खत्म|தீர்ந்த/.test(query)) {
-      if (out.length === 0) return "No items are out of stock! ✅"
-      return `❌ Out of stock (${out.length}):\n` + out.slice(0,8).map(p => `• ${p.name}`).join("\n")
-    }
-    return `📦 Stock Summary:\n• Total products: ${products.length}\n• Low stock: ${low.length}\n• Out of stock: ${out.length}\n• In stock: ${products.length - out.length}`
+// ── Answer using local APIs — no Groq needed ─────────────────
+async function localReply(q, token) {
+  const headers = { Authorization:`Bearer ${token}` }
+  const query   = q.toLowerCase()
+
+  // Always fetch products
+  const prodRes  = await fetch(`${API}/api/products?limit=1000`, { headers })
+  const products = prodRes.ok ? await prodRes.json() : []
+
+  // ── Specific product search ──────────────────────────────
+  const stopWords = new Set(["stock","price","mrp","cost","margin","the","and","is","in","of","what","how","many","much","about","tell","me","give","show","do","we","have","any","for","check"])
+  const words = query.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+  const matched = words.length > 0
+    ? products.filter(p => words.some(w => p.name?.toLowerCase().includes(w)))
+    : []
+
+  if (matched.length > 0 && !/sale|revenue|udh|baki|wastage|low|reorder|categ|margin|profit|top|best/.test(query)) {
+    const lines = matched.slice(0,6).map(p => {
+      const isOut = parseFloat(p.stock||0) === 0
+      const isLow = !isOut && parseFloat(p.stock||0) < parseFloat(p.min_stock||0)
+      const status = isOut ? "❌ Out of stock" : isLow ? "⚠️ Low stock" : "✅ In stock"
+      const m = calcMargin(p)
+      return `• ${p.name}${p.category ? ` (${p.category})` : ""}
+  Stock: ${p.stock} ${p.unit||""} ${status}
+  MRP: ₹${p.mrp||0} | Cost: ₹${p.cost_price||0} | Margin: ${m}%`
+    })
+    return `🔍 Found ${matched.length} product(s):\n\n${lines.join("\n\n")}`
   }
 
-  // Sales
-  if (/sale|sell|అమ్మకాలు|बिक्री|விற்பனை|ಮಾರಾಟ|വിൽപ്പന/.test(query)) {
-    return `💰 Sales Summary:\n• Today: ₹${today.toFixed(2)}\n• This month: ₹${month.toFixed(2)}`
+  // ── Sales ────────────────────────────────────────────────
+  if (/sale|revenue|invoice|bill|అమ్మకాలు|बिक्री|விற்பனை|ಮಾರಾಟ/.test(query)) {
+    const [todayRes, monthRes] = await Promise.all([
+      fetch(`${API}/api/sales/today`, { headers }),
+      fetch(`${API}/api/sales/summary?days=30`, { headers }),
+    ])
+    const today = todayRes.ok ? await todayRes.json() : {}
+    const month = monthRes.ok ? await monthRes.json() : {}
+    const modes = today.by_payment_mode
+      ? Object.entries(today.by_payment_mode).map(([k,v]) => `${k}: ₹${v}`).join(", ")
+      : "N/A"
+    return `💰 Sales Summary:
+• Today: ₹${today.total_revenue||today.today_total||0} (${today.invoice_count||0} invoices)
+• This month: ₹${month.total_revenue||month.month_total||0} (${month.invoice_count||0} invoices)
+• Payment modes today: ${modes}`
   }
 
-  // Udhaar
-  if (/udh|khata|due|బాకీ|बकाया|நிலுவை|ಬಾಕಿ|ബാക്കി/.test(query)) {
-    if (udhar_customers.length === 0) return "No udhaar customers found."
-    const top = udhar_customers.filter(c => parseFloat(c.total_due||0) > 0).slice(0,5)
-    return `🧾 Udhaar Dues:\n• Total due: ₹${totalDue.toFixed(2)}\n• Customers: ${udhar_customers.length}\n\nTop dues:\n` +
-      top.map(c => `• ${c.name} — ₹${parseFloat(c.total_due).toFixed(2)}`).join("\n")
+  // ── Udhaar ───────────────────────────────────────────────
+  if (/udh|khata|due|baki|bakaya|బాకీ|उधार|கடன்|ಬಾಕಿ/.test(query)) {
+    const ucRes     = await fetch(`${API}/api/udhar/customers`, { headers })
+    const customers = ucRes.ok ? await ucRes.json() : []
+    const due       = customers.filter(c => parseFloat(c.total_due||0) > 0)
+    const total     = due.reduce((s,c) => s + parseFloat(c.total_due||0), 0)
+    if (due.length === 0) return "✅ No udhaar dues! All customers are clear."
+    const lines = due.slice(0,8).map(c => `• ${c.name}${c.phone?` (${c.phone})`:""} — ₹${parseFloat(c.total_due).toFixed(2)}`)
+    return `🧾 Udhaar Summary:
+• Total due: ₹${total.toFixed(2)}
+• Customers with dues: ${due.length}
+
+Top dues:
+${lines.join("\n")}`
   }
 
-  // Top sellers
-  if (/top|best|seller|popular|best/.test(query)) {
-    const sorted = [...products].sort((a,b) => parseFloat(b.price||0) - parseFloat(a.price||0)).slice(0,5)
-    return `🏆 Top Products by Price:\n` + sorted.map(p => `• ${p.name} — ₹${p.price}`).join("\n")
+  // ── Low stock / reorder ──────────────────────────────────
+  if (/low|reorder|out of|minimum|min|తక్కువ|कम|குறைந்த|ಕಡಿಮೆ/.test(query)) {
+    const low = products.filter(p => parseFloat(p.stock||0) > 0 && parseFloat(p.stock||0) < parseFloat(p.min_stock||0))
+    const out = products.filter(p => parseFloat(p.stock||0) === 0)
+    if (low.length === 0 && out.length === 0) return "✅ All products have sufficient stock! Nothing to reorder."
+    let reply = ""
+    if (out.length > 0) reply += `❌ Out of stock (${out.length}):\n${out.slice(0,8).map(p=>`• ${p.name}`).join("\n")}\n\n`
+    if (low.length > 0) reply += `⚠️ Low stock (${low.length}):\n${low.slice(0,8).map(p=>`• ${p.name} — ${p.stock}/${p.min_stock} ${p.unit||""}`).join("\n")}`
+    return reply.trim()
   }
 
-  // Search specific product
-  const found = products.filter(p => p.name?.toLowerCase().includes(query))
-  if (found.length > 0) {
-    return `🔍 Found ${found.length} product(s):\n` +
-      found.slice(0,5).map(p => `• ${p.name}\n  Stock: ${p.stock} ${p.unit||""} | Price: ₹${p.price}`).join("\n")
+  // ── Best margin / most profitable ───────────────────────
+  if (/margin|profit|profitable|best|top|లాభ|लाभ/.test(query)) {
+    const withMargin = products
+      .filter(p => parseFloat(p.mrp||0) > 0 && parseFloat(p.cost_price||0) > 0)
+      .map(p => ({ ...p, m: calcMargin(p) }))
+      .sort((a,b) => b.m - a.m)
+    if (withMargin.length === 0) return "No margin data available. Please add MRP and cost price to your products."
+    const lines = withMargin.slice(0,8).map(p => `• ${p.name} — ${p.m}% margin (MRP ₹${p.mrp} | Cost ₹${p.cost_price})`)
+    return `🏆 Best Margin Products:\n\n${lines.join("\n")}`
   }
 
-  // Default
-  const defaults = {
-    "te-IN": "నేను అర్థం చేసుకోలేదు. దయచేసి స్టాక్, అమ్మకాలు, లేదా ఉధార్ గురించి అడగండి.",
-    "hi-IN": "मुझे समझ नहीं आया। कृपया स्टॉक, बिक्री या उधार के बारे में पूछें।",
-    "en-IN": "I can help with:\n• Stock levels\n• Today's sales\n• Low stock items\n• Udhaar dues\n• Search a product by name",
+  // ── Categories ───────────────────────────────────────────
+  if (/categ|type|section|group/.test(query)) {
+    const cats = [...new Set(products.map(p=>p.category).filter(Boolean))].sort()
+    if (cats.length === 0) return "No categories found. Add categories to your products in inventory."
+    const lines = cats.map(c => {
+      const count = products.filter(p => p.category === c).length
+      return `• ${c} — ${count} product(s)`
+    })
+    return `📂 Product Categories (${cats.length}):\n\n${lines.join("\n")}`
   }
-  return defaults[lang] || defaults["en-IN"]
+
+  // ── Full inventory overview ──────────────────────────────
+  if (/stock|inventory|all|list|total|overview|సమాచారం|स्टॉक|ஸ்டாக்|ಸ್ಟಾಕ್/.test(query)) {
+    const low      = products.filter(p => parseFloat(p.stock||0) > 0 && parseFloat(p.stock||0) < parseFloat(p.min_stock||0))
+    const out      = products.filter(p => parseFloat(p.stock||0) === 0)
+    const ok       = products.filter(p => parseFloat(p.stock||0) >= parseFloat(p.min_stock||0))
+    const cats     = [...new Set(products.map(p=>p.category).filter(Boolean))]
+    const totalVal = products.reduce((s,p) => s + parseFloat(p.stock||0) * parseFloat(p.cost_price||0), 0)
+    return `📦 Inventory Overview:
+• Total products: ${products.length}
+• ✅ In stock: ${ok.length}
+• ⚠️ Low stock: ${low.length}
+• ❌ Out of stock: ${out.length}
+• 📂 Categories: ${cats.length > 0 ? cats.join(", ") : "None set"}
+• 💰 Inventory value: ₹${totalVal.toFixed(2)}`
+  }
+
+  return null // not handled locally
 }
 
 // ── AIChatWidget ──────────────────────────────────────────────
 function AIChatWidget() {
+  const { vendor } = useAuth()
+  const isPremium  = vendor?.plan === "pro" || vendor?.plan === "wholesale"
+
   const [open, setOpen]           = useState(false)
   const [lang, setLang]           = useState(getSavedLang)
   const [messages, setMessages]   = useState([
     { id:1, role:"assistant",
-      text:"నమస్కారం! 👋 I'm your Shop Assistant.\nAsk me about stock, sales, or udhaar!",
+      text:"నమస్కారం! 👋 I'm your Shop Assistant.\nAsk me about stock, sales, margins, udhaar — or anything else!",
       time:timestamp() }
   ])
   const [input, setInput]         = useState("")
@@ -138,46 +209,55 @@ function AIChatWidget() {
     if (open) setTimeout(() => inputRef.current?.focus(), 100)
   }, [open])
 
-  async function fetchStoreData(question) {
-    const token   = getToken()
-    if (!token) return {}
-    const headers = { Authorization:`Bearer ${token}` }
-    const data    = {}
-    try {
-      const [prodRes, salesRes] = await Promise.all([
-        fetch(`${API}/api/products?limit=1000`, { headers }),
-        fetch(`${API}/api/sales/summary`, { headers }),
-      ])
-      data.products = prodRes.ok  ? await prodRes.json()  : []
-      data.sales    = salesRes.ok ? await salesRes.json() : {}
-
-      if (/udh|khata|due|బాకీ|बकाया|நிலுவை|ಬಾಕಿ|ബാക്കി/.test(question.toLowerCase())) {
-        const ucRes = await fetch(`${API}/api/udhar/customers`, { headers })
-        data.udhar_customers = ucRes.ok ? await ucRes.json() : []
-      }
-    } catch(e) { console.error("fetch error:", e) }
-    return data
-  }
-
   async function send(text) {
     const q = (text || input).trim()
     if (!q || loading) return
+
     setInput("")
     setChipsUsed(true)
     setMessages(p => [...p, { id:Date.now(), role:"user", text:q, time:timestamp() }])
     setLoading(true)
 
     try {
-      const data  = await fetchStoreData(q)
-      const reply = generateReply(q, data, lang)
-      setTimeout(() => {
-        setMessages(p => [...p, { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }])
-        setLoading(false)
-      }, 600)
+      const token = getToken()
+      let reply   = null
+
+      // 1. Store question → local APIs (free for everyone)
+      if (token && isStoreQuestion(q)) {
+        try { reply = await localReply(q, token) } catch(e) { console.error(e) }
+      }
+
+      // 2. General question → Groq (Pro/Wholesale only)
+      if (!reply) {
+        if (!isPremium) {
+          reply = "🔒 General AI assistant is available on Pro & Wholesale plans.\n\nYour store data (stock, sales, udhaar, margins) is always free — just ask about your products!"
+        } else {
+          const res = await fetch(`${API}/chat`, {
+            method:"POST",
+            headers:{
+              "Content-Type":"application/json",
+              ...(token ? { Authorization:`Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              message: q,
+              language: lang,
+              history: [],
+              store_context: {},
+            }),
+          })
+          const data = res.ok ? await res.json() : null
+          reply = data?.response || "Sorry, couldn't get a response. Please try again."
+        }
+      }
+
+      setMessages(p => [...p, { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }])
     } catch(e) {
+      console.error("Chat error:", e)
       setMessages(p => [...p, { id:Date.now()+1, role:"assistant",
-        text:"⚠️ Could not load store data. Please try again.", time:timestamp() }])
+        text:"⚠️ Connection error. Please try again.", time:timestamp() }])
+    } finally {
       setLoading(false)
+      inputRef.current?.focus()
     }
   }
 
@@ -197,7 +277,7 @@ function AIChatWidget() {
       {open && (
         <div style={{
           position:"fixed", bottom:90, right:24, zIndex:200,
-          width:320, height:460, borderRadius:18,
+          width:320, height:480, borderRadius:18,
           background:"var(--bg1, #f7f4f2)",
           boxShadow:"0 8px 40px rgba(0,0,0,0.18)",
           border:"1px solid var(--rule, #eee)",
@@ -212,9 +292,11 @@ function AIChatWidget() {
               display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>🤖</div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ color:"white", fontWeight:700, fontSize:13 }}>Shop Assistant</div>
-              <div style={{ color:"rgba(255,255,255,0.85)", fontSize:10, display:"flex", alignItems:"center", gap:4 }}>
-                <span style={{ width:6, height:6, borderRadius:"50%", background:"#a3f0c4", display:"inline-block" }}/>
-                Live store data
+              <div style={{ color:"rgba(255,255,255,0.85)", fontSize:10,
+                display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ width:6, height:6, borderRadius:"50%",
+                  background:"#a3f0c4", display:"inline-block" }}/>
+                {isPremium ? "Groq AI · Live data" : "Live store data"}
               </div>
             </div>
             <select value={lang} onChange={e => setLang(e.target.value)}
@@ -239,9 +321,10 @@ function AIChatWidget() {
           </div>
 
           {/* Messages */}
-          <div ref={msgsRef} style={{ flex:1, overflowY:"auto", padding:"10px 10px",
+          <div ref={msgsRef} style={{ flex:1, overflowY:"auto", padding:"10px",
             display:"flex", flexDirection:"column", gap:8,
             background:"var(--bg1, #f7f4f2)", scrollbarWidth:"none" }}>
+
             {messages.map(msg => (
               <div key={msg.id} style={{ display:"flex", alignItems:"flex-end", gap:6,
                 flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
@@ -265,6 +348,7 @@ function AIChatWidget() {
               </div>
             ))}
 
+            {/* Typing dots */}
             {loading && (
               <div style={{ display:"flex", alignItems:"flex-end", gap:6 }}>
                 <div style={{ width:24, height:24, borderRadius:"50%", flexShrink:0,
@@ -283,12 +367,13 @@ function AIChatWidget() {
               </div>
             )}
 
+            {/* Quick chips */}
             {!chipsUsed && (
               <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:2 }}>
                 {chips.map(chip => (
                   <button key={chip} onClick={() => send(chip)}
-                    style={{ fontSize:11, fontWeight:500, borderRadius:20, padding:"5px 11px",
-                      cursor:"pointer", transition:"all 0.15s",
+                    style={{ fontSize:11, fontWeight:500, borderRadius:20,
+                      padding:"5px 11px", cursor:"pointer", transition:"all 0.15s",
                       background:"var(--bg0, white)",
                       border:"1.5px solid var(--saffron, #e87722)",
                       color:"var(--saffron, #e87722)" }}
@@ -310,7 +395,7 @@ function AIChatWidget() {
               <input ref={inputRef} type="text" value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
-                placeholder="Type your message..."
+                placeholder="Ask about your store..."
                 disabled={loading}
                 style={{ flex:1, border:"none", outline:"none", background:"transparent",
                   fontSize:12, color:"var(--ink, #1a1a1a)", fontFamily:"inherit", padding:"6px 0" }}/>
@@ -341,12 +426,12 @@ function AIChatWidget() {
           </div>
           <div style={{ textAlign:"center", fontSize:9, color:"var(--ink-faint, #ccc)",
             padding:"3px", background:"var(--bg0, white)" }}>
-            Reads your live store data
+            {isPremium ? "Store data: Free · General AI: Groq (Llama 3.3)" : "Store data: Free · Upgrade for General AI"}
           </div>
         </div>
       )}
 
-      {/* Floating bubble */}
+      {/* Floating bubble button */}
       <button onClick={() => setOpen(o => !o)} title="AI Assistant"
         style={{ position:"fixed", bottom:24, right:24, zIndex:201,
           width:52, height:52, borderRadius:"50%",
@@ -589,7 +674,7 @@ export default function Layout({ children }) {
         })}
       </nav>
 
-      {/* Floating mic — moved left */}
+      {/* Floating mic — moved left to make room */}
       <button onClick={() => navigate("/voice")} title="Voice Entry"
         style={{ position:"fixed", bottom:24, right:86, zIndex:50,
           width:52, height:52, borderRadius:"50%",
@@ -609,7 +694,7 @@ export default function Layout({ children }) {
         </svg>
       </button>
 
-      {/* Floating AI chat bubble */}
+      {/* Groq AI chat bubble */}
       <AIChatWidget />
     </div>
   )

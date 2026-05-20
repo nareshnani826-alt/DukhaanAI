@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react"
 import { getUpcomingFestivals, getCurrentSeason, getUrgentAlerts, SEASONS } from "../data/indianCalendar.js"
-import { Products } from "../sync/db.js"
+import { Products, api } from "../sync/db.js"
+import { useAuth } from "../context/AuthContext.jsx"
+
+const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 
 const INR = n => "₹" + Math.round(n||0).toLocaleString("en-IN")
 
@@ -58,15 +61,21 @@ function getSalesPatterns(products) {
 }
 
 export default function DemandIntelligence() {
-  const [festivals,  setFestivals]  = useState([])
-  const [season,     setSeason]     = useState(null)
-  const [newsAlerts, setNewsAlerts] = useState([])
-  const [urgentAlerts,setUrgentAlerts] = useState([])
-  const [inventory,  setInventory]  = useState([])
-  const [patterns,   setPatterns]   = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [newsLoading,setNewsLoading]= useState(true)
-  const [tab,        setTab]        = useState("alerts") // alerts | festivals | season | news
+  const { vendor }  = useAuth()
+  const [festivals,    setFestivals]    = useState([])
+  const [season,       setSeason]       = useState(null)
+  const [newsAlerts,   setNewsAlerts]   = useState([])
+  const [urgentAlerts, setUrgentAlerts] = useState([])
+  const [inventory,    setInventory]    = useState([])
+  const [patterns,     setPatterns]     = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [newsLoading,  setNewsLoading]  = useState(true)
+  const [tab,          setTab]          = useState("alerts")
+
+  // velocity tab state
+  const [velocity,    setVelocity]    = useState([])
+  const [reorder,     setReorder]     = useState(null)
+  const [velLoading,  setVelLoading]  = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -80,7 +89,6 @@ export default function DemandIntelligence() {
         setPatterns(getSalesPatterns(prods))
       } finally { setLoading(false) }
 
-      // Load news signals in background
       setNewsLoading(true)
       try {
         const signals = await fetchNewsDemandSignals()
@@ -90,6 +98,19 @@ export default function DemandIntelligence() {
     }
     load()
   }, [])
+
+  // Load velocity data when tab is selected (cloud only)
+  useEffect(() => {
+    if (tab !== "velocity" || !vendor) return
+    setVelLoading(true)
+    Promise.all([
+      api.get("/insights/velocity"),
+      api.get("/insights/reorder?days_cover=7"),
+    ]).then(([v, r]) => {
+      setVelocity(v.items || [])
+      setReorder(r)
+    }).catch(() => {}).finally(() => setVelLoading(false))
+  }, [tab, vendor?.id])
 
   const urgencyColor = days =>
     days === 0 ? "#E24B4A" : days <= 3 ? "#E24B4A" : days <= 7 ? "#EF9F27" : "var(--jade)"
@@ -161,12 +182,13 @@ export default function DemandIntelligence() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-white rounded-xl p-1 border border-gray-100">
+      <div className="flex gap-1 mb-4 bg-white rounded-xl p-1 border border-gray-100 flex-wrap">
         {[
           { id:"alerts",   label:`🚨 Alerts (${allAlerts.length})` },
-          { id:"festivals",label:`🎉 Festivals (${festivals.length})` },
-          { id:"news",     label:"📰 News Signals" },
-          { id:"patterns", label:"📊 My Patterns" },
+          { id:"festivals",label:`🎉 Festivals` },
+          { id:"news",     label:"📰 News" },
+          { id:"patterns", label:"📊 Patterns" },
+          { id:"velocity", label:"⚡ Velocity" },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
@@ -380,7 +402,7 @@ export default function DemandIntelligence() {
             ))}
           </div>
 
-          <div className="card">
+          <div className="card mb-3">
             <div className="text-xs font-medium text-gray-700 mb-3">
               💡 Pro tip — build seasonal stock habits
             </div>
@@ -404,6 +426,119 @@ export default function DemandIntelligence() {
           </div>
         </div>
       )}
+
+      {/* ── VELOCITY TAB ───────────────────────────────── */}
+      {tab === "velocity" && (
+        <div className="space-y-3">
+          {!vendor ? (
+            <div className="card text-center py-10">
+              <div className="text-4xl mb-3">🔒</div>
+              <div className="text-sm font-medium text-gray-600 mb-1">Login required</div>
+              <div className="text-xs text-gray-400">Sales velocity uses your live sales history. Please log in to see this.</div>
+            </div>
+          ) : velLoading ? (
+            <div className="space-y-3">
+              {[1,2,3,4].map(i => <div key={i} className="h-16 bg-gray-100 rounded-2xl animate-pulse"/>)}
+            </div>
+          ) : (
+            <>
+              {/* Smart Reorder summary */}
+              {reorder && reorder.count > 0 && (
+                <div className="card animate-fade-in"
+                  style={{ background:"rgba(232,119,34,0.06)", border:"1.5px solid rgba(232,119,34,0.3)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-xs font-semibold text-gray-800">🛒 Smart Reorder List</div>
+                    <span className="text-[9px] font-bold px-2 py-1 rounded-full"
+                      style={{ background:"var(--saffron)", color:"#fff" }}>
+                      {reorder.count} items
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-gray-500 mb-3">
+                    Order these to cover 7 days of demand · Est. cost: {INR(reorder.estimated_total_cost)}
+                  </div>
+                  <div className="space-y-2">
+                    {reorder.items.slice(0, 8).map((item, i) => (
+                      <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl"
+                        style={{ background: item.urgency === "critical" ? "#FCEBEB" : "#FFF8F0" }}>
+                        <span className="text-base flex-shrink-0">
+                          {item.urgency === "critical" ? "🔴" : "🟠"}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-gray-800 truncate">{item.name}</div>
+                          <div className="text-[10px] text-gray-500">
+                            {item.days_of_stock_left != null ? `${item.days_of_stock_left}d left · ` : "Out of stock · "}
+                            Selling {item.daily_rate} {item.unit}/day
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-xs font-bold"
+                            style={{ color: item.urgency === "critical" ? "#c0392b" : "#d97706" }}>
+                            Order {item.suggested_order_qty} {item.unit}
+                          </div>
+                          {item.estimated_cost > 0 && (
+                            <div className="text-[10px] text-gray-400">{INR(item.estimated_cost)}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Velocity list */}
+              <div className="card">
+                <div className="text-xs font-medium text-gray-700 mb-3">⚡ Sales Velocity — last 30 days</div>
+                {velocity.length === 0 ? (
+                  <div className="text-center py-6">
+                    <div className="text-2xl mb-2">📊</div>
+                    <div className="text-xs text-gray-400">No sales in last 30 days to compute velocity.</div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {velocity.slice(0, 20).map((item, i) => {
+                      const pct      = item.days_until_stockout != null ? Math.min(100, Math.round((item.days_until_stockout / 30) * 100)) : 100
+                      const barColor = item.is_critical ? "#c0392b"
+                        : item.days_until_stockout != null && item.days_until_stockout < 7 ? "#d97706"
+                        : "var(--jade)"
+                      return (
+                        <div key={i} className="flex items-center gap-3 py-2"
+                          style={{ borderBottom: i < velocity.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none" }}>
+                          <div className="w-6 text-center flex-shrink-0">
+                            {item.is_critical ? "🔴" : item.days_until_stockout != null && item.days_until_stockout < 7 ? "🟠" : "🟢"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-800 truncate">{item.name}</span>
+                              <span className="text-[10px] text-gray-400 flex-shrink-0 ml-2">
+                                {item.days_until_stockout != null ? `${item.days_until_stockout}d left` : "∞"}
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: pct + "%", background: barColor }}/>
+                            </div>
+                            <div className="text-[10px] text-gray-400 mt-1">
+                              {item.daily_rate} {item.unit}/day · {item.total_qty_30d} sold in 30d · {item.stock} in stock
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {reorder?.count === 0 && (
+                <div className="card text-center py-8">
+                  <div className="text-3xl mb-2">✅</div>
+                  <div className="text-xs font-medium text-gray-600">No reorders needed</div>
+                  <div className="text-[10px] text-gray-400 mt-1">All fast-moving products have 7+ days of stock</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
     </div>
   )
 }

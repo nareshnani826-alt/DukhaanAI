@@ -166,6 +166,88 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
         products.sort(key=lambda x: x["margin_pct"], reverse=True)
         return {"products": products[:15]}
 
+    if name == "get_profit_summary":
+        from datetime import date as _date
+        today_str = _date.today().isoformat()
+        month_str = _date.today().replace(day=1).isoformat()
+        prods     = db.table("products").select("id,cost_price").eq("vendor_id", vendor_id).execute().data or []
+        cmap      = {p["id"]: float(p.get("cost_price") or 0) for p in prods}
+        t_sales   = db.table("sales").select("product_id,qty,unit_price").eq("vendor_id", vendor_id).gte("sold_at", f"{today_str}T00:00:00").execute().data or []
+        m_sales   = db.table("sales").select("product_id,qty,unit_price").eq("vendor_id", vendor_id).gte("sold_at", f"{month_str}T00:00:00").execute().data or []
+        def _prof(sales):
+            rev  = sum(float(s.get("unit_price") or 0) * float(s.get("qty") or 0) for s in sales)
+            cost = sum(cmap.get(s.get("product_id", ""), 0) * float(s.get("qty") or 0) for s in sales)
+            prof = round(rev - cost, 2)
+            return round(rev, 2), prof, round(prof / rev * 100, 1) if rev > 0 else 0
+        t_rev, t_prof, t_mar = _prof(t_sales)
+        m_rev, m_prof, m_mar = _prof(m_sales)
+        return {
+            "today": {"revenue": t_rev, "profit": t_prof, "margin_pct": t_mar},
+            "month": {"revenue": m_rev, "profit": m_prof, "margin_pct": m_mar},
+        }
+
+    if name == "get_dead_stock":
+        from datetime import date as _date, timedelta as _td
+        since    = (_date.today() - _td(days=30)).isoformat()
+        prods    = db.table("products").select("id,name,stock,unit,cost_price").eq("vendor_id", vendor_id).eq("is_active", True).gt("stock", 0).execute().data or []
+        recent   = db.table("sales").select("product_id").eq("vendor_id", vendor_id).gte("sold_at", f"{since}T00:00:00").execute().data or []
+        sold_ids = {s["product_id"] for s in recent}
+        dead     = [p for p in prods if p["id"] not in sold_ids]
+        for p in dead:
+            p["blocked_value"] = round(float(p.get("stock") or 0) * float(p.get("cost_price") or 0), 2)
+        dead.sort(key=lambda x: x["blocked_value"], reverse=True)
+        return {
+            "dead_stock_count":    len(dead),
+            "total_blocked_value": round(sum(p["blocked_value"] for p in dead), 2),
+            "items":               dead[:15],
+        }
+
+    if name == "get_reorder_suggestions":
+        from datetime import date as _date, timedelta as _td
+        since    = (_date.today() - _td(days=30)).isoformat()
+        sales    = db.table("sales").select("product_id,qty").eq("vendor_id", vendor_id).gte("sold_at", f"{since}T00:00:00").execute().data or []
+        qty_map: dict = {}
+        for s in sales:
+            pid = s["product_id"]; qty_map[pid] = qty_map.get(pid, 0.0) + float(s.get("qty") or 0)
+        prods = db.table("products").select("id,name,stock,unit,min_stock,cost_price").eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
+        suggestions = []
+        for p in prods:
+            pid   = p["id"]; daily = qty_map.get(pid, 0.0) / 30
+            stock = float(p.get("stock") or 0); min_s = float(p.get("min_stock") or 0)
+            if stock < min_s or (daily > 0 and stock / daily < 7):
+                order_qty = max(0.0, round(daily * 7 - stock, 1))
+                suggestions.append({
+                    "name": p["name"], "unit": p.get("unit",""),
+                    "current_stock": stock, "daily_rate": round(daily, 2),
+                    "days_left": round(stock / daily, 1) if daily > 0 else None,
+                    "suggested_order_qty": order_qty,
+                    "urgency": "critical" if stock <= 0 or (daily > 0 and stock / daily < 2) else "soon",
+                })
+        suggestions.sort(key=lambda x: (0 if x["urgency"]=="critical" else 1, x.get("days_left") or 9999))
+        return {
+            "suggestions":          suggestions[:15],
+            "count":                len(suggestions),
+            "estimated_total_cost": round(sum(s["suggested_order_qty"] * float(next((p.get("cost_price",0) for p in prods if p["name"]==s["name"]),0)) for s in suggestions), 2),
+        }
+
+    if name == "get_leakage_alerts":
+        from datetime import date as _date, timedelta as _td
+        since  = (_date.today() - _td(days=30)).isoformat()
+        stolen = db.table("wastage_records").select("product_name,qty,loss_value,created_at").eq("vendor_id", vendor_id).eq("reason", "stolen").gte("created_at", f"{since}T00:00:00").order("created_at", desc=True).execute().data or []
+        all_w  = db.table("wastage_records").select("product_id,product_name,qty,loss_value,reason").eq("vendor_id", vendor_id).gte("created_at", f"{since}T00:00:00").execute().data or []
+        wmap: dict = {}
+        for w in all_w:
+            pid = w["product_id"]
+            if pid not in wmap: wmap[pid] = {"name": w["product_name"], "loss": 0.0, "reasons": set()}
+            wmap[pid]["loss"] += float(w.get("loss_value") or 0); wmap[pid]["reasons"].add(w.get("reason",""))
+        high = [{"name": v["name"], "total_loss": round(v["loss"],2), "reasons": list(v["reasons"])} for v in wmap.values() if v["loss"] > 500]
+        high.sort(key=lambda x: x["total_loss"], reverse=True)
+        return {
+            "stolen_records":          stolen,
+            "high_loss_products":      high,
+            "total_potential_leakage": round(sum(float(s.get("loss_value") or 0) for s in stolen), 2),
+        }
+
     return {"error": f"Unknown tool: {name}"}
 
 
@@ -230,6 +312,52 @@ _STORE_TOOLS = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_profit_summary",
+            "description": (
+                "Get today's and this month's estimated gross profit based on selling price minus cost price. "
+                "Use when vendor asks about profit, earnings, how much money they made, or margin for today/this month."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_dead_stock",
+            "description": (
+                "Find products that have stock but have NOT sold in the last 30 days. "
+                "Use when vendor asks about dead stock, slow-moving items, blocked inventory, or unsold products."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_reorder_suggestions",
+            "description": (
+                "Get a smart reorder list — products that need to be ordered, with suggested quantities "
+                "based on 30-day sales velocity to cover 7 days of demand. "
+                "Use when vendor asks what to order, reorder list, purchase suggestions, or what to buy from supplier."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_leakage_alerts",
+            "description": (
+                "Detect potential theft or stock leakage — returns wastage records marked as 'stolen' "
+                "and products with high unexplained loss in the last 30 days. "
+                "Use when vendor asks about theft, leakage, missing stock, or staff issues."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
 
@@ -247,6 +375,10 @@ You have tools to fetch LIVE data from this store's database. Use the right tool
 • This month's revenue or performance → get_monthly_sales
 • Udhar, credit, who owes money → get_udhar_summary
 • Most profitable products, best margins → get_best_margin_products
+• Today's or monthly profit, how much did I earn, gross profit → get_profit_summary
+• Dead stock, slow-moving items, blocked inventory → get_dead_stock
+• What to order, reorder list, purchase suggestions → get_reorder_suggestions
+• Theft, leakage, missing stock, stolen items → get_leakage_alerts
 
 RESPONSE RULES:
 - Always call a tool to get fresh data before answering store-related questions
@@ -402,8 +534,10 @@ async def chat(
                     })
 
                 response = await client.chat.completions.create(
-                    model=_MODEL,
+                   model=_MODEL,
                     messages=messages,
+                    tools=_STORE_TOOLS,
+                    tool_choice="auto",
                     max_tokens=1024,
                 )
 
@@ -412,7 +546,7 @@ async def chat(
         else:
             # ── Local/offline: context from frontend, no tool calls ─────────
             response = await client.chat.completions.create(
-                model=_MODEL,
+               model=_MODEL,
                 messages=messages,
                 max_tokens=1024,
             )
