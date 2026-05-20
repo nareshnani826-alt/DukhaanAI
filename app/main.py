@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, products, sales, invoices, subscriptions, admin, customers, day_sessions, udhar, wastage, community_catalog, chat
+from app.routers import auth, products, sales, invoices, subscriptions, admin, customers, day_sessions, udhar, wastage, community_catalog, chat, assemblyai
 
 app = FastAPI(
     title="DukaanAI API",
@@ -34,6 +34,7 @@ app.include_router(udhar.router)
 app.include_router(wastage.router)
 app.include_router(community_catalog.router)
 app.include_router(chat.router)
+app.include_router(assemblyai.router)
 
 # ── Health check ─────────────────────────────────────────────
 @app.get("/", tags=["health"])

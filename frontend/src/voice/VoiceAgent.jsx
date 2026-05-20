@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
-import { voiceEngine, speak } from "./engine.js"
+import { speak } from "./engine.js"
+import { voiceEngine } from "./assemblyEngine.js"
 import { parseVoiceCommand, formatConfirmation, splitMultiProduct, parseMultipleProducts, matchProduct, parseQuantity, applyGroceryAliases } from "./nlp.js"
 import { t, getSavedLang, saveLang } from "./i18n.js"
 import { recordProductUse, recordCorrection } from "./sessionMemory.js"

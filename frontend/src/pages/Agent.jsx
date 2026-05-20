@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { Products, Sales, Invoices, Udhar, Wastage, Customers, getToken } from "../sync/db"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
 import { LANGUAGES } from "../voice/languages.js"
+import { AssemblyVoiceEngine } from "../voice/assemblyEngine.js"
 
 
 // ── Quick suggestions per language ───────────────────────
@@ -360,8 +361,32 @@ export default function Agent() {
   const [context,  setContext]      = useState(null)
   const [ctxLoading, setCtxLoading] = useState(true)
   const [error,    setError]        = useState("")
+  const [micListening, setMicListening] = useState(false)
   const bottomRef = useRef(null)
   const inputRef  = useRef(null)
+  const micEngine = useRef(null)
+
+  // Initialise AssemblyAI engine once (lazy)
+  function getMicEngine() {
+    if (!micEngine.current) {
+      const eng = new AssemblyVoiceEngine()
+      eng.onStart  = () => setMicListening(true)
+      eng.onEnd    = () => setMicListening(false)
+      eng.onError  = (msg) => { setMicListening(false); setError(msg) }
+      eng.onResult = (_orig, translated) => {
+        setInput(translated)
+        setTimeout(() => inputRef.current?.focus(), 50)
+      }
+      micEngine.current = eng
+    }
+    return micEngine.current
+  }
+
+  function handleMic() {
+    const eng = getMicEngine()
+    eng.setLanguage(lang)
+    eng.toggle()
+  }
 
   const langInfo = LANGUAGES.find(l => l.code === lang) || LANGUAGES[9]
   const QUICK    = QUICK_BY_LANG[lang] || QUICK_BY_LANG["en-IN"]
@@ -543,6 +568,7 @@ Ask me anything!`,
       <style>{`
         @keyframes bubbleIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
         @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+        @keyframes micPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
       `}</style>
 
       {/* Header */}
@@ -674,6 +700,34 @@ Ask me anything!`,
             onFocus={e => e.target.style.borderColor="var(--saffron)"}
             onBlur={e => e.target.style.borderColor="var(--rule)"}
           />
+          {/* Mic button — speak to fill the input */}
+          <button onClick={handleMic} disabled={loading || ctxLoading}
+            title={micListening ? "Tap to stop" : "Speak your question"}
+            style={{
+              width:44, height:44, borderRadius:12, border:"none",
+              background: micListening
+                ? "linear-gradient(135deg,#C0392B,#E74C3C)"
+                : "var(--bg3,#e8e0d4)",
+              color: micListening ? "#fff" : "var(--ink-faint)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              cursor:"pointer", flexShrink:0, transition:"all 0.2s",
+              boxShadow: micListening ? "0 0 16px rgba(231,76,60,0.45)" : "none",
+              animation: micListening ? "micPulse 1.2s ease-in-out infinite" : "none",
+            }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              {micListening
+                ? <rect x="6" y="6" width="12" height="12" rx="2"/>
+                : <>
+                    <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                    <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </>
+              }
+            </svg>
+          </button>
+
           <button onClick={() => send()}
             disabled={!input.trim() || loading || ctxLoading}
             style={{

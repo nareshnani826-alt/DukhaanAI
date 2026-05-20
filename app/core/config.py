@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Gemini AI (free tier: 1M tokens/day)
     gemini_api_key: str = ""
 
+    # AssemblyAI (speech-to-text for voice assistant & chatbot)
+    assemblyai_api_key: str = ""
+
     # Razorpay
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
