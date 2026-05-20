@@ -1,14 +1,35 @@
 import logging
 import google.generativeai as genai
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
 
 from app.core.config import settings
-from app.core.security import get_current_vendor
+from app.core.security import decode_access_token
+from app.core.database import get_db
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
+
+_bearer = HTTPBearer(auto_error=False)
+
+async def _optional_vendor(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+):
+    """Returns vendor dict if a valid token is present, otherwise None (allows local-mode users)."""
+    if not credentials:
+        return None
+    try:
+        payload = decode_access_token(credentials.credentials)
+        vendor_id = payload.get("sub")
+        if not vendor_id:
+            return None
+        db = get_db()
+        result = db.table("vendors").select("id,plan,is_active").eq("id", vendor_id).single().execute()
+        return result.data or None
+    except Exception:
+        return None
 
 LANG_NAMES = {
     "en-IN": "English",
@@ -39,7 +60,7 @@ class ChatRequest(BaseModel):
 @router.post("")
 async def chat(
     req: ChatRequest,
-    vendor=Depends(get_current_vendor),
+    vendor=Depends(_optional_vendor),
 ):
     if not settings.gemini_api_key:
         raise HTTPException(status_code=503, detail="AI not configured. Add GEMINI_API_KEY to server environment.")

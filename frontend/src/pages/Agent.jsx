@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { Products, Sales, Invoices, Udhar, Wastage, Customers } from "../sync/db"
+import { Products, Sales, Invoices, Udhar, Wastage, Customers, getToken } from "../sync/db"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
 import { LANGUAGES } from "../voice/languages.js"
 
@@ -242,7 +242,7 @@ async function buildStoreContext(userQuestion = "") {
 // ── Call AI via backend (Gemini — free) ─────────────────
 async function askAI(messages, storeContext, lang = "en-IN") {
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8000"
-  const token   = localStorage.getItem("dukaanai_access_token")
+  const token   = getToken()   // uses "dk_access" key — same as the rest of the app
 
   // Last message is the user question; prior messages are history
   const lastMsg  = messages[messages.length - 1]
