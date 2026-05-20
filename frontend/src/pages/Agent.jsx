@@ -251,7 +251,7 @@ async function askAI(messages, storeContext, lang = "en-IN") {
     text: m.text,
   }))
 
-  const response = await fetch(`${apiBase}/api/chat`, {
+  const response = await fetch(`${apiBase}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

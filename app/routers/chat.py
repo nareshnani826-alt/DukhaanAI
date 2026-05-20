@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.security import decode_access_token
 from app.core.database import get_db
 
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=False)
