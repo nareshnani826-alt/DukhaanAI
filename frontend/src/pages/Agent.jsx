@@ -516,7 +516,7 @@ Ask me anything!`,
       const errMsg = msg.includes("Invalid Gemini") || msg.includes("API key")
         ? "Invalid Gemini API key. Go to Railway → Variables → check GEMINI_API_KEY."
         : msg.includes("quota") || msg.includes("429")
-        ? "Daily AI quota exceeded. Try again tomorrow (free tier: 1M tokens/day)."
+        ? "Too many requests — please wait 1 minute and try again."
         : msg.includes("AI not configured") || msg.includes("not configured")
         ? "GEMINI_API_KEY not set. Add it in Railway → Variables."
         : msg.includes("401") || msg.includes("Session expired")
