@@ -12,6 +12,6 @@ def get_db() -> Client:
         url = os.environ.get("SUPABASE_URL", "")
         key = os.environ.get("SUPABASE_SERVICE_KEY", "")
         if not url or not key:
-            raise ValueError(f"Missing Supabase config. URL={url[:20]}, KEY={key[:10]}")
+            raise ValueError("Missing Supabase config: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
         _client = create_client(url, key)
     return _client

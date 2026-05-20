@@ -72,10 +72,15 @@ async def delete_customer(customer_id: str, vendor=Depends(get_current_vendor)):
 @router.get("/customers/{customer_id}/transactions")
 async def get_transactions(customer_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
+    cust = db.table("udhar_customers").select("id")\
+        .eq("id", customer_id).eq("vendor_id", vendor["id"]).execute()
+    if not cust.data:
+        raise HTTPException(status_code=404, detail="Customer not found")
     return (
         db.table("udhar_transactions")
         .select("*")
         .eq("customer_id", customer_id)
+        .eq("vendor_id", vendor["id"])
         .order("created_at", desc=True)
         .execute()
     ).data

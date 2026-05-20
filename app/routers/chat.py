@@ -1,4 +1,5 @@
-import anthropic
+import logging
+import google.generativeai as genai
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -7,16 +8,8 @@ from app.core.config import settings
 from app.core.security import get_current_vendor
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
-client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-# ── Request schema ────────────────────────────────────────────
-class ChatRequest(BaseModel):
-    message: str
-    language: Optional[str] = "en-IN"
-    store_context: Optional[dict] = {}
-
-# ── Language map ──────────────────────────────────────────────
 LANG_NAMES = {
     "en-IN": "English",
     "te-IN": "Telugu",
@@ -30,81 +23,128 @@ LANG_NAMES = {
     "pa-IN": "Punjabi",
 }
 
-# ── Chat endpoint ─────────────────────────────────────────────
+
+class HistoryMessage(BaseModel):
+    role: str   # "user" or "model"
+    text: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    language: Optional[str] = "en-IN"
+    store_context: Optional[dict] = {}
+    history: Optional[list[HistoryMessage]] = []
+
+
 @router.post("")
 async def chat(
     req: ChatRequest,
     vendor=Depends(get_current_vendor),
 ):
+    if not settings.gemini_api_key:
+        raise HTTPException(status_code=503, detail="AI not configured. Add GEMINI_API_KEY to server environment.")
+
     lang_name = LANG_NAMES.get(req.language, "English")
-    ctx       = req.store_context or {}
+    ctx = req.store_context or {}
 
-    products        = ctx.get("products", [])
-    sales           = ctx.get("sales", {})
-    udhar_customers = ctx.get("udhar_customers", [])
-    wastage         = ctx.get("wastage", [])
+    # Build compact system prompt from store context
+    products        = ctx.get("all_products", ctx.get("products", []))
+    store_summary   = ctx.get("store_summary", {})
+    low_stock       = ctx.get("low_stock", [])
+    out_of_stock    = ctx.get("out_of_stock", [])
+    best_margins    = ctx.get("best_margins", [])
+    sales_analysis  = ctx.get("sales_analysis")
+    udhar           = ctx.get("udhar")
+    wastage_summary = ctx.get("wastage_summary")
 
-    low_stock    = [p for p in products if float(p.get("stock", 0)) <= float(p.get("min_stock", 0))]
-    out_of_stock = [p for p in products if float(p.get("stock", 0)) == 0]
-
-    low_stock_names  = ", ".join([p.get("name", "?") for p in low_stock[:10]])  or "None"
-    out_of_stock_names = ", ".join([p.get("name", "?") for p in out_of_stock[:5]]) or "None"
-    total_udhar_due  = sum(float(c.get("total_due", 0)) for c in udhar_customers)
-
-    # Build product list
+    # Product list (cap at 200 to stay within token limits)
     product_lines = "\n".join(
-        [f"- {p.get('name','?')} | stock: {p.get('stock',0)} {p.get('unit','')} | price: ₹{p.get('price',0)}"
-         for p in products[:150]]
+        f"- {p.get('name','?')} | stock:{p.get('stock',0)} {p.get('unit','')} "
+        f"| mrp:₹{p.get('mrp',0)} | cost:₹{p.get('cost',p.get('cost_price',0))} "
+        f"| status:{p.get('status','?')}"
+        for p in products[:200]
     )
 
-    # Build udhaar list
-    udhar_lines = ""
-    if udhar_customers:
+    low_names      = ", ".join(p.get("name","?") for p in low_stock[:10])  or "None"
+    out_names      = ", ".join(p.get("name","?") for p in out_of_stock[:5]) or "None"
+    margin_lines   = "\n".join(
+        f"- {p.get('name','?')}: {p.get('margin',p.get('margin_pct',0))}% margin"
+        for p in best_margins[:10]
+    )
+
+    udhar_section = ""
+    if udhar:
         lines = "\n".join(
-            [f"- {c.get('name','?')} owes ₹{c.get('total_due',0)}"
-             for c in udhar_customers[:20]]
+            f"- {c.get('name','?')} owes ₹{c.get('amount_due', c.get('total_due',0))}"
+            for c in (udhar.get("overdue_customers") or [])[:15]
         )
-        udhar_lines = f"UDHAAR CUSTOMERS:\n{lines}"
+        udhar_section = f"""
+UDHAAR (CREDIT DUE):
+Total due: ₹{udhar.get('total_due',0)} from {udhar.get('customer_count',0)} customers
+{lines}"""
 
-    # Build wastage list
-    wastage_lines = ""
-    if wastage:
-        lines = "\n".join(
-            [f"- {w.get('product_name','?')} qty: {w.get('qty',0)}"
-             for w in wastage[:10]]
+    sales_section = ""
+    if sales_analysis:
+        top = "\n".join(
+            f"- {p.get('name','?')}: {p.get('units',0)} units, ₹{p.get('revenue',0)}"
+            for p in (sales_analysis.get("top_by_units") or [])[:10]
         )
-        wastage_lines = f"RECENT WASTAGE:\n{lines}"
+        sales_section = f"""
+SALES ANALYSIS (last 30 days):
+Top products by units sold:
+{top}"""
 
-    system_prompt = f"""You are a helpful shop assistant for a Kirana/retail store using DukaanAI.
-You MUST reply in {lang_name} language only. Keep replies short, clear and friendly.
-Use ₹ symbol for prices. Use bullet points for lists.
+    wastage_section = ""
+    if wastage_summary:
+        wastage_section = f"""
+WASTAGE/LOSS:
+Total loss: ₹{wastage_summary.get('total_loss',0)} | Items: {wastage_summary.get('total_items',0)}
+This month: ₹{wastage_summary.get('this_month',0)}"""
 
-STORE DATA:
-- Total products: {len(products)}
-- Low stock items ({len(low_stock)}): {low_stock_names}
-- Out of stock ({len(out_of_stock)}): {out_of_stock_names}
-- Today's sales: ₹{sales.get("today_total", 0)}
-- Monthly sales: ₹{sales.get("month_total", 0)}
-- Total udhaar due: ₹{total_udhar_due}
-- Udhaar customers: {len(udhar_customers)}
+    system_prompt = f"""You are DukaanAI's smart shop assistant for an Indian kirana/retail store owner.
 
-FULL PRODUCT LIST (name | stock | price):
+LANGUAGE RULE: Reply ONLY in {lang_name}. Every word must be in {lang_name}. Never mix languages unless the language is English.
+
+STORE SUMMARY:
+- Total products: {store_summary.get('total_products', len(products))}
+- Low stock: {store_summary.get('low_stock_count', len(low_stock))} items ({low_names})
+- Out of stock: {store_summary.get('out_of_stock_count', len(out_of_stock))} items ({out_names})
+- Today's revenue: ₹{store_summary.get('today_revenue',0)} ({store_summary.get('today_invoices',0)} invoices)
+- Monthly revenue: ₹{store_summary.get('monthly_revenue',0)}
+
+FULL PRODUCT LIST (name | stock | mrp | cost | status):
 {product_lines}
 
-{udhar_lines}
+BEST MARGIN PRODUCTS:
+{margin_lines}
+{udhar_section}
+{sales_section}
+{wastage_section}
 
-{wastage_lines}
+INSTRUCTIONS:
+- Use ONLY the data above to answer. Never say you don't have access to data.
+- For stock/price queries: search the product list by name (partial match is fine).
+- Report exact stock, MRP (selling price), cost, and margin when relevant.
+- Use ₹ symbol and bullet points (•) for lists.
+- Keep answers short and helpful. Use emojis where natural.
+- If a product isn't found, say so and suggest similar names."""
 
-Answer the vendor's question based on this data. Be concise and helpful."""
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        system_instruction=system_prompt,
+    )
+
+    # Build conversation history for multi-turn support
+    history = []
+    for h in (req.history or []):
+        role = "model" if h.role in ("model", "ai", "assistant") else "user"
+        history.append({"role": role, "parts": [h.text]})
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=500,
-            system=system_prompt,
-            messages=[{"role": "user", "content": req.message}],
-        )
-        return {"response": response.content[0].text}
-
+        chat_session = model.start_chat(history=history)
+        response = chat_session.send_message(req.message)
+        return {"response": response.text}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Gemini chat error: %s", e)
+        raise HTTPException(status_code=500, detail="Chat service temporarily unavailable")

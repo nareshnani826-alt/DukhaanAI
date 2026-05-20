@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
     jwt_refresh_token_expire_days: int = 30
 
+    # Gemini AI (free tier: 1M tokens/day)
+    gemini_api_key: str = ""
+
     # Razorpay
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""

@@ -239,92 +239,40 @@ async function buildStoreContext(userQuestion = "") {
   return ctx
 }
 
-// ── Call Claude API ──────────────────────────────────────
-async function askClaude(messages, storeContext, lang="en-IN") {
-  // Map lang code to full language name for the AI
-  const langNames = {
-    "te-IN":"Telugu","hi-IN":"Hindi","ta-IN":"Tamil","kn-IN":"Kannada",
-    "ml-IN":"Malayalam","mr-IN":"Marathi","bn-IN":"Bengali",
-    "gu-IN":"Gujarati","pa-IN":"Punjabi","en-IN":"English"
-  }
-  const langName = langNames[lang] || "English"
+// ── Call AI via backend (Gemini — free) ─────────────────
+async function askAI(messages, storeContext, lang = "en-IN") {
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8000"
+  const token   = localStorage.getItem("dukaanai_access_token")
 
-  const systemPrompt = `You are DukaanAI's smart shop assistant for Indian kirana (grocery) store owners.
+  // Last message is the user question; prior messages are history
+  const lastMsg  = messages[messages.length - 1]
+  const history  = messages.slice(0, -1).map(m => ({
+    role: m.role === "user" ? "user" : "model",
+    text: m.text,
+  }))
 
-CRITICAL LANGUAGE RULE: You MUST respond ONLY in ${langName}. Every word of your answer must be in ${langName}. Do not mix languages. Do not use English unless the language is English.
+  const response = await fetch(`${apiBase}/api/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      message:       lastMsg.text,
+      language:      lang,
+      store_context: storeContext,
+      history,
+    }),
+    signal: AbortSignal.timeout(30000),
+  })
 
-You have access to real-time store data below. Use ONLY this data to answer.
-
-STORE DATA:
-${JSON.stringify(storeContext, null, 2)}
-
-AVAILABLE DATA:
-- all_products: complete inventory with stock, price, margin, status for ALL products
-- out_of_stock: products with zero stock
-- low_stock: products below minimum stock level
-- best_margins: top 15 highest-margin products
-- sales_analysis: top selling products, never-sold products, recent sales
-- udhar: customer credit/due amounts and details
-- wastage_summary: expired/damaged/stolen loss data
-- store_summary: today's revenue, invoices, monthly totals
-
-INSTRUCTIONS:
-- Respond ENTIRELY in ${langName}. Every single word must be in ${langName}.
-- To find a specific product: search all_products by name (case-insensitive partial match).
-- For availability: report exact stock number + status (IN_STOCK/LOW_STOCK/OUT_OF_STOCK).
-- For price: report mrp (selling price) and cost (purchase price), calculate margin if asked.
-- For comparisons: scan all_products and compare relevant fields.
-- For "which products haven't sold": check sales_analysis.never_sold.
-- For customer dues: use udhar data.
-- For wastage/loss: use wastage_summary.
-- Use ₹ with Indian number format and emojis.
-- If product not found, say so clearly and suggest similar names if any.
-- Keep responses concise unless listing many items. Use • for lists.
-- Never say "I don't have access to that data" — you have all the data above.`
-
-  // Try backend proxy first (keeps API key secure on server)
-  // Falls back to direct call for local dev
-  const apiBase  = import.meta.env.VITE_API_URL || "http://localhost:8000"
-  const proxyUrl = `${apiBase}/api/chat`
-  const directUrl = "https://api.anthropic.com/v1/messages"
-
-  const payload = {
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1000,
-    system: systemPrompt,
-    messages: messages.map(m => ({
-      role: m.role === "ai" ? "assistant" : "user",
-      content: m.text,
-    })),
-  }
-
-  // Try backend proxy first
-  let response
-  try {
-    response = await fetch(proxyUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!response.ok) throw new Error(`proxy ${response.status}`)
-  } catch {
-    // Fallback: direct Anthropic call (works in Claude.ai environment)
-    const apiKey = import.meta.env.VITE_ANTHROPIC_KEY || ""
-    response = await fetch(directUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(apiKey ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" } : {}),
-      },
-      body: JSON.stringify(payload),
-    })
-    if (!response.ok) throw new Error(`API error ${response.status}`)
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.detail || `Error ${response.status}`)
   }
 
   const data = await response.json()
-  // Handle both proxy response and direct Anthropic response
-  return data.content?.[0]?.text || data.text || "Sorry, I couldn't get a response."
+  return data.response || "Sorry, I couldn't get a response."
 }
 
 // ── Message bubble ───────────────────────────────────────
@@ -561,14 +509,17 @@ Ask me anything!`,
       setContext(freshCtx)
 
       const allMsgs = [...messages, { role:"user", text:question }]
-      const answer  = await askClaude(allMsgs, freshCtx, lang)
+      const answer  = await askAI(allMsgs, freshCtx, lang)
       addMsg("ai", answer)
     } catch(e) {
-      const errMsg = e.message?.includes("API error 401")
-        ? "API key not configured. Add VITE_ANTHROPIC_API_KEY to Vercel environment variables."
-        : e.message?.includes("API error 529") || e.message?.includes("overloaded")
-        ? "Claude is busy right now. Try again in a moment."
-        : "Couldn't connect to AI. Check internet connection."
+      const msg = e.message || ""
+      const errMsg = msg.includes("AI not configured") || msg.includes("503")
+        ? "AI not configured. Add GEMINI_API_KEY to server environment variables."
+        : msg.includes("401") || msg.includes("403")
+        ? "Session expired. Please log in again."
+        : msg.includes("429")
+        ? "Too many requests. Please wait a moment and try again."
+        : "Couldn't connect to AI. Check your internet connection."
       setError(errMsg)
       addMsg("ai", `⚠️ ${errMsg}`)
     } finally {
@@ -741,7 +692,7 @@ Ask me anything!`,
           </button>
         </div>
         <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:6, textAlign:"center" }}>
-          Powered by Claude AI · Reads your live inventory data
+          Powered by Gemini AI · Reads your live inventory data
         </div>
       </div>
     </div>
