@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
 from datetime import date
-import google.generativeai as genai
+from groq import AsyncGroq
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -15,6 +17,20 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=False)
+_MODEL  = "llama-3.3-70b-versatile"
+
+LANG_NAMES = {
+    "en-IN": "English",
+    "te-IN": "Telugu",
+    "hi-IN": "Hindi",
+    "ta-IN": "Tamil",
+    "kn-IN": "Kannada",
+    "ml-IN": "Malayalam",
+    "mr-IN": "Marathi",
+    "bn-IN": "Bengali",
+    "gu-IN": "Gujarati",
+    "pa-IN": "Punjabi",
+}
 
 
 async def _optional_vendor(
@@ -32,20 +48,6 @@ async def _optional_vendor(
         return result.data or None
     except Exception:
         return None
-
-
-LANG_NAMES = {
-    "en-IN": "English",
-    "te-IN": "Telugu",
-    "hi-IN": "Hindi",
-    "ta-IN": "Tamil",
-    "kn-IN": "Kannada",
-    "ml-IN": "Malayalam",
-    "mr-IN": "Marathi",
-    "bn-IN": "Bengali",
-    "gu-IN": "Gujarati",
-    "pa-IN": "Punjabi",
-}
 
 
 class HistoryMessage(BaseModel):
@@ -80,9 +82,9 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
         if not products:
             return {"found": False, "message": f"No product found matching '{query}'"}
         for p in products:
-            mrp = p.get("mrp") or 0
+            mrp  = p.get("mrp") or 0
             cost = p.get("cost_price") or 0
-            p["margin_pct"] = round((mrp - cost) / mrp * 100, 1) if mrp > 0 else 0
+            p["margin_pct"]  = round((mrp - cost) / mrp * 100, 1) if mrp > 0 else 0
             p["is_low_stock"] = p.get("stock", 0) < p.get("min_stock", 10)
         return {"found": True, "products": products}
 
@@ -99,12 +101,7 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
         low = [p for p in all_p if 0 < (p.get("stock") or 0) < p.get("min_stock", 10)]
         out.sort(key=lambda x: x["name"])
         low.sort(key=lambda x: x.get("stock", 0))
-        return {
-            "out_of_stock": out,
-            "low_stock": low,
-            "out_count": len(out),
-            "low_count": len(low),
-        }
+        return {"out_of_stock": out, "low_stock": low, "out_count": len(out), "low_count": len(low)}
 
     if name == "get_sales_today":
         today = date.today().isoformat()
@@ -115,21 +112,16 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
             .gte("created_at", f"{today}T00:00:00")
             .execute()
         )
-        invoices = result.data or []
+        invoices  = result.data or []
         total_rev = sum((inv.get("total") or 0) for inv in invoices)
         by_mode: dict = {}
         for inv in invoices:
             mode = inv.get("payment_mode", "Cash")
             by_mode[mode] = round(by_mode.get(mode, 0) + (inv.get("total") or 0), 2)
-        return {
-            "date": today,
-            "invoice_count": len(invoices),
-            "total_revenue": round(total_rev, 2),
-            "by_payment_mode": by_mode,
-        }
+        return {"date": today, "invoice_count": len(invoices), "total_revenue": round(total_rev, 2), "by_payment_mode": by_mode}
 
     if name == "get_monthly_sales":
-        today = date.today()
+        today       = date.today()
         month_start = today.replace(day=1).isoformat()
         result = (
             db.table("invoices")
@@ -138,13 +130,9 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
             .gte("created_at", f"{month_start}T00:00:00")
             .execute()
         )
-        invoices = result.data or []
+        invoices  = result.data or []
         total_rev = sum((inv.get("total") or 0) for inv in invoices)
-        return {
-            "month": today.strftime("%B %Y"),
-            "invoice_count": len(invoices),
-            "total_revenue": round(total_rev, 2),
-        }
+        return {"month": today.strftime("%B %Y"), "invoice_count": len(invoices), "total_revenue": round(total_rev, 2)}
 
     if name == "get_udhar_summary":
         result = (
@@ -157,12 +145,8 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
             .execute()
         )
         customers = result.data or []
-        total = sum((c.get("total_due") or 0) for c in customers)
-        return {
-            "total_due": round(total, 2),
-            "customer_count": len(customers),
-            "customers": customers,
-        }
+        total     = sum((c.get("total_due") or 0) for c in customers)
+        return {"total_due": round(total, 2), "customer_count": len(customers), "customers": customers}
 
     if name == "get_best_margin_products":
         result = (
@@ -176,7 +160,7 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
         )
         products = result.data or []
         for p in products:
-            mrp = p.get("mrp") or 0
+            mrp  = p.get("mrp") or 0
             cost = p.get("cost_price") or 0
             p["margin_pct"] = round((mrp - cost) / mrp * 100, 1) if mrp > 0 else 0
         products.sort(key=lambda x: x["margin_pct"], reverse=True)
@@ -185,71 +169,67 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
     return {"error": f"Unknown tool: {name}"}
 
 
-# ── Gemini tool schema ─────────────────────────────────────────────────────────
+# ── Tool schema (OpenAI / Groq format) ────────────────────────────────────────
 
 _STORE_TOOLS = [
     {
-        "function_declarations": [
-            {
-                "name": "search_products",
-                "description": (
-                    "Search for products by name and return current stock level, MRP (selling price), "
-                    "cost price, margin %, and whether it is low on stock. "
-                    "Use this whenever the user asks about a specific product."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Product name or partial name, e.g. 'Amul', 'Tata Salt', 'atta'",
-                        }
-                    },
-                    "required": ["query"],
+        "type": "function",
+        "function": {
+            "name": "search_products",
+            "description": (
+                "Search for products by name and return current stock level, MRP (selling price), "
+                "cost price, margin %, and low-stock flag. "
+                "Call this whenever the user asks about a specific product."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Product name or partial name, e.g. 'Amul', 'Tata Salt', 'atta'"}
                 },
+                "required": ["query"],
             },
-            {
-                "name": "get_low_stock_items",
-                "description": (
-                    "Get all products that are out of stock or running low (below minimum stock level). "
-                    "Use this for reorder suggestions and low-stock alerts."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
-            {
-                "name": "get_sales_today",
-                "description": (
-                    "Get today's sales summary: total revenue, number of invoices, breakdown by payment mode "
-                    "(Cash/UPI/Credit). Use for daily earnings questions."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
-            {
-                "name": "get_monthly_sales",
-                "description": (
-                    "Get this month's sales summary: total revenue and invoice count. "
-                    "Use for monthly earnings or performance questions."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
-            {
-                "name": "get_udhar_summary",
-                "description": (
-                    "Get the udhar/credit summary — total amount owed by customers, "
-                    "number of customers with dues, and a ranked list of who owes how much."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
-            {
-                "name": "get_best_margin_products",
-                "description": (
-                    "Get the top products ranked by profit margin %. "
-                    "Use when the user asks which products are most profitable or what to push more."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
-        ]
-    }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_low_stock_items",
+            "description": "Get all products that are out of stock or running low (below minimum stock level). Use for reorder suggestions.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_sales_today",
+            "description": "Get today's sales summary: total revenue, invoice count, and breakdown by payment mode (Cash/UPI/Credit).",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_monthly_sales",
+            "description": "Get this month's sales summary: total revenue and invoice count.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_udhar_summary",
+            "description": "Get the udhar/credit summary — who owes money, total owed, and ranked list of customers with dues.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_best_margin_products",
+            "description": "Get the top products ranked by profit margin %. Use when user asks which products are most profitable.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
 
@@ -260,7 +240,7 @@ def _cloud_prompt(lang_name: str) -> str:
 
 LANGUAGE RULE: Reply ONLY in {lang_name}. Every word must be in {lang_name}. Never mix languages unless the language is English.
 
-You have tools to fetch LIVE data directly from the store's database. Use the right tool whenever the user asks about:
+You have tools to fetch LIVE data from this store's database. Use the right tool whenever the user asks about:
 • A specific product (stock, price, availability) → search_products
 • What is low on stock or out of stock, what to reorder → get_low_stock_items
 • Today's revenue, sales, invoices → get_sales_today
@@ -269,29 +249,29 @@ You have tools to fetch LIVE data directly from the store's database. Use the ri
 • Most profitable products, best margins → get_best_margin_products
 
 RESPONSE RULES:
-- Always use a tool to get fresh data before answering store-related questions
+- Always call a tool to get fresh data before answering store-related questions
 - Use ₹ symbol for prices. Use bullet points (•) for lists
 - Keep answers short and helpful. Use emojis where natural
-- If a product is not found, say so and suggest checking the spelling"""
+- If a product is not found, say so clearly"""
 
 
 def _local_prompt(lang_name: str, ctx: dict) -> str:
-    products       = ctx.get("all_products", ctx.get("products", []))
-    store_summary  = ctx.get("store_summary", {})
-    low_stock      = ctx.get("low_stock", [])
-    out_of_stock   = ctx.get("out_of_stock", [])
-    best_margins   = ctx.get("best_margins", [])
-    sales_analysis = ctx.get("sales_analysis")
-    udhar          = ctx.get("udhar")
+    products        = ctx.get("all_products", ctx.get("products", []))
+    store_summary   = ctx.get("store_summary", {})
+    low_stock       = ctx.get("low_stock", [])
+    out_of_stock    = ctx.get("out_of_stock", [])
+    best_margins    = ctx.get("best_margins", [])
+    sales_analysis  = ctx.get("sales_analysis")
+    udhar           = ctx.get("udhar")
     wastage_summary = ctx.get("wastage_summary")
 
     product_lines = "\n".join(
         f"- {p.get('name','?')} | stock:{p.get('stock',0)} {p.get('unit','')} "
-        f"| mrp:₹{p.get('mrp',0)} | cost:₹{p.get('cost',p.get('cost_price',0))}"
+        f"| mrp:₹{p.get('mrp',0)} | cost:₹{p.get('cost', p.get('cost_price', 0))}"
         for p in products[:200]
     )
-    low_names   = ", ".join(p.get("name", "?") for p in low_stock[:10]) or "None"
-    out_names   = ", ".join(p.get("name", "?") for p in out_of_stock[:5]) or "None"
+    low_names    = ", ".join(p.get("name", "?") for p in low_stock[:10])  or "None"
+    out_names    = ", ".join(p.get("name", "?") for p in out_of_stock[:5]) or "None"
     margin_lines = "\n".join(
         f"- {p.get('name','?')}: {p.get('margin', p.get('margin_pct', 0))}% margin"
         for p in best_margins[:10]
@@ -304,9 +284,8 @@ def _local_prompt(lang_name: str, ctx: dict) -> str:
             for c in (udhar.get("overdue_customers") or [])[:15]
         )
         udhar_section = (
-            f"\nUDHAAR (CREDIT DUE):\n"
-            f"Total due: ₹{udhar.get('total_due',0)} from {udhar.get('customer_count',0)} customers\n"
-            f"{lines}"
+            f"\nUDHAAR (CREDIT DUE):\nTotal due: ₹{udhar.get('total_due',0)} "
+            f"from {udhar.get('customer_count',0)} customers\n{lines}"
         )
 
     sales_section = ""
@@ -320,8 +299,8 @@ def _local_prompt(lang_name: str, ctx: dict) -> str:
     wastage_section = ""
     if wastage_summary:
         wastage_section = (
-            f"\nWASTAGE/LOSS:\n"
-            f"Total loss: ₹{wastage_summary.get('total_loss',0)} | Items: {wastage_summary.get('total_items',0)}\n"
+            f"\nWASTAGE/LOSS:\nTotal loss: ₹{wastage_summary.get('total_loss',0)} | "
+            f"Items: {wastage_summary.get('total_items',0)}\n"
             f"This month: ₹{wastage_summary.get('this_month',0)}"
         )
 
@@ -349,28 +328,8 @@ INSTRUCTIONS:
 - Use ONLY the data above to answer. Never say you don't have access to data.
 - For stock/price queries: search the product list by name (partial match is fine).
 - Report exact stock, MRP (selling price), cost, and margin when relevant.
-- Use ₹ symbol and bullet points (•) for lists.
-- Keep answers short and helpful. Use emojis where natural.
+- Use ₹ symbol and bullet points (•) for lists. Keep answers short. Use emojis where natural.
 - If a product isn't found, say so and suggest similar names."""
-
-
-# ── Gemini send with auto-retry on rate-limit ─────────────────────────────────
-
-def _is_rate_limited(exc: Exception) -> bool:
-    s = str(exc).lower()
-    return any(k in s for k in ("quota", "429", "resource_exhausted"))
-
-
-async def _send(session, message):
-    """Call session.send_message; on rate-limit wait 12 s and retry once."""
-    try:
-        return session.send_message(message)
-    except Exception as e:
-        if _is_rate_limited(e):
-            logger.warning("Gemini rate limit — retrying in 12 s")
-            await asyncio.sleep(12)
-            return session.send_message(message)
-        raise
 
 
 # ── Endpoint ───────────────────────────────────────────────────────────────────
@@ -380,78 +339,92 @@ async def chat(
     req: ChatRequest,
     vendor=Depends(_optional_vendor),
 ):
-    if not settings.gemini_api_key:
+    if not settings.groq_api_key:
         raise HTTPException(
             status_code=503,
-            detail="AI not configured. Add GEMINI_API_KEY to server environment.",
+            detail="AI not configured. Add GROQ_API_KEY to server environment.",
         )
 
     lang_name = LANG_NAMES.get(req.language, "English")
 
-    history = [
-        {
-            "role": "model" if h.role in ("model", "ai", "assistant") else "user",
-            "parts": [h.text],
-        }
-        for h in (req.history or [])
-    ]
+    # Build messages list (OpenAI / Groq format)
+    system_prompt = _cloud_prompt(lang_name) if vendor else _local_prompt(lang_name, req.store_context or {})
+    messages = [{"role": "system", "content": system_prompt}]
+
+    for h in (req.history or []):
+        role = "assistant" if h.role in ("model", "ai", "assistant") else "user"
+        messages.append({"role": role, "content": h.text})
+
+    messages.append({"role": "user", "content": req.message})
 
     try:
-        genai.configure(api_key=settings.gemini_api_key)
+        client = AsyncGroq(api_key=settings.groq_api_key)
 
         if vendor:
-            # ── Authenticated: function calling against live DB ────────────
-            model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                system_instruction=_cloud_prompt(lang_name),
+            # ── Authenticated: tool calling against live DB ────────────────
+            response = await client.chat.completions.create(
+                model=_MODEL,
+                messages=messages,
                 tools=_STORE_TOOLS,
+                tool_choice="auto",
+                max_tokens=1024,
             )
-            session = model.start_chat(history=history)
-            response = await _send(session, req.message)
 
-            # Agentic loop — Gemini may call multiple tools
+            # Agentic loop — model may call multiple tools
             for _ in range(5):
-                fn_calls = [
-                    p.function_call
-                    for p in response.parts
-                    if hasattr(p, "function_call") and p.function_call.name
-                ]
-                if not fn_calls:
+                msg = response.choices[0].message
+                if not msg.tool_calls:
                     break
 
-                tool_parts = []
-                for fc in fn_calls:
-                    result = _run_tool(fc.name, dict(fc.args), vendor["id"])
-                    logger.info("tool=%s vendor=%s result_keys=%s", fc.name, vendor["id"], list(result.keys()))
-                    tool_parts.append(
-                        genai.protos.Part(
-                            function_response=genai.protos.FunctionResponse(
-                                name=fc.name,
-                                response={"result": result},
-                            )
-                        )
-                    )
-                response = await _send(session, tool_parts)
+                # Append assistant's tool-call decision to history
+                messages.append({
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                        }
+                        for tc in msg.tool_calls
+                    ],
+                })
 
-            return {"response": response.text}
+                # Execute each tool and add result
+                for tc in msg.tool_calls:
+                    fn_args = json.loads(tc.function.arguments)
+                    result  = _run_tool(tc.function.name, fn_args, vendor["id"])
+                    logger.info("tool=%s vendor=%s result_keys=%s", tc.function.name, vendor["id"], list(result.keys()))
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": json.dumps(result, ensure_ascii=False),
+                    })
+
+                response = await client.chat.completions.create(
+                    model=_MODEL,
+                    messages=messages,
+                    max_tokens=1024,
+                )
+
+            return {"response": response.choices[0].message.content}
 
         else:
-            # ── Local/offline: context passed from frontend ────────────────
-            model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                system_instruction=_local_prompt(lang_name, req.store_context or {}),
+            # ── Local/offline: context from frontend, no tool calls ─────────
+            response = await client.chat.completions.create(
+                model=_MODEL,
+                messages=messages,
+                max_tokens=1024,
             )
-            session = model.start_chat(history=history)
-            response = await _send(session, req.message)
-            return {"response": response.text}
+            return {"response": response.choices[0].message.content}
 
     except Exception as e:
         err_str = str(e).lower()
-        logger.error("Gemini error [%s]: %s", type(e).__name__, e)
-        if any(k in err_str for k in ("api_key", "api key", "401", "403", "unauthenticated", "permission")):
-            raise HTTPException(status_code=503, detail="Invalid Gemini API key. Check GEMINI_API_KEY in Railway.")
-        if any(k in err_str for k in ("quota", "429", "resource_exhausted")):
-            raise HTTPException(status_code=429, detail="Too many requests — please wait 1 minute and try again.")
-        if any(k in err_str for k in ("not found", "404")):
-            raise HTTPException(status_code=503, detail="Gemini model not available. Contact support.")
+        logger.error("Groq error [%s]: %s", type(e).__name__, e)
+        if any(k in err_str for k in ("api_key", "api key", "401", "403", "authentication", "invalid_api_key", "unauthenticated")):
+            raise HTTPException(status_code=503, detail="Invalid Groq API key. Check GROQ_API_KEY in Railway.")
+        if any(k in err_str for k in ("rate_limit", "429", "too_many_requests", "quota")):
+            raise HTTPException(status_code=429, detail="Too many requests — please wait a moment and try again.")
+        if any(k in err_str for k in ("not found", "404", "model_not_found")):
+            raise HTTPException(status_code=503, detail="AI model not available. Contact support.")
         raise HTTPException(status_code=500, detail=f"AI error: {type(e).__name__}")

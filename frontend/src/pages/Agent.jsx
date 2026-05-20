@@ -240,7 +240,7 @@ async function buildStoreContext(userQuestion = "") {
   return ctx
 }
 
-// ── Call AI via backend (Gemini — free) ─────────────────
+// ── Call AI via backend (Groq Llama 3.3 — free) ─────────
 async function askAI(messages, storeContext, lang = "en-IN") {
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8000"
   const token   = getToken()   // uses "dk_access" key — same as the rest of the app
@@ -538,16 +538,16 @@ Ask me anything!`,
       addMsg("ai", answer)
     } catch(e) {
       const msg = e.message || ""
-      const errMsg = msg.includes("Invalid Gemini") || msg.includes("API key")
-        ? "Invalid Gemini API key. Go to Railway → Variables → check GEMINI_API_KEY."
-        : msg.includes("quota") || msg.includes("429")
-        ? "Too many requests — please wait 1 minute and try again."
+      const errMsg = msg.includes("Invalid Groq") || msg.includes("API key")
+        ? "Invalid Groq API key. Go to Railway → Variables → check GROQ_API_KEY."
+        : msg.includes("quota") || msg.includes("429") || msg.includes("rate")
+        ? "Too many requests — please wait a moment and try again."
         : msg.includes("AI not configured") || msg.includes("not configured")
-        ? "GEMINI_API_KEY not set. Add it in Railway → Variables."
+        ? "GROQ_API_KEY not set. Add it in Railway → Variables."
         : msg.includes("401") || msg.includes("Session expired")
         ? "Session expired. Please log in again."
         : msg.includes("AI error:")
-        ? msg   // show the specific error type
+        ? msg
         : "Couldn't connect to AI. Check internet or try again."
       setError(errMsg)
       addMsg("ai", `⚠️ ${errMsg}`)
@@ -750,7 +750,7 @@ Ask me anything!`,
           </button>
         </div>
         <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:6, textAlign:"center" }}>
-          Powered by Gemini AI · Reads your live inventory data
+          Powered by Groq AI (Llama 3.3) · Reads your live inventory data
         </div>
       </div>
     </div>

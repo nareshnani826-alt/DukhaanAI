@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
     jwt_refresh_token_expire_days: int = 30
 
-    # Gemini AI (free tier: 1M tokens/day)
-    gemini_api_key: str = ""
+    # Groq AI (free tier: 30 RPM, 14,400 req/day — Llama 3.3 70B)
+    groq_api_key: str = ""
 
     # AssemblyAI (speech-to-text for voice assistant & chatbot)
     assemblyai_api_key: str = ""
