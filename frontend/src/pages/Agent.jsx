@@ -513,13 +513,17 @@ Ask me anything!`,
       addMsg("ai", answer)
     } catch(e) {
       const msg = e.message || ""
-      const errMsg = msg.includes("AI not configured") || msg.includes("503")
-        ? "AI not configured. Add GEMINI_API_KEY to server environment variables."
-        : msg.includes("401") || msg.includes("403")
+      const errMsg = msg.includes("Invalid Gemini") || msg.includes("API key")
+        ? "Invalid Gemini API key. Go to Railway → Variables → check GEMINI_API_KEY."
+        : msg.includes("quota") || msg.includes("429")
+        ? "Daily AI quota exceeded. Try again tomorrow (free tier: 1M tokens/day)."
+        : msg.includes("AI not configured") || msg.includes("not configured")
+        ? "GEMINI_API_KEY not set. Add it in Railway → Variables."
+        : msg.includes("401") || msg.includes("Session expired")
         ? "Session expired. Please log in again."
-        : msg.includes("429")
-        ? "Too many requests. Please wait a moment and try again."
-        : "Couldn't connect to AI. Check your internet connection."
+        : msg.includes("AI error:")
+        ? msg   // show the specific error type
+        : "Couldn't connect to AI. Check internet or try again."
       setError(errMsg)
       addMsg("ai", `⚠️ ${errMsg}`)
     } finally {

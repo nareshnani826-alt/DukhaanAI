@@ -150,12 +150,6 @@ INSTRUCTIONS:
 - Keep answers short and helpful. Use emojis where natural.
 - If a product isn't found, say so and suggest similar names."""
 
-    genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=system_prompt,
-    )
-
     # Build conversation history for multi-turn support
     history = []
     for h in (req.history or []):
@@ -163,9 +157,21 @@ INSTRUCTIONS:
         history.append({"role": role, "parts": [h.text]})
 
     try:
+        genai.configure(api_key=settings.gemini_api_key)
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            system_instruction=system_prompt,
+        )
         chat_session = model.start_chat(history=history)
         response = chat_session.send_message(req.message)
         return {"response": response.text}
     except Exception as e:
-        logger.error("Gemini chat error: %s", e)
-        raise HTTPException(status_code=500, detail="Chat service temporarily unavailable")
+        err_str = str(e).lower()
+        logger.error("Gemini error [%s]: %s", type(e).__name__, e)
+        if "api_key" in err_str or "api key" in err_str or "401" in err_str or "403" in err_str or "unauthenticated" in err_str or "permission" in err_str:
+            raise HTTPException(status_code=503, detail="Invalid Gemini API key. Check GEMINI_API_KEY in Railway.")
+        if "quota" in err_str or "429" in err_str or "resource_exhausted" in err_str:
+            raise HTTPException(status_code=429, detail="Gemini daily quota exceeded. Try again tomorrow.")
+        if "not found" in err_str or "404" in err_str:
+            raise HTTPException(status_code=503, detail="Gemini model not available. Contact support.")
+        raise HTTPException(status_code=500, detail=f"AI error: {type(e).__name__}")
