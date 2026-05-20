@@ -37,7 +37,8 @@ const MOB_TABS = [
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
-// ── Quick chips per language ──────────────────────────────
+const API = import.meta.env.VITE_API_URL
+
 const CHIPS_BY_LANG = {
   "en-IN": ["Check stock", "Today's sales", "Low stock", "Udhaar dues"],
   "te-IN": ["స్టాక్ చెక్", "ఈరోజు అమ్మకాలు", "తక్కువ స్టాక్", "ఉధార్ బాకీలు"],
@@ -51,21 +52,76 @@ const CHIPS_BY_LANG = {
   "pa-IN": ["ਸਟਾਕ ਚੈੱਕ", "ਅੱਜ ਦੀ ਵਿਕਰੀ", "ਘੱਟ ਸਟਾਕ", "ਉਧਾਰ ਬਕਾਇਆ"],
 }
 
-const API = import.meta.env.VITE_API_URL
-
 function timestamp() {
   return new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })
 }
-function needsUdhar(q)   { return /udh|khata|due|baki|bakaya|baaki|கடன்|ఉధార్|उधार/i.test(q) }
-function needsWastage(q) { return /wast|expire|damage|nashan|waste/i.test(q) }
 
-// ── Floating AI Chat Widget ───────────────────────────────
+// ── Rule-based smart reply (no API needed) ────────────────────
+function generateReply(q, data, lang) {
+  const { products = [], sales = {}, udhar_customers = [] } = data
+  const query = q.toLowerCase()
+
+  const low   = products.filter(p => parseFloat(p.stock||0) <= parseFloat(p.min_stock||0) && parseFloat(p.stock||0) > 0)
+  const out   = products.filter(p => parseFloat(p.stock||0) === 0)
+  const today = parseFloat(sales.today_total || 0)
+  const month = parseFloat(sales.month_total || 0)
+  const totalDue = udhar_customers.reduce((s,c) => s + parseFloat(c.total_due||0), 0)
+
+  // Stock check
+  if (/stock|inventory|items|products|వస్తువు|స్టాక్|स्टॉक|สต็อก|ಸ್ಟಾಕ್|സ്റ്റോക്ക്/.test(query)) {
+    if (/low|less|తక్కువ|कम|குறைந்த|ಕಡಿಮೆ|കുറഞ്ഞ/.test(query)) {
+      if (low.length === 0) return lang === "te-IN" ? "అన్ని వస్తువులు తగినంత స్టాక్‌లో ఉన్నాయి! ✅" : "All items have sufficient stock! ✅"
+      return `⚠️ Low stock items (${low.length}):\n` + low.slice(0,8).map(p => `• ${p.name} — ${p.stock} ${p.unit||""}`).join("\n")
+    }
+    if (/out|zero|అయిపో|खत्म|தீர்ந்த/.test(query)) {
+      if (out.length === 0) return "No items are out of stock! ✅"
+      return `❌ Out of stock (${out.length}):\n` + out.slice(0,8).map(p => `• ${p.name}`).join("\n")
+    }
+    return `📦 Stock Summary:\n• Total products: ${products.length}\n• Low stock: ${low.length}\n• Out of stock: ${out.length}\n• In stock: ${products.length - out.length}`
+  }
+
+  // Sales
+  if (/sale|sell|అమ్మకాలు|बिक्री|விற்பனை|ಮಾರಾಟ|വിൽപ്പന/.test(query)) {
+    return `💰 Sales Summary:\n• Today: ₹${today.toFixed(2)}\n• This month: ₹${month.toFixed(2)}`
+  }
+
+  // Udhaar
+  if (/udh|khata|due|బాకీ|बकाया|நிலுவை|ಬಾಕಿ|ബാക്കി/.test(query)) {
+    if (udhar_customers.length === 0) return "No udhaar customers found."
+    const top = udhar_customers.filter(c => parseFloat(c.total_due||0) > 0).slice(0,5)
+    return `🧾 Udhaar Dues:\n• Total due: ₹${totalDue.toFixed(2)}\n• Customers: ${udhar_customers.length}\n\nTop dues:\n` +
+      top.map(c => `• ${c.name} — ₹${parseFloat(c.total_due).toFixed(2)}`).join("\n")
+  }
+
+  // Top sellers
+  if (/top|best|seller|popular|best/.test(query)) {
+    const sorted = [...products].sort((a,b) => parseFloat(b.price||0) - parseFloat(a.price||0)).slice(0,5)
+    return `🏆 Top Products by Price:\n` + sorted.map(p => `• ${p.name} — ₹${p.price}`).join("\n")
+  }
+
+  // Search specific product
+  const found = products.filter(p => p.name?.toLowerCase().includes(query))
+  if (found.length > 0) {
+    return `🔍 Found ${found.length} product(s):\n` +
+      found.slice(0,5).map(p => `• ${p.name}\n  Stock: ${p.stock} ${p.unit||""} | Price: ₹${p.price}`).join("\n")
+  }
+
+  // Default
+  const defaults = {
+    "te-IN": "నేను అర్థం చేసుకోలేదు. దయచేసి స్టాక్, అమ్మకాలు, లేదా ఉధార్ గురించి అడగండి.",
+    "hi-IN": "मुझे समझ नहीं आया। कृपया स्टॉक, बिक्री या उधार के बारे में पूछें।",
+    "en-IN": "I can help with:\n• Stock levels\n• Today's sales\n• Low stock items\n• Udhaar dues\n• Search a product by name",
+  }
+  return defaults[lang] || defaults["en-IN"]
+}
+
+// ── AIChatWidget ──────────────────────────────────────────────
 function AIChatWidget() {
   const [open, setOpen]           = useState(false)
   const [lang, setLang]           = useState(getSavedLang)
   const [messages, setMessages]   = useState([
     { id:1, role:"assistant",
-      text:"నమస్కారం! 👋 I'm your Shop Assistant.\nAsk me anything about stock, sales, or udhaar!",
+      text:"నమస్కారం! 👋 I'm your Shop Assistant.\nAsk me about stock, sales, or udhaar!",
       time:timestamp() }
   ])
   const [input, setInput]         = useState("")
@@ -82,27 +138,25 @@ function AIChatWidget() {
     if (open) setTimeout(() => inputRef.current?.focus(), 100)
   }, [open])
 
-  async function fetchStoreContext(question) {
+  async function fetchStoreData(question) {
     const token   = getToken()
+    if (!token) return {}
     const headers = { Authorization:`Bearer ${token}` }
-    const ctx     = {}
+    const data    = {}
     try {
       const [prodRes, salesRes] = await Promise.all([
         fetch(`${API}/api/products?limit=1000`, { headers }),
         fetch(`${API}/api/sales/summary`, { headers }),
       ])
-      ctx.products = prodRes.ok  ? await prodRes.json()  : []
-      ctx.sales    = salesRes.ok ? await salesRes.json() : {}
-      if (needsUdhar(question)) {
+      data.products = prodRes.ok  ? await prodRes.json()  : []
+      data.sales    = salesRes.ok ? await salesRes.json() : {}
+
+      if (/udh|khata|due|బాకీ|बकाया|நிலுவை|ಬಾಕಿ|ബാക്കി/.test(question.toLowerCase())) {
         const ucRes = await fetch(`${API}/api/udhar/customers`, { headers })
-        ctx.udhar_customers = ucRes.ok ? await ucRes.json() : []
+        data.udhar_customers = ucRes.ok ? await ucRes.json() : []
       }
-      if (needsWastage(question)) {
-        const wRes  = await fetch(`${API}/api/wastage?limit=50`, { headers })
-        ctx.wastage = wRes.ok ? await wRes.json() : []
-      }
-    } catch(e) { console.error("ctx fetch:", e) }
-    return ctx
+    } catch(e) { console.error("fetch error:", e) }
+    return data
   }
 
   async function send(text) {
@@ -112,22 +166,17 @@ function AIChatWidget() {
     setChipsUsed(true)
     setMessages(p => [...p, { id:Date.now(), role:"user", text:q, time:timestamp() }])
     setLoading(true)
+
     try {
-      const storeContext = await fetchStoreContext(q)
-      const token        = getToken()
-      const res = await fetch(`${API}/api/chat`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
-        body:JSON.stringify({ message:q, language:lang, store_context:storeContext }),
-      })
-      const data  = res.ok ? await res.json() : null
-      const reply = data?.response || data?.reply || data?.message
-        || "Sorry, couldn't get a response. Please try again."
-      setMessages(p => [...p, { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }])
+      const data  = await fetchStoreData(q)
+      const reply = generateReply(q, data, lang)
+      setTimeout(() => {
+        setMessages(p => [...p, { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }])
+        setLoading(false)
+      }, 600)
     } catch(e) {
       setMessages(p => [...p, { id:Date.now()+1, role:"assistant",
-        text:"⚠️ Connection error. Please try again.", time:timestamp() }])
-    } finally {
+        text:"⚠️ Could not load store data. Please try again.", time:timestamp() }])
       setLoading(false)
     }
   }
@@ -145,38 +194,31 @@ function AIChatWidget() {
 
   return (
     <>
-      {/* ── Popup chat window ── */}
       {open && (
         <div style={{
           position:"fixed", bottom:90, right:24, zIndex:200,
-          width:340, height:480,
-          borderRadius:18,
+          width:320, height:460, borderRadius:18,
           background:"var(--bg1, #f7f4f2)",
           boxShadow:"0 8px 40px rgba(0,0,0,0.18)",
           border:"1px solid var(--rule, #eee)",
-          display:"flex", flexDirection:"column",
-          overflow:"hidden",
+          display:"flex", flexDirection:"column", overflow:"hidden",
           animation:"chatPop 0.2s ease-out",
         }}>
           {/* Header */}
-          <div style={{ background:"var(--saffron, #e87722)", padding:"12px 14px",
-            display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <div style={{ width:34, height:34, borderRadius:"50%",
+          <div style={{ background:"var(--saffron, #e87722)", padding:"11px 13px",
+            display:"flex", alignItems:"center", gap:9, flexShrink:0 }}>
+            <div style={{ width:32, height:32, borderRadius:"50%", flexShrink:0,
               background:"rgba(255,255,255,0.2)", border:"2px solid rgba(255,255,255,0.35)",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, flexShrink:0 }}>
-              🤖
-            </div>
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>🤖</div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ color:"white", fontWeight:700, fontSize:13, lineHeight:1 }}>Shop Assistant</div>
-              <div style={{ color:"rgba(255,255,255,0.85)", fontSize:10, marginTop:2,
-                display:"flex", alignItems:"center", gap:4 }}>
+              <div style={{ color:"white", fontWeight:700, fontSize:13 }}>Shop Assistant</div>
+              <div style={{ color:"rgba(255,255,255,0.85)", fontSize:10, display:"flex", alignItems:"center", gap:4 }}>
                 <span style={{ width:6, height:6, borderRadius:"50%", background:"#a3f0c4", display:"inline-block" }}/>
-                Online · AI powered
+                Live store data
               </div>
             </div>
-            {/* Language */}
             <select value={lang} onChange={e => setLang(e.target.value)}
-              style={{ fontSize:10, borderRadius:20, padding:"3px 8px", border:"none",
+              style={{ fontSize:10, borderRadius:20, padding:"3px 7px", border:"none",
                 background:"rgba(255,255,255,0.9)", color:"var(--saffron, #e87722)",
                 outline:"none", cursor:"pointer", fontWeight:600 }}>
               <option value="en-IN">EN</option>
@@ -190,55 +232,45 @@ function AIChatWidget() {
               <option value="gu-IN">ગ</option>
               <option value="pa-IN">ਪ</option>
             </select>
-            {/* Close */}
             <button onClick={() => setOpen(false)}
               style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:"50%",
-                width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center",
-                cursor:"pointer", color:"white", fontSize:14, flexShrink:0 }}>
-              ✕
-            </button>
+                width:24, height:24, display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", color:"white", fontSize:13, flexShrink:0 }}>✕</button>
           </div>
 
           {/* Messages */}
-          <div ref={msgsRef} style={{ flex:1, overflowY:"auto", padding:"12px 10px",
+          <div ref={msgsRef} style={{ flex:1, overflowY:"auto", padding:"10px 10px",
             display:"flex", flexDirection:"column", gap:8,
             background:"var(--bg1, #f7f4f2)", scrollbarWidth:"none" }}>
-
             {messages.map(msg => (
               <div key={msg.id} style={{ display:"flex", alignItems:"flex-end", gap:6,
                 flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
                 {msg.role === "assistant" && (
-                  <div style={{ width:26, height:26, borderRadius:"50%", flexShrink:0,
+                  <div style={{ width:24, height:24, borderRadius:"50%", flexShrink:0,
                     background:"var(--saffron, #e87722)", display:"flex",
-                    alignItems:"center", justifyContent:"center", fontSize:13 }}>🤖</div>
+                    alignItems:"center", justifyContent:"center", fontSize:12 }}>🤖</div>
                 )}
-                <div style={{ maxWidth:"78%" }}>
+                <div style={{ maxWidth:"80%" }}>
                   <div style={{
-                    padding:"9px 12px", fontSize:12, lineHeight:1.5,
-                    whiteSpace:"pre-wrap",
-                    borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                    padding:"8px 11px", fontSize:12, lineHeight:1.55, whiteSpace:"pre-wrap",
+                    borderRadius: msg.role === "user" ? "13px 13px 4px 13px" : "13px 13px 13px 4px",
                     background: msg.role === "user" ? "var(--saffron, #e87722)" : "var(--bg0, #fff)",
                     color: msg.role === "user" ? "white" : "var(--ink, #1a1a1a)",
                     border: msg.role === "assistant" ? "0.5px solid var(--rule, #eee)" : "none",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
-                  }}>
-                    {msg.text}
-                  </div>
+                    boxShadow:"0 1px 3px rgba(0,0,0,0.06)",
+                  }}>{msg.text}</div>
                   <div style={{ fontSize:9, color:"var(--ink-faint, #bbb)", marginTop:2,
-                    textAlign: msg.role === "user" ? "right" : "left" }}>
-                    {msg.time}
-                  </div>
+                    textAlign: msg.role === "user" ? "right" : "left" }}>{msg.time}</div>
                 </div>
               </div>
             ))}
 
-            {/* Typing dots */}
             {loading && (
               <div style={{ display:"flex", alignItems:"flex-end", gap:6 }}>
-                <div style={{ width:26, height:26, borderRadius:"50%", flexShrink:0,
+                <div style={{ width:24, height:24, borderRadius:"50%", flexShrink:0,
                   background:"var(--saffron, #e87722)", display:"flex",
-                  alignItems:"center", justifyContent:"center", fontSize:13 }}>🤖</div>
-                <div style={{ padding:"10px 14px", borderRadius:"14px 14px 14px 4px",
+                  alignItems:"center", justifyContent:"center", fontSize:12 }}>🤖</div>
+                <div style={{ padding:"10px 13px", borderRadius:"13px 13px 13px 4px",
                   background:"var(--bg0, #fff)", border:"0.5px solid var(--rule, #eee)",
                   display:"flex", gap:4, alignItems:"center" }}>
                   {[0,1,2].map(i => (
@@ -251,13 +283,12 @@ function AIChatWidget() {
               </div>
             )}
 
-            {/* Quick chips */}
             {!chipsUsed && (
               <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:2 }}>
                 {chips.map(chip => (
                   <button key={chip} onClick={() => send(chip)}
-                    style={{ fontSize:11, fontWeight:500, borderRadius:20,
-                      padding:"5px 11px", cursor:"pointer", transition:"all 0.15s",
+                    style={{ fontSize:11, fontWeight:500, borderRadius:20, padding:"5px 11px",
+                      cursor:"pointer", transition:"all 0.15s",
                       background:"var(--bg0, white)",
                       border:"1.5px solid var(--saffron, #e87722)",
                       color:"var(--saffron, #e87722)" }}
@@ -275,18 +306,18 @@ function AIChatWidget() {
             padding:"8px 10px", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
             <div style={{ flex:1, display:"flex", alignItems:"center", gap:6,
               background:"var(--bg1, #f7f4f2)", borderRadius:20,
-              border:"0.5px solid var(--rule, #eee)", padding:"0 10px", minHeight:36 }}>
+              border:"0.5px solid var(--rule, #eee)", padding:"0 10px", minHeight:34 }}>
               <input ref={inputRef} type="text" value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
                 placeholder="Type your message..."
                 disabled={loading}
                 style={{ flex:1, border:"none", outline:"none", background:"transparent",
-                  fontSize:12, color:"var(--ink, #1a1a1a)", fontFamily:"inherit", padding:"7px 0" }}/>
+                  fontSize:12, color:"var(--ink, #1a1a1a)", fontFamily:"inherit", padding:"6px 0" }}/>
               <button onClick={startMic} aria-label="Voice input"
                 style={{ background:"none", border:"none", cursor:"pointer", padding:"2px 0",
                   color:"var(--saffron, #e87722)", display:"flex", alignItems:"center", flexShrink:0 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
                   fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="9" y="2" width="6" height="11" rx="3"/>
                   <path d="M5 10a7 7 0 0 0 14 0"/>
@@ -296,45 +327,40 @@ function AIChatWidget() {
               </button>
             </div>
             <button onClick={() => send()} disabled={loading || !input.trim()} aria-label="Send"
-              style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, border:"none",
+              style={{ width:32, height:32, borderRadius:"50%", flexShrink:0, border:"none",
                 background:"var(--saffron, #e87722)", color:"white",
                 display:"flex", alignItems:"center", justifyContent:"center",
                 cursor: loading || !input.trim() ? "not-allowed" : "pointer",
                 opacity: loading || !input.trim() ? 0.5 : 1 }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"/>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"/>
               </svg>
             </button>
           </div>
-
           <div style={{ textAlign:"center", fontSize:9, color:"var(--ink-faint, #ccc)",
-            padding:"4px", background:"var(--bg0, white)" }}>
-            Powered by Claude AI
+            padding:"3px", background:"var(--bg0, white)" }}>
+            Reads your live store data
           </div>
         </div>
       )}
 
-      {/* ── Floating AI bubble button ── */}
-      <button onClick={() => setOpen(o => !o)}
-        title="AI Assistant"
+      {/* Floating bubble */}
+      <button onClick={() => setOpen(o => !o)} title="AI Assistant"
         style={{ position:"fixed", bottom:24, right:24, zIndex:201,
           width:52, height:52, borderRadius:"50%",
-          background: open
-            ? "var(--ink, #333)"
-            : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
+          background: open ? "var(--ink, #333)" : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
           border:"3px solid var(--bg1, #fff)",
           boxShadow:"0 4px 20px rgba(232,119,34,0.45)",
           display:"flex", alignItems:"center", justifyContent:"center",
           cursor:"pointer", transition:"all 0.2s" }}
-        onMouseEnter={e => { e.currentTarget.style.transform="scale(1.1)" }}
-        onMouseLeave={e => { e.currentTarget.style.transform="scale(1)" }}>
+        onMouseEnter={e => e.currentTarget.style.transform="scale(1.1)"}
+        onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
         {open ? (
           <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2.5"
             strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         ) : (
           <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2"
@@ -351,14 +377,14 @@ function AIChatWidget() {
         }
         @keyframes dukaanTyping {
           0%,80%,100% { transform:translateY(0); opacity:0.3; }
-          40%          { transform:translateY(-4px); opacity:1; }
+          40% { transform:translateY(-4px); opacity:1; }
         }
       `}</style>
     </>
   )
 }
 
-// ── Main Layout ───────────────────────────────────────────
+// ── Main Layout ───────────────────────────────────────────────
 export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, logout } = useAuth()
   const { planLabel } = usePlan()
@@ -384,7 +410,6 @@ export default function Layout({ children }) {
     <div className="app-shell">
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
 
-      {/* ── Sidebar ─────────────────────────────────── */}
       <aside className="app-sidebar">
         <div className="sidebar-logo">
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -415,7 +440,6 @@ export default function Layout({ children }) {
         <nav className="sidebar-nav">
           <div style={{ fontSize:9, fontWeight:700, color:"var(--ink-faint)",
             letterSpacing:"1.5px", padding:"10px 16px 4px", textTransform:"uppercase" }}>Menu</div>
-
           {NAV.map(nav => {
             const active = isActive(nav)
             const isOpen = expanded === nav.label
@@ -498,7 +522,6 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* ── Main ─────────────────────────────────────── */}
       <main className="app-main">
         <div className="mobile-header">
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -532,7 +555,6 @@ export default function Layout({ children }) {
         {children}
       </main>
 
-      {/* ── Mobile bottom nav ────────────────────────── */}
       <nav className="mobile-bottom-nav" style={{
         position:"fixed", bottom:0, left:0, right:0, zIndex:100,
         background:"var(--bg1)", borderTop:"1px solid var(--rule)",
@@ -567,7 +589,7 @@ export default function Layout({ children }) {
         })}
       </nav>
 
-      {/* ── Floating mic — moved left to make room for chat bubble ── */}
+      {/* Floating mic — moved left */}
       <button onClick={() => navigate("/voice")} title="Voice Entry"
         style={{ position:"fixed", bottom:24, right:86, zIndex:50,
           width:52, height:52, borderRadius:"50%",
@@ -587,7 +609,7 @@ export default function Layout({ children }) {
         </svg>
       </button>
 
-      {/* ── Floating AI chat bubble ── */}
+      {/* Floating AI chat bubble */}
       <AIChatWidget />
     </div>
   )
