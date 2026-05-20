@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import date
 import google.generativeai as genai
@@ -353,6 +354,25 @@ INSTRUCTIONS:
 - If a product isn't found, say so and suggest similar names."""
 
 
+# ── Gemini send with auto-retry on rate-limit ─────────────────────────────────
+
+def _is_rate_limited(exc: Exception) -> bool:
+    s = str(exc).lower()
+    return any(k in s for k in ("quota", "429", "resource_exhausted"))
+
+
+async def _send(session, message):
+    """Call session.send_message; on rate-limit wait 12 s and retry once."""
+    try:
+        return session.send_message(message)
+    except Exception as e:
+        if _is_rate_limited(e):
+            logger.warning("Gemini rate limit — retrying in 12 s")
+            await asyncio.sleep(12)
+            return session.send_message(message)
+        raise
+
+
 # ── Endpoint ───────────────────────────────────────────────────────────────────
 
 @router.post("")
@@ -387,7 +407,7 @@ async def chat(
                 tools=_STORE_TOOLS,
             )
             session = model.start_chat(history=history)
-            response = session.send_message(req.message)
+            response = await _send(session, req.message)
 
             # Agentic loop — Gemini may call multiple tools
             for _ in range(5):
@@ -411,7 +431,7 @@ async def chat(
                             )
                         )
                     )
-                response = session.send_message(tool_parts)
+                response = await _send(session, tool_parts)
 
             return {"response": response.text}
 
@@ -422,7 +442,7 @@ async def chat(
                 system_instruction=_local_prompt(lang_name, req.store_context or {}),
             )
             session = model.start_chat(history=history)
-            response = session.send_message(req.message)
+            response = await _send(session, req.message)
             return {"response": response.text}
 
     except Exception as e:
