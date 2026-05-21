@@ -110,8 +110,8 @@ async function localReply(q, token) {
       ? Object.entries(today.by_payment_mode).map(([k,v]) => `${k}: ₹${v}`).join(", ")
       : "N/A"
     return `💰 Sales Summary:
-• Today: ₹${today.total_revenue||today.today_total||0} (${today.invoice_count||0} invoices)
-• This month: ₹${month.total_revenue||month.month_total||0} (${month.invoice_count||0} invoices)
+• Today: ₹${today.total||today.total_revenue||0} (${today.count||today.invoice_count||0} sales)
+• This month: ₹${month.total_revenue||0} (${month.transaction_count||month.invoice_count||0} sales)
 • Payment modes today: ${modes}`
   }
 
