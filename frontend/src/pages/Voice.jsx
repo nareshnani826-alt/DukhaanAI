@@ -6,6 +6,17 @@ import { t, getSavedLang } from "../voice/i18n.js"
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 
+function toBaseUnit(qty, spokenUnit, productUnit) {
+  const su = (spokenUnit  || "").toLowerCase()
+  const pu = (productUnit || "").toLowerCase()
+  if (su === pu) return qty
+  if (su === "g"  && pu === "kg")    return qty / 1000
+  if (su === "kg" && pu === "g")     return qty * 1000
+  if (su === "ml" && pu === "litre") return qty / 1000
+  if (su === "litre" && pu === "ml") return qty * 1000
+  return qty
+}
+
 export default function Voice() {
   const { vendor } = useAuth()
   const [billItems, setBillItems] = useState(() => {
@@ -45,8 +56,10 @@ export default function Voice() {
       const name      = product?.name || productName || "Unknown item"
       const mrp       = product?.mrp  || price || 0
       const gst       = product?.gst_percent || 0
-      const id        = product?.id   || ("voice-" + Date.now())
-      const lineTotal = Math.round(mrp * qty * 100) / 100
+      const id          = product?.id   || ("voice-" + Date.now())
+      const productUnit = product?.unit || null
+      const billedQty   = toBaseUnit(qty, unit, productUnit)
+      const lineTotal   = Math.round(mrp * billedQty * 100) / 100
       setInvoice(null) // clear previous invoice
       setBillItems(items => {
         const existing = items.findIndex(i => i.id === id)
@@ -54,7 +67,7 @@ export default function Voice() {
           const updated = [...items]
           updated[existing] = {
             ...updated[existing],
-            qty: updated[existing].qty + qty,
+            qty: updated[existing].qty + billedQty,
             lineTotal: Math.round((updated[existing].lineTotal + lineTotal) * 100) / 100,
           }
           return updated
