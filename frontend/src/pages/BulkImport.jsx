@@ -3,6 +3,8 @@ import { Products } from "../sync/db.js"
 import { CATALOG, CATEGORIES, getCatalogByCategory } from "../data/productCatalog.js"
 import { CommunityCatalog } from "../sync/db.js"
 import { fuzzySearch } from "../data/productCatalog.js"
+import InvoiceScanTab  from "./InvoiceScanTab.jsx"
+import BarcodeScannerTab from "./BarcodeScannerTab.jsx"
 
 const INR = n => "₹" + (n||0).toLocaleString("en-IN")
 
@@ -34,7 +36,7 @@ function parseCSV(text) {
 }
 
 export default function BulkImport() {
-  const [tab,        setTab]        = useState("catalog") // catalog | excel
+  const [tab,        setTab]        = useState("catalog") // catalog | excel | scan | barcode
   const [category,   setCategory]   = useState("All")
   const [search,     setSearch]     = useState("")
   const [selected,   setSelected]   = useState(new Set())
@@ -265,23 +267,39 @@ export default function BulkImport() {
 
       {/* Tabs */}
       <div style={{ background:"var(--bg1)", borderBottom:"1px solid var(--rule)",
-        display:"flex", padding:"0 24px", flexShrink:0 }}>
+        display:"flex", padding:"0 12px", flexShrink:0, overflowX:"auto" }}>
         {[
-          { id:"catalog", label:"📋 Product Catalog", sub:"200+ Indian grocery products" },
-          { id:"excel",   label:"📊 Import from Excel/CSV", sub:"Upload your existing price list" },
+          { id:"scan",    label:"📸 AI Invoice Scan",      sub:"Photo → auto stock update" },
+          { id:"barcode", label:"📱 Barcode Scanner",       sub:"Scan product barcode" },
+          { id:"catalog", label:"📋 Product Catalog",       sub:"200+ grocery products" },
+          { id:"excel",   label:"📊 Excel / CSV Import",   sub:"Upload your price list" },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ padding:"12px 20px 10px", border:"none", background:"none",
-              cursor:"pointer", textAlign:"left", marginRight:4,
+            style={{ padding:"12px 16px 10px", border:"none", background:"none",
+              cursor:"pointer", textAlign:"left", marginRight:2, flexShrink:0,
               borderBottom: tab===t.id ? "2px solid #1D9E75" : "2px solid transparent" }}>
-            <div style={{ fontSize:12, fontWeight:600,
+            <div style={{ fontSize:11, fontWeight:600,
               color: tab===t.id ? "var(--jade)" : "var(--ink-dim)" }}>
               {t.label}
             </div>
-            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>{t.sub}</div>
+            <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:1 }}>{t.sub}</div>
           </button>
         ))}
       </div>
+
+      {/* ── AI Invoice Scan Tab ────────────────────────── */}
+      {tab === "scan" && (
+        <div style={{ flex:1, overflowY:"auto" }}>
+          <InvoiceScanTab />
+        </div>
+      )}
+
+      {/* ── Barcode Scanner Tab ────────────────────────── */}
+      {tab === "barcode" && (
+        <div style={{ flex:1, overflowY:"auto" }}>
+          <BarcodeScannerTab />
+        </div>
+      )}
 
       {/* ── Catalog Tab ────────────────────────────────── */}
       {tab === "catalog" && (

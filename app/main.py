@@ -28,6 +28,7 @@ from app.routers import (
     voice,
     insights,
     learning,
+    invoice_scan,
 )
 
 _is_dev = settings.app_env != "production"
@@ -97,6 +98,7 @@ app.include_router(chat.router)
 app.include_router(assemblyai.router)
 app.include_router(insights.router)
 app.include_router(learning.router)
+app.include_router(invoice_scan.router)
 app.include_router(
     voice.router,
     prefix="/api/voice",
