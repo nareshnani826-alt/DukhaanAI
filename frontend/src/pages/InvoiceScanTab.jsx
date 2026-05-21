@@ -48,20 +48,28 @@ export default function InvoiceScanTab() {
 
     if (isImage) {
       try {
-        const { createWorker } = await import("tesseract.js")
-        const worker = await createWorker("eng", 1, {
-          logger: m => {
-            if (m.status === "recognizing text") {
-              setOcrProgress(Math.round(m.progress * 65))  // 0 → 65%
-            }
-          },
-        })
-        const { data } = await worker.recognize(file)
-        tesseractText = data.text  || ""
+        const tesseractPromise = (async () => {
+          const { createWorker } = await import("tesseract.js")
+          const worker = await createWorker("eng", 1, {
+            logger: m => {
+              if (m.status === "recognizing text") {
+                setOcrProgress(Math.round(m.progress * 65))
+              }
+            },
+          })
+          const { data } = await worker.recognize(file)
+          await worker.terminate()
+          return data
+        })()
+        // Give Tesseract max 20s — skip it if it hangs (CDN down, WASM issue, etc.)
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Tesseract timeout")), 20000)
+        )
+        const data    = await Promise.race([tesseractPromise, timeout])
+        tesseractText = data.text       || ""
         confidence    = data.confidence || 0
-        await worker.terminate()
       } catch (e) {
-        console.warn("Tesseract failed:", e)
+        console.warn("Tesseract skipped:", e.message)
       }
     }
 
@@ -83,7 +91,7 @@ export default function InvoiceScanTab() {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || "Scan failed")
+        throw new Error(err.detail || `Server error (${res.status})`)
       }
       const data = await res.json()
       setOcrProgress(100)
@@ -100,7 +108,11 @@ export default function InvoiceScanTab() {
       setStats({ total: data.total, exact: data.exact, fuzzy: data.fuzzy, new: data.new })
       setStep("review")
     } catch (e) {
-      setError(e.message || "Could not scan. Try a clearer photo with good lighting.")
+      const msg = e.message || ""
+      const friendly = msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network")
+        ? "Cannot reach server — please wait a moment and try again. (Server may be restarting)"
+        : msg || "Could not scan. Try a clearer photo with good lighting."
+      setError(friendly)
       setStep("upload")
     }
   }
