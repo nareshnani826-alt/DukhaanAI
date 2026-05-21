@@ -22,6 +22,7 @@ import DemandIntelligence   from "./pages/DemandIntelligence"
 import WastageRecording     from "./pages/Wastage"
 import InstallGuide         from "./pages/InstallGuide"
 import BulkImport           from "./pages/BulkImport"
+import History             from "./pages/History"
 import AppScreens           from "./pages/AppScreens"
 import HeroLoop             from "./pages/HeroLoop"
 import Landing              from "./pages/Landing"
@@ -58,6 +59,7 @@ export default function App() {
                   <Route path="/wastage"    element={<WastageRecording />} />
                   <Route path="/install"    element={<InstallGuide />} />
                   <Route path="/bulk-import" element={<BulkImport />} />
+                  <Route path="/history"    element={<History />} />
                   <Route path="/app-screens" element={<AppScreens />} />
                   <Route path="/agent"      element={<Agent />} />
                   <Route path="/voice"      element={<Gated feature="voice_agent"><Voice /></Gated>} />
