@@ -185,7 +185,7 @@ class SaleOut(BaseModel):
 class InvoiceLineItem(BaseModel):
     product_id: Optional[str] = None
     name: str
-    qty: int
+    qty: float
     unit_price: float
     gst_percent: int
 
