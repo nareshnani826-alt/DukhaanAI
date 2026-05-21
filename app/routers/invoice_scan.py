@@ -402,8 +402,8 @@ async def apply_invoice(
                     .single()
                     .execute()
                 ).data
-                current = float((row or {}).get("stock") or 0)
-                patch   = {"stock": current + item.qty}
+                current = int((row or {}).get("stock") or 0)
+                patch   = {"stock": current + int(item.qty)}
                 if item.unit_price:
                     patch["cost_price"] = item.unit_price
                 db.table("products").update(patch).eq("id", item.product_id).execute()
@@ -417,9 +417,9 @@ async def apply_invoice(
                     "unit":        item.unit or "pc",
                     "mrp":         float(item.mrp or item.unit_price or 0),
                     "cost_price":  float(item.unit_price or 0),
-                    "stock":       item.qty,
+                    "stock":       int(item.qty),
                     "min_stock":   5,
-                    "gst_percent": float(item.gst_percent or 0),
+                    "gst_percent": int(float(item.gst_percent or 0)),
                     "is_active":   True,
                 }
                 if item.barcode:
