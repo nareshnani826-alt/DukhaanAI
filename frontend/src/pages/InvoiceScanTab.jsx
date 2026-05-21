@@ -99,7 +99,10 @@ export default function InvoiceScanTab() {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Server error (${res.status})`)
+        const detail = err.detail || `Server error (${res.status})`
+        // 503 means Gemini rate-limited — give a specific, actionable message
+        if (res.status === 503) throw new Error("😢 " + detail)
+        throw new Error(detail)
       }
       const data = await res.json()
       setOcrProgress(100)

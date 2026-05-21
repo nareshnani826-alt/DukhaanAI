@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import logging
@@ -301,22 +302,35 @@ async def scan_invoice(
         except Exception as e:
             logger.warning("Regex parse failed: %s", e)
 
-    # ── Tier 2: Gemini Vision (free 1500/day) ─────────────────
+    # ── Tier 2: Gemini Vision (free 1500/day, retry once on 429) ─
+    gemini_rate_limited = False
     if extracted is None and settings.gemini_api_key:
-        try:
-            extracted = await _gemini_extract(raw, file.content_type)
-            tier_used = "gemini"
-            logger.info("invoice_scan tier=2 gemini items=%d", len(extracted))
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
-                logger.warning("Gemini 429 — falling back to Groq")
-            else:
-                logger.error("Gemini HTTP %d: %s", e.response.status_code, e.response.text[:200])
-        except Exception as e:
-            logger.error("Gemini extract failed: %s", e)
+        for attempt in range(2):
+            try:
+                extracted = await _gemini_extract(raw, file.content_type)
+                tier_used = "gemini"
+                logger.info("invoice_scan tier=2 gemini attempt=%d items=%d", attempt + 1, len(extracted))
+                break
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    gemini_rate_limited = True
+                    if attempt == 0:
+                        logger.warning("Gemini 429 — waiting 3s then retrying")
+                        await asyncio.sleep(3)
+                    else:
+                        logger.warning("Gemini 429 on retry — exhausted")
+                else:
+                    logger.error("Gemini HTTP %d: %s", e.response.status_code, e.response.text[:200])
+                    break
+            except Exception as e:
+                logger.error("Gemini extract failed: %s", e)
+                break
 
-    # ── Tier 3: Groq + Tesseract text (on Gemini 429) ─────────
-    if extracted is None and settings.groq_api_key and has_text:
+    # ── Tier 3: Groq + Tesseract text ─────────────────────────
+    # Only use Groq when OCR text quality is acceptable (≥50% confidence).
+    # Below that threshold the text is too garbled for any LLM to parse correctly.
+    groq_min_confidence = 50.0
+    if extracted is None and settings.groq_api_key and has_text and confidence >= groq_min_confidence:
         try:
             extracted = await _groq_extract(tesseract_text)
             tier_used = "groq"
@@ -324,8 +338,8 @@ async def scan_invoice(
         except Exception as e:
             logger.warning("Groq extract failed: %s", e)
 
-    # ── Tier 4: Regex fallback (even low-confidence text) ─────
-    if extracted is None and has_text:
+    # ── Tier 4: Regex fallback (high-confidence text only) ────
+    if extracted is None and has_text and confidence >= 60.0:
         try:
             extracted = _regex_parse(tesseract_text)
             tier_used = "regex"
@@ -334,9 +348,14 @@ async def scan_invoice(
             logger.error("Regex fallback failed: %s", e)
 
     if not extracted:
+        if gemini_rate_limited:
+            raise HTTPException(
+                status_code=503,
+                detail="AI is busy right now (daily limit reached). Please wait a minute and try again.",
+            )
         raise HTTPException(
             status_code=422,
-            detail="Could not read invoice. Try a clearer photo with good lighting.",
+            detail="Could not read invoice. Try a clearer, well-lit photo.",
         )
 
     # Load vendor inventory for matching
