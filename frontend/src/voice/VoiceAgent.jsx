@@ -697,15 +697,22 @@ function extractQtyUnit(text) {
   const t = text.toLowerCase()
 
   // Fraction words → multiplier (checked before numeric patterns)
+  // Also covers compound transliterations like "arakilo" (అరకిలో as one word)
   const FRACTIONS = [
-    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(kg|kilo|kilogram)/i,       qty:0.5,  unit:"kg"    },
-    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(litre|liter|ltr)/i,        qty:0.5,  unit:"litre" },
-    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(kg|kilo|kilogram|litre|liter|ltr)/i, qty:0.5, unit:"kg" },
-    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(kg|kilo)/i,         qty:0.25, unit:"kg"    },
-    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(litre|liter)/i,     qty:0.25, unit:"litre" },
-    { r:/\bteen\s*quarter\s*(kg|kilo)/i,                                        qty:0.75, unit:"kg"    },
-    { r:/\bsawa\s*(kg|kilo)/i,                                                  qty:1.25, unit:"kg"    },
-    { r:/\bdeḍh\s*(kg|kilo)|dedh\s*(kg|kilo)|deedh\s*(kg|kilo)/i,              qty:1.5,  unit:"kg"    },
+    // Half kg — compound transliterations (no space)
+    { r:/\b(arakilo|arakg|arakkg|ardhakg|adhakg|aadhakilo|ardhakilo)\b/i,      qty:0.5,  unit:"kg"    },
+    { r:/\b(aralit|ardhalitre|adhalitre|halflitre|halfliter)\b/i,               qty:0.5,  unit:"litre" },
+    // Quarter kg — compound
+    { r:/\b(pavkg|paavkg|paokilo|quarterkilo|quarterkg)\b/i,                    qty:0.25, unit:"kg"    },
+    // Half — two words
+    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(kg|kilo|kilogram)/i,         qty:0.5,  unit:"kg"    },
+    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(litre|liter|ltr)/i,          qty:0.5,  unit:"litre" },
+    // Quarter — two words
+    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(kg|kilo)/i,          qty:0.25, unit:"kg"    },
+    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(litre|liter)/i,      qty:0.25, unit:"litre" },
+    { r:/\bteen\s*quarter\s*(kg|kilo)/i,                                         qty:0.75, unit:"kg"    },
+    { r:/\bsawa\s*(kg|kilo)/i,                                                   qty:1.25, unit:"kg"    },
+    { r:/\b(dedh|deedh|de[dḍ]h)\s*(kg|kilo)/i,                                  qty:1.5,  unit:"kg"    },
   ]
 
   for (const f of FRACTIONS) {
