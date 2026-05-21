@@ -412,6 +412,21 @@ export default function Inventory() {
 
   function showNotif(msg) { setNotif(msg); setTimeout(() => setNotif(""), 2500) }
 
+  async function autoFixUnits() {
+    const all = await Products.list({})
+    const toFix = all.filter(p => !p.unit || p.unit === "piece")
+    let fixed = 0
+    for (const p of toFix) {
+      const detected = detectUnit(p.name)
+      if (detected.found && detected.unit !== "piece") {
+        await Products.update(p.id, { unit: detected.unit })
+        fixed++
+      }
+    }
+    showNotif(fixed > 0 ? `✓ Fixed units for ${fixed} products` : "All units already correct")
+    load()
+  }
+
   function openAdd() {
     setInitForm(EMPTY); setEditId(null); setModal(true)
   }
@@ -516,6 +531,7 @@ export default function Inventory() {
                 <option key={l.code} value={l.code}>{l.native} ({l.name})</option>
               ))}
             </select>
+            <button onClick={autoFixUnits} className="btn btn-sm border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 text-[10px]">Fix Units</button>
             <button onClick={openAdd} className="btn btn-primary btn-sm">+ Add Product</button>
           </div>
         </div>
