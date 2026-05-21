@@ -69,6 +69,17 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
 
   function set(k, v) { setForm(f => ({...f, [k]: v})) }
 
+  // On open: if unit is still "piece", try to detect from existing name
+  useEffect(() => {
+    if (initialForm.name && (!initialForm.unit || initialForm.unit === "piece")) {
+      const detected = detectUnit(initialForm.name)
+      if (detected.found) {
+        set("unit", detected.unit)
+        setUnitDetected(true)
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-detect unit + qty + price when product name changes
   function handleNameChange(name) {
     set("name", name)

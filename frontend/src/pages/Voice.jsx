@@ -7,14 +7,21 @@ import { t, getSavedLang } from "../voice/i18n.js"
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 
 function toBaseUnit(qty, spokenUnit, productUnit) {
-  const su = (spokenUnit  || "").toLowerCase()
+  const su = (spokenUnit || "").toLowerCase()
   const pu = (productUnit || "").toLowerCase()
-  if (su === pu) return qty
-  if (su === "g"  && pu === "kg")    return qty / 1000
+  // Always convert sub-units regardless of stored product unit
+  if (su === "g")     return qty / 1000   // 100g → 0.1 kg
+  if (su === "ml")    return qty / 1000   // 500ml → 0.5 litre
   if (su === "kg" && pu === "g")     return qty * 1000
-  if (su === "ml" && pu === "litre") return qty / 1000
   if (su === "litre" && pu === "ml") return qty * 1000
   return qty
+}
+
+function normalizeUnit(spokenUnit) {
+  const su = (spokenUnit || "").toLowerCase()
+  if (su === "g")  return "kg"
+  if (su === "ml") return "litre"
+  return spokenUnit || "pc"
 }
 
 export default function Voice() {
@@ -59,6 +66,7 @@ export default function Voice() {
       const id          = product?.id   || ("voice-" + Date.now())
       const productUnit = product?.unit || null
       const billedQty   = toBaseUnit(qty, unit, productUnit)
+      const dispUnit    = normalizeUnit(unit)
       const lineTotal   = Math.round(mrp * billedQty * 100) / 100
       setInvoice(null) // clear previous invoice
       setBillItems(items => {
@@ -72,7 +80,7 @@ export default function Voice() {
           }
           return updated
         }
-        return [...items, { id, name, mrp, gst, qty, unit, lineTotal }]
+        return [...items, { id, name, mrp, gst, qty: billedQty, unit: dispUnit, lineTotal }]
       })
       showNotif(`✓ ${name} × ${qty} added`)
     } catch(e) { showNotif("Error: " + e.message) }
