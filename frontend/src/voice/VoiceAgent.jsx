@@ -704,12 +704,12 @@ function extractQtyUnit(text) {
     { r:/\b(aralit|ardhalitre|adhalitre|halflitre|halfliter)\b/i,               qty:0.5,  unit:"litre" },
     // Quarter kg — compound
     { r:/\b(pavkg|paavkg|paokilo|quarterkilo|quarterkg)\b/i,                    qty:0.25, unit:"kg"    },
-    // Half — two words
-    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(kg|kilo|kilogram)/i,         qty:0.5,  unit:"kg"    },
-    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(litre|liter|ltr)/i,          qty:0.5,  unit:"litre" },
-    // Quarter — two words
-    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(kg|kilo)/i,          qty:0.25, unit:"kg"    },
-    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(litre|liter)/i,      qty:0.25, unit:"litre" },
+    // Half — allow articles between word and unit: "half a kilo", "half kg", "ardha ek kilo"
+    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\b.{0,8}\b(kg|kilo|kilogram)\b/i,  qty:0.5,  unit:"kg"    },
+    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\b.{0,8}\b(litre|liter|ltr)\b/i,   qty:0.5,  unit:"litre" },
+    // Quarter — same treatment
+    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\b.{0,8}\b(kg|kilo)\b/i,   qty:0.25, unit:"kg"    },
+    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\b.{0,8}\b(litre|liter)\b/i,qty:0.25, unit:"litre" },
     { r:/\bteen\s*quarter\s*(kg|kilo)/i,                                         qty:0.75, unit:"kg"    },
     { r:/\bsawa\s*(kg|kilo)/i,                                                   qty:1.25, unit:"kg"    },
     { r:/\b(dedh|deedh|de[dḍ]h)\s*(kg|kilo)/i,                                  qty:1.5,  unit:"kg"    },
