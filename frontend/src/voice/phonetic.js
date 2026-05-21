@@ -40,19 +40,60 @@ function levenshtein(a, b) {
 
 // Common Indian brand name misspellings
 const BRAND_PHONETICS = {
-  "amul":    ["amoool","amool","amul","amull","aml"],
-  "tata":    ["tatta","tata","taata","tata salt"],
-  "parle":   ["parley","parl","parlee","parale"],
-  "maggi":   ["magi","maagi","magee","maggy"],
-  "haldiram":["halderam","haldiraam","haldirams"],
-  "fortune": ["forchun","fortun","fortyun"],
-  "aashirvaad":["ashirvad","ashirvaad","aashirvad"],
-  "britannia":["britania","britanya","britannia"],
-  "colgate": ["colgait","colget","colagate"],
-  "lifebuoy":["lifebouy","lifebuy","lifeboy"],
-  "dettol":  ["detol","dettoll","detall"],
-  "patanjali":["patanjal","patanjalli","patanjaly"],
-  "dabur":   ["daber","dabar","daboor"],
+  // ── Dairy & Staples ────────────────────────────────────
+  "amul":       ["amoool","amool","amul","amull","aml","amul"],
+  "tata":       ["tatta","tata","taata","tata salt","taata"],
+  "aashirvaad": ["ashirvad","ashirvaad","aashirvad","ashirward","ashirwaad"],
+  "fortune":    ["forchun","fortun","fortyun","forchoon"],
+  "patanjali":  ["patanjal","patanjalli","patanjaly","patanjlee"],
+  "daawat":     ["dawat","dawaat","daavat","daavaat"],
+  "india gate": ["india gait","indiageit","india get"],
+
+  // ── Spices & Masala ────────────────────────────────────
+  "mdh":        ["em dee aitch","em di aitch","mdh masala","em deh"],
+  "everest":    ["everest","evrest","everst","evarest","everist"],
+  "catch":      ["ketch","kaich","caatch"],
+
+  // ── Packaged Food ──────────────────────────────────────
+  "parle":      ["parley","parl","parlee","parale","paarle"],
+  "maggi":      ["magi","maagi","magee","maggy","maagi"],
+  "britannia":  ["britania","britanya","britniya","brittania"],
+  "sunfeast":   ["sunfeast","sunfest","sun feast","sanfeast"],
+  "haldiram":   ["halderam","haldiraam","haldirams","haldiraam"],
+  "lays":       ["leys","laze","lez","layz","leez"],
+  "kurkure":    ["kurkuri","kur kure","kurkurre","kur kuray"],
+  "bingo":      ["bingoo","bingou","beengo"],
+  "good day":   ["gud day","goodday","gude"],
+
+  // ── Health & Nutrition ─────────────────────────────────
+  "horlicks":   ["horliks","harlicks","horlick","horliks"],
+  "boost":      ["bost","buust","boost"],
+  "complan":    ["kompalan","complen","complainn","complann"],
+  "glucon":     ["glukaan","glucond","glucon d","glucon dee"],
+  "bournvita":  ["bornvita","bournveeta","boranvita","bornveeta"],
+
+  // ── Personal Care ──────────────────────────────────────
+  "colgate":    ["colgait","colget","colagate","kolgait"],
+  "pepsodent":  ["pepsodant","pepsodit","pepsodent"],
+  "lifebuoy":   ["lifebouy","lifebuy","lifeboy","laifboy"],
+  "dettol":     ["detol","dettoll","detall","dettall"],
+  "savlon":     ["savlan","saavlon","savlaan"],
+  "dove":       ["dov","duf","doave"],
+  "lux":        ["luks","luxe","luuks"],
+  "pears":      ["piyars","pearz","piyas"],
+  "nivea":      ["niveya","nivia","niviya","niveea"],
+  "johnson":    ["jonson","jhonson","jansun","jonsan"],
+  "parachute":  ["parachoot","parachut","parashot","parachuut"],
+
+  // ── Household ──────────────────────────────────────────
+  "dabur":      ["daber","dabar","daboor","daabur"],
+  "vim":        ["veem","wim","veeem"],
+  "harpic":     ["harpeek","haarpeek","harpeec"],
+  "lizol":      ["lizzol","liyzol","leezol"],
+  "surf":       ["serf","saraf","sarf","sarf excel"],
+  "ariel":      ["aryal","ariyal","arial","areel"],
+  "rin":        ["rinn","reen","reenn"],
+  "wheel":      ["weel","wheal","wiel"],
 }
 
 // ── Main phonetic match function ──────────────────────────

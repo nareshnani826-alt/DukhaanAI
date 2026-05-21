@@ -10,9 +10,12 @@ import { Products } from "../sync/db.js"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
 import { detectUnit } from "./unitDetector.js"
 import { detectPlatform } from "./engine.js"
-// import { createAdaptiveMatcher } from "../voice-ai/adaptiveMatcher"
-// import { rankMatches } from "../voice-ai/rankingEngine"
-// import { learnCorrection } from "../voice-ai/learningStore"
+import { createAdaptiveMatcher } from "../voice-ai/adaptiveMatcher"
+import { rankMatches }           from "../voice-ai/rankingEngine"
+import { learnCorrection }       from "../voice-ai/learningStore"
+import { matchFromLearned, recordConfirmation } from "../voice-ai/patternLearner"
+import { parseVoiceUtterance, isSpeedBilling, parseSpeedBilling } from "../voice-ai/kiranaNLP"
+import { initContextPredictor, addToSession, startSession } from "../voice-ai/contextPredictor"
 
 const pulseStyle = `
   @keyframes mic-ring {
@@ -40,25 +43,18 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
   const [multiPending, setMultiPending] = useState([])
   const [showCorrection, setShowCorrection] = useState(false)
   const [correctionText, setCorrectionText] = useState("")
-  const bottomRef = useRef(null)
-  // const matcherRef = useRef(null)
+  const bottomRef  = useRef(null)
+  const matcherRef = useRef(null)
 
   useEffect(() => {
-   Products.list().then((res) => {
-  const productList =
-    Array.isArray(res)
-      ? res
-      : (res?.data || [])
-
-  setProducts(productList)
-
-  // matcherRef.current =
-  //   createAdaptiveMatcher(productList)
-
-  voiceEngine.setGrammarHints(
-    productList.map(pr => pr.name)
-  )
-})
+    Products.list().then((res) => {
+      const productList = Array.isArray(res) ? res : (res?.data || [])
+      setProducts(productList)
+      matcherRef.current = createAdaptiveMatcher(productList)
+      voiceEngine.setGrammarHints(productList.map(pr => pr.name))
+    }).catch(e => console.error("Products load failed:", e))
+    initContextPredictor()
+    startSession()
     setPlatform(detectPlatform())
   }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }) }, [history])
@@ -96,9 +92,9 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
     const tl   = text.toLowerCase()
 
     // ── Detect multi-product utterance ────────────────────
-    // If text contains "aur", "and", comma etc — split and handle all at once
-    const segments = splitMultiProduct(original)
-    const transSegments = splitMultiProduct(translated || original)
+    // Require segments to be > 3 chars to avoid "aur" alone triggering multi-mode
+    const segments      = splitMultiProduct(original).filter(s => s.trim().length > 3)
+    const transSegments = splitMultiProduct(translated || original).filter(s => s.trim().length > 3)
     const isMulti = segments.length > 1 || transSegments.length > 1
 
     if (isMulti) {
@@ -123,24 +119,43 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
     const stdName    = validation.product ? buildProductName(validation.product, variant) : null
 
     // ── Try to match against vendor's actual inventory ────
-
-   const invMatch = findInInventory(text, stdName, products)
-
-// if (matcherRef.current) {
-//   const fuzzyMatches =
-//     matcherRef.current.findMatches(text)
-
-//   const ranked =
-//     rankMatches(text, fuzzyMatches)
-
-//   if (ranked.length > 0) {
-//     invMatch = {
-//       ...ranked[0].product,
-//       _confidence: ranked[0].finalScore,
-//     }
-//   }
-// }
-    // const invMatch = findInInventory(text, stdName, products)
+    // Layer 1: adaptive matcher (Fuse.js + learned ranking boost)
+    let invMatch = null
+    if (matcherRef.current) {
+      const fuzzyMatches = matcherRef.current.findMatches(text)
+      const ranked       = rankMatches(text, fuzzyMatches)
+      if (ranked.length > 0) {
+        const top = ranked[0]
+        const fullProd = products.find(p => p.id === top.product?.id || p.name === top.product?.name)
+        if (fullProd) invMatch = { ...fullProd, _confidence: top.finalScore }
+      }
+    }
+    // Layer 2: patternLearner — autonomous phoneme + habit matching
+    if (!invMatch) {
+      const learned = matchFromLearned(text, products)
+      if (learned) invMatch = learned
+    }
+    // Layer 3: kiranaNLP — abbreviation expansion + quantity normalization
+    if (!invMatch) {
+      const parsed = parseVoiceUtterance(text)
+      for (const { productPhrase } of parsed) {
+        if (!productPhrase) continue
+        const learned2 = matchFromLearned(productPhrase, products)
+        if (learned2) { invMatch = learned2; break }
+        const nlpMatch = findInInventory(productPhrase, stdName, products)
+        if (nlpMatch) { invMatch = nlpMatch; break }
+      }
+    }
+    // Layer 4: speed billing — "5 SM", "2 GF"
+    if (!invMatch && isSpeedBilling(text)) {
+      const speedItems = parseSpeedBilling(text)
+      for (const { productPhrase } of speedItems) {
+        const m = findInInventory(productPhrase, null, products)
+        if (m) { invMatch = m; break }
+      }
+    }
+    // Layer 5: fallback rule-based NLP
+    if (!invMatch) invMatch = findInInventory(text, stdName, products)
 
     // if (isStockQuery) {
     //   // Answer stock query immediately
@@ -185,8 +200,8 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
     let confirmMsg = ""
     if (invMatch) {
       confirmMsg = isAddStock
-        ? `Add ${qty} ${unit} to ${invMatch.name}? Current: ${invMatch.stock}`
-        : t("confirm_question", lang, invMatch.name, qty)
+        ? `Add ${qty} ${unit} to ${invMatch.name}? Current: ${invMatch.stock} ${invMatch.unit || ""}`
+        : `Add ${qty} ${unit} of ${invMatch.name} to bill?`
     } else {
       confirmMsg = isAddStock
         ? `New product "${stdName}" — add with ${qty} ${unit} stock?`
@@ -310,17 +325,24 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
           const newStock = Math.max(0, invMatch.stock - qty)
           await Products.update(invMatch.id, { stock: newStock })
           onAddToBill?.({ product: invMatch, qty, unit })
-          // Improvement 3: Record product use for frequency boost
+          // Record use for session frequency boost
           recordProductUse(invMatch.id, invMatch.name)
-          // learnCorrection(
-          //         correctionOriginal,
-          //         invMatch.name
-          //       )
+          // Teach learnCorrection (Fuse ranking boost)
+          learnCorrection(correctionOriginal, invMatch.name)
+          // Teach patternLearner (phoneme + autonomous learning)
+          recordConfirmation(correctionOriginal, invMatch.name)
+          // Track in context session (affinity learning)
+          addToSession(invMatch.name)
           const msg = t("added_to_bill", lang, invMatch.name, qty)
           speak(msg, lang)
           addHistory({ type:"bill", original, result: msg })
           setStatus("done"); setStatusMsg(msg)
-          Products.list().then(p => { setProducts(p); voiceEngine.setGrammarHints(p.map(pr => pr.name)) })
+          Products.list().then(p => {
+            const list = Array.isArray(p) ? p : (p?.data || [])
+            setProducts(list)
+            matcherRef.current = createAdaptiveMatcher(list)
+            voiceEngine.setGrammarHints(list.map(pr => pr.name))
+          })
         } else {
           onAddToBill?.({ product: null, productName: stdName, qty, unit, price: 0 })
           const msg = `"${stdName}" added to bill — set price manually`

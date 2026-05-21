@@ -1,4 +1,6 @@
+import { useEffect }                    from "react"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { initializeSeedTraining }        from "./voice-ai/seedTraining"
 import { ThemeProvider } from "./context/ThemeContext"
 import { AuthProvider }  from "./context/AuthContext"
 import { PlanProvider }  from "./context/PlanContext"
@@ -31,6 +33,8 @@ function Gated({ feature, children }) {
 }
 
 export default function App() {
+  useEffect(() => { initializeSeedTraining() }, [])
+
   return (
     <ThemeProvider>
     <AuthProvider>

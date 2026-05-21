@@ -111,8 +111,19 @@ const QUICK_BY_LANG = {
 
 const INR = n => "₹" + (n||0).toLocaleString("en-IN")
 
+// ── Context cache: avoid re-fetching on every message ────
+let _ctxCache     = null
+let _ctxCacheTime = 0
+const CTX_TTL_MS  = 30_000   // 30 seconds
+
 // ── Build comprehensive store context ────────────────────
 async function buildStoreContext(userQuestion = "") {
+  // Return cached context unless it's stale or question implies fresh data is needed
+  const now           = Date.now()
+  const forceRefresh  = /reorder|stock|profit|sales|udhar|today|fresh|update/i.test(userQuestion)
+  if (_ctxCache && !forceRefresh && (now - _ctxCacheTime) < CTX_TTL_MS) {
+    return _ctxCache
+  }
   const ql = userQuestion.toLowerCase()
 
   // Always fetch: products + today + monthly
@@ -237,6 +248,9 @@ async function buildStoreContext(userQuestion = "") {
 
   // Remove null/undefined keys to save tokens
   Object.keys(ctx).forEach(k => { if (ctx[k] == null) delete ctx[k] })
+  // Store in cache
+  _ctxCache     = ctx
+  _ctxCacheTime = Date.now()
   return ctx
 }
 
@@ -248,7 +262,7 @@ async function askAI(messages, storeContext, lang = "en-IN") {
   // Last message is the user question; prior messages are history
   const lastMsg  = messages[messages.length - 1]
   const history  = messages.slice(0, -1).map(m => ({
-    role: m.role === "user" ? "user" : "model",
+    role: (m.role === "user") ? "user" : "assistant",
     text: m.text,
   }))
 

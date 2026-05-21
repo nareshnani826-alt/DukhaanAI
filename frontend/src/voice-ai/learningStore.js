@@ -110,3 +110,28 @@ export function deleteLearnedKey(spoken) {
     save(PHONETIC_KEY, pIdx)
   }
 }
+
+// Bulk-write seed data without overwriting existing user-learned corrections
+// seeds: [{ spoken: string, product: string, count: number }]
+export function seedLearningStore(seeds) {
+  const store = load(STORE_KEY)
+  const pIdx  = load(PHONETIC_KEY)
+
+  for (const { spoken, product, count } of seeds) {
+    const exactKey    = normalize(spoken)
+    const phoneticKey = soundexKey(spoken)
+
+    // Never overwrite a correction the user already made
+    if (!store[exactKey]) store[exactKey] = {}
+    if (!store[exactKey][product]) {
+      store[exactKey][product] = count
+    }
+
+    // Build phonetic index
+    if (!pIdx[phoneticKey]) pIdx[phoneticKey] = []
+    if (!pIdx[phoneticKey].includes(exactKey)) pIdx[phoneticKey].push(exactKey)
+  }
+
+  save(STORE_KEY, store)
+  save(PHONETIC_KEY, pIdx)
+}

@@ -9,8 +9,12 @@ const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 export default function Voice() {
   const { vendor } = useAuth()
   const [billItems, setBillItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("dk_voice_bill") || "[]") }
-    catch { return [] }
+    try {
+      const saved = JSON.parse(localStorage.getItem("dk_voice_bill") || "{}")
+      // Clear if it was saved for a different vendor
+      if (saved.vendorId && saved.vendorId !== vendor?.id) return []
+      return saved.items || []
+    } catch { return [] }
   })
   const [notif,    setNotif]    = useState("")
   const [invoice,  setInvoice]  = useState(null)
@@ -24,8 +28,8 @@ export default function Voice() {
   const isCapacitor = !!(window.Capacitor?.isNativePlatform?.())
 
   useEffect(() => {
-    localStorage.setItem("dk_voice_bill", JSON.stringify(billItems))
-  }, [billItems])
+    localStorage.setItem("dk_voice_bill", JSON.stringify({ vendorId: vendor?.id, items: billItems }))
+  }, [billItems, vendor?.id])
 
   function showNotif(msg) { setNotif(msg); setTimeout(() => setNotif(""), 3000) }
 

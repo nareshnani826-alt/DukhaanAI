@@ -151,8 +151,25 @@ export function parseVoiceCommand(originalText, translatedText, products) {
     // Fall back: extract noun from translated text
     const stopWords = new Set([
       "add","to","bill","invoice","the","a","an","of","in","for","and","please",
-      "karo","daalo","cheyyi","pannu","hakku","mein","ko","se","ka","ki","ke",
-      "lo","do","de","hai","hain","kya","bill","invoice",
+      // Hindi
+      "karo","daalo","mein","ko","se","ka","ki","ke","lo","do","de","hai","hain","kya","aur","bhi","yeh","woh",
+      // Telugu
+      "cheyyi","lo","add","chesamu","ichha","ivvu","mariyu","inkaa","kooda",
+      // Tamil
+      "pannu","la","seer","poddu","mattum","um","ku","add",
+      // Kannada
+      "hakku","ge","seri","mattu","kuda",
+      // Bengali
+      "koro","te","aar","ebong","dao",
+      // Marathi
+      "kar","madhye","ani","please","ghya",
+      // Gujarati
+      "karo","ma","ane","nakho","laav",
+      // Punjabi
+      "karo","vich","te","tey","add",
+      // Malayalam
+      "cheyyu","il","um","kku","aayi",
+      "bill","invoice",
       ...Object.values(UNIT_ALIASES),
     ])
     const words = (aliasedText || translatedText || "").toLowerCase().split(/\s+/)
@@ -245,7 +262,7 @@ export function parseMultipleProducts(text, translatedText, products) {
       productName = resolveGroceryName(origSeg) || resolveGroceryName(transSeg)
     }
     if (!productName) {
-      const stopWords = new Set(["add","to","bill","the","a","an","of","and","please","karo","daalo","cheyyi","pannu","mein","ko","ka","ki","ke","hai","do","ek","teen","char"])
+      const stopWords = new Set(["add","to","bill","the","a","an","of","and","please","karo","daalo","cheyyi","pannu","mein","ko","ka","ki","ke","hai","do","ek","teen","char","aur","lo","de","karo","koru","koro","cheyyu","kar","nakho","kku","ge","la","te","vich","il","madhye","ma","pannu","hakku","seri"])
       const words = (aliased || transSeg || "").toLowerCase().split(/\s+/)
       productName = words.find(w => w.length > 2 && !stopWords.has(w)) || seg
     }

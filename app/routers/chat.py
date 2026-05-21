@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from datetime import date
 from groq import AsyncGroq
 import httpx
@@ -172,14 +173,24 @@ _INTENTS = [
 def _detect_intent(message: str):
     """
     Keyword scorer — returns (intent_id, tool, args, score) or None.
-    Score = count of matching keywords. Any match (≥1) is enough to go local.
+    Uses word-boundary matching so short words like "do", "ek", "lo"
+    don't accidentally match inside longer words (today, done, slow…).
     """
     msg = message.lower()
     best_score  = 0
     best_intent = None
 
     for intent in _INTENTS:
-        score = sum(1 for kw in intent["keywords"] if kw in msg)
+        score = 0
+        for kw in intent["keywords"]:
+            # Multi-word phrases: require all words present in order
+            if " " in kw:
+                if kw in msg:
+                    score += 2          # phrase match scores higher
+            else:
+                # Single-word: require word boundary on both sides
+                if re.search(r"\b" + re.escape(kw) + r"\b", msg):
+                    score += 1
         if score > best_score:
             best_score  = score
             best_intent = intent
@@ -209,7 +220,7 @@ def _format_local(intent_id: str, data: dict) -> str:
         lines = [
             f"• {'🔴' if i.get('urgency') == 'critical' else '🟡'} {i['name']}: "
             f"Order {i['suggested_order_qty']} {i.get('unit', '')} "
-            f"({i.get('days_of_stock_left') or 'Out'} days left)"
+            f"({i.get('days_left') or 'Out'} days left)"
             for i in items
         ]
         total = data.get("estimated_total_cost", 0)
@@ -297,17 +308,25 @@ def _format_local(intent_id: str, data: dict) -> str:
 # ══════════════════════════════════════════════════════════════
 
 async def _call_groq(messages: list, vendor_id: Optional[str], use_tools: bool) -> str:
-    client = AsyncGroq(api_key=settings.groq_api_key)
+    """Call Groq with a 25-second timeout to avoid indefinite hangs."""
+    client = AsyncGroq(api_key=settings.groq_api_key, timeout=25.0)
 
     if use_tools and vendor_id:
         response = await client.chat.completions.create(
             model=_GROQ_MODEL, messages=messages,
             tools=_STORE_TOOLS, tool_choice="auto", max_tokens=1024,
         )
+        seen_tool_calls: set = set()
         for _ in range(5):
             msg = response.choices[0].message
             if not msg.tool_calls:
                 break
+            # Detect repeated identical tool calls and stop early
+            call_sig = tuple((tc.function.name, tc.function.arguments) for tc in msg.tool_calls)
+            if call_sig in seen_tool_calls:
+                break
+            seen_tool_calls.add(call_sig)
+
             messages.append({
                 "role": "assistant", "content": msg.content or "",
                 "tool_calls": [
@@ -317,8 +336,12 @@ async def _call_groq(messages: list, vendor_id: Optional[str], use_tools: bool) 
                 ],
             })
             for tc in msg.tool_calls:
-                result = _run_tool(tc.function.name, json.loads(tc.function.arguments), vendor_id)
-                logger.info("tool=%s vendor=%s", tc.function.name, vendor_id)
+                try:
+                    result = _run_tool(tc.function.name, json.loads(tc.function.arguments), vendor_id)
+                    logger.info("tool=%s vendor=%s", tc.function.name, vendor_id)
+                except Exception as te:
+                    logger.warning("tool=%s failed: %s", tc.function.name, te)
+                    result = {"error": f"Tool {tc.function.name} failed: {te}"}
                 messages.append({
                     "role": "tool", "tool_call_id": tc.id,
                     "content": json.dumps(result, ensure_ascii=False),
@@ -549,10 +572,11 @@ _STORE_TOOLS = [
 ]
 
 
-def _cloud_prompt(lang_name: str) -> str:
+def _cloud_prompt(lang_name: str, store_hint: str = "") -> str:
+    hint = f"\nSTORE SNAPSHOT: {store_hint}" if store_hint else ""
     return f"""You are DukaanAI's smart shop assistant for an Indian kirana/retail store owner.
 LANGUAGE RULE: Reply ONLY in {lang_name}. Every word must be in {lang_name}.
-Use the available tools to fetch LIVE store data before answering. Use ₹ for prices, bullet points for lists. Keep answers short and helpful."""
+Use the available tools to fetch LIVE store data before answering. Use ₹ for prices, bullet points for lists. Keep answers short and helpful.{hint}"""
 
 
 def _local_prompt(lang_name: str, ctx: dict) -> str:
@@ -609,7 +633,22 @@ async def chat(
     if not settings.groq_api_key:
         raise HTTPException(status_code=503, detail="AI not configured. Add GROQ_API_KEY to server environment.")
 
-    system_prompt = _cloud_prompt(lang_name) if vendor else _local_prompt(lang_name, req.store_context or {})
+    if vendor:
+        # Build a lightweight store hint so Groq has context before any tool call
+        try:
+            _s = _run_tool("get_sales_today", {}, vendor["id"])
+            _l = _run_tool("get_low_stock_items", {}, vendor["id"])
+            store_hint = (
+                f"Today revenue ₹{_s.get('total_revenue',0)}, "
+                f"{_s.get('invoice_count',0)} invoices | "
+                f"Out of stock: {len(_l.get('out_of_stock',[]))} items, "
+                f"Low stock: {len(_l.get('low_stock',[]))} items"
+            )
+        except Exception:
+            store_hint = ""
+        system_prompt = _cloud_prompt(lang_name, store_hint)
+    else:
+        system_prompt = _local_prompt(lang_name, req.store_context or {})
     messages = [{"role": "system", "content": system_prompt}]
     for h in (req.history or []):
         role = "assistant" if h.role in ("model", "ai", "assistant") else "user"

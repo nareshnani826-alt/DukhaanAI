@@ -153,12 +153,17 @@ export class VoiceEngine {
 
     rec.onresult = async (e) => {
       clearTimeout(autoStopTimer)
-      const original = e.results[0][0].transcript
+      // Pick the alternative with the highest confidence score
+      let best = e.results[0][0]
+      for (let i = 1; i < e.results[0].length; i++) {
+        if (e.results[0][i].confidence > best.confidence) best = e.results[0][i]
+      }
+      const original = best.transcript?.trim() || e.results[0][0].transcript
       let translated = original
       if (!this.currentLang.startsWith("en")) {
         translated = await translateToEnglish(original, this.currentLang)
       }
-      this.onResult?.(original, translated, e.results[0][0].confidence)
+      this.onResult?.(original, translated, best.confidence)
     }
     return rec
   }

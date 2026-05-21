@@ -5,10 +5,8 @@ export function createAdaptiveMatcher(products = []) {
     id: p.id,
     name: p.name,
     category: p.category || "",
-    searchText: `
-      ${p.name}
-      ${p.category || ""}
-    `.toLowerCase(),
+    // Include aliases so Fuse.js can match on regional/Hindi names directly
+    searchText: `${p.name} ${p.category || ""} ${(p.aliases || []).join(" ")}`.toLowerCase(),
   }))
 
   const fuse = new Fuse(searchableProducts, {
