@@ -248,7 +248,7 @@ _Powered by DukaanAI_`
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center"
           onClick={e => e.target===e.currentTarget && setModal(null)}>
-          <div className="bg-white rounded-2xl p-5 w-96 shadow-xl animate-slide-up">
+          <div className="bg-white rounded-2xl p-5 shadow-xl animate-slide-up" style={{ width: 384, maxWidth: "95vw" }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-semibold">
                 {modal==="add-customer" ? "Add Customer" :
@@ -331,7 +331,7 @@ _Powered by DukaanAI_`
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-2.5 mb-4">
+      <div className="udhar-stats grid grid-cols-3 mb-4" style={{ gap: "8px" }}>
         <div className="stat-card">
           <div className="stat-bar" style={{ background:"#E24B4A" }} />
           <div className="stat-icon-box" style={{ background:"#FCEBEB" }}>💸</div>
@@ -437,9 +437,9 @@ _Powered by DukaanAI_`
 
               {/* Customer header card */}
               <div className="card">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-bold flex-shrink-0"
+                <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold flex-shrink-0"
                       style={{
                         background: dueColor(selected.total_due) + "20",
                         color: dueColor(selected.total_due)
@@ -461,7 +461,7 @@ _Powered by DukaanAI_`
                   {/* Balance display */}
                   <div className="text-right">
                     <div className="text-[10px] text-gray-400 mb-0.5">Balance due</div>
-                    <div className="text-3xl font-bold" style={{ color: dueColor(selected.total_due) }}>
+                    <div className="text-2xl font-bold" style={{ color: dueColor(selected.total_due) }}>
                       {INR(selected.total_due)}
                     </div>
                     {selected.total_due === 0 && (

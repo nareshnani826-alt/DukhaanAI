@@ -199,44 +199,46 @@ export default function Dashboard() {
 
       {/* Top bar */}
       <div style={{ background:"var(--bg1)", borderBottom:"1px solid var(--rule)",
-        padding:"14px 20px", display:"flex", alignItems:"center",
+        padding:"12px 16px", display:"flex", alignItems:"center",
         justifyContent:"space-between", position:"sticky", top:0, zIndex:10,
         boxShadow:"0 1px 6px var(--shadow)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:40, height:40, borderRadius:12, flexShrink:0,
+        <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0, flex:1 }}>
+          <div style={{ width:36, height:36, borderRadius:10, flexShrink:0,
             background:"linear-gradient(135deg,#e87722,#d45f00)",
             display:"flex", alignItems:"center", justifyContent:"center",
-            fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:20, color:"#fff",
+            fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:17, color:"#fff",
             boxShadow:"0 2px 8px rgba(232,119,34,0.3)" }}>
             {vendor?.store_name?.charAt(0) || "न"}
           </div>
-          <div>
-            <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)" }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)",
+              overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {greeting()}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
             </div>
-            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
-              {vendor?.store_name || "DukaanAI"} · {new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
+            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1,
+              display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                maxWidth:120 }}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}</span>
+              <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, flexShrink:0,
+                background: cloud ? "var(--jade-bg)" : "var(--bg2)",
+                color: cloud ? "var(--jade)" : "var(--ink-faint)",
+                border: `1px solid ${cloud ? "rgba(26,122,74,0.3)" : "var(--rule)"}` }}>
+                {cloud ? "● Cloud" : "● Local"}
+              </span>
             </div>
           </div>
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <span style={{ fontSize:10, fontWeight:600, padding:"4px 10px", borderRadius:20,
-            background: cloud ? "var(--jade-bg)" : "var(--bg2)",
-            color: cloud ? "var(--jade)" : "var(--ink-faint)",
-            border: `1px solid ${cloud ? "rgba(26,122,74,0.3)" : "var(--rule)"}` }}>
-            {cloud ? "● Cloud sync" : "● Local"}
-          </span>
-          <button onClick={() => navigate("/billing")} className="btn btn-primary btn-sm">
-            + New Invoice
-          </button>
-        </div>
+        <button onClick={() => navigate("/billing")} className="btn btn-primary btn-sm"
+          style={{ flexShrink:0, marginLeft:8 }}>
+          + New Invoice
+        </button>
       </div>
 
-      <div style={{ padding:"20px" }}>
+      <div className="page-content" style={{ padding:"16px" }}>
 
         {/* Hero card */}
-        <div style={{ background:"var(--bg1)", borderRadius:18, padding:"24px",
-          border:"1px solid var(--rule)", marginBottom:16,
+        <div style={{ background:"var(--bg1)", borderRadius:16, padding:"18px 16px",
+          border:"1px solid var(--rule)", marginBottom:14,
           boxShadow:"0 2px 12px var(--shadow)", position:"relative", overflow:"hidden" }}>
           {/* decorative circles */}
           <div style={{ position:"absolute", right:-40, top:-40, width:180, height:180,
@@ -246,7 +248,7 @@ export default function Dashboard() {
           <div style={{ position:"relative" }}>
             <div style={{ fontSize:11, fontWeight:700, color:"var(--ink-faint)",
               letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>Today's Revenue</div>
-            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+            <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
               fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
               {loading ? "—" : INR(today.total)}
             </div>
@@ -291,7 +293,7 @@ export default function Dashboard() {
         <BriefingCard briefing={briefing} navigate={navigate} />
 
         {/* Stats row */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
+        <div className="dash-stats-grid" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
           {[
             {
               label: "Open Udhaar",
@@ -348,7 +350,7 @@ export default function Dashboard() {
         {/* Quick actions */}
         <div style={{ fontSize:11, fontWeight:700, color:"var(--ink-faint)",
           letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:12 }}>⚡ Quick Actions</div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
+        <div className="dash-quick-grid" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
           {QUICK.map((qa, i) => (
             <button key={i} onClick={() => navigate(qa.to)}
               style={{ background:"var(--bg1)", border:"1px solid var(--rule)",
@@ -365,8 +367,8 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Two columns */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+        {/* Two columns — stacks to single on mobile */}
+        <div className="dash-bottom-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
 
           {/* Recent sales */}
           <div>

@@ -31,9 +31,11 @@ export default function Insights() {
 
   return (
     <div className="flex-1 overflow-y-auto p-4">
-      <h1 className="text-sm font-semibold mb-4">Insights</h1>
+      <div className="page-sticky-header flex items-center justify-between mb-4">
+        <h1 className="text-sm font-semibold">Insights</h1>
+      </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         {/* Demand Forecast */}
         <div className="card">
           <div className="text-xs font-medium text-gray-600 mb-3">AI Demand Forecast — Next 30 Days</div>
@@ -80,7 +82,7 @@ export default function Insights() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Revenue by product */}
         <div className="card">
           <div className="text-xs font-medium text-gray-600 mb-3">Top Products by Revenue (30 days)</div>

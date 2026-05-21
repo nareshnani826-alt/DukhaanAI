@@ -228,7 +228,7 @@ Thank you for shopping! 🙏`
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Left: bill form */}
         <div className="card">
           <div className="text-xs font-medium text-gray-600 mb-3">Customer details</div>
@@ -254,7 +254,8 @@ Thank you for shopping! 🙏`
           </div>
 
           <div className="text-xs font-medium text-gray-600 mb-2">Items</div>
-          <table className="w-full mb-2">
+          <div className="overflow-x-auto -mx-1">
+          <table className="w-full mb-2 min-w-[480px]">
             <thead><tr>
               <th className="th">Product</th>
               <th className="th w-16">Qty</th>
@@ -303,6 +304,7 @@ Thank you for shopping! 🙏`
             </tbody>
           </table>
 
+          </div>
           <button onClick={addRow} className="btn btn-sm mb-3">+ Add item</button>
 
           <div className="text-right text-xs text-gray-500 mb-3">

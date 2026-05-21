@@ -41,5 +41,9 @@ Thumbs.db
 *.log
 logs/
 
+# Deployment scripts (contain secrets — never commit)
+deploy-railway.ps1
+deploy-railway.sh
+
 # Claude
 .claude/

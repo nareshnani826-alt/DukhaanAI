@@ -76,7 +76,9 @@ export default function Settings() {
 
   return (
     <div className="flex-1 overflow-y-auto p-4">
-      <h1 className="text-sm font-semibold mb-4">Settings</h1>
+      <div className="page-sticky-header flex items-center mb-4">
+        <h1 className="text-sm font-semibold">Settings</h1>
+      </div>
 
       {/* Current plan card */}
       <div className="card mb-4" style={{ borderColor: planI.color, borderWidth:1.5 }}>

@@ -253,17 +253,17 @@ _Sent from DukaanAI_`
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="page-sticky-header flex items-center justify-between gap-2 flex-wrap mb-4">
         <div>
           <h1 className="text-sm font-semibold">Day Operations</h1>
           <p className="text-[10px] text-gray-400">{fmtDate()}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setSound(s => !s)}
-            className={`text-[10px] px-2 py-1 rounded border ${sound ? "border-primary text-primary bg-primary-light" : "border-gray-200 text-gray-400"}`}>
+            className={`text-[10px] px-2 py-1 rounded border hidden md:block ${sound ? "border-primary text-primary bg-primary-light" : "border-gray-200 text-gray-400"}`}>
             {sound ? "🔔 Sound ON" : "🔕 Sound OFF"}
           </button>
-          <button onClick={load} className="btn btn-sm text-gray-500">↺ Refresh</button>
+          <button onClick={load} className="btn btn-sm text-gray-500">↺</button>
         </div>
       </div>
 
@@ -278,7 +278,7 @@ _Sent from DukaanAI_`
             isOpen    ? "bg-primary-light border border-primary/20" :
                         "bg-amber-50 border border-amber-200"
           }`}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-start justify-between gap-2 mb-4 flex-wrap">
               <div>
                 <div className={`text-base font-semibold ${
                   isClosed ? "text-gray-700" : isOpen ? "text-primary-dark" : "text-amber-700"
@@ -323,7 +323,7 @@ _Sent from DukaanAI_`
 
             {/* Stats grid */}
             {(isOpen || isClosed) && (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {[
                   { label:"Opening Stock Value", value: INR(openingValue),        sub: `${session?.opening_stock?.length || products.length} products` },
                   { label:"Today's Sales",        value: INR(session?.total_sales || todaySales?.total), sub: `${session?.total_invoices || todaySales?.count || 0} invoices`, green: true },
@@ -396,7 +396,8 @@ _Sent from DukaanAI_`
                 </div>
                 <span className="text-[10px] text-gray-400">Taken at {fmt(session.opened_at)}</span>
               </div>
-              <table className="w-full">
+              <div className="overflow-x-auto">
+              <table className="w-full" style={{ minWidth: 520 }}>
                 <thead>
                   <tr>
                     <th className="th">Product</th>
@@ -431,6 +432,7 @@ _Sent from DukaanAI_`
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -444,7 +446,8 @@ _Sent from DukaanAI_`
                 </div>
                 <span className="text-[10px] text-gray-400">Closed at {fmt(session.closed_at)}</span>
               </div>
-              <table className="w-full">
+              <div className="overflow-x-auto">
+              <table className="w-full" style={{ minWidth: 480 }}>
                 <thead>
                   <tr>
                     <th className="th">Product</th>
@@ -485,6 +488,7 @@ _Sent from DukaanAI_`
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 

@@ -275,7 +275,7 @@ function AIChatWidget() {
   return (
     <>
       {open && (
-        <div style={{
+        <div className="mob-chat-panel" style={{
           position:"fixed", bottom:90, right:24, zIndex:200,
           width:320, height:480, borderRadius:18,
           background:"var(--bg1, #f7f4f2)",
@@ -433,6 +433,7 @@ function AIChatWidget() {
 
       {/* Floating bubble button */}
       <button onClick={() => setOpen(o => !o)} title="AI Assistant"
+        className="mob-chat-btn"
         style={{ position:"fixed", bottom:24, right:24, zIndex:201,
           width:52, height:52, borderRadius:"50%",
           background: open ? "var(--ink, #333)" : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
@@ -665,17 +666,23 @@ export default function Layout({ children }) {
             <button key={tab.to} onClick={() => navigate(tab.to)}
               style={{ background:"transparent", border:"none", cursor:"pointer",
                 display:"flex", flexDirection:"column", alignItems:"center", gap:3,
-                color: on ? "var(--saffron)" : "var(--ink-faint)", padding:"4px 8px",
-                borderTop: on ? "2px solid var(--saffron)" : "2px solid transparent" }}>
-              <div style={{width:22, height:22}}>{tab.icon}</div>
-              <span style={{ fontSize:9, fontWeight: on?700:500 }}>{tab.label}</span>
+                color: on ? "var(--saffron)" : "var(--ink-faint)", padding:"4px 10px",
+                flex:1, position:"relative" }}>
+              {on && <div style={{ position:"absolute", top:0, left:"25%", right:"25%",
+                height:2, borderRadius:"0 0 2px 2px", background:"var(--saffron)" }}/>}
+              <div style={{ width:22, height:22,
+                background: on ? "var(--saffron-bg)" : "transparent",
+                borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
+                padding:2 }}>{tab.icon}</div>
+              <span style={{ fontSize:10, fontWeight: on ? 700 : 500 }}>{tab.label}</span>
             </button>
           )
         })}
       </nav>
 
-      {/* Floating mic — moved left to make room */}
+      {/* Floating mic — hidden on mobile (bottom nav has the mic) */}
       <button onClick={() => navigate("/voice")} title="Voice Entry"
+        className="mob-voice-fab"
         style={{ position:"fixed", bottom:24, right:86, zIndex:50,
           width:52, height:52, borderRadius:"50%",
           background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",

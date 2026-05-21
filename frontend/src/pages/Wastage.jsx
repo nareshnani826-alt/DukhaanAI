@@ -78,7 +78,7 @@ export default function Wastage() {
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center"
           onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div className="bg-white rounded-2xl p-5 w-96 shadow-xl animate-slide-up">
+          <div className="bg-white rounded-2xl p-5 shadow-xl animate-slide-up" style={{ width: 384, maxWidth: "95vw" }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-semibold">Record Wastage</h3>
               <button onClick={() => setModal(false)} className="text-gray-300 hover:text-gray-500 text-xl">×</button>
@@ -202,7 +202,7 @@ export default function Wastage() {
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-4 gap-2.5 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-4">
         {[
           { label:"This Month Loss", value: INR(summary.this_month), color:"#E24B4A", bg:"#FCEBEB", icon:"📅" },
           { label:"Total Loss",      value: INR(summary.total_loss),  color:"#EF9F27", bg:"#FAEEDA", icon:"💸" },
@@ -250,9 +250,9 @@ export default function Wastage() {
 
       {/* Records list */}
       <div className="card">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <div className="text-xs font-semibold text-gray-700">Wastage History</div>
-          <input className="input w-40 py-1" placeholder="Search..."
+          <input className="input py-1" style={{ width: 140 }} placeholder="Search..."
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 

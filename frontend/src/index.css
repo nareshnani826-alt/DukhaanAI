@@ -224,42 +224,114 @@ input, select, textarea, button {
   .app-shell { flex-direction: column; }
   .app-sidebar { display: none !important; }
 
+  /* Bottom nav */
   .mobile-bottom-nav {
     display: flex !important;
+    height: 64px;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+  .mobile-bottom-nav button { min-height: 44px; }
 
+  /* Main content area */
   .app-main {
     order: 1; flex: 1;
     overflow-y: auto !important; overflow-x: hidden !important;
-    padding-bottom: 68px; min-width: 0; width: 100%;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    min-width: 0; width: 100%;
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Layout top bar — not sticky on mobile, pages have their own headers */
   .mobile-header {
     display: flex !important;
     align-items: center; justify-content: space-between;
     padding: 10px 16px;
     background: var(--bg1);
     border-bottom: 1px solid var(--rule);
-    position: sticky; top: 0; z-index: 40; flex-shrink: 0;
-    box-shadow: 0 1px 6px var(--shadow);
+    position: relative;
+    flex-shrink: 0;
   }
 
+  /* Inputs — prevent iOS zoom on focus */
   input, select, textarea { font-size: 16px !important; }
-  .btn { min-height: 38px; }
-  .btn-sm { min-height: 30px; }
-  .stat-card { padding: 12px !important; }
+
+  /* Buttons */
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 34px; padding: 6px 12px !important; }
+  .btn-lg { min-height: 48px; }
+
+  /* Cards */
+  .stat-card { padding: 10px !important; }
+  .card { padding: 14px !important; }
+
+  /* Tables */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  .fixed.inset-0 > div {
-    width: 100% !important; max-width: 100% !important;
-    border-radius: 0 !important; height: 100% !important; overflow-y: auto !important;
+  /* Modals — bottom sheet style */
+  .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
   }
+  .modal-box {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 92dvh !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Toast — full width */
+  .notif-toast {
+    left: 12px !important;
+    right: 12px !important;
+    top: 10px !important;
+    text-align: center;
+  }
+
+  /* ── Floating buttons ─────────────────────────────────── */
+  /* Voice FAB — redundant on mobile, bottom nav already has mic */
+  .mob-voice-fab { display: none !important; }
+
+  /* Chat FAB — lift above bottom nav */
+  .mob-chat-btn {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 14px) !important;
+    right: 16px !important;
+  }
+
+  /* Chat panel — full-screen overlay on mobile */
+  .mob-chat-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  /* ── Dashboard responsive grids ──────────────────────── */
+  .dash-stats-grid { gap: 8px !important; }
+  .dash-stats-grid .stat-card { padding: 8px !important; }
+  .dash-bottom-grid { grid-template-columns: 1fr !important; }
+  .hero-revenue { font-size: 34px !important; letter-spacing: -0.5px !important; }
+  .dash-quick-grid { gap: 8px !important; }
+  .dash-quick-grid button { padding: 12px 6px !important; border-radius: 12px !important; }
+
+  /* ── Page content padding ─────────────────────────────── */
+  .page-content { padding: 14px !important; }
+  .page-sticky-header { padding: 12px 14px !important; }
+
+  /* ── Customers split layout ───────────────────────────── */
+  .customer-split { flex-direction: column !important; overflow-y: auto !important; }
+  .customer-list  { width: 100% !important; max-height: 280px; }
+  .customer-detail { overflow-y: visible !important; }
+
+  /* ── UdharKhata stat cards — compact on mobile ────────── */
+  .udhar-stats .stat-card { padding: 8px !important; }
+  .udhar-stats .stat-icon-box { width: 28px !important; height: 28px !important; right: 8px !important; top: 8px !important; font-size: 13px !important; }
+  .udhar-stats .text-xl { font-size: 15px !important; }
 }
 
 @supports (padding: env(safe-area-inset-bottom)) {
   @media (max-width: 768px) {
-    .app-main { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+    .app-main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   }
 }

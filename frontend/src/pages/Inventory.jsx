@@ -494,25 +494,27 @@ export default function Inventory() {
         />
       )}
 
-      {/* Header — sticky so Add Product button stays visible while scrolling */}
-      <div className="page-sticky-header flex items-center justify-between mb-4">
-        <h1 className="text-sm font-semibold">Inventory</h1>
-        <div className="flex items-center gap-2">
-          <select value={voiceLang} onChange={e => setVoiceLang(e.target.value)}
-            className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600">
-            {LANGUAGES.map(l => (
-              <option key={l.code} value={l.code}>{l.native} ({l.name})</option>
-            ))}
-          </select>
-          <button onClick={openAdd} className="btn btn-primary btn-sm">+ Add Product</button>
+      {/* Header */}
+      <div className="page-sticky-header mb-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h1 className="text-sm font-semibold">Inventory</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={voiceLang} onChange={e => setVoiceLang(e.target.value)}
+              className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 hidden md:block">
+              {LANGUAGES.map(l => (
+                <option key={l.code} value={l.code}>{l.native} ({l.name})</option>
+              ))}
+            </select>
+            <button onClick={openAdd} className="btn btn-primary btn-sm">+ Add Product</button>
+          </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 mb-3">
-        <input className="input flex-1" placeholder="Search products..."
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <input className="input flex-1" style={{ minWidth: 140 }} placeholder="Search products..."
           value={search} onChange={e => setSearch(e.target.value)} />
-        <select className="input w-36" value={cat} onChange={e => setCat(e.target.value)}>
+        <select className="input" style={{ width: 140 }} value={cat} onChange={e => setCat(e.target.value)}>
           <option value="">All categories</option>
           {CATS.map(c => <option key={c}>{c}</option>)}
         </select>
@@ -529,7 +531,8 @@ export default function Inventory() {
 
       {/* Table */}
       <div className="card p-0 overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full" style={{ minWidth: 680 }}>
           <thead>
             <tr>
               <th className="th pl-4">Product</th>
@@ -600,6 +603,7 @@ export default function Inventory() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )
