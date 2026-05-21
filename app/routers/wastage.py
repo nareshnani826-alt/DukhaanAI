@@ -38,6 +38,11 @@ async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)
     raw_qty = float(body.qty)
     qty = int(raw_qty) if raw_qty == int(raw_qty) else raw_qty
     current_stock = float(product["stock"] or 0)
+    if raw_qty > current_stock:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Wastage qty ({raw_qty}) exceeds available stock ({current_stock})"
+        )
     new_stock = round(max(0, current_stock - raw_qty), 2)
     db.table("products").update({"stock": new_stock}).eq("id", body.product_id).execute()
     loss_value = round(raw_qty * float(product["cost_price"] or 0), 2)

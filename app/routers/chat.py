@@ -435,6 +435,10 @@ class ChatRequest(BaseModel):
     store_context: Optional[dict] = {}
     history: Optional[list[HistoryMessage]] = []
 
+    @property
+    def clean_message(self) -> str:
+        return self.message.strip()[:1000]  # cap at 1000 chars
+
 
 def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
     db = get_db()
@@ -615,11 +619,18 @@ async def chat(
     req: ChatRequest,
     vendor=Depends(_optional_vendor),
 ):
+    if not req.message or not req.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if len(req.message) > 2000:
+        raise HTTPException(status_code=400, detail="Message too long (max 2000 characters)")
+
     lang_name = LANG_NAMES.get(req.language, "English")
+
+    safe_msg = req.message.strip()[:1000]
 
     # ── TIER 1: Local intent classifier ──────────────────────
     if vendor:
-        intent, score = _detect_intent(req.message)
+        intent, score = _detect_intent(safe_msg)
         if intent:
             try:
                 data  = _run_tool(intent["tool"], intent["args"], vendor["id"])
@@ -650,10 +661,10 @@ async def chat(
     else:
         system_prompt = _local_prompt(lang_name, req.store_context or {})
     messages = [{"role": "system", "content": system_prompt}]
-    for h in (req.history or []):
+    for h in (req.history or [])[-10:]:  # cap history to last 10 turns
         role = "assistant" if h.role in ("model", "ai", "assistant") else "user"
-        messages.append({"role": role, "content": h.text})
-    messages.append({"role": "user", "content": req.message})
+        messages.append({"role": role, "content": (h.text or "")[:500]})
+    messages.append({"role": "user", "content": safe_msg})
 
     try:
         reply = await _call_groq(messages, vendor["id"] if vendor else None, use_tools=bool(vendor))

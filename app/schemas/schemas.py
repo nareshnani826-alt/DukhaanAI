@@ -73,6 +73,44 @@ class ProductCreate(BaseModel):
     cost_price: float
     gst_percent: Literal[0, 5, 12, 18, 28] = 5
 
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Product name cannot be empty")
+        if len(v) > 150:
+            raise ValueError("Product name too long (max 150 characters)")
+        return v
+
+    @field_validator("mrp")
+    @classmethod
+    def mrp_non_negative(cls, v):
+        if v < 0:
+            raise ValueError("MRP cannot be negative")
+        return v
+
+    @field_validator("cost_price")
+    @classmethod
+    def cost_non_negative(cls, v):
+        if v < 0:
+            raise ValueError("Cost price cannot be negative")
+        return v
+
+    @field_validator("stock")
+    @classmethod
+    def stock_non_negative(cls, v):
+        if v < 0:
+            raise ValueError("Stock cannot be negative")
+        return v
+
+    @field_validator("min_stock")
+    @classmethod
+    def min_stock_non_negative(cls, v):
+        if v < 0:
+            raise ValueError("Minimum stock cannot be negative")
+        return v
+
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -150,6 +188,27 @@ class InvoiceLineItem(BaseModel):
     qty: int
     unit_price: float
     gst_percent: int
+
+    @field_validator("qty")
+    @classmethod
+    def qty_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Quantity must be greater than 0")
+        return v
+
+    @field_validator("unit_price")
+    @classmethod
+    def price_non_negative(cls, v):
+        if v < 0:
+            raise ValueError("Unit price cannot be negative")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def item_name_not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Item name cannot be empty")
+        return v.strip()
 
 
 class InvoiceCreate(BaseModel):

@@ -91,9 +91,12 @@ export default function Billing() {
     if (!cust.trim()) return showNotif("Customer name is required")
     const items = rows.map(r => {
       const p = getProduct(r.prodId)
-      return p ? { product_id: p.id, name: p.name, qty: +r.qty, unit_price: p.mrp, gst_percent: p.gst_percent } : null
+      if (!p) return null
+      const qty = +r.qty
+      if (!qty || qty <= 0) return null
+      return { product_id: p.id, name: p.name, qty, unit_price: p.mrp, gst_percent: p.gst_percent }
     }).filter(Boolean)
-    if (!items.length) return showNotif("Add at least one item")
+    if (!items.length) return showNotif("Add at least one item with valid quantity")
     setSaving(true)
     try {
       const inv = await Invoices.generate({

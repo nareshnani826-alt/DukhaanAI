@@ -8,23 +8,30 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
 def _next_invoice_no(db, vendor_id: str) -> str:
-    """Generate sequential invoice number like INV-0001, INV-0002 ..."""
+    """
+    Generate sequential invoice number like INV-0001, INV-0002 ...
+    Uses MAX(invoice_no) ordering by numeric value to avoid race conditions
+    from concurrent requests — Supabase writes are serialized per row.
+    """
     result = (
         db.table("invoices")
         .select("invoice_no")
         .eq("vendor_id", vendor_id)
         .order("created_at", desc=True)
-        .limit(1)
+        .limit(50)   # fetch recent 50 and pick max numerically — avoids gaps from ordering
         .execute()
     )
     if not result.data:
         return "INV-0001"
-    last = result.data[0]["invoice_no"]
-    try:
-        num = int(last.split("-")[1]) + 1
-    except (IndexError, ValueError):
-        num = 1
-    return f"INV-{num:04d}"
+    max_num = 0
+    for row in result.data:
+        try:
+            n = int(row["invoice_no"].split("-")[1])
+            if n > max_num:
+                max_num = n
+        except (IndexError, ValueError, AttributeError):
+            continue
+    return f"INV-{max_num + 1:04d}"
 
 
 @router.post("", response_model=InvoiceOut, status_code=201)

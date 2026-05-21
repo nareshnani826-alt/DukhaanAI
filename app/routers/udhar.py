@@ -113,8 +113,14 @@ async def add_transaction(body: TransactionCreate, vendor=Depends(get_current_ve
     }).execute().data[0]
 
     # Update customer total_due
+    current_due = float(customer["total_due"] or 0)
+    if body.type == "payment" and body.amount > current_due + 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Payment amount ({body.amount}) exceeds outstanding balance ({round(current_due, 2)})"
+        )
     delta    = body.amount if body.type == "credit" else -body.amount
-    new_due  = max(0, round((customer["total_due"] or 0) + delta, 2))
+    new_due  = max(0, round(current_due + delta, 2))
     db.table("udhar_customers").update({
         "total_due":   new_due,
         "last_txn_at": datetime.now(timezone.utc).isoformat(),

@@ -144,15 +144,27 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
   const { listening: stockListening, startVoice: startStockVoice } = useVoiceField(lang, onStockVoice)
 
   async function save() {
-    if (!form.name.trim()) return setNotif("Product name is required")
+    const name = form.name.trim()
+    if (!name) return setNotif("Product name is required")
+    if (name.length > 150) return setNotif("Product name too long (max 150 characters)")
+    const mrp = +form.mrp
+    const cost = +form.cost_price
+    const stock = +form.stock
+    if (mrp < 0) return setNotif("MRP cannot be negative")
+    if (cost < 0) return setNotif("Cost price cannot be negative")
+    if (stock < 0) return setNotif("Stock cannot be negative")
+    if (cost > mrp && mrp > 0) {
+      setNotif("Warning: cost price is higher than MRP — low margin product")
+    }
     setSaving(true)
     try {
       const data = {
         ...form,
-        stock:       +form.stock || 0,
+        name,
+        stock:       stock,
         min_stock:   +form.min_stock || 10,
-        mrp:         +form.mrp || 0,
-        cost_price:  +form.cost_price || 0,
+        mrp,
+        cost_price:  cost,
         gst_percent: +form.gst_percent || 0,
       }
       await onSave(editId, data)
