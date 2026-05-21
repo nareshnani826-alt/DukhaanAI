@@ -696,6 +696,20 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
 function extractQtyUnit(text) {
   const t = text.toLowerCase()
 
+  // Fraction notation: "1/2 kg", "1/4 litre", "3/4 kg" — must run first
+  // because the numeric regex would grab only the denominator (e.g. 2 from 1/2)
+  const fracMatch = t.match(/\b(\d+)\/(\d+)\s*(kg|kilo|kilogram|gram|g\b|litre|liter|ltr|ml)\b/i)
+  if (fracMatch) {
+    const qty     = parseFloat(fracMatch[1]) / parseFloat(fracMatch[2])
+    const unitRaw = fracMatch[3].toLowerCase()
+    const unit    = /kg|kilo/.test(unitRaw) ? "kg"
+                  : /^g$|gram/.test(unitRaw) ? "g"
+                  : /litre|liter|ltr/.test(unitRaw) ? "litre"
+                  : /ml/.test(unitRaw) ? "ml"
+                  : "pc"
+    return { qty, unit }
+  }
+
   // Fraction words → multiplier (checked before numeric patterns)
   // Also covers compound transliterations like "arakilo" (అరకిలో as one word)
   const FRACTIONS = [
