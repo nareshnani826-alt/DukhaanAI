@@ -2,7 +2,6 @@ import { useState, useRef } from "react"
 import { getToken } from "../sync/db"
 
 const API = import.meta.env.VITE_API_URL
-const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
 
 const MATCH_BADGE = {
   exact: { label: "✓ Matched",     bg: "#ecfdf5", color: "#059669" },
@@ -10,13 +9,23 @@ const MATCH_BADGE = {
   new:   { label: "+ New Product", bg: "#eff6ff", color: "#2563eb" },
 }
 
+const TIER_INFO = {
+  tesseract: { label: "Local OCR",    bg: "#ecfdf5", color: "#059669", icon: "📱" },
+  gemini:    { label: "Gemini AI",    bg: "#eff6ff", color: "#2563eb", icon: "✨" },
+  groq:      { label: "Groq AI",      bg: "#faf5ff", color: "#7c3aed", icon: "🤖" },
+  regex:     { label: "Text Parser",  bg: "#fefce8", color: "#b45309", icon: "📝" },
+}
+
 export default function InvoiceScanTab() {
-  const [step,    setStep]    = useState("upload")  // upload | scanning | review | applying | done
-  const [items,   setItems]   = useState([])
-  const [stats,   setStats]   = useState({})
-  const [result,  setResult]  = useState(null)
-  const [error,   setError]   = useState("")
-  const [preview, setPreview] = useState(null)
+  const [step,        setStep]        = useState("upload")
+  const [items,       setItems]       = useState([])
+  const [stats,       setStats]       = useState({})
+  const [result,      setResult]      = useState(null)
+  const [error,       setError]       = useState("")
+  const [preview,     setPreview]     = useState(null)
+  const [ocrProgress, setOcrProgress] = useState(0)
+  const [ocrStage,    setOcrStage]    = useState("")  // "reading" | "thinking"
+  const [tier,        setTier]        = useState(null)
   const fileRef = useRef()
 
   function setItemField(i, field, val) {
@@ -27,28 +36,61 @@ export default function InvoiceScanTab() {
     if (!file) return
     setPreview(URL.createObjectURL(file))
     setStep("scanning")
+    setOcrProgress(0)
+    setOcrStage("reading")
     setError("")
+    setTier(null)
 
+    // ── Tier 1: Tesseract.js — browser OCR (images only, free) ──
+    let tesseractText = ""
+    let confidence    = 0
+    const isImage = file.type.startsWith("image/")
+
+    if (isImage) {
+      try {
+        const { createWorker } = await import("tesseract.js")
+        const worker = await createWorker("eng", 1, {
+          logger: m => {
+            if (m.status === "recognizing text") {
+              setOcrProgress(Math.round(m.progress * 65))  // 0 → 65%
+            }
+          },
+        })
+        const { data } = await worker.recognize(file)
+        tesseractText = data.text  || ""
+        confidence    = data.confidence || 0
+        await worker.terminate()
+      } catch (e) {
+        console.warn("Tesseract failed:", e)
+      }
+    }
+
+    setOcrStage("thinking")
+    setOcrProgress(70)
+
+    // ── Send to backend — cascade continues there ─────────────
     const token = getToken()
     const form  = new FormData()
-    form.append("file", file)
+    form.append("file",           file)
+    form.append("tesseract_text", tesseractText)
+    form.append("confidence",     String(confidence))
 
     try {
       const res = await fetch(`${API}/invoice-scan/scan`, {
-        method: "POST",
+        method:  "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
+        body:    form,
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || "Scan failed")
       }
       const data = await res.json()
+      setOcrProgress(100)
+      setTier(data.tier || null)
 
-      // Set default action per match type; pre-fill editable name
       const withDefaults = data.items.map(it => ({
         ...it,
-        // name the user can edit
         name:   it.match_type === "exact" || it.match_type === "fuzzy"
                   ? (it.match_product?.name || it.extracted_name)
                   : it.extracted_name,
@@ -65,7 +107,7 @@ export default function InvoiceScanTab() {
 
   async function applyToInventory() {
     setStep("applying")
-    const token = getToken()
+    const token   = getToken()
     const payload = {
       items: items
         .filter(it => it.action !== "skip")
@@ -103,7 +145,7 @@ export default function InvoiceScanTab() {
 
   function reset() {
     setStep("upload"); setItems([]); setStats({}); setResult(null)
-    setError(""); setPreview(null)
+    setError(""); setPreview(null); setOcrProgress(0); setTier(null)
     if (fileRef.current) fileRef.current.value = ""
   }
 
@@ -120,9 +162,9 @@ export default function InvoiceScanTab() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
           {[
-            { label: "New Products", value: result.added,   bg: "#ecfdf5", color: "#059669" },
-            { label: "Stock Updated", value: result.updated, bg: "#eff6ff", color: "#2563eb" },
-            { label: "Errors",       value: result.errors?.length || 0, bg: "var(--bg2)", color: "var(--ink-faint)" },
+            { label: "New Products",  value: result.added,              bg: "#ecfdf5", color: "#059669" },
+            { label: "Stock Updated", value: result.updated,            bg: "#eff6ff", color: "#2563eb" },
+            { label: "Errors",        value: result.errors?.length || 0, bg: "var(--bg2)", color: "var(--ink-faint)" },
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: 16 }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -149,12 +191,16 @@ export default function InvoiceScanTab() {
 
   // ── Scanning / applying loader ────────────────────────────────
   if (step === "scanning" || step === "applying") {
-    const msg = step === "scanning"
-      ? "AI is reading your invoice…"
+    const isScanning = step === "scanning"
+    const stageMsg   = isScanning
+      ? (ocrStage === "reading" ? "Reading invoice text…" : "AI is matching your products…")
       : "Updating inventory…"
-    const sub = step === "scanning"
-      ? "Gemini Vision is extracting products, prices and quantities"
+    const stageSub   = isScanning
+      ? (ocrStage === "reading"
+          ? "Tesseract is extracting text from your image (free, private)"
+          : "Using AI to parse products, prices and quantities")
       : "Adding stock and creating new products"
+
     return (
       <div style={{ padding: 40, textAlign: "center" }}>
         {preview && (
@@ -162,18 +208,41 @@ export default function InvoiceScanTab() {
             style={{ maxWidth: 200, maxHeight: 200, borderRadius: 12,
               objectFit: "cover", marginBottom: 24, border: "2px solid var(--rule)" }}/>
         )}
-        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{
-              width: 10, height: 10, borderRadius: "50%",
-              background: "var(--jade)", opacity: 0.4,
-              animation: "bounce 1.2s infinite",
-              animationDelay: `${i * 0.2}s`,
-            }}/>
-          ))}
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>{msg}</div>
-        <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>{sub}</div>
+
+        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>{stageMsg}</div>
+        <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 20 }}>{stageSub}</div>
+
+        {isScanning ? (
+          <>
+            {/* Progress bar */}
+            <div style={{ background: "var(--rule)", borderRadius: 99, height: 8,
+              overflow: "hidden", maxWidth: 280, margin: "0 auto 12px" }}>
+              <div style={{
+                height: "100%",
+                background: "linear-gradient(90deg,#0F6E56,#1D9E75)",
+                width: `${ocrProgress}%`,
+                transition: "width 0.4s ease",
+                borderRadius: 99,
+              }}/>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+              {ocrProgress < 65 ? "📱 Local OCR (no API cost)…"
+               : ocrProgress < 90 ? "☁️ Sending to AI…"
+               : "Almost done…"}
+            </div>
+          </>
+        ) : (
+          <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: "var(--jade)", opacity: 0.5,
+                animation: "bounce 1.2s infinite",
+                animationDelay: `${i * 0.2}s`,
+              }}/>
+            ))}
+          </div>
+        )}
         <style>{`@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-8px)}}`}</style>
       </div>
     )
@@ -182,22 +251,30 @@ export default function InvoiceScanTab() {
   // ── Review table ──────────────────────────────────────────────
   if (step === "review") {
     const toApply = items.filter(it => it.action !== "skip").length
+    const tierInfo = tier ? TIER_INFO[tier] : null
+
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         {/* Summary bar */}
         <div style={{ padding: "10px 20px", background: "var(--bg1)",
           borderBottom: "1px solid var(--rule)", display: "flex",
           alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 10, flex: 1 }}>
+          <div style={{ display: "flex", gap: 8, flex: 1, flexWrap: "wrap", alignItems: "center" }}>
             {[
-              { label: `${stats.exact} exact`, color: "#059669", bg: "#ecfdf5" },
+              { label: `${stats.exact} exact`,   color: "#059669", bg: "#ecfdf5" },
               { label: `${stats.fuzzy} similar`, color: "#b45309", bg: "#fefce8" },
-              { label: `${stats.new} new`, color: "#2563eb", bg: "#eff6ff" },
+              { label: `${stats.new} new`,        color: "#2563eb", bg: "#eff6ff" },
             ].map(s => (
               <span key={s.label} style={{ fontSize: 11, fontWeight: 600,
                 padding: "3px 10px", borderRadius: 20,
                 background: s.bg, color: s.color }}>{s.label}</span>
             ))}
+            {tierInfo && (
+              <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 20,
+                background: tierInfo.bg, color: tierInfo.color, fontWeight: 600 }}>
+                {tierInfo.icon} {tierInfo.label}
+              </span>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={reset}
@@ -234,13 +311,11 @@ export default function InvoiceScanTab() {
                 opacity: isSkip ? 0.5 : 1,
               }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-                  {/* Match badge */}
                   <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px",
                     borderRadius: 20, background: badge.bg, color: badge.color,
                     whiteSpace: "nowrap", flexShrink: 0 }}>
                     {badge.label}
                   </span>
-                  {/* Extracted vs matched */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 2 }}>
                       Invoice: <span style={{ fontWeight: 600 }}>{it.extracted_name}</span>
@@ -254,7 +329,6 @@ export default function InvoiceScanTab() {
                       </div>
                     )}
                   </div>
-                  {/* Skip toggle */}
                   <button onClick={() => setItemField(i, "action", isSkip ? (it.match_type === "new" ? "create" : "add_stock") : "skip")}
                     style={{ background: "none", border: "none", fontSize: 16,
                       cursor: "pointer", flexShrink: 0, padding: 0 }}>
@@ -264,7 +338,6 @@ export default function InvoiceScanTab() {
 
                 {!isSkip && (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {/* Qty */}
                     <div style={{ flex: "0 0 70px" }}>
                       <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>QTY</div>
                       <input type="number" min="0" step="0.1"
@@ -273,7 +346,6 @@ export default function InvoiceScanTab() {
                         style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 7,
                           padding: "5px 7px", fontSize: 12, fontWeight: 600, outline: "none" }}/>
                     </div>
-                    {/* Unit */}
                     <div style={{ flex: "0 0 70px" }}>
                       <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>UNIT</div>
                       <select value={it.unit || "pc"}
@@ -285,7 +357,6 @@ export default function InvoiceScanTab() {
                         ))}
                       </select>
                     </div>
-                    {/* Price */}
                     <div style={{ flex: "0 0 80px" }}>
                       <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>PRICE/UNIT</div>
                       <input type="number" min="0" step="0.01"
@@ -295,7 +366,6 @@ export default function InvoiceScanTab() {
                         style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 7,
                           padding: "5px 7px", fontSize: 12, outline: "none" }}/>
                     </div>
-                    {/* GST */}
                     {it.gst_percent != null && (
                       <div style={{ flex: "0 0 60px" }}>
                         <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>GST%</div>
@@ -306,7 +376,6 @@ export default function InvoiceScanTab() {
                             padding: "5px 7px", fontSize: 12, outline: "none" }}/>
                       </div>
                     )}
-                    {/* Action for new/fuzzy */}
                     {it.match_type !== "exact" && (
                       <div style={{ flex: "1 1 120px" }}>
                         <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>ACTION</div>
@@ -323,7 +392,6 @@ export default function InvoiceScanTab() {
                   </div>
                 )}
 
-                {/* Expiry / batch tags */}
                 {!isSkip && (it.expiry || it.batch) && (
                   <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                     {it.expiry && <span style={{ fontSize: 10, background: "#fef9c3", color: "#854d0e",
@@ -354,7 +422,6 @@ export default function InvoiceScanTab() {
         </div>
       )}
 
-      {/* Drop zone */}
       <div
         onClick={() => fileRef.current.click()}
         onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
@@ -385,7 +452,6 @@ export default function InvoiceScanTab() {
           onChange={e => handleFile(e.target.files[0])} capture="environment"/>
       </div>
 
-      {/* Camera button for mobile */}
       <button
         onClick={() => { fileRef.current.setAttribute("capture","environment"); fileRef.current.click() }}
         style={{ width: "100%", padding: "13px", background: "var(--bg1)",
@@ -403,17 +469,22 @@ export default function InvoiceScanTab() {
           How it works
         </div>
         {[
-          ["📄", "Upload invoice photo or PDF from your vendor/distributor"],
-          ["🤖", "Gemini AI reads product names, quantities and prices"],
-          ["✓", "We match items to your existing inventory automatically"],
-          ["💾", "Review and apply — stock updates in one tap"],
+          ["📄", "Upload invoice photo or PDF from your vendor"],
+          ["📱", "Tesseract reads text locally — free, private, no internet needed"],
+          ["✨", "Gemini AI (1,500 free/day) gives full accuracy when needed"],
+          ["🤖", "Groq AI kicks in automatically if Gemini is busy"],
+          ["💾", "Review matches and apply — stock updates in one tap"],
         ].map(([icon, text]) => (
-          <div key={text} style={{ display: "flex", gap: 12, marginBottom: 12,
-            alignItems: "flex-start" }}>
+          <div key={text} style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "flex-start" }}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
             <span style={{ fontSize: 12, color: "var(--ink-faint)", lineHeight: 1.5 }}>{text}</span>
           </div>
         ))}
+        {/* Cost indicator */}
+        <div style={{ marginTop: 14, padding: "10px 14px", background: "#ecfdf5",
+          borderRadius: 10, fontSize: 11, color: "#059669", fontWeight: 600 }}>
+          Zero cost · Tesseract → Gemini (free) → Groq (free) → Regex fallback
+        </div>
       </div>
     </div>
   )
