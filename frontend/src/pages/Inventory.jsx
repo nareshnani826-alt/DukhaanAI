@@ -406,13 +406,13 @@ export default function Inventory() {
     setLoading(true)
     try {
       const list = await Products.list({ search, category: cat||undefined })
-      setProducts(list)
-      // Fix any stale 'piece' units in the background after render
-      silentFixUnits(list).then(() => {
-        if (list.some(p => !p.unit || p.unit === "piece")) {
-          Products.list({ search, category: cat||undefined }).then(setProducts)
-        }
-      })
+      await silentFixUnits(list)
+      // Re-fetch only if anything was actually fixed
+      const needsRefresh = list.some(p => resolveUnit(p.name) !== (p.unit || "piece"))
+      setProducts(needsRefresh
+        ? await Products.list({ search, category: cat||undefined })
+        : list
+      )
     } finally { setLoading(false) }
   }
 
@@ -602,7 +602,8 @@ export default function Inventory() {
             ) : products.map(p => {
               const [sc, sl] = status(p)
               const ready    = hasBarcode(p)
-              const unitInfo = UNIT_TYPES[p.unit] || UNIT_TYPES.piece
+              const displayUnit = resolveUnit(p.name)
+              const unitInfo    = UNIT_TYPES[displayUnit] || UNIT_TYPES.piece
               return (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="td pl-4">
