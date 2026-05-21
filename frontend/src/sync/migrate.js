@@ -6,7 +6,7 @@
 // then clears local storage.
 // ─────────────────────────────────────────────────────────
 
-import { api } from "../api/client.js";
+import { api } from "./db.js";
 
 const LS_KEY = "dukaanai_data";
 

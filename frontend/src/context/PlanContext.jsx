@@ -78,15 +78,18 @@ export function PlanProvider({ children }) {
   const features = PLAN_FEATURES[plan] || PLAN_FEATURES.free
   const [toggles, setToggles] = useState(getToggles)
 
-  // Listen for toggle changes from Settings page
+  // Listen for toggle changes — cross-tab via storage event, same-tab via custom event
   useEffect(() => {
     function onStorage(e) {
       if (e.key === "dk_feature_toggles") setToggles(getToggles())
     }
+    function onCustom() { setToggles(getToggles()) }
     window.addEventListener("storage", onStorage)
-    // Also poll every second for same-tab changes
-    const interval = setInterval(() => setToggles(getToggles()), 1000)
-    return () => { window.removeEventListener("storage", onStorage); clearInterval(interval) }
+    window.addEventListener("dk:toggles-changed", onCustom)
+    return () => {
+      window.removeEventListener("storage", onStorage)
+      window.removeEventListener("dk:toggles-changed", onCustom)
+    }
   }, [])
 
   function hasFeature(feature) {

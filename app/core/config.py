@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
     jwt_refresh_token_expire_days: int = 30
 
-    # Groq AI (free tier: 30 RPM, 14,400 req/day — Llama 3.3 70B)
+    # Groq AI — primary LLM (free tier: 30 RPM, 14,400 req/day — Llama 3.3 70B)
     groq_api_key: str = ""
+
+    # Google Gemini — fallback LLM when Groq hits rate limit
+    # Free tier: ~1,500 req/day (Gemini 1.5 Flash). Get key at aistudio.google.com
+    gemini_api_key: str = ""
 
     # AssemblyAI (speech-to-text for voice assistant & chatbot)
     assemblyai_api_key: str = ""

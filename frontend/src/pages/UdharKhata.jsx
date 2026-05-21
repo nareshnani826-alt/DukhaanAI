@@ -29,6 +29,7 @@ export default function UdharKhata() {
   const [modal,     setModal]     = useState(null) // "add-customer" | "credit" | "payment"
   const [form,      setForm]      = useState({})
   const [saving,    setSaving]    = useState(false)
+  const [showDetail,setShowDetail]= useState(false)
 
   useEffect(() => { load() }, [search])
 

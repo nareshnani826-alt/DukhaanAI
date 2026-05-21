@@ -1,29 +1,25 @@
-import {
-  getLearnedMatches,
-} from "./learningStore"
+import { getLearnedMatches } from "./learningStore"
 
-export function rankMatches(
-  spoken,
-  fuzzyMatches
-) {
-  const learned =
-    getLearnedMatches(spoken)
+// Boost formula: each confirmation adds 0.25, capped at 0.6
+// After 3 confirmations boost = 0.6 — enough to dominate any fuse/phonetic score
+function learnedBoost(count) {
+  return Math.min(0.6, count * 0.25)
+}
 
-  return fuzzyMatches.map((m) => {
-    const learnedBoost =
-      learned.find(
-        (l) =>
-          l.product.toLowerCase() ===
-          m.product.name.toLowerCase()
-      )?.count || 0
+export function rankMatches(spoken, fuzzyMatches) {
+  const learned = getLearnedMatches(spoken)
 
-    return {
-      ...m,
-      finalScore:
-        m.score + learnedBoost * 0.1,
-    }
-  })
-  .sort((a, b) =>
-    b.finalScore - a.finalScore
-  )
+  return fuzzyMatches
+    .map(m => {
+      const learnedEntry = learned.find(
+        l => l.product.toLowerCase() === m.product?.name?.toLowerCase()
+      )
+      const boost = learnedBoost(learnedEntry?.count || 0)
+      return {
+        ...m,
+        learnedCount: learnedEntry?.count || 0,
+        finalScore: (m.score || 0) + boost,
+      }
+    })
+    .sort((a, b) => b.finalScore - a.finalScore)
 }

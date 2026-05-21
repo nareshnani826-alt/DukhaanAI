@@ -145,7 +145,7 @@ export const Invoices = {
       return { ...item, subtotal:s, tax:t, total:Math.round((s+t)*100)/100 }
     })
     sub=Math.round(sub*100)/100; tax=Math.round(tax*100)/100
-    const cgst=Math.round(tax/2*100)/100, sgst=Math.round(tax/2*100)/100
+    const cgst=Math.round(tax/2*100)/100, sgst=Math.round((tax-cgst)*100)/100
     const invNo = "INV-" + String(d.nextInvNo++).padStart(4,"0")
     const inv = { id:lid(d), vendor_id:"local", invoice_no:invNo, customer_name, customer_gstin:customer_gstin||null, payment_mode, subtotal:sub, cgst, sgst, total:Math.round((sub+tax)*100)/100, items:lineItems, status:"paid", created_at:new Date().toISOString() }
     d.invoices.push(inv); localWrite(d); return inv

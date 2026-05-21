@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react"
-import { getUpcomingFestivals, getCurrentSeason, getUrgentAlerts, SEASONS } from "../data/indianCalendar.js"
+import { getUpcomingFestivalsAsync, getCurrentSeason, computeUrgentAlerts, SEASONS } from "../data/indianCalendar.js"
 import { Products, api } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 
 const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
-
-const INR = n => "₹" + Math.round(n||0).toLocaleString("en-IN")
 
 // ── News-based demand signals using Google News RSS ──────
 // Free — no API key needed
@@ -21,28 +19,24 @@ async function fetchNewsDemandSignals() {
     { query:"cooking oil price India",products:["Sunflower oil","Palm oil","Groundnut oil"],  signal:"📈 Oil price spike",   color:"#EF9F27" },
   ]
 
-  // Use Google News RSS to check if keywords appear in recent news
-  // This is completely free — just fetching public RSS
-  const signals = []
-  for (const kw of KEYWORDS) {
-    try {
+  const results = await Promise.allSettled(
+    KEYWORDS.map(async kw => {
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(kw.query)}&hl=en-IN&gl=IN&ceid=IN:en`
       const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`)
-      if (!res.ok) continue
+      if (!res.ok) return null
       const data = await res.json()
       const xml  = data.contents || ""
-      // Count recent news items (last 3 days)
       const items = xml.match(/<pubDate>(.*?)<\/pubDate>/g) || []
       const recent = items.filter(d => {
-        const date = new Date(d.replace(/<\/?pubDate>/g,""))
+        const date = new Date(d.replace(/<\/?pubDate>/g, ""))
         return (Date.now() - date.getTime()) < 3 * 86400000
       })
-      if (recent.length >= 2) { // at least 2 news items in last 3 days
-        signals.push({ ...kw, count: recent.length })
-      }
-    } catch {}
-  }
-  return signals
+      return recent.length >= 2 ? { ...kw, count: recent.length } : null
+    })
+  )
+  return results
+    .filter(r => r.status === "fulfilled" && r.value !== null)
+    .map(r => r.value)
 }
 
 // ── Vendor's own sales patterns ───────────────────────────
@@ -81,11 +75,14 @@ export default function DemandIntelligence() {
     async function load() {
       setLoading(true)
       try {
-        const prods = await Products.list()
+        const [prods, liveFestivals] = await Promise.all([
+          Products.list(),
+          getUpcomingFestivalsAsync(45),
+        ])
         setInventory(prods)
-        setFestivals(getUpcomingFestivals(45))
+        setFestivals(liveFestivals)
         setSeason(getCurrentSeason())
-        setUrgentAlerts(getUrgentAlerts(prods))
+        setUrgentAlerts(computeUrgentAlerts(liveFestivals, prods))
         setPatterns(getSalesPatterns(prods))
       } finally { setLoading(false) }
 

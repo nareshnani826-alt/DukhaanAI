@@ -143,7 +143,7 @@ async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
 @router.post("/{product_id}/adjust-stock", response_model=ProductOut)
 async def adjust_stock(
     product_id: str,
-    adjustment: int = Query(..., description="Positive = add stock, negative = remove"),
+    adjustment: float = Query(..., description="Positive = add stock, negative = remove"),
     reason: str = Query("manual adjustment"),
     vendor=Depends(get_current_vendor),
 ):

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react"
-import { api, setTokens, setVendor, clearAuth, getVendor, getToken, isCloud } from "../sync/db"
+import { api, setTokens, setVendor, clearAuth, getVendor, getToken, isCloud, getRefresh } from "../sync/db"
 
 const AuthCtx = createContext(null)
 
@@ -8,8 +8,16 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState("")
 
-  const loggedIn = !!getToken()
-  const cloud    = isCloud()
+  // Derived from vendor state — reactive when login/logout changes vendor
+  const loggedIn = !!vendor
+  const cloud    = !!vendor && ["pro","wholesale"].includes(vendor?.plan)
+
+  // Handle session expiry from auto-refresh failure
+  useEffect(() => {
+    function onLogout() { setVendorState(null) }
+    window.addEventListener("dk:logout", onLogout)
+    return () => window.removeEventListener("dk:logout", onLogout)
+  }, [])
 
   async function login(email, password) {
     setLoading(true); setError("")
@@ -36,7 +44,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    const r = localStorage.getItem("dk_refresh")
+    const r = getRefresh()
     if (r) await api.post("/auth/logout", { refresh_token: r }).catch(()=>{})
     clearAuth(); setVendorState(null)
   }

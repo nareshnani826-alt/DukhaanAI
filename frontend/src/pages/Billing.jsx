@@ -15,7 +15,6 @@ export default function Billing() {
   const [phone,     setPhone]     = useState("")
   const [gstin,     setGstin]     = useState("")
   const [pay,       setPay]       = useState("Cash")
-  const [date,      setDate]      = useState(new Date().toISOString().slice(0,10))
   const [invoice,   setInvoice]   = useState(null)
   const [saving,    setSaving]    = useState(false)
   const [notif,     setNotif]     = useState("")
@@ -92,7 +91,7 @@ export default function Billing() {
     if (!cust.trim()) return showNotif("Customer name is required")
     const items = rows.map(r => {
       const p = getProduct(r.prodId)
-      return p ? { name: p.name, qty: +r.qty, unit_price: p.mrp, gst_percent: p.gst_percent } : null
+      return p ? { product_id: p.id, name: p.name, qty: +r.qty, unit_price: p.mrp, gst_percent: p.gst_percent } : null
     }).filter(Boolean)
     if (!items.length) return showNotif("Add at least one item")
     setSaving(true)
@@ -242,10 +241,6 @@ Thank you for shopping! 🙏`
             <div>
               <label className="label">GSTIN</label>
               <input className="input" value={gstin} onChange={e => setGstin(e.target.value)} placeholder="Optional" />
-            </div>
-            <div>
-              <label className="label">Date</label>
-              <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
             </div>
             <div>
               <label className="label">Payment</label>

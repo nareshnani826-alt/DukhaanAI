@@ -60,7 +60,7 @@ export default function App() {
                   <Route path="/customers"  element={<Gated feature="customer_history"><Customers /></Gated>} />
                   <Route path="/day"        element={<Gated feature="day_ops"><DayOps /></Gated>} />
                   <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
-                  <Route path="/ai-test" element={<AITest />} />
+                  <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                 </Routes>
               </Layout>
             } />

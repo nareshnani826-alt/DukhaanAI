@@ -61,7 +61,9 @@ async def get_current_vendor(
     if not vendor_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
     db = get_db()
-    result = db.table("vendors").select("*").eq("id", vendor_id).single().execute()
+    result = db.table("vendors").select(
+        "id,email,store_name,gstin,phone,address,plan,plan_expires_at,is_active,is_admin,created_at,updated_at"
+    ).eq("id", vendor_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="Vendor not found")
     vendor = result.data

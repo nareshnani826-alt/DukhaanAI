@@ -45,6 +45,7 @@ export default function Settings() {
     const updated = { ...toggles, [key]: val }
     setToggles(updated)
     localStorage.setItem("dk_feature_toggles", JSON.stringify(updated))
+    window.dispatchEvent(new Event("dk:toggles-changed"))
   }
 
   function isEnabled(key) {

@@ -117,7 +117,7 @@ class ProductOut(BaseModel):
 
 class SaleCreate(BaseModel):
     product_id: UUID
-    qty: int
+    qty: float
     customer: str = "Walk-in"
     payment_mode: Literal["Cash", "UPI", "Credit", "Cheque"] = "Cash"
 
@@ -134,7 +134,7 @@ class SaleOut(BaseModel):
     vendor_id: UUID
     product_id: UUID
     product_name: str
-    qty: int
+    qty: float
     unit_price: float
     total: float
     customer: str

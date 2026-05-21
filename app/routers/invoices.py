@@ -56,7 +56,7 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
     subtotal = round(subtotal, 2)
     tax_total = round(tax_total, 2)
     cgst = round(tax_total / 2, 2)
-    sgst = round(tax_total / 2, 2)
+    sgst = round(tax_total - cgst, 2)  # ensures cgst + sgst == tax_total exactly
     grand_total = round(subtotal + tax_total, 2)
 
     invoice_no = _next_invoice_no(db, vendor["id"])
@@ -74,6 +74,27 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
         "items": line_items,
         "status": "paid",
     }).execute().data[0]
+
+    # Deduct stock and record sales for each line item
+    for item in line_items:
+        if not item.get("product_id"):
+            continue
+        prod = db.table("products").select("id,stock").eq("id", item["product_id"]).eq("vendor_id", vendor["id"]).execute().data
+        if not prod:
+            continue
+        current = float(prod[0]["stock"] or 0)
+        new_stock = max(0, round(current - float(item["qty"]), 4))
+        db.table("products").update({"stock": new_stock}).eq("id", item["product_id"]).execute()
+        db.table("sales").insert({
+            "vendor_id": vendor["id"],
+            "product_id": item["product_id"],
+            "product_name": item["name"],
+            "qty": item["qty"],
+            "unit_price": item["unit_price"],
+            "total": item["total"],
+            "customer": body.customer_name,
+            "payment_mode": body.payment_mode,
+        }).execute()
 
     return invoice
 
