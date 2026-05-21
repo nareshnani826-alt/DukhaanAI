@@ -406,13 +406,8 @@ export default function Inventory() {
     setLoading(true)
     try {
       const list = await Products.list({ search, category: cat||undefined })
-      await silentFixUnits(list)
-      // Re-fetch only if anything was actually fixed
-      const needsRefresh = list.some(p => resolveUnit(p.name) !== (p.unit || "piece"))
-      setProducts(needsRefresh
-        ? await Products.list({ search, category: cat||undefined })
-        : list
-      )
+      setProducts(list)                // render immediately — display uses resolveUnit(name)
+      silentFixUnits(list)             // fire-and-forget: only updates DB for consistency
     } finally { setLoading(false) }
   }
 
