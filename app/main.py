@@ -27,6 +27,7 @@ from app.routers import (
     assemblyai,
     voice,
     insights,
+    learning,
 )
 
 _is_dev = settings.app_env != "production"
@@ -95,6 +96,7 @@ app.include_router(community_catalog.router)
 app.include_router(chat.router)
 app.include_router(assemblyai.router)
 app.include_router(insights.router)
+app.include_router(learning.router)
 app.include_router(
     voice.router,
     prefix="/api/voice",

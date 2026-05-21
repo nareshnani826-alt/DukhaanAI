@@ -6,7 +6,8 @@ import { t, getSavedLang, saveLang } from "./i18n.js"
 import { recordProductUse, recordCorrection } from "./sessionMemory.js"
 import { getConfidenceLevel } from "./phonetic.js"
 import { LANGUAGES } from "./languages.js"
-import { Products } from "../sync/db.js"
+import { Products, getToken } from "../sync/db.js"
+import { loadFromServer } from "../voice-ai/syncPatterns"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
 import { detectUnit } from "./unitDetector.js"
 import { detectPlatform } from "./engine.js"
@@ -56,6 +57,9 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
     initContextPredictor()
     startSession()
     setPlatform(detectPlatform())
+
+    // Load learned patterns from server so they work on any device
+    if (getToken()) loadFromServer().catch(() => {})
   }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }) }, [history])
 

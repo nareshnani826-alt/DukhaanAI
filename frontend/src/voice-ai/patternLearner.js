@@ -111,6 +111,8 @@ const PHONEME_RULES = [
                            transform: s => s.replace(/\s*(wala|wale|wali)$/i, "").trim() },
 ]
 
+import { scheduleSync } from "./syncPatterns"
+
 // ── Load / save helpers ─────────────────────────────────────
 function load(key) {
   try { return JSON.parse(localStorage.getItem(key) || "{}") } catch { return {} }
@@ -190,6 +192,9 @@ export function recordConfirmation(spoken, productName, context = {}) {
 
   // Reinforce the rule hits
   reinforceRules(spoken, productName)
+
+  // Queue cloud sync (debounced 5s)
+  scheduleSync()
 }
 
 // ── Reinforce rule hit/miss stats ───────────────────────────

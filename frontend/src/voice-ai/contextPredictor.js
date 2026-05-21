@@ -94,6 +94,8 @@ const TIME_CONTEXT = {
   night:     ["milk", "bread", "eggs", "rice", "atta"],                              // 8pm–11pm
 }
 
+import { scheduleSync } from "./syncPatterns"
+
 // ── Load / save helpers ──────────────────────────────────────
 function load(key) {
   try { return JSON.parse(localStorage.getItem(key) || "{}") } catch { return {} }
@@ -153,7 +155,10 @@ export function recordCartAddition(productName, previousProduct = null) {
     const allPairs = Object.values(patterns).reduce(
       (s, v) => s + Object.keys(v.followedBy || {}).length, 0
     )
-    if (allPairs < MAX_PAIRS) save(PATTERN_KEY, patterns)
+    if (allPairs < MAX_PAIRS) {
+      save(PATTERN_KEY, patterns)
+      scheduleSync()
+    }
   }
 
   // Record time-of-day habit

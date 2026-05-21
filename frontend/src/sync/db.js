@@ -400,6 +400,18 @@ export const Wastage = {
   }
 }
 
+// ── Learning Patterns (cross-device sync) ─────────────────
+export const Learning = {
+  async load() {
+    if (!getToken()) return null
+    return api.get("/learning").catch(() => null)
+  },
+  async save(payload) {
+    if (!getToken()) return
+    return api.post("/learning", payload).catch(() => {})
+  },
+}
+
 // ── Community Catalog ─────────────────────────────────────
 export const CommunityCatalog = {
   // Search community products

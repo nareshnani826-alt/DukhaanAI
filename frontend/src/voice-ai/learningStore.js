@@ -1,3 +1,5 @@
+import { scheduleSync } from "./syncPatterns"
+
 const STORE_KEY   = "dk_learning_store"
 const PHONETIC_KEY = "dk_learning_phonetic"
 
@@ -47,6 +49,9 @@ export function learnCorrection(spoken, selected) {
   if (!pIdx[phoneticKey]) pIdx[phoneticKey] = []
   if (!pIdx[phoneticKey].includes(exactKey)) pIdx[phoneticKey].push(exactKey)
   save(PHONETIC_KEY, pIdx)
+
+  // Queue cloud sync (debounced 5s)
+  scheduleSync()
 }
 
 // ── Read ──────────────────────────────────────────────────────
