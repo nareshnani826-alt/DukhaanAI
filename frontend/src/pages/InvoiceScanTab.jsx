@@ -275,163 +275,262 @@ export default function InvoiceScanTab() {
 
   // ── Review table ──────────────────────────────────────────────
   if (step === "review") {
-    const toApply = items.filter(it => it.action !== "skip").length
-    const tierInfo = tier ? TIER_INFO[tier] : null
+    const toApply   = items.filter(it => it.action !== "skip").length
+    const tierInfo  = tier ? TIER_INFO[tier] : null
+    const totalAmt  = items.reduce((s, it) =>
+      it.action !== "skip" ? s + (parseFloat(it.unit_price || 0) * parseFloat(it.qty || 0)) : s, 0)
+
+    const ROW_BG = { exact: "#f0fdf4", fuzzy: "#fffbeb", new: "#eff6ff", skip: "#f9fafb" }
+    const th = { fontSize: 10, fontWeight: 700, color: "var(--ink-faint)", padding: "8px 6px",
+      textAlign: "left", borderBottom: "2px solid var(--rule)", whiteSpace: "nowrap" }
+    const td = { padding: "7px 6px", verticalAlign: "middle", borderBottom: "1px solid var(--rule)" }
 
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        {/* Summary bar */}
-        <div style={{ padding: "10px 20px", background: "var(--bg1)",
+
+        {/* ── Header bar ── */}
+        <div style={{ padding: "10px 16px", background: "var(--bg1)",
           borderBottom: "1px solid var(--rule)", display: "flex",
-          alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 8, flex: 1, flexWrap: "wrap", alignItems: "center" }}>
-            {[
-              { label: `${stats.exact} exact`,   color: "#059669", bg: "#ecfdf5" },
-              { label: `${stats.fuzzy} similar`, color: "#b45309", bg: "#fefce8" },
-              { label: `${stats.new} new`,        color: "#2563eb", bg: "#eff6ff" },
-            ].map(s => (
-              <span key={s.label} style={{ fontSize: 11, fontWeight: 600,
-                padding: "3px 10px", borderRadius: 20,
-                background: s.bg, color: s.color }}>{s.label}</span>
-            ))}
-            {tierInfo && (
-              <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 20,
-                background: tierInfo.bg, color: tierInfo.color, fontWeight: 600 }}>
-                {tierInfo.icon} {tierInfo.label}
-              </span>
-            )}
+          alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+
+          {/* Title + tier badge */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)" }}>
+              Review Extracted Items
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+              {[
+                { label: `${stats.exact} matched`,  color: "#059669", bg: "#ecfdf5" },
+                { label: `${stats.fuzzy} similar`,  color: "#b45309", bg: "#fefce8" },
+                { label: `${stats.new} new`,         color: "#2563eb", bg: "#eff6ff" },
+              ].map(s => (
+                <span key={s.label} style={{ fontSize: 10, fontWeight: 700,
+                  padding: "2px 8px", borderRadius: 20, background: s.bg, color: s.color }}>
+                  {s.label}
+                </span>
+              ))}
+              {tierInfo && (
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20,
+                  background: tierInfo.bg, color: tierInfo.color, fontWeight: 600 }}>
+                  {tierInfo.icon} {tierInfo.label}
+                </span>
+              )}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => items.forEach((_, i) => setItemField(i, "action", "skip"))}
+              style={{ padding: "6px 12px", background: "none", color: "var(--ink-faint)",
+                border: "1px solid var(--rule)", borderRadius: 8, fontSize: 11, cursor: "pointer" }}>
+              Skip All
+            </button>
+            <button onClick={() => items.forEach((it, i) =>
+              setItemField(i, "action", it.match_type === "new" ? "create" : "add_stock"))}
+              style={{ padding: "6px 12px", background: "none", color: "var(--jade)",
+                border: "1px solid #d1fae5", borderRadius: 8, fontSize: 11, cursor: "pointer" }}>
+              Select All
+            </button>
             <button onClick={reset}
-              style={{ padding: "7px 14px", background: "var(--bg2)", color: "var(--ink-dim)",
-                border: "none", borderRadius: 9, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+              style={{ padding: "6px 12px", background: "var(--bg2)", color: "var(--ink-dim)",
+                border: "none", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
               Rescan
             </button>
             <button onClick={applyToInventory} disabled={toApply === 0}
-              style={{ padding: "7px 16px",
+              style={{ padding: "8px 18px",
                 background: toApply > 0 ? "linear-gradient(135deg,#0F6E56,#1D9E75)" : "var(--bg2)",
                 color: toApply > 0 ? "#fff" : "var(--ink-faint)",
-                border: "none", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              Apply {toApply} Items →
+                border: "none", borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+              Apply {toApply} →
             </button>
           </div>
         </div>
 
         {error && (
-          <div style={{ margin: "10px 20px", padding: "10px 14px", background: "#fef2f2",
+          <div style={{ margin: "8px 16px", padding: "10px 14px", background: "#fef2f2",
             color: "#dc2626", borderRadius: 10, fontSize: 12 }}>
             {error}
           </div>
         )}
 
-        {/* Item rows */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px" }}>
-          {items.map((it, i) => {
-            const badge  = MATCH_BADGE[it.match_type]
-            const isSkip = it.action === "skip"
-            return (
-              <div key={i} style={{
-                background: "var(--bg1)", borderRadius: 12, padding: 14, marginTop: 10,
-                border: `1.5px solid ${isSkip ? "var(--rule)" : badge.bg}`,
-                opacity: isSkip ? 0.5 : 1,
-              }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px",
-                    borderRadius: 20, background: badge.bg, color: badge.color,
-                    whiteSpace: "nowrap", flexShrink: 0 }}>
-                    {badge.label}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 2 }}>
-                      Invoice: <span style={{ fontWeight: 600 }}>{it.extracted_name}</span>
-                    </div>
-                    {it.match_type !== "new" && it.match_product && (
-                      <div style={{ fontSize: 10, color: "var(--jade)" }}>
-                        → {it.match_product.name}
-                        {it.confidence < 0.90 && (
-                          <span style={{ color: "#b45309" }}> ({Math.round(it.confidence * 100)}% match)</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={() => setItemField(i, "action", isSkip ? (it.match_type === "new" ? "create" : "add_stock") : "skip")}
-                    style={{ background: "none", border: "none", fontSize: 16,
-                      cursor: "pointer", flexShrink: 0, padding: 0 }}>
-                    {isSkip ? "↩" : "✕"}
-                  </button>
-                </div>
+        {/* ── Table ── */}
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead style={{ position: "sticky", top: 0, background: "var(--bg1)", zIndex: 1 }}>
+              <tr>
+                <th style={{ ...th, width: 28 }}>#</th>
+                <th style={th}>Invoice Item</th>
+                <th style={th}>Inventory Match</th>
+                <th style={{ ...th, width: 60 }}>Qty</th>
+                <th style={{ ...th, width: 64 }}>Unit</th>
+                <th style={{ ...th, width: 80 }}>Price/Unit</th>
+                <th style={{ ...th, width: 56 }}>GST%</th>
+                <th style={{ ...th, width: 110 }}>Action</th>
+                <th style={{ ...th, width: 28 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it, i) => {
+                const badge  = MATCH_BADGE[it.match_type]
+                const isSkip = it.action === "skip"
+                const rowBg  = isSkip ? ROW_BG.skip : ROW_BG[it.match_type]
+                return (
+                  <tr key={i} style={{ background: rowBg, opacity: isSkip ? 0.5 : 1 }}>
 
-                {!isSkip && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <div style={{ flex: "0 0 70px" }}>
-                      <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>QTY</div>
-                      <input type="number" min="0" step="0.1"
+                    {/* # */}
+                    <td style={{ ...td, color: "var(--ink-faint)", textAlign: "center",
+                      fontSize: 11, fontWeight: 600 }}>{i + 1}</td>
+
+                    {/* Invoice item name */}
+                    <td style={td}>
+                      <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: 12,
+                        marginBottom: 2 }}>
+                        {it.extracted_name}
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px",
+                        borderRadius: 10, background: badge.bg, color: badge.color }}>
+                        {badge.label}
+                      </span>
+                      {(it.expiry || it.batch) && (
+                        <div style={{ marginTop: 2, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {it.expiry && <span style={{ fontSize: 9, background: "#fef9c3",
+                            color: "#854d0e", padding: "1px 5px", borderRadius: 8 }}>
+                            Exp {it.expiry}
+                          </span>}
+                          {it.batch && <span style={{ fontSize: 9, color: "#6b7280",
+                            background: "#f3f4f6", padding: "1px 5px", borderRadius: 8 }}>
+                            Batch {it.batch}
+                          </span>}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Inventory match */}
+                    <td style={td}>
+                      {it.match_type !== "new" && it.match_product ? (
+                        <div>
+                          <div style={{ fontSize: 12, color: "var(--jade)", fontWeight: 600 }}>
+                            {it.match_product.name}
+                          </div>
+                          {it.confidence < 0.90 && (
+                            <div style={{ fontSize: 10, color: "#b45309" }}>
+                              {Math.round(it.confidence * 100)}% match
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#2563eb" }}>Will create new</span>
+                      )}
+                    </td>
+
+                    {/* Qty */}
+                    <td style={td}>
+                      <input type="number" min="0" step="1"
                         value={it.qty}
                         onChange={e => setItemField(i, "qty", e.target.value)}
-                        style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 7,
-                          padding: "5px 7px", fontSize: 12, fontWeight: 600, outline: "none" }}/>
-                    </div>
-                    <div style={{ flex: "0 0 70px" }}>
-                      <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>UNIT</div>
+                        style={{ width: 54, border: "1.5px solid var(--rule)", borderRadius: 6,
+                          padding: "4px 5px", fontSize: 12, fontWeight: 700, outline: "none",
+                          background: "white", textAlign: "right" }}/>
+                    </td>
+
+                    {/* Unit */}
+                    <td style={td}>
                       <select value={it.unit || "pc"}
                         onChange={e => setItemField(i, "unit", e.target.value)}
-                        style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 7,
-                          padding: "5px 4px", fontSize: 11, outline: "none", background: "var(--bg1)" }}>
+                        style={{ width: 58, border: "1.5px solid var(--rule)", borderRadius: 6,
+                          padding: "4px 2px", fontSize: 11, outline: "none",
+                          background: "white" }}>
                         {["pc","kg","g","litre","ml","pack","box","dozen","carton","strip"].map(u => (
                           <option key={u} value={u}>{u}</option>
                         ))}
                       </select>
-                    </div>
-                    <div style={{ flex: "0 0 80px" }}>
-                      <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>PRICE/UNIT</div>
+                    </td>
+
+                    {/* Price */}
+                    <td style={td}>
                       <input type="number" min="0" step="0.01"
                         value={it.unit_price || ""}
                         onChange={e => setItemField(i, "unit_price", e.target.value)}
-                        placeholder="0.00"
-                        style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 7,
-                          padding: "5px 7px", fontSize: 12, outline: "none" }}/>
-                    </div>
-                    {it.gst_percent != null && (
-                      <div style={{ flex: "0 0 60px" }}>
-                        <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>GST%</div>
-                        <input type="number" min="0"
-                          value={it.gst_percent || ""}
-                          onChange={e => setItemField(i, "gst_percent", e.target.value)}
-                          style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 7,
-                            padding: "5px 7px", fontSize: 12, outline: "none" }}/>
-                      </div>
-                    )}
-                    {it.match_type !== "exact" && (
-                      <div style={{ flex: "1 1 120px" }}>
-                        <div style={{ fontSize: 9, color: "var(--ink-faint)", marginBottom: 3 }}>ACTION</div>
+                        placeholder="—"
+                        style={{ width: 74, border: "1.5px solid var(--rule)", borderRadius: 6,
+                          padding: "4px 5px", fontSize: 12, outline: "none",
+                          background: "white", textAlign: "right" }}/>
+                    </td>
+
+                    {/* GST% */}
+                    <td style={td}>
+                      <input type="number" min="0" max="28"
+                        value={it.gst_percent ?? ""}
+                        onChange={e => setItemField(i, "gst_percent", e.target.value)}
+                        placeholder="—"
+                        style={{ width: 48, border: "1.5px solid var(--rule)", borderRadius: 6,
+                          padding: "4px 5px", fontSize: 12, outline: "none",
+                          background: "white", textAlign: "right" }}/>
+                    </td>
+
+                    {/* Action */}
+                    <td style={td}>
+                      {it.match_type === "exact" ? (
+                        <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>
+                          + Add stock
+                        </span>
+                      ) : (
                         <select value={it.action}
                           onChange={e => setItemField(i, "action", e.target.value)}
-                          style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 7,
-                            padding: "5px 4px", fontSize: 11, outline: "none", background: "var(--bg1)" }}>
-                          {it.match_type === "fuzzy" && <option value="add_stock">Add stock to match</option>}
-                          <option value="create">Create new product</option>
-                          <option value="skip">Skip this item</option>
+                          style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 6,
+                            padding: "4px 3px", fontSize: 11, outline: "none",
+                            background: "white" }}>
+                          {it.match_type === "fuzzy" &&
+                            <option value="add_stock">Add to match</option>}
+                          <option value="create">Create new</option>
+                          <option value="skip">Skip</option>
                         </select>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </td>
 
-                {!isSkip && (it.expiry || it.batch) && (
-                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                    {it.expiry && <span style={{ fontSize: 10, background: "#fef9c3", color: "#854d0e",
-                      padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>
-                      Exp: {it.expiry}
-                    </span>}
-                    {it.batch && <span style={{ fontSize: 10, background: "#f3f4f6", color: "#6b7280",
-                      padding: "2px 8px", borderRadius: 20 }}>
-                      Batch: {it.batch}
-                    </span>}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                    {/* Skip toggle */}
+                    <td style={{ ...td, textAlign: "center" }}>
+                      <button
+                        onClick={() => setItemField(i, "action",
+                          isSkip ? (it.match_type === "new" ? "create" : "add_stock") : "skip")}
+                        title={isSkip ? "Restore" : "Skip this item"}
+                        style={{ background: "none", border: "none", cursor: "pointer",
+                          fontSize: 14, padding: 0, color: isSkip ? "var(--jade)" : "#dc2626" }}>
+                        {isSkip ? "↩" : "✕"}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Footer: total + apply ── */}
+        <div style={{ borderTop: "2px solid var(--rule)", padding: "12px 16px",
+          background: "var(--bg1)", display: "flex", alignItems: "center",
+          justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>
+            <span style={{ fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>
+              {toApply}
+            </span> of {items.length} items selected
+            {totalAmt > 0 && (
+              <span style={{ marginLeft: 12 }}>
+                · Total value: <strong style={{ color: "var(--ink)" }}>
+                  ₹{totalAmt.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                </strong>
+              </span>
+            )}
+          </div>
+          <button onClick={applyToInventory} disabled={toApply === 0}
+            style={{ padding: "10px 28px",
+              background: toApply > 0 ? "linear-gradient(135deg,#0F6E56,#1D9E75)" : "var(--bg2)",
+              color: toApply > 0 ? "#fff" : "var(--ink-faint)",
+              border: "none", borderRadius: 10, fontSize: 14,
+              fontWeight: 800, cursor: toApply > 0 ? "pointer" : "default",
+              letterSpacing: "0.3px" }}>
+            Apply {toApply} Items to Inventory →
+          </button>
         </div>
       </div>
     )
