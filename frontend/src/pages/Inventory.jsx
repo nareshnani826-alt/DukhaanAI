@@ -404,27 +404,34 @@ export default function Inventory() {
 
   async function load() {
     setLoading(true)
-    try { setProducts(await Products.list({ search, category: cat||undefined })) }
-    finally { setLoading(false) }
+    try {
+      const list = await Products.list({ search, category: cat||undefined })
+      setProducts(list)
+      // Fix any stale 'piece' units in the background after render
+      silentFixUnits(list).then(() => {
+        if (list.some(p => !p.unit || p.unit === "piece")) {
+          Products.list({ search, category: cat||undefined }).then(setProducts)
+        }
+      })
+    } finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [search, cat])
 
   function showNotif(msg) { setNotif(msg); setTimeout(() => setNotif(""), 2500) }
 
-  async function autoFixUnits() {
-    const all = await Products.list({})
-    const toFix = all.filter(p => !p.unit || p.unit === "piece")
-    let fixed = 0
-    for (const p of toFix) {
+  // Silently correct units for any product still stored as 'piece'
+  // Runs in background after load — no UI feedback, no blocking
+  async function silentFixUnits(products) {
+    for (const p of products) {
+      if (p.unit && p.unit !== "piece") continue
       const detected = detectUnit(p.name)
-      if (detected.found && detected.unit !== "piece") {
-        await Products.update(p.id, { unit: detected.unit })
-        fixed++
-      }
+      if (!detected.found || detected.unit === "piece") continue
+      const baseUnit = detected.unit === "ml" ? "litre"
+                     : detected.unit === "g"  ? "kg"
+                     : detected.unit
+      await Products.update(p.id, { unit: baseUnit })
     }
-    showNotif(fixed > 0 ? `✓ Fixed units for ${fixed} products` : "All units already correct")
-    load()
   }
 
   function openAdd() {
@@ -445,6 +452,15 @@ export default function Inventory() {
 
   async function handleSave(id, data) {
     try {
+      // Auto-correct unit from product name unless user explicitly set a non-piece unit
+      if (!data.unit || data.unit === "piece") {
+        const detected = detectUnit(data.name)
+        if (detected.found && detected.unit !== "piece") {
+          data.unit = detected.unit === "ml" ? "litre"
+                    : detected.unit === "g"  ? "kg"
+                    : detected.unit
+        }
+      }
       if (id) {
         await Products.update(id, {
           name:        data.name,
@@ -479,6 +495,20 @@ export default function Inventory() {
 
   const pct    = p => Math.max(4, Math.min(100, Math.round(p.stock / Math.max(p.min_stock*2,1) * 100)))
   const barCls = p => p.stock < p.min_stock*0.3 ? "bg-red-500" : p.stock < p.min_stock ? "bg-amber-400" : "bg-primary"
+
+  // Convert piece-count stock to base-unit volume/weight using package size in name
+  // e.g. "Amul Milk 500ml" × 2 pcs → 1 litre; "Besan 500g" × 6 pcs → 3 kg
+  function getEffectiveStock(product) {
+    const d = detectUnit(product.name)
+    if (d.found && d.qty) {
+      const q = d.qty
+      if (d.unit === "ml") return { stock: Math.round(product.stock * q / 1000 * 100) / 100, unit: "litre" }
+      if (d.unit === "g")  return { stock: Math.round(product.stock * q / 1000 * 100) / 100, unit: "kg"    }
+      if (d.unit === "litre") return { stock: Math.round(product.stock * q * 100) / 100, unit: "litre" }
+      if (d.unit === "kg")    return { stock: Math.round(product.stock * q * 100) / 100, unit: "kg"    }
+    }
+    return { stock: product.stock, unit: product.unit || "piece" }
+  }
   const status = p => {
     if (p.stock<=0)              return ["badge-red",   "Out of stock"]
     if (p.stock<p.min_stock*0.3) return ["badge-red",   "Critical"]
@@ -531,7 +561,6 @@ export default function Inventory() {
                 <option key={l.code} value={l.code}>{l.native} ({l.name})</option>
               ))}
             </select>
-            <button onClick={autoFixUnits} className="btn btn-sm border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 text-[10px]">Fix Units</button>
             <button onClick={openAdd} className="btn btn-primary btn-sm">+ Add Product</button>
           </div>
         </div>
@@ -584,7 +613,8 @@ export default function Inventory() {
             ) : products.map(p => {
               const [sc, sl] = status(p)
               const ready    = hasBarcode(p)
-              const unitInfo = UNIT_TYPES[p.unit] || UNIT_TYPES.piece
+              const { stock: dispStock, unit: dispUnit } = getEffectiveStock(p)
+              const unitInfo = UNIT_TYPES[dispUnit] || UNIT_TYPES.piece
               return (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="td pl-4">
@@ -600,7 +630,7 @@ export default function Inventory() {
                     </span>
                   </td>
                   <td className="td w-24">
-                    <div className="font-medium text-xs">{p.stock} {unitInfo.symbol}</div>
+                    <div className="font-medium text-xs">{dispStock} {unitInfo.symbol}</div>
                     <div className="h-1 bg-gray-100 rounded-full mt-1 w-16 overflow-hidden">
                       <div className={`h-full rounded-full ${barCls(p)}`} style={{ width: pct(p)+"%" }} />
                     </div>
