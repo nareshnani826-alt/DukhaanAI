@@ -5,7 +5,7 @@ import { useTheme } from "../context/ThemeContext"
 import { useState, useEffect, useRef } from "react"
 import AuthModal from "./AuthModal"
 import { LANG_KEY, getSavedLang } from "../voice/i18n"
-import { getToken } from "../sync/db"
+import { getToken, Products, Sales, Invoices, Udhar } from "../sync/db"
 
 const NAV = [
   { label:"Home", to:"/dashboard",
@@ -69,18 +69,16 @@ function calcMargin(p) {
   return Math.round((mrp - cost) / mrp * 100)
 }
 
-// ── Answer using local APIs — no Groq needed ─────────────────
-async function localReply(q, token) {
-  const headers = { Authorization:`Bearer ${token}` }
-  const query   = q.toLowerCase()
+// ── Answer using db.js APIs (auth handled internally, no raw fetch) ──
+async function localReply(q) {
+  const query = q.toLowerCase()
 
-  // Always fetch products
-  const prodRes  = await fetch(`${API}/api/products?limit=1000`, { headers })
-  const products = prodRes.ok ? await prodRes.json() : []
+  // Always fetch products via db.js
+  const products = await Products.list({ limit: 1000 }).catch(() => [])
 
   // ── Specific product search ──────────────────────────────
   const stopWords = new Set(["stock","price","mrp","cost","margin","the","and","is","in","of","what","how","many","much","about","tell","me","give","show","do","we","have","any","for","check"])
-  const words = query.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+  const words   = query.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
   const matched = words.length > 0
     ? products.filter(p => words.some(w => p.name?.toLowerCase().includes(w)))
     : []
@@ -100,27 +98,38 @@ async function localReply(q, token) {
 
   // ── Sales ────────────────────────────────────────────────
   if (/sale|revenue|invoice|bill|అమ్మకాలు|बिक्री|விற்பனை|ಮಾರಾಟ/.test(query)) {
-    const [todayRes, monthRes] = await Promise.all([
-      fetch(`${API}/api/sales/today`, { headers }),
-      fetch(`${API}/api/sales/summary?days=30`, { headers }),
+    const [today, month, bills] = await Promise.all([
+      Sales.today().catch(() => ({ total:0, count:0, sales:[] })),
+      Sales.summary({ days:30 }).catch(() => ({ total_revenue:0, transaction_count:0, top_products:[] })),
+      Invoices.list().catch(() => []),
     ])
-    const today = todayRes.ok ? await todayRes.json() : {}
-    const month = monthRes.ok ? await monthRes.json() : {}
-    const modes = today.by_payment_mode
-      ? Object.entries(today.by_payment_mode).map(([k,v]) => `${k}: ₹${v}`).join(", ")
-      : "N/A"
+    const todayBills = bills.filter(b => {
+      const d = new Date(b.created_at)
+      const now = new Date()
+      return d.toDateString() === now.toDateString()
+    })
+    const topLines = (month.top_products||[]).slice(0,5).map(p => `  • ${p.name} — ${p.units} sold`)
     return `💰 Sales Summary:
-• Today: ₹${today.total||today.total_revenue||0} (${today.count||today.invoice_count||0} sales)
-• This month: ₹${month.total_revenue||0} (${month.transaction_count||month.invoice_count||0} sales)
-• Payment modes today: ${modes}`
+• Today: ₹${today.total||0} (${today.count||0} sales, ${todayBills.length} invoices)
+• This month: ₹${month.total_revenue||0} (${month.transaction_count||0} sales)
+${topLines.length ? `\n🏆 Top products this month:\n${topLines.join("\n")}` : ""}`
+  }
+
+  // ── Bill / Invoice history ───────────────────────────────
+  if (/history|invoice|bill history|recent bill/.test(query)) {
+    const bills = await Invoices.list().catch(() => [])
+    if (!bills.length) return "No bills generated yet."
+    const lines = bills.slice(0,8).map(b =>
+      `• ${b.invoice_no} — ${b.customer_name} — ₹${b.total} (${new Date(b.created_at).toLocaleDateString("en-IN")})`
+    )
+    return `🧾 Recent Bills (${bills.length} total):\n\n${lines.join("\n")}`
   }
 
   // ── Udhaar ───────────────────────────────────────────────
   if (/udh|khata|due|baki|bakaya|బాకీ|उधार|கடன்|ಬಾಕಿ/.test(query)) {
-    const ucRes     = await fetch(`${API}/api/udhar/customers`, { headers })
-    const customers = ucRes.ok ? await ucRes.json() : []
-    const due       = customers.filter(c => parseFloat(c.total_due||0) > 0)
-    const total     = due.reduce((s,c) => s + parseFloat(c.total_due||0), 0)
+    const customers = await Udhar.listCustomers().catch(() => [])
+    const due   = customers.filter(c => parseFloat(c.total_due||0) > 0)
+    const total = due.reduce((s,c) => s + parseFloat(c.total_due||0), 0)
     if (due.length === 0) return "✅ No udhaar dues! All customers are clear."
     const lines = due.slice(0,8).map(c => `• ${c.name}${c.phone?` (${c.phone})`:""} — ₹${parseFloat(c.total_due).toFixed(2)}`)
     return `🧾 Udhaar Summary:
@@ -186,7 +195,6 @@ ${lines.join("\n")}`
 // ── AIChatWidget ──────────────────────────────────────────────
 function AIChatWidget() {
   const { vendor } = useAuth()
-  const isPremium  = vendor?.plan === "pro" || vendor?.plan === "wholesale"
 
   const [open, setOpen]           = useState(false)
   const [lang, setLang]           = useState(getSavedLang)
@@ -222,32 +230,38 @@ function AIChatWidget() {
       const token = getToken()
       let reply   = null
 
-      // 1. Store question → local APIs (free for everyone)
+      // 1. Store question → local db.js APIs (zero latency, always free)
       if (token && isStoreQuestion(q)) {
-        try { reply = await localReply(q, token) } catch(e) { console.error(e) }
+        try { reply = await localReply(q) } catch(e) { console.error(e) }
       }
 
-      // 2. General question → Groq (Pro/Wholesale only)
+      // 2. No local answer → backend cascade: Groq → Gemini → sorry
       if (!reply) {
-        if (!isPremium) {
-          reply = "🔒 General AI assistant is available on Pro & Wholesale plans.\n\nYour store data (stock, sales, udhaar, margins) is always free — just ask about your products!"
-        } else {
+        try {
           const res = await fetch(`${API}/chat`, {
-            method:"POST",
-            headers:{
-              "Content-Type":"application/json",
-              ...(token ? { Authorization:`Bearer ${token}` } : {}),
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            body: JSON.stringify({
-              message: q,
-              language: lang,
-              history: [],
-              store_context: {},
-            }),
+            body: JSON.stringify({ message: q, language: lang, history: [], store_context: {} }),
           })
-          const data = res.ok ? await res.json() : null
-          reply = data?.response || "Sorry, couldn't get a response. Please try again."
+          if (res.ok) {
+            const data = await res.json()
+            reply = data?.response || null
+          } else if (res.status === 429 || res.status === 503) {
+            reply = "😢 Sorry, I don't have information right now — our AI has hit its daily limit. It refreshes every day, so please try again later!"
+          } else {
+            reply = null
+          }
+        } catch(e) {
+          console.error("AI fetch error:", e)
         }
+      }
+
+      // 3. Both local + AI failed
+      if (!reply) {
+        reply = "😢 Sorry, I don't have information on that right now. You can ask me about your stock, sales, udhaar, margins, or low-stock alerts!"
       }
 
       setMessages(p => [...p, { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }])
@@ -296,7 +310,7 @@ function AIChatWidget() {
                 display:"flex", alignItems:"center", gap:4 }}>
                 <span style={{ width:6, height:6, borderRadius:"50%",
                   background:"#a3f0c4", display:"inline-block" }}/>
-                {isPremium ? "Groq AI · Live data" : "Live store data"}
+                Live data · Groq + Gemini AI
               </div>
             </div>
             <select value={lang} onChange={e => setLang(e.target.value)}
@@ -426,7 +440,7 @@ function AIChatWidget() {
           </div>
           <div style={{ textAlign:"center", fontSize:9, color:"var(--ink-faint, #ccc)",
             padding:"3px", background:"var(--bg0, white)" }}>
-            {isPremium ? "Store data: Free · General AI: Groq (Llama 3.3)" : "Store data: Free · Upgrade for General AI"}
+            Store data: Free · AI: Groq → Gemini (daily limit refreshes)
           </div>
         </div>
       )}
