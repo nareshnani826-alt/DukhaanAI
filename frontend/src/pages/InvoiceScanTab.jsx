@@ -1,7 +1,7 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { getToken } from "../sync/db"
 
-const API = import.meta.env.VITE_API_URL
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
 const MATCH_BADGE = {
   exact: { label: "✓ Matched",     bg: "#ecfdf5", color: "#059669" },
@@ -26,7 +26,15 @@ export default function InvoiceScanTab() {
   const [ocrProgress, setOcrProgress] = useState(0)
   const [ocrStage,    setOcrStage]    = useState("")  // "reading" | "thinking"
   const [tier,        setTier]        = useState(null)
+  const [backendOk,   setBackendOk]   = useState(null)  // null=checking, true=ok, false=down
   const fileRef = useRef()
+
+  // Pre-flight: check backend connectivity on mount
+  useEffect(() => {
+    fetch(`${API}/health`)
+      .then(r => setBackendOk(r.ok))
+      .catch(() => setBackendOk(false))
+  }, [])
 
   function setItemField(i, field, val) {
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
@@ -108,9 +116,11 @@ export default function InvoiceScanTab() {
       setStats({ total: data.total, exact: data.exact, fuzzy: data.fuzzy, new: data.new })
       setStep("review")
     } catch (e) {
+      console.error("[InvoiceScan] fetch failed:", e, "url:", `${API}/invoice-scan/scan`)
       const msg = e.message || ""
-      const friendly = msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network")
-        ? "Cannot reach server — please wait a moment and try again. (Server may be restarting)"
+      const isNet = msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network")
+      const friendly = isNet
+        ? `Server unreachable (${API}). Check your internet connection or try again in a moment.`
         : msg || "Could not scan. Try a clearer photo with good lighting."
       setError(friendly)
       setStep("upload")
@@ -427,6 +437,16 @@ export default function InvoiceScanTab() {
   // ── Upload screen (default) ───────────────────────────────────
   return (
     <div style={{ padding: 24, maxWidth: 560, margin: "0 auto" }}>
+      {/* Backend status banner */}
+      {backendOk === false && (
+        <div style={{ marginBottom: 16, padding: "12px 16px", background: "#fef2f2",
+          color: "#dc2626", borderRadius: 10, fontSize: 12 }}>
+          <strong>⚠ Backend unreachable:</strong> {API}<br/>
+          <span style={{ color: "#991b1b" }}>
+            Check Railway is running, or open F12 → Console for details.
+          </span>
+        </div>
+      )}
       {error && (
         <div style={{ marginBottom: 16, padding: "12px 16px", background: "#fef2f2",
           color: "#dc2626", borderRadius: 10, fontSize: 13 }}>
