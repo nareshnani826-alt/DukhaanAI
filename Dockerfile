@@ -9,5 +9,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app source
 COPY app/ ./app/
 
-# Shell form — Docker passes this to /bin/sh so $PORT is expanded by the shell
+# startCommand in railway.toml overrides this, but keep shell form as fallback
 CMD python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
