@@ -101,6 +101,7 @@ export default function Billing() {
     try {
       const inv = await Invoices.generate({
         customer_name:  cust,
+        customer_phone: phone || null,
         customer_gstin: gstin || null,
         payment_mode:   pay,
         items,

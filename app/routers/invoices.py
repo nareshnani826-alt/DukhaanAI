@@ -72,6 +72,7 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
         "vendor_id": vendor["id"],
         "invoice_no": invoice_no,
         "customer_name": body.customer_name,
+        "customer_phone": body.customer_phone,
         "customer_gstin": body.customer_gstin,
         "payment_mode": body.payment_mode,
         "subtotal": subtotal,

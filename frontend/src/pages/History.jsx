@@ -161,7 +161,9 @@ function BillsTab() {
                         }}>{inv.payment_mode}</span>
                       </div>
                       <div style={{ fontSize:10, color:"#9ca3af", marginTop:2 }}>
-                        {inv.customer_name || "Walk-in"} · {fmt(inv.created_at)}
+                        {inv.customer_name || "Walk-in"}
+                        {inv.customer_phone && <span> · 📞 {inv.customer_phone}</span>}
+                        {" · "}{fmt(inv.created_at)}
                       </div>
                     </div>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>

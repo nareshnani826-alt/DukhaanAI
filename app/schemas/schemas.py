@@ -213,6 +213,7 @@ class InvoiceLineItem(BaseModel):
 
 class InvoiceCreate(BaseModel):
     customer_name: str
+    customer_phone: Optional[str] = None
     customer_gstin: Optional[str] = None
     payment_mode: Literal["Cash", "UPI", "Credit", "Cheque"] = "Cash"
     items: list[InvoiceLineItem]
@@ -230,6 +231,7 @@ class InvoiceOut(BaseModel):
     vendor_id: UUID
     invoice_no: str
     customer_name: str
+    customer_phone: Optional[str] = None
     customer_gstin: Optional[str]
     payment_mode: str
     subtotal: float

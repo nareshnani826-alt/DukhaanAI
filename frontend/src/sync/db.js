@@ -135,8 +135,8 @@ export const Sales = {
 
 // ── Invoices ──────────────────────────────────────────────
 export const Invoices = {
-  async generate({ customer_name, customer_gstin, payment_mode="Cash", items }) {
-    if (isCloud()) return api.post("/invoices", { customer_name, customer_gstin, payment_mode, items })
+  async generate({ customer_name, customer_phone, customer_gstin, payment_mode="Cash", items }) {
+    if (isCloud()) return api.post("/invoices", { customer_name, customer_phone, customer_gstin, payment_mode, items })
     const d = localRead(); let sub=0, tax=0
     const lineItems = items.map(item => {
       const s = Math.round(item.unit_price*item.qty*100)/100
@@ -147,7 +147,7 @@ export const Invoices = {
     sub=Math.round(sub*100)/100; tax=Math.round(tax*100)/100
     const cgst=Math.round(tax/2*100)/100, sgst=Math.round((tax-cgst)*100)/100
     const invNo = "INV-" + String(d.nextInvNo++).padStart(4,"0")
-    const inv = { id:lid(d), vendor_id:"local", invoice_no:invNo, customer_name, customer_gstin:customer_gstin||null, payment_mode, subtotal:sub, cgst, sgst, total:Math.round((sub+tax)*100)/100, items:lineItems, status:"paid", created_at:new Date().toISOString() }
+    const inv = { id:lid(d), vendor_id:"local", invoice_no:invNo, customer_name, customer_phone:customer_phone||null, customer_gstin:customer_gstin||null, payment_mode, subtotal:sub, cgst, sgst, total:Math.round((sub+tax)*100)/100, items:lineItems, status:"paid", created_at:new Date().toISOString() }
     d.invoices.push(inv); localWrite(d); return inv
   },
   async list() {
