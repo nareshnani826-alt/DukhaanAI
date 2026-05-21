@@ -410,7 +410,7 @@ async def apply_invoice(
                 updated += 1
 
             elif item.action == "create" and item.name.strip():
-                db.table("products").insert({
+                row = {
                     "vendor_id":   vendor_id,
                     "name":        item.name.strip(),
                     "category":    item.category or "Other",
@@ -420,9 +420,11 @@ async def apply_invoice(
                     "stock":       item.qty,
                     "min_stock":   5,
                     "gst_percent": float(item.gst_percent or 0),
-                    "barcode":     item.barcode,
                     "is_active":   True,
-                }).execute()
+                }
+                if item.barcode:
+                    row["barcode"] = item.barcode
+                db.table("products").insert(row).execute()
                 added += 1
 
         except Exception as e:
