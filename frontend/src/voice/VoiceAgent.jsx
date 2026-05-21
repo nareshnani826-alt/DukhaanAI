@@ -695,6 +695,23 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
 
 function extractQtyUnit(text) {
   const t = text.toLowerCase()
+
+  // Fraction words → multiplier (checked before numeric patterns)
+  const FRACTIONS = [
+    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(kg|kilo|kilogram)/i,       qty:0.5,  unit:"kg"    },
+    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(litre|liter|ltr)/i,        qty:0.5,  unit:"litre" },
+    { r:/\b(half|adha|aadha|aadh|ardha|సగం|అర)\s*(kg|kilo|kilogram|litre|liter|ltr)/i, qty:0.5, unit:"kg" },
+    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(kg|kilo)/i,         qty:0.25, unit:"kg"    },
+    { r:/\b(quarter|paao|paav|pav|paaon|చావుగంట|పాతిక)\s*(litre|liter)/i,     qty:0.25, unit:"litre" },
+    { r:/\bteen\s*quarter\s*(kg|kilo)/i,                                        qty:0.75, unit:"kg"    },
+    { r:/\bsawa\s*(kg|kilo)/i,                                                  qty:1.25, unit:"kg"    },
+    { r:/\bdeḍh\s*(kg|kilo)|dedh\s*(kg|kilo)|deedh\s*(kg|kilo)/i,              qty:1.5,  unit:"kg"    },
+  ]
+
+  for (const f of FRACTIONS) {
+    if (f.r.test(t)) return { qty: f.qty, unit: f.unit }
+  }
+
   const patterns = [
     { r:/(\d+\.?\d*)\s*kg/i,      unit:"kg"    },
     { r:/(\d+\.?\d*)\s*kilo/i,    unit:"kg"    },
