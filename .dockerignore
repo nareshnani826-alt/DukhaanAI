@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.egg-info/
+
+# Frontend (deployed separately on Vercel)
+frontend/
+app/Frontend/
+node_modules/
+
+# Dev/test
+.env
+tests/
+scripts/
+*.md
+testReport.md
+
+# Git
+.git/
+.gitignore
+
+# Railway/deployment scripts
+deploy-railway.ps1
+deploy-railway.sh
