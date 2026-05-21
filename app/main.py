@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -29,6 +30,15 @@ from app.routers import (
 )
 
 _is_dev = settings.app_env != "production"
+
+# Warn loudly if critical env vars are missing — app boots but DB calls will fail
+_missing = [k for k, v in {
+    "SUPABASE_URL": settings.supabase_url,
+    "SUPABASE_ANON_KEY": settings.supabase_anon_key,
+    "SUPABASE_SERVICE_KEY": settings.supabase_service_key,
+}.items() if not v]
+if _missing:
+    logging.warning("⚠ Missing environment variables: %s — database operations will fail", ", ".join(_missing))
 
 app = FastAPI(
     title="DukaanAI API",
