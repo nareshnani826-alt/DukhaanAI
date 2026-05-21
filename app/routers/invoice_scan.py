@@ -195,7 +195,7 @@ async def _gemini_extract(image_bytes: bytes, mime_type: str) -> list:
     }
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={settings.gemini_api_key}"
+        f"gemini-2.0-flash:generateContent?key={settings.gemini_api_key}"
     )
 
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -343,7 +343,7 @@ async def scan_invoice(
     db        = get_db()
     inventory = (
         db.table("products")
-        .select("id,name,stock,unit,mrp,cost_price,barcode,category")
+        .select("id,name,stock,unit,mrp,cost_price,category")
         .eq("vendor_id", vendor_id)
         .eq("is_active", True)
         .execute()
