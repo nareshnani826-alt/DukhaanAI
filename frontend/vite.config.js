@@ -32,6 +32,7 @@ export default defineConfig({
       "/subscriptions":     { target: "http://localhost:8000", changeOrigin: true },
       "/udhar":             { target: "http://localhost:8000", changeOrigin: true },
       "/wastage":           { target: "http://localhost:8000", changeOrigin: true },
+      "/bangle":            { target: "http://localhost:8000", changeOrigin: true },
     },
   },
   preview: {
