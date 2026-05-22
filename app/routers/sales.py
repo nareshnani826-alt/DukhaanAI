@@ -33,12 +33,13 @@ async def record_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
 
     total = round(product["mrp"] * body.qty, 2)
 
-    # Record sale
+    raw_qty = float(body.qty)
+    sale_qty = int(raw_qty) if raw_qty == int(raw_qty) else raw_qty
     sale = db.table("sales").insert({
         "vendor_id": vendor["id"],
         "product_id": str(body.product_id),
         "product_name": product["name"],
-        "qty": body.qty,
+        "qty": sale_qty,
         "unit_price": product["mrp"],
         "total": total,
         "customer": body.customer,

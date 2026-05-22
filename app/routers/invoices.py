@@ -93,11 +93,13 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
         current = float(prod[0]["stock"] or 0)
         new_stock = max(0, round(current - float(item["qty"]), 4))
         db.table("products").update({"stock": new_stock}).eq("id", item["product_id"]).execute()
+        raw_qty = float(item["qty"])
+        sale_qty = int(raw_qty) if raw_qty == int(raw_qty) else raw_qty
         db.table("sales").insert({
             "vendor_id": vendor["id"],
             "product_id": item["product_id"],
             "product_name": item["name"],
-            "qty": item["qty"],
+            "qty": sale_qty,
             "unit_price": item["unit_price"],
             "total": item["total"],
             "customer": body.customer_name,
