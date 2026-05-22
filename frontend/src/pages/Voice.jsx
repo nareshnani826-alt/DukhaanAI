@@ -40,10 +40,12 @@ export default function Voice() {
   const [customer, setCustomer] = useState("")
   const [payment,  setPayment]  = useState("Cash")
   const [generating, setGenerating] = useState(false)
+  const [mobileTab,  setMobileTab]  = useState("voice")
 
   const isSafari    = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
   const isIOS       = /iphone|ipad|ipod/i.test(navigator.userAgent)
   const isCapacitor = !!(window.Capacitor?.isNativePlatform?.())
+  const isMobile    = isCapacitor || window.innerWidth < 640
 
   useEffect(() => {
     localStorage.setItem("dk_voice_bill", JSON.stringify({ vendorId: vendor?.id, items: billItems }))
@@ -171,8 +173,15 @@ Thank you! 🙏`
           </div>
         </div>
 
-        {/* APK banner */}
+        {/* Capacitor APK: native STT is active */}
         {isCapacitor && (
+          <div style={{ marginTop:8, fontSize:11, opacity:0.85 }}>
+            🎙 Native voice · Telugu, Hindi, English &amp; 8 more
+          </div>
+        )}
+
+        {/* Browser without native speech */}
+        {!isCapacitor && !isSafari && !isIOS && !window.SpeechRecognition && !window.webkitSpeechRecognition && (
           <div style={{
             marginTop:12, background:"rgba(255,255,255,0.15)",
             borderRadius:10, padding:"10px 12px",
@@ -200,163 +209,209 @@ Thank you! 🙏`
         )}
       </div>
 
+      {/* ── Mobile tab bar ─────────────────────────────────── */}
+      {isMobile && (
+        <div style={{
+          display:"flex", background:"var(--bg2)", flexShrink:0,
+          borderBottom:"1px solid var(--rule-soft)",
+        }}>
+          {["voice","bill"].map(tab => (
+            <button key={tab} onClick={() => setMobileTab(tab)} style={{
+              flex:1, padding:"10px 0", border:"none",
+              background: mobileTab === tab ? "var(--bg1)" : "transparent",
+              borderBottom: mobileTab === tab ? "2px solid var(--jade)" : "2px solid transparent",
+              fontSize:12, fontWeight: mobileTab === tab ? 700 : 400,
+              color: mobileTab === tab ? "var(--jade)" : "var(--ink-faint)",
+              cursor:"pointer",
+            }}>
+              {tab === "voice" ? "🎤 Voice" : `🧾 Bill${billItems.length > 0 ? ` (${billItems.length})` : ""}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Content area ───────────────────────────────────── */}
       <div style={{ flex:1, overflow:"hidden", display:"flex", gap:0 }}>
 
-        {/* Left — Voice Agent */}
-        <div style={{ flex:1, overflowY:"auto", padding:16 }}>
-          <VoiceAgent onAddToBill={handleAddToBill} onLangChange={setLang} />
-        </div>
-
-        {/* Right — Bill panel */}
-        <div style={{
-          width:260, flexShrink:0, borderLeft:"1px solid var(--rule-soft)",
-          background:"var(--bg1)", display:"flex", flexDirection:"column",
-          overflowY:"auto",
-        }}>
-          {/* Bill header */}
+        {/* Voice panel — always visible on desktop; visible on mobile only in "voice" tab */}
+        {(!isMobile || mobileTab === "voice") && (
           <div style={{
-            padding:"12px 14px", borderBottom:"1px solid var(--rule-soft)",
-            background:"var(--bg2)",
+            flex:1, overflowY:"auto", padding:16,
+            paddingBottom: isMobile ? 88 : 16,
           }}>
-            <div style={{ fontSize:12, fontWeight:600, color:"var(--jade)", marginBottom:8 }}>
-              🧾 Voice Bill
-            </div>
-            <input
-              value={customer}
-              onChange={e => setCustomer(e.target.value)}
-              placeholder={t("customer_name", lang)}
-              style={{
-                width:"100%", border:"1px solid var(--rule)", borderRadius:8,
-                padding:"6px 10px", fontSize:11, marginBottom:6,
-                outline:"none", boxSizing:"border-box",
-              }}
-            />
-            <select value={payment} onChange={e => setPayment(e.target.value)}
-              style={{
-                width:"100%", border:"1px solid var(--rule)", borderRadius:8,
-                padding:"6px 10px", fontSize:11, background:"var(--bg1)",
-                outline:"none", boxSizing:"border-box",
-              }}>
-              <option>Cash</option>
-              <option>UPI</option>
-              <option>Credit</option>
-              <option>Cheque</option>
-            </select>
-          </div>
+            <VoiceAgent onAddToBill={handleAddToBill} onLangChange={setLang} />
 
-          {/* Bill items */}
-          <div style={{ flex:1, overflowY:"auto", padding:"10px 14px" }}>
-            {billItems.length === 0 && !invoice ? (
-              <div style={{
-                textAlign:"center", padding:"40px 16px",
-                color:"var(--ink-faint)", fontSize:11,
-              }}>
-                <div style={{ fontSize:40, marginBottom:8 }}>🎤</div>
-                Speak a product name to add to bill
+            {/* Floating pill — mobile only, when items are in the bill */}
+            {isMobile && billItems.length > 0 && (
+              <div
+                onClick={() => setMobileTab("bill")}
+                style={{
+                  position:"fixed", bottom:76, left:"50%", transform:"translateX(-50%)",
+                  background:"linear-gradient(135deg, #0F6E56, #1D9E75)",
+                  color:"#fff", borderRadius:24, padding:"10px 22px",
+                  fontSize:13, fontWeight:700, cursor:"pointer", zIndex:50,
+                  boxShadow:"0 4px 20px rgba(15,110,86,0.4)",
+                  display:"flex", alignItems:"center", gap:8, whiteSpace:"nowrap",
+                }}
+              >
+                🧾 {billItems.length} item{billItems.length > 1 ? "s" : ""} · {INR(grandTotal)} →
               </div>
-            ) : invoice ? (
-              /* Placeholder while modal is open */
-              <div style={{ textAlign:"center", padding:"40px 16px", color:"var(--ink-faint)", fontSize:11 }}>
-                <div style={{ fontSize:32, marginBottom:8 }}>✅</div>
-                Invoice ready
-              </div>
-            ) : (
-              billItems.map((item, i) => (
-                <div key={item.id} style={{
-                  background:"var(--bg2)", borderRadius:10,
-                  padding:"8px 10px", marginBottom:8,
-                  border:"1px solid #e8f5f0",
-                }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                    <div style={{ fontSize:11, fontWeight:600, color:"#222", flex:1, paddingRight:8 }}>
-                      {item.name}
-                    </div>
-                    <button onClick={async () => {
-                        // Restore stock when item removed from bill
-                        if (item.id && !item.id.startsWith("voice-")) {
-                          try {
-                            const prods = await Products.list()
-                            const prod  = prods.find(p => p.id === item.id)
-                            if (prod) {
-                              await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
-                            }
-                          } catch(e) { console.error("Stock restore failed:", e) }
-                        }
-                        setBillItems(b => b.filter((_,bi) => bi !== i))
-                        showNotif(`${item.name} removed — stock restored`)
-                      }}
-                      style={{ background:"none", border:"none", color:"var(--ink-faint)",
-                        cursor:"pointer", fontSize:16, lineHeight:1 }}>
-                      ×
-                    </button>
-                  </div>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-                    <span style={{ fontSize:10, color:"var(--ink-faint)" }}>
-                      {item.qty} {item.unit} × {INR(item.mrp)}
-                      {item.gst > 0 && ` + ${item.gst}%GST`}
-                    </span>
-                    <span style={{ fontSize:11, fontWeight:700, color:"var(--jade)" }}>
-                      {INR(item.lineTotal)}
-                    </span>
-                  </div>
-                </div>
-              ))
             )}
           </div>
+        )}
 
-          {/* Bill footer */}
-          {billItems.length > 0 && !invoice && (
+        {/* Bill panel — 260px sidebar on desktop; full-width tab on mobile */}
+        {(!isMobile || mobileTab === "bill") && (
+          <div style={{
+            width: isMobile ? "100%" : 260,
+            flexShrink:0,
+            borderLeft: isMobile ? "none" : "1px solid var(--rule-soft)",
+            background:"var(--bg1)", display:"flex", flexDirection:"column",
+            overflowY:"auto",
+          }}>
+            {/* Bill header */}
             <div style={{
-              padding:"12px 14px", borderTop:"1px solid var(--rule-soft)",
-              background:"var(--bg1)", flexShrink:0,
+              padding:"12px 14px", borderBottom:"1px solid var(--rule-soft)",
+              background:"var(--bg2)",
             }}>
-              <div style={{ marginBottom:10 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:2 }}>
-                  <span>Subtotal</span><span>{INR(totalSubtotal)}</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:6 }}>
-                  <span>GST</span><span>{INR(totalGST)}</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700, color:"var(--jade)" }}>
-                  <span>Total</span><span>{INR(grandTotal)}</span>
-                </div>
+              <div style={{ fontSize:12, fontWeight:600, color:"var(--jade)", marginBottom:8 }}>
+                🧾 Voice Bill
               </div>
-              <button onClick={generateVoiceBill} disabled={generating} style={{
-                width:"100%", padding:"11px",
-                background:"linear-gradient(135deg, #0F6E56, #1D9E75)",
-                color:"var(--bg1)", border:"none", borderRadius:10,
-                fontSize:12, fontWeight:600, cursor:"pointer",
-                marginBottom:6, opacity: generating ? 0.7 : 1,
+              <input
+                value={customer}
+                onChange={e => setCustomer(e.target.value)}
+                placeholder={t("customer_name", lang)}
+                style={{
+                  width:"100%", border:"1px solid var(--rule)", borderRadius:8,
+                  padding:"6px 10px", fontSize:11, marginBottom:6,
+                  outline:"none", boxSizing:"border-box",
+                }}
+              />
+              <select value={payment} onChange={e => setPayment(e.target.value)}
+                style={{
+                  width:"100%", border:"1px solid var(--rule)", borderRadius:8,
+                  padding:"6px 10px", fontSize:11, background:"var(--bg1)",
+                  outline:"none", boxSizing:"border-box",
+                }}>
+                <option>Cash</option>
+                <option>UPI</option>
+                <option>Credit</option>
+                <option>Cheque</option>
+              </select>
+            </div>
+
+            {/* Bill items */}
+            <div style={{ flex:1, overflowY:"auto", padding:"10px 14px" }}>
+              {billItems.length === 0 && !invoice ? (
+                <div style={{
+                  textAlign:"center", padding:"40px 16px",
+                  color:"var(--ink-faint)", fontSize:11,
+                }}>
+                  <div style={{ fontSize:40, marginBottom:8 }}>🎤</div>
+                  Speak a product name to add to bill
+                </div>
+              ) : invoice ? (
+                <div style={{ textAlign:"center", padding:"40px 16px", color:"var(--ink-faint)", fontSize:11 }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>✅</div>
+                  Invoice ready
+                </div>
+              ) : (
+                billItems.map((item, i) => (
+                  <div key={item.id} style={{
+                    background:"var(--bg2)", borderRadius:10,
+                    padding:"8px 10px", marginBottom:8,
+                    border:"1px solid #e8f5f0",
+                  }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                      <div style={{ fontSize:11, fontWeight:600, color:"#222", flex:1, paddingRight:8 }}>
+                        {item.name}
+                      </div>
+                      <button onClick={async () => {
+                          if (item.id && !item.id.startsWith("voice-")) {
+                            try {
+                              const prods = await Products.list()
+                              const prod  = prods.find(p => p.id === item.id)
+                              if (prod) {
+                                await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
+                              }
+                            } catch(e) { console.error("Stock restore failed:", e) }
+                          }
+                          setBillItems(b => b.filter((_,bi) => bi !== i))
+                          showNotif(`${item.name} removed — stock restored`)
+                        }}
+                        style={{ background:"none", border:"none", color:"var(--ink-faint)",
+                          cursor:"pointer", fontSize:16, lineHeight:1 }}>
+                        ×
+                      </button>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                      <span style={{ fontSize:10, color:"var(--ink-faint)" }}>
+                        {item.qty} {item.unit} × {INR(item.mrp)}
+                        {item.gst > 0 && ` + ${item.gst}%GST`}
+                      </span>
+                      <span style={{ fontSize:11, fontWeight:700, color:"var(--jade)" }}>
+                        {INR(item.lineTotal)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Bill footer */}
+            {billItems.length > 0 && !invoice && (
+              <div style={{
+                padding:"12px 14px", borderTop:"1px solid var(--rule-soft)",
+                background:"var(--bg1)", flexShrink:0,
+                paddingBottom: isMobile ? 88 : 12,
               }}>
-                {generating ? "Generating..." : `🧾 ${t("generate_invoice", lang)}`}
-              </button>
-              <button onClick={async () => {
-                  // Restore stock for ALL items when bill is cleared
-                  try {
-                    const prods = await Products.list()
-                    for (const item of billItems) {
-                      if (item.id && !item.id.startsWith("voice-")) {
-                        const prod = prods.find(p => p.id === item.id)
-                        if (prod) {
-                          await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
+                <div style={{ marginBottom:10 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:2 }}>
+                    <span>Subtotal</span><span>{INR(totalSubtotal)}</span>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:6 }}>
+                    <span>GST</span><span>{INR(totalGST)}</span>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700, color:"var(--jade)" }}>
+                    <span>Total</span><span>{INR(grandTotal)}</span>
+                  </div>
+                </div>
+                <button onClick={generateVoiceBill} disabled={generating} style={{
+                  width:"100%", padding:"11px",
+                  background:"linear-gradient(135deg, #0F6E56, #1D9E75)",
+                  color:"var(--bg1)", border:"none", borderRadius:10,
+                  fontSize:12, fontWeight:600, cursor:"pointer",
+                  marginBottom:6, opacity: generating ? 0.7 : 1,
+                }}>
+                  {generating ? "Generating..." : `🧾 ${t("generate_invoice", lang)}`}
+                </button>
+                <button onClick={async () => {
+                    try {
+                      const prods = await Products.list()
+                      for (const item of billItems) {
+                        if (item.id && !item.id.startsWith("voice-")) {
+                          const prod = prods.find(p => p.id === item.id)
+                          if (prod) {
+                            await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
+                          }
                         }
                       }
-                    }
-                  } catch(e) { console.error("Stock restore failed:", e) }
-                  setBillItems([])
-                  localStorage.removeItem("dk_voice_bill")
-                  showNotif("Bill cleared — stock restored")
-                }} style={{
-                width:"100%", padding:"8px",
-                background:"var(--bg2)", color:"var(--ink-faint)",
-                border:"none", borderRadius:10,
-                fontSize:11, cursor:"pointer",
-              }}>
-                Clear Bill
-              </button>
-            </div>
-          )}
-        </div>
+                    } catch(e) { console.error("Stock restore failed:", e) }
+                    setBillItems([])
+                    localStorage.removeItem("dk_voice_bill")
+                    showNotif("Bill cleared — stock restored")
+                  }} style={{
+                  width:"100%", padding:"8px",
+                  background:"var(--bg2)", color:"var(--ink-faint)",
+                  border:"none", borderRadius:10,
+                  fontSize:11, cursor:"pointer",
+                }}>
+                  Clear Bill
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Invoice Modal ──────────────────────────────────── */}

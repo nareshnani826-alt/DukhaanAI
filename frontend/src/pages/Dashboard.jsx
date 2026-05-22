@@ -184,7 +184,7 @@ export default function Dashboard() {
     // Use Invoices.today() for revenue — it captures voice bills that have no
     // product_id and therefore no matching sales record.
     Promise.all([Invoices.today(), Sales.summary({ days:30 }), Products.lowStock(), Products.list()])
-      .then(([t, s, l, p]) => { setToday(t); setSummary(s); setLow(l); setTotal(p.length) })
+      .then(([t, s, l, p]) => { setToday({ ...t, sales: t.invoices || t.sales || [] }); setSummary(s); setLow(l); setTotal(p.length) })
       .finally(() => setLoading(false))
 
     // Briefing only for authenticated (cloud) users
