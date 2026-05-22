@@ -1,5 +1,15 @@
 import { useState, useEffect, useRef } from "react"
-import { Html5Qrcode } from "html5-qrcode"
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
+
+const FORMATS = [
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.QR_CODE,
+]
 import { getToken, Products } from "../sync/db"
 
 const API = import.meta.env.VITE_API_URL
@@ -24,14 +34,14 @@ export default function BarcodeScannerTab() {
   useEffect(() => {
     if (!scanning) return
 
-    const scanner = new Html5Qrcode(READER_ID)
+    const scanner = new Html5Qrcode(READER_ID, { formatsToSupport: FORMATS, verbose: false })
     scannerRef.current = scanner
 
     scanner.start(
       { facingMode: "environment" },
       {
-        fps: 15,
-        qrbox: { width: 300, height: 150 },
+        fps: 20,
+        qrbox: { width: 320, height: 160 },
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       },
       (code) => handleBarcode(code),
