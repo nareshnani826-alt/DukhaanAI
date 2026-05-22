@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     app_name: str = "DukaanAI"
     app_env: str = "development"
     frontend_url: str = "http://localhost:3000"
+    # Comma-separated extra origins (e.g. "https://dukhaanai.onrender.com,https://app.dukhaanai.com")
+    allowed_origins: str = ""
     admin_secret_key: str = "change-me"
 
     # Supabase

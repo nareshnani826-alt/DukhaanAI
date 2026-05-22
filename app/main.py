@@ -72,8 +72,13 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS ─────────────────────────────────────────────────────
 _cors_origins = [settings.frontend_url]
+if settings.allowed_origins:
+    _cors_origins += [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
 if _is_dev:
     _cors_origins += ["http://localhost:3000", "http://localhost:5173"]
+# Deduplicate while preserving order
+_seen: set = set()
+_cors_origins = [o for o in _cors_origins if not (o in _seen or _seen.add(o))]
 
 app.add_middleware(
     CORSMiddleware,
