@@ -160,6 +160,12 @@ export const Invoices = {
     if (isCloud()) return api.get("/invoices?limit=50")
     return localRead().invoices.sort((a,b) => new Date(b.created_at)-new Date(a.created_at))
   },
+  async updateStatus(id, status) {
+    if (isCloud()) return api.patch(`/invoices/${id}/status?status=${status}`)
+    const d = localRead()
+    const idx = d.invoices.findIndex(inv => inv.id === id)
+    if (idx >= 0) { d.invoices[idx] = { ...d.invoices[idx], status }; localWrite(d) }
+  },
   async gstSummary(month, year) {
     if (isCloud()) return api.get(`/invoices/summary/gst?month=${month}&year=${year}`)
     const invs = localRead().invoices.filter(inv => { const d=new Date(inv.created_at); return d.getMonth()+1===month && d.getFullYear()===year && inv.status==="paid" })

@@ -91,10 +91,17 @@ export default function Voice() {
   async function generateVoiceBill() {
     if (!billItems.length) return showNotif("No items in bill yet")
     setGenerating(true)
+
+    // Snapshot bill before clearing — if generation fails we still have it
+    const billSnapshot = [...billItems]
+    const expectedTotal = billSnapshot.reduce((s,i) => s + i.lineTotal, 0)
+
+    // Clear bill immediately so the user cannot re-tap and create a duplicate
+    setBillItems([])
+    localStorage.removeItem("dk_voice_bill")
+
     try {
-      const items = billItems.map(i => ({
-        // Pass product_id when matched to a real product (not a voice-temp ID)
-        // so the backend can deduct stock and create a sales record.
+      const items = billSnapshot.map(i => ({
         ...(!i.id?.startsWith?.("voice-") && i.id ? { product_id: i.id } : {}),
         name:        i.name,
         qty:         i.qty,
@@ -107,11 +114,36 @@ export default function Voice() {
         items,
       })
       setInvoice(inv)
-      setBillItems([])
-      localStorage.removeItem("dk_voice_bill")
       showNotif(`✓ Invoice ${inv.invoice_no} generated!`)
-    } catch(e) { showNotif("Error: " + e.message) }
-    finally { setGenerating(false) }
+    } catch(e) {
+      // Network/CORS errors mean the server may have saved the invoice anyway.
+      // Try to recover the most recent invoice and match by total.
+      const isNetworkErr = e.message?.toLowerCase().includes("fetch") ||
+                           e.message?.toLowerCase().includes("network") ||
+                           e.message?.toLowerCase().includes("failed")
+      if (isNetworkErr) {
+        try {
+          const recent = await Invoices.list()
+          const candidate = recent[0]
+          if (candidate && Math.abs((candidate.total || 0) - expectedTotal) < 0.02 &&
+              (Date.now() - new Date(candidate.created_at).getTime()) < 60000) {
+            // Invoice was saved — surface it
+            setInvoice(candidate)
+            showNotif(`✓ Invoice ${candidate.invoice_no} saved!`)
+            return
+          }
+        } catch {}
+        // Can't confirm — bill is already cleared, tell user to check History
+        showNotif("Network error — check Bill History to confirm the invoice was saved")
+      } else {
+        // Non-network error (e.g. validation) — restore the bill so user can retry
+        setBillItems(billSnapshot)
+        localStorage.setItem("dk_voice_bill", JSON.stringify({ vendorId: vendor?.id, items: billSnapshot }))
+        showNotif("Error: " + e.message)
+      }
+    } finally {
+      setGenerating(false)
+    }
   }
 
   function sendWhatsApp() {
