@@ -213,7 +213,7 @@ Thank you! 🙏`
               <div style={{ fontSize:16, fontWeight:700, color:"var(--ink)", lineHeight:1.1, letterSpacing:"-0.3px" }}>
                 Voice Agent
               </div>
-              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:13, color:"var(--brass-lite,#f6c768)" }}>
+              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:13, color:"var(--brass-lite)" }}>
                 🎤 बोलो
               </div>
             </div>

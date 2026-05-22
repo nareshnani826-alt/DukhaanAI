@@ -6,32 +6,34 @@
 
 /* ── Light theme (default) ─────────────────────────────── */
 :root, [data-theme="light"] {
-  --bg0: #fdf8f3;
-  --bg1: #ffffff;
-  --bg2: #fff8f0;
-  --bg3: #fef3e8;
+  --bg0: #fbf5e8;
+  --bg1: #f7eed5;
+  --bg2: #ffffff;
+  --bg3: #fdf6e2;
   --ink: #1a0c04;
-  --ink-dim: #5c3d1e;
-  --ink-faint: #a08060;
+  --ink-soft: #3a2614;
+  --ink-dim: #6b5436;
+  --ink-faint: #9a8666;
   --rule: rgba(26,12,4,0.10);
   --rule-soft: rgba(26,12,4,0.05);
-  --saffron: #e87722;
-  --saffron-hot: #d45f00;
-  --saffron-bg: rgba(232,119,34,0.08);
-  --brass: #b8860b;
-  --brass-lite: #8b6508;
-  --brass-bg: rgba(184,134,11,0.10);
-  --ember: #c0392b;
-  --ember-lite: #e74c3c;
-  --ember-bg: rgba(192,57,43,0.08);
-  --jade: #1a7a4a;
-  --jade-lite: #27ae60;
-  --jade-bg: rgba(26,122,74,0.08);
+  --saffron: #d4621f;
+  --saffron-hot: #e87722;
+  --saffron-bg: rgba(212,98,31,0.08);
+  --brass: #a67c2e;
+  --brass-lite: #a67c2e;
+  --brass-deep: #7d5d20;
+  --brass-bg: rgba(166,124,46,0.10);
+  --ember: #b3261e;
+  --ember-lite: #c0382d;
+  --ember-bg: rgba(179,38,30,0.08);
+  --jade: #1f7a5e;
+  --jade-lite: #2e9c7a;
+  --jade-bg: rgba(31,122,94,0.08);
   --sky: #2471a3;
   --sidebar-bg: #ffffff;
   --modal-bg: #ffffff;
-  --shadow: rgba(26,12,4,0.08);
-  --shadow-md: rgba(26,12,4,0.14);
+  --shadow: rgba(26,12,4,0.06);
+  --shadow-md: rgba(26,12,4,0.12);
 }
 
 /* ── Dark theme ────────────────────────────────────────── */
@@ -41,6 +43,7 @@
   --bg2: #261810;
   --bg3: #33200f;
   --ink: #f4e4c1;
+  --ink-soft: #d4c4a0;
   --ink-dim: #b9a382;
   --ink-faint: #7a6a51;
   --rule: rgba(244,228,193,0.12);
@@ -50,6 +53,7 @@
   --saffron-bg: rgba(232,119,34,0.12);
   --brass: #c08a3a;
   --brass-lite: #f6c768;
+  --brass-deep: #c08a3a;
   --brass-bg: rgba(192,138,58,0.12);
   --ember: #b3261e;
   --ember-lite: #ff8e7a;
@@ -104,9 +108,9 @@ input, select, textarea, button {
   .btn-danger { background: var(--ember-bg); color: var(--ember); border-color: var(--ember); }
 
   .card {
-    background: var(--bg1); border: 1px solid var(--rule);
+    background: var(--bg2); border: 1px solid var(--rule);
     border-radius: 14px; padding: 16px;
-    box-shadow: 0 1px 4px var(--shadow);
+    box-shadow: 0 4px 10px var(--shadow);
   }
 
   .input {
@@ -135,9 +139,9 @@ input, select, textarea, button {
   .badge-blue  { background: rgba(36,113,163,0.10); color: var(--sky); border: 1px solid rgba(36,113,163,0.25); }
 
   .stat-card {
-    background: var(--bg1); border: 1px solid var(--rule);
-    border-radius: 14px; padding: 16px; position: relative; overflow: hidden;
-    box-shadow: 0 1px 4px var(--shadow);
+    background: var(--bg2); border: 1px solid var(--rule);
+    border-radius: 12px; padding: 14px 12px; position: relative; overflow: hidden;
+    box-shadow: 0 4px 10px var(--shadow);
   }
 
   .th {

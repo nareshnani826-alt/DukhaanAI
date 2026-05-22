@@ -153,9 +153,9 @@ export default function Settings() {
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
           {[
-            { key:"light", label:"☀ Light",  previewBg:"#fdf8f3", previewText:"#1a0c04" },
+            { key:"light", label:"☀ Light",  previewBg:"#fbf5e8", previewText:"#1a0c04" },
             { key:"dark",  label:"🌙 Dark",   previewBg:"#1c1209", previewText:"#f5deb3" },
-            { key:"auto",  label:"Auto",      previewBg:"linear-gradient(135deg, #fdf8f3 50%, #1c1209 50%)", previewText:"var(--ink)" },
+            { key:"auto",  label:"Auto",      previewBg:"linear-gradient(135deg, #fbf5e8 50%, #1c1209 50%)", previewText:"var(--ink)" },
           ].map(m => (
             <button
               key={m.key}

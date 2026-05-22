@@ -27,14 +27,14 @@ const NAV = [
 
 const MOB_TABS = [
   { to:"/dashboard", label:"Home",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg> },
-  { to:"/billing", label:"Sales",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg> },
+  { to:"/billing", label:"Bill",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg> },
   { to:"/voice", label:"", voice:true },
-  { to:"/inventory", label:"Stock",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg> },
+  { to:"/demand", label:"Demand",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-7"/></svg> },
   { to:"/day", label:"More",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
 const API = import.meta.env.VITE_API_URL
@@ -626,22 +626,27 @@ export default function Layout({ children }) {
       <main className="app-main">
         <div className="mobile-header">
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:30, height:30, borderRadius:8, flexShrink:0,
-              background:"linear-gradient(135deg,#e87722,#d45f00)",
+            <div style={{ width:32, height:32, borderRadius:9, flexShrink:0,
+              background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
               display:"flex", alignItems:"center", justifyContent:"center",
-              fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:15, color:"#fff" }}>द</div>
-            <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:16,
-              color:"var(--ink)", fontWeight:700 }}>
-              दुकान<span style={{color:"var(--saffron)"}}>•</span>AI
-            </span>
-            <span style={{ fontSize:9, color: cloud ? "var(--jade)" : "var(--ink-faint)" }}>
-              {cloud ? "● Cloud" : "● Local"}
-            </span>
+              fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:16, color:"#fff",
+              boxShadow:"0 2px 8px rgba(212,98,31,0.35)" }}>द</div>
+            <div>
+              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:16,
+                color:"var(--ink)", fontWeight:700, lineHeight:1 }}>
+                दुकान<span style={{color:"var(--saffron)"}}>•</span>AI
+              </div>
+              <div style={{ fontSize:9, color: cloud ? "var(--jade)" : "var(--ink-faint)",
+                letterSpacing:"0.5px", marginTop:1 }}>
+                {cloud ? "● Cloud sync" : "● Local"}
+              </div>
+            </div>
           </div>
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
             <button onClick={toggleTheme}
               style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
-                borderRadius:8, padding:"5px 9px", cursor:"pointer", fontSize:14 }}>
+                borderRadius:8, padding:"5px 9px", cursor:"pointer", fontSize:14,
+                boxShadow:"0 1px 4px var(--shadow)" }}>
               {isDark ? "☀️" : "🌙"}
             </button>
             {!loggedIn
