@@ -33,7 +33,7 @@ const MOB_TABS = [
   { to:"/voice", label:"", voice:true },
   { to:"/demand", label:"Demand",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-7"/></svg> },
-  { to:"/day", label:"More",
+  { to:"/more", label:"More",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
@@ -663,7 +663,7 @@ export default function Layout({ children }) {
 
       <nav className="mobile-bottom-nav" style={{
         position:"fixed", bottom:0, left:0, right:0, zIndex:100,
-        background:"var(--bg1)", borderTop:"1px solid var(--rule)",
+        background:"var(--bg2)", borderTop:"1px solid var(--rule)",
         display:"none", alignItems:"flex-end", justifyContent:"space-around",
         padding:"8px 4px 12px", boxShadow:"0 -4px 20px var(--shadow)" }}>
         {MOB_TABS.map(tab => {
@@ -671,7 +671,7 @@ export default function Layout({ children }) {
             <div key="voice" onClick={() => navigate("/voice")}
               style={{ position:"relative", marginTop:-22, width:58, height:58, borderRadius:"50%",
                 background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-                boxShadow:"0 0 0 4px var(--bg1), 0 8px 20px rgba(232,119,34,0.55)",
+                boxShadow:"0 0 0 4px var(--bg2), 0 8px 20px rgba(212,98,31,0.55)",
                 display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
@@ -681,7 +681,10 @@ export default function Layout({ children }) {
               </svg>
             </div>
           )
-          const on = location.pathname.startsWith(tab.to)
+          const PRIMARY = ["/dashboard", "/billing", "/voice", "/demand"]
+          const on = tab.to === "/more"
+            ? !PRIMARY.some(p => location.pathname.startsWith(p)) && location.pathname !== "/"
+            : location.pathname.startsWith(tab.to)
           return (
             <button key={tab.to} onClick={() => navigate(tab.to)}
               style={{ background:"transparent", border:"none", cursor:"pointer",
