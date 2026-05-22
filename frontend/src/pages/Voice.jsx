@@ -153,58 +153,88 @@ Thank you! 🙏`
         </div>
       )}
 
-      {/* Header */}
+      {/* Header — dark brass, theme-aware */}
       <div style={{
-        background:"linear-gradient(135deg, #0F6E56 0%, #1D9E75 100%)",
-        padding:"16px 20px", color:"var(--bg1)", flexShrink:0,
+        background:"var(--bg1)", borderBottom:"1px solid var(--rule)",
+        padding:"12px 16px", flexShrink:0,
+        position:"sticky", top:0, zIndex:5,
+        backdropFilter:"blur(6px)",
       }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div>
-            <div style={{ fontSize:16, fontWeight:700 }}>🎤 Voice Agent</div>
-            <div style={{ fontSize:11, opacity:0.8, marginTop:2 }}>
-              Telugu · Hindi · Tamil · Kannada · 6 more languages
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          {/* mic icon badge */}
+          <div style={{
+            width:38, height:38, borderRadius:10, flexShrink:0,
+            background:"linear-gradient(135deg, var(--brass,#c08a3a), var(--saffron,#e87722))",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            boxShadow:"0 2px 8px rgba(232,119,34,0.3)",
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="var(--bg0,#140b06)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+              <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+              <div style={{ fontSize:16, fontWeight:700, color:"var(--ink)", lineHeight:1.1, letterSpacing:"-0.3px" }}>
+                Voice Agent
+              </div>
+              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:13, color:"var(--brass-lite,#f6c768)" }}>
+                🎤 बोलो
+              </div>
+            </div>
+            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2, letterSpacing:"0.3px" }}>
+              Telugu · Hindi · Tamil · Kannada · 6 more
             </div>
           </div>
+          {/* free badge */}
           <div style={{
-            background:"rgba(255,255,255,0.2)", borderRadius:20,
-            padding:"4px 10px", fontSize:10, fontWeight:500,
+            background:"var(--jade-bg,rgba(58,138,107,0.12))",
+            border:"1px solid rgba(76,184,146,0.3)",
+            borderRadius:20, padding:"4px 10px",
+            fontSize:9, fontWeight:700, color:"var(--jade-lite,#4cb892)",
+            letterSpacing:"0.5px", display:"flex", alignItems:"center", gap:4,
           }}>
-            Free · No API cost
+            <span style={{ width:5, height:5, borderRadius:"50%", background:"var(--jade-lite,#4cb892)" }}/>
+            FREE
           </div>
         </div>
 
         {/* Capacitor APK: native STT is active */}
         {isCapacitor && (
-          <div style={{ marginTop:8, fontSize:11, opacity:0.85 }}>
-            🎙 Native voice · Telugu, Hindi, English &amp; 8 more
+          <div style={{ marginTop:8, fontSize:11, color:"var(--jade-lite,#4cb892)", display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ width:6, height:6, borderRadius:"50%", background:"var(--jade-lite,#4cb892)" }}/>
+            Native voice · Telugu, Hindi, English &amp; 8 more
           </div>
         )}
 
         {/* Browser without native speech */}
         {!isCapacitor && !isSafari && !isIOS && !window.SpeechRecognition && !window.webkitSpeechRecognition && (
           <div style={{
-            marginTop:12, background:"rgba(255,255,255,0.15)",
+            marginTop:10, background:"var(--bg2)", border:"1px solid var(--rule)",
             borderRadius:10, padding:"10px 12px",
           }}>
-            <div style={{ fontSize:11, marginBottom:6, fontWeight:500 }}>
+            <div style={{ fontSize:11, marginBottom:6, fontWeight:500, color:"var(--ink-dim)" }}>
               📱 For best voice experience:
             </div>
             <button onClick={openInChrome} style={{
-              background:"var(--bg1)", color:"var(--jade)", border:"none",
+              background:"var(--saffron)", color:"#fff", border:"none",
               borderRadius:8, padding:"7px 16px", fontSize:11,
               fontWeight:600, cursor:"pointer", width:"100%",
             }}>
-              🌐 Open Voice in Chrome browser
+              🌐 Open in Chrome for full voice support
             </button>
           </div>
         )}
 
         {(isSafari || isIOS) && !isCapacitor && (
           <div style={{
-            marginTop:12, background:"rgba(255,255,255,0.15)",
-            borderRadius:10, padding:"10px 12px", fontSize:11,
+            marginTop:8, background:"var(--bg2)", border:"1px solid var(--rule)",
+            borderRadius:10, padding:"8px 12px", fontSize:11, color:"var(--ink-dim)",
           }}>
-            ⚠ Use Safari on iPhone → Settings → Safari → Microphone → Allow
+            ⚠ iPhone: Settings → Safari → Microphone → Allow
           </div>
         )}
       </div>

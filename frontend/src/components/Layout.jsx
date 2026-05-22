@@ -664,9 +664,9 @@ export default function Layout({ children }) {
         {MOB_TABS.map(tab => {
           if (tab.voice) return (
             <div key="voice" onClick={() => navigate("/voice")}
-              style={{ position:"relative", marginTop:-22, width:56, height:56, borderRadius:"50%",
+              style={{ position:"relative", marginTop:-22, width:58, height:58, borderRadius:"50%",
                 background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-                boxShadow:"0 0 0 4px var(--bg1), 0 6px 20px rgba(232,119,34,0.4)",
+                boxShadow:"0 0 0 4px var(--bg1), 0 8px 20px rgba(232,119,34,0.55)",
                 display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>

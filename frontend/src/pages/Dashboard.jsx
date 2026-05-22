@@ -240,16 +240,21 @@ export default function Dashboard() {
 
         {/* Hero card */}
         <div style={{ background:"var(--bg1)", borderRadius:16, padding:"18px 16px",
-          border:"1px solid var(--rule)", marginBottom:14,
-          boxShadow:"0 2px 12px var(--shadow)", position:"relative", overflow:"hidden" }}>
-          {/* decorative circles */}
-          <div style={{ position:"absolute", right:-40, top:-40, width:180, height:180,
-            borderRadius:"50%", background:"var(--saffron-bg)", pointerEvents:"none" }}/>
-          <div style={{ position:"absolute", right:20, top:-20, width:100, height:100,
-            borderRadius:"50%", background:"var(--saffron-bg)", pointerEvents:"none" }}/>
+          border:"1px solid var(--brass,#c08a3a)", marginBottom:14,
+          boxShadow:"0 2px 12px var(--shadow)", position:"relative", overflow:"hidden",
+          borderColor:"rgba(192,138,58,0.25)" }}>
+          {/* concentric brass rings — matches design system */}
+          <svg viewBox="0 0 200 200" style={{ position:"absolute", top:-40, right:-40,
+            width:200, height:200, opacity:0.15, pointerEvents:"none" }} aria-hidden="true">
+            {[...Array(14)].map((_,i) => (
+              <circle key={i} cx="100" cy="100" r={20+i*8}
+                fill="none" stroke="var(--brass-lite,#f6c768)"
+                strokeOpacity={0.25-i*0.012} strokeWidth="0.8"/>
+            ))}
+          </svg>
           <div style={{ position:"relative" }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"var(--ink-faint)",
-              letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>Today's Revenue</div>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--brass-lite,#f6c768)",
+              letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>Today's Takings</div>
             <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
               fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
               {loading ? "—" : INR(today.total)}
@@ -349,22 +354,31 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Quick actions */}
-        <div style={{ fontSize:11, fontWeight:700, color:"var(--ink-faint)",
-          letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:12 }}>⚡ Quick Actions</div>
-        <div className="dash-quick-grid" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
-          {QUICK.map((qa, i) => (
+        {/* Quick actions — 4 primary tiles matching design */}
+        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"var(--brass-lite,#f6c768)",
+            letterSpacing:"2px", textTransform:"uppercase" }}>QUICK ACTIONS</div>
+          <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:12, color:"var(--ink-faint)" }}>त्वरित</div>
+        </div>
+        <div className="dash-quick-grid" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
+          {[
+            { label:"New Sale",  emoji:"🛒", tone:"var(--saffron)",        border:"rgba(232,119,34,0.35)",  to:"/billing" },
+            { label:"Add Stock", emoji:"📦", tone:"var(--brass-lite,#f6c768)", border:"rgba(246,199,104,0.35)", to:"/inventory" },
+            { label:"Udhaar",    emoji:"📒", tone:"var(--ember)",           border:"rgba(192,57,43,0.35)",   to:"/udhar" },
+            { label:"Scan",      emoji:"📷", tone:"var(--jade-lite,#4cb892)", border:"rgba(76,184,146,0.35)", to:"/billing" },
+          ].map((qa, i) => (
             <button key={i} onClick={() => navigate(qa.to)}
-              style={{ background:"var(--bg1)", border:"1px solid var(--rule)",
-                borderRadius:14, padding:"14px 8px", cursor:"pointer",
-                display:"flex", flexDirection:"column", alignItems:"center", gap:8,
+              style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
+                borderRadius:12, padding:"12px 6px", cursor:"pointer",
+                display:"flex", flexDirection:"column", alignItems:"center", gap:6,
                 transition:"all 0.15s", boxShadow:"0 1px 4px var(--shadow)" }}
-              onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 4px 16px var(--shadow-md)"; e.currentTarget.style.borderColor=qa.border }}
-              onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="0 1px 4px var(--shadow)"; e.currentTarget.style.borderColor="var(--rule)" }}>
-              <div style={{ width:40, height:40, borderRadius:12,
-                background:qa.color, border:`1px solid ${qa.border}`,
-                display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{qa.icon}</div>
-              <span style={{ fontSize:11, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
+              onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.borderColor=qa.border }}
+              onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.borderColor="var(--rule)" }}>
+              <div style={{ width:34, height:34, borderRadius:9,
+                background:`color-mix(in srgb, ${qa.tone} 18%, transparent)`,
+                border:`1px solid ${qa.border}`,
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>{qa.emoji}</div>
+              <span style={{ fontSize:10, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
             </button>
           ))}
         </div>
