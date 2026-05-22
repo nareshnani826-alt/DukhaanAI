@@ -8,8 +8,11 @@
     <!-- Apply saved theme before React mounts to prevent flash -->
     <script>
       (function(){
-        var t = localStorage.getItem('dk_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', t);
+        var t = localStorage.getItem('dk_theme') || 'light';
+        var resolved = t === 'auto'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : t;
+        document.documentElement.setAttribute('data-theme', resolved);
       })();
     </script>
   </head>

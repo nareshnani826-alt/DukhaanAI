@@ -3,6 +3,7 @@ import { LANGUAGES } from "../voice/languages.js"
 import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan } from "../context/PlanContext"
 import { useAuth } from "../context/AuthContext"
+import { useTheme } from "../context/ThemeContext"
 import { useNavigate } from "react-router-dom"
 
 const TOGGLE_FEATURES = [
@@ -26,6 +27,7 @@ const PLAN_INFO = {
 export default function Settings() {
   const { plan, hasFeature, planLabel } = usePlan()
   const { vendor, logout } = useAuth()
+  const { theme, setTheme } = useTheme()
   const navigate = useNavigate()
 
   // Feature toggles stored locally (premium features can be toggled off even if plan allows)
@@ -133,6 +135,44 @@ export default function Settings() {
             You have the highest plan — all features unlocked!
           </div>
         )}
+      </div>
+
+      {/* Appearance — theme picker */}
+      <div className="card mb-4" style={{ padding: 14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+          <div style={{
+            width:34, height:34, borderRadius:9,
+            background:"var(--saffron,#e87722)1a",
+            border:"1px solid var(--saffron,#e87722)88",
+            display:"flex", alignItems:"center", justifyContent:"center", fontSize:18,
+          }}>☀</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>Theme</div>
+            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>Light is better for shop daylight</div>
+          </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
+          {[
+            { key:"light", label:"☀ Light",  previewBg:"#fdf8f3", previewText:"#1a0c04" },
+            { key:"dark",  label:"🌙 Dark",   previewBg:"#1c1209", previewText:"#f5deb3" },
+            { key:"auto",  label:"Auto",      previewBg:"linear-gradient(135deg, #fdf8f3 50%, #1c1209 50%)", previewText:"var(--ink)" },
+          ].map(m => (
+            <button
+              key={m.key}
+              onClick={() => setTheme(m.key)}
+              style={{
+                background: theme === m.key
+                  ? "linear-gradient(135deg, var(--saffron,#e87722), #d4621f)"
+                  : m.previewBg,
+                color: theme === m.key ? "#fff" : m.previewText,
+                border: theme === m.key ? "none" : "1px solid var(--rule,#e0d8d0)",
+                borderRadius:10, padding:"12px 8px",
+                fontSize:11, fontWeight:700, cursor:"pointer",
+                boxShadow: theme === m.key ? "0 6px 14px rgba(232,119,34,0.35)" : "none",
+              }}
+            >{m.label}</button>
+          ))}
+        </div>
       </div>
 
       {/* Feature toggles */}
