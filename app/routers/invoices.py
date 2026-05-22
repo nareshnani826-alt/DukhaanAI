@@ -68,20 +68,28 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
 
     invoice_no = _next_invoice_no(db, vendor["id"])
 
-    invoice = db.table("invoices").insert({
-        "vendor_id": vendor["id"],
-        "invoice_no": invoice_no,
-        "customer_name": body.customer_name,
-        "customer_phone": body.customer_phone,
-        "customer_gstin": body.customer_gstin,
-        "payment_mode": body.payment_mode,
-        "subtotal": subtotal,
-        "cgst": cgst,
-        "sgst": sgst,
-        "total": grand_total,
-        "items": line_items,
-        "status": "paid",
-    }).execute().data[0]
+    try:
+        result = db.table("invoices").insert({
+            "vendor_id": vendor["id"],
+            "invoice_no": invoice_no,
+            "customer_name": body.customer_name,
+            "customer_phone": body.customer_phone,
+            "customer_gstin": body.customer_gstin,
+            "payment_mode": body.payment_mode,
+            "subtotal": subtotal,
+            "cgst": cgst,
+            "sgst": sgst,
+            "total": grand_total,
+            "items": line_items,
+            "status": "paid",
+        }).execute()
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Invoice insert returned no data")
+        invoice = result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save invoice: {e}") from e
 
     # Deduct stock and record sales for each line item
     for item in line_items:

@@ -232,7 +232,7 @@ class InvoiceOut(BaseModel):
     invoice_no: str
     customer_name: str
     customer_phone: Optional[str] = None
-    customer_gstin: Optional[str]
+    customer_gstin: Optional[str] = None
     payment_mode: str
     subtotal: float
     cgst: float
@@ -240,7 +240,7 @@ class InvoiceOut(BaseModel):
     total: float
     items: list[dict]
     status: str
-    pdf_url: Optional[str]
+    pdf_url: Optional[str] = None
     created_at: datetime
 
 

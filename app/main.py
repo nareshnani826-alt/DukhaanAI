@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -89,6 +90,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Global exception handler ─────────────────────────────────
+# Catches any unhandled Python exception and returns JSON so the response
+# flows back through CORSMiddleware (otherwise ServerErrorMiddleware
+# intercepts it above CORS and strips the Access-Control-Allow-Origin header).
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logging.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": str(exc) or "Internal server error"})
 
 # ── Routers ──────────────────────────────────────────────────
 app.include_router(auth.router)
