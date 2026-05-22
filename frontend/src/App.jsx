@@ -22,6 +22,7 @@ import DemandIntelligence   from "./pages/DemandIntelligence"
 import WastageRecording     from "./pages/Wastage"
 import InstallGuide         from "./pages/InstallGuide"
 import BulkImport           from "./pages/BulkImport"
+import ExpiryIntelligence   from "./pages/ExpiryIntelligence"
 import History             from "./pages/History"
 import AppScreens           from "./pages/AppScreens"
 import HeroLoop             from "./pages/HeroLoop"
@@ -59,6 +60,7 @@ export default function App() {
                   <Route path="/wastage"    element={<WastageRecording />} />
                   <Route path="/install"    element={<InstallGuide />} />
                   <Route path="/bulk-import" element={<BulkImport />} />
+                  <Route path="/expiry"     element={<ExpiryIntelligence />} />
                   <Route path="/history"    element={<History />} />
                   <Route path="/app-screens" element={<AppScreens />} />
                   <Route path="/agent"      element={<Agent />} />

@@ -6,30 +6,132 @@ import { fuzzySearch } from "../data/productCatalog.js"
 import InvoiceScanTab  from "./InvoiceScanTab.jsx"
 import BarcodeScannerTab from "./BarcodeScannerTab.jsx"
 
-const INR = n => "₹" + (n||0).toLocaleString("en-IN")
+const INR  = n => "₹" + (n||0).toLocaleString("en-IN")
+const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
 
-// Parse CSV/Excel-like text
+// Same rule as backend _classify_weight:
+//   name weight > 5 kg  → loose/bulk → unit="kg", returns weightKg
+//   name weight ≤ 5 kg  → consumer pack → unit="pack"
+//   rice (any weight)   → always "pack"
+//   no embedded weight  → null (use QTY column unit as-is)
+function classifyWeight(name) {
+  const m = name.match(/\b(\d+(?:\.\d+)?)\s*(g|gm|gms|gram|grams|kg|kgs|kgm|ml|litre|liter|ltr|lts)\b/i)
+  if (!m) return { unit: null, weightKg: null }
+
+  const val     = parseFloat(m[1])
+  const rawUnit = m[2].toLowerCase()
+  let   valKg
+  if (["g","gm","gms","gram","grams"].includes(rawUnit)) valKg = val / 1000
+  else if (rawUnit === "ml")                              valKg = val / 1000
+  else if (["litre","liter","ltr","lts"].includes(rawUnit)) valKg = val
+  else                                                    valKg = val   // kg/kgs/kgm
+
+  if (/\brice\b/i.test(name)) return { unit: "pack", weightKg: null }
+  if (valKg > 5)              return { unit: "kg",   weightKg: valKg }
+  return                             { unit: "pack",  weightKg: null }
+}
+
+// Parse both DukhaanAI template and wholesale invoice CSV formats
 function parseCSV(text) {
-  const lines  = text.trim().split("\n").filter(l => l.trim())
-  const header = lines[0].toLowerCase().split(",").map(h => h.trim().replace(/"/g,""))
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return []
+
+  const rawHeader  = lines[0].split(",").map(h => h.trim().replace(/"/g, ""))
+  // Normalise keys: lowercase, remove punctuation/spaces for reliable matching
+  const normHeader = rawHeader.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ""))
+
+  // ── Detect wholesale invoice format ──────────────────────────
+  // Signature: has ITEMS (or ITEM) column + QTY column + RATE or AMOUNT column
+  const isInvoice = normHeader.some(h => h === "items" || h === "item") &&
+                    normHeader.some(h => h.startsWith("qty")) &&
+                    normHeader.some(h => h === "rate" || h === "amount")
+
+  if (isInvoice) {
+    const ci = key => normHeader.findIndex(h => h === key || h.startsWith(key))
+    const nameIdx   = ci("items") >= 0 ? ci("items") : ci("item")
+    const qtyIdx    = normHeader.findIndex(h => h.startsWith("qty"))
+    const rateIdx   = ci("rate")
+    const taxIdx    = ci("tax")
+    const amountIdx = ci("amount")
+
+    const UMAP = {
+      bor:"pack", bag:"pack", sack:"pack",
+      pet:"pc",   jar:"pc",  tin:"pc",  can:"pc",
+      pcs:"pc",   pc:"pc",   nos:"pc",  no:"pc",
+      kgs:"kg",   kg:"kg",   kgm:"kg",
+      gms:"g",    gm:"g",    g:"g",
+      ltr:"litre",lts:"litre",ml:"ml",
+      box:"box",  doz:"dozen",
+    }
+    const GSTS     = [0, 5, 12, 18, 28]
+    const snapGST  = p => GSTS.reduce((b, r) => Math.abs(r - p) < Math.abs(b - p) ? r : b, 0)
+
+    const results = []
+    for (let i = 1; i < lines.length; i++) {
+      const vals = lines[i].split(",").map(v => v.trim().replace(/"/g, ""))
+      const name = (vals[nameIdx] || "").trim()
+      // Skip blank, separator or pure-number rows (totals / S.No. cells)
+      if (!name || name === "-" || /^[\d.]+$/.test(name)) continue
+
+      // Parse "1.0 BOR", "10.0 PCS", "25.0 KGS"
+      const qtyStr  = qtyIdx >= 0 ? (vals[qtyIdx] || "") : ""
+      const qtyM    = qtyStr.match(/^(\d+(?:\.\d+)?)\s*([A-Za-z]+)?/)
+      const qtyNum  = qtyM ? parseFloat(qtyM[1]) : 1
+      const rawUnit = (qtyM?.[2] || "pc").toLowerCase()
+      const unit    = UMAP[rawUnit] || "pc"
+
+      const rate   = rateIdx   >= 0 ? parseFloat(vals[rateIdx])   || 0 : 0
+      const tax    = taxIdx    >= 0 ? parseFloat(vals[taxIdx])    || 0 : 0
+      const amount = amountIdx >= 0 ? parseFloat(vals[amountIdx]) || 0 : 0
+
+      // GST%: snap to nearest standard rate
+      const preTax = amount > tax ? amount - tax : rate * qtyNum
+      const gst    = tax > 0 && preTax > 0 ? snapGST((tax / preTax) * 100) : 0
+
+      // Apply bulk/loose rule — same as backend _classify_weight
+      const { unit: cUnit, weightKg } = classifyWeight(name)
+      let finalUnit  = cUnit !== null ? cUnit : unit   // classified > QTY-column unit
+      let finalStock = qtyNum
+      let finalCost  = rate
+
+      if (weightKg !== null) {
+        // Loose bulk product (>5 kg in name): convert bags → kg
+        finalStock = Math.round(qtyNum * weightKg * 100) / 100
+        finalCost  = weightKg > 0 ? Math.round(rate / weightKg * 100) / 100 : rate
+      }
+
+      results.push({
+        name,
+        category: "Other",
+        unit:  finalUnit,
+        mrp:   finalCost,
+        cost:  finalCost,
+        stock: finalStock,
+        gst,
+        _isInvoice: true,
+      })
+    }
+    return results
+  }
+
+  // ── Template format: name, category, unit, mrp, cost, stock, gst ──
   const results = []
-
   for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(",").map(v => v.trim().replace(/"/g,""))
+    const vals = lines[i].split(",").map(v => v.trim().replace(/"/g, ""))
     const row  = {}
-    header.forEach((h, idx) => row[h] = vals[idx] || "")
+    rawHeader.forEach((h, idx) => row[h.toLowerCase()] = vals[idx] || "")
 
-    const name = row.name || row.product || row["product name"] || row["item"] || ""
+    const name = row.name || row.product || row["product name"] || row.item || ""
     if (!name) continue
 
     results.push({
       name,
       category: row.category || row.type || "Other",
       unit:     row.unit || "pc",
-      mrp:      parseFloat(row.mrp || row.price || row["selling price"] || 0) || 0,
+      mrp:      parseFloat(row.mrp  || row.price || row["selling price"]  || 0) || 0,
       cost:     parseFloat(row.cost || row["cost price"] || row["purchase price"] || 0) || 0,
       stock:    parseFloat(row.stock || row.qty || row.quantity || 0) || 0,
-      gst:      parseFloat(row.gst || row["gst%"] || 0) || 0,
+      gst:      parseFloat(row.gst  || row["gst%"] || 0) || 0,
     })
   }
   return results
@@ -55,6 +157,17 @@ export default function BulkImport() {
   }
 
   function showNotif(m) { setNotif(m); setTimeout(() => setNotif(""), 3000) }
+
+  function updateRow(idx, field, value) {
+    setCsvData(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row))
+  }
+  function deleteRow(idx) {
+    setCsvData(prev => prev.filter((_, i) => i !== idx))
+  }
+  function cancelImport() {
+    setCsvData([])
+    if (fileRef.current) fileRef.current.value = ""
+  }
 
   async function handleSearch(query) {
     if (!query || query.length < 2) {
@@ -520,23 +633,33 @@ export default function BulkImport() {
               <div style={{ background:"var(--bg1)", borderRadius:16, padding:20,
                 border:"1px solid var(--rule)", marginBottom:16 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:12 }}>
-                  📋 CSV Format Guide
+                  📋 Supported CSV Formats
                 </div>
-                <div style={{ fontSize:11, color:"var(--ink-faint)", marginBottom:10 }}>
-                  Your CSV file should have these columns (column names are flexible):
+
+                <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-dim)", marginBottom:6 }}>
+                  Format 1 — DukhaanAI Template
                 </div>
                 <div style={{ background:"#1e293b", borderRadius:10, padding:14,
-                  fontFamily:"monospace", fontSize:11, color:"var(--ink-faint)",
-                  overflowX:"auto", marginBottom:12 }}>
+                  fontFamily:"monospace", fontSize:11, overflowX:"auto", marginBottom:10 }}>
                   <div style={{ color:"#7DD3FC" }}>name, category, unit, mrp, cost, stock, gst</div>
                   <div style={{ color:"#86EFAC" }}>Amul Milk 500ml, Dairy, pc, 28, 25, 50, 0</div>
                   <div style={{ color:"#86EFAC" }}>Tata Salt 1kg, Staples, kg, 24, 21, 100, 0</div>
-                  <div style={{ color:"#86EFAC" }}>Fortune Oil 1L, Oils, pc, 135, 122, 30, 5</div>
                 </div>
+
+                <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-dim)", marginBottom:6 }}>
+                  Format 2 — Wholesale Invoice (auto-detected)
+                </div>
+                <div style={{ background:"#1e293b", borderRadius:10, padding:14,
+                  fontFamily:"monospace", fontSize:11, overflowX:"auto", marginBottom:12 }}>
+                  <div style={{ color:"#7DD3FC" }}>S.No., ITEMS, HSN, QTY., RATE, DISC., TAX, AMOUNT</div>
+                  <div style={{ color:"#86EFAC" }}>1, CHANA 50 KG, -, 1.0 BOR, 2760.0, 0.0, 0.0, 2760.0</div>
+                  <div style={{ color:"#86EFAC" }}>2, FORTUNE BESAN 500 GM, -, 10.0 PCS, 70.0, 0.0, 0.0, 700.0</div>
+                </div>
+
                 <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-                  ✓ Only <b>name</b> is required — all other columns are optional<br/>
-                  ✓ Column names can be in any order<br/>
-                  ✓ You can also use: "product name", "price", "selling price", "purchase price"
+                  ✓ Both formats are auto-detected from the header row<br/>
+                  ✓ For invoice format: RATE is imported as cost price — set MRP after import<br/>
+                  ✓ Column names are flexible (any order, case-insensitive)
                 </div>
               </div>
 
@@ -557,67 +680,147 @@ export default function BulkImport() {
             </div>
           ) : (
             <div>
+              {csvData[0]?._isInvoice && (
+                <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:12,
+                  padding:"10px 14px", marginBottom:12, fontSize:11, color:"#92400e" }}>
+                  <b>Wholesale invoice format detected.</b> RATE imported as cost price — MRP will match cost price.
+                  Set your selling prices in Inventory after import.
+                </div>
+              )}
+              {/* Action bar */}
               <div style={{ display:"flex", justifyContent:"space-between",
-                alignItems:"center", marginBottom:16 }}>
+                alignItems:"center", marginBottom:14 }}>
                 <div>
                   <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)" }}>
-                    ✓ {csvData.length} products ready to import
+                    {csvData.length} products ready to import
                   </div>
                   <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>
-                    Review below then click Import
+                    Edit any cell · click ✕ to remove a row · then Import
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
-                  <button onClick={() => { setCsvData([]); fileRef.current.value="" }}
+                  <button onClick={cancelImport}
                     style={{ background:"var(--bg2)", color:"var(--ink-dim)", border:"none",
-                      borderRadius:9, padding:"8px 14px", fontSize:11,
+                      borderRadius:9, padding:"8px 16px", fontSize:12,
                       fontWeight:600, cursor:"pointer" }}>
-                    Upload Different File
+                    Cancel
                   </button>
-                  <button onClick={importProducts} disabled={importing}
+                  <button onClick={importProducts} disabled={importing || csvData.length === 0}
                     style={{ background:"linear-gradient(135deg,#0F6E56,#1D9E75)",
                       color:"var(--bg1)", border:"none", borderRadius:10,
                       padding:"9px 20px", fontSize:12, fontWeight:600,
-                      cursor:"pointer", opacity: importing ? 0.7 : 1 }}>
+                      cursor: csvData.length === 0 ? "default" : "pointer",
+                      opacity: importing || csvData.length === 0 ? 0.6 : 1 }}>
                     {importing ? "Importing..." : `Import ${csvData.length} Products`}
                   </button>
                 </div>
               </div>
 
-              {/* Preview table */}
+              {/* Editable preview table */}
               <div style={{ background:"var(--bg1)", borderRadius:16, overflow:"hidden",
                 border:"1px solid var(--rule)" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                  <thead>
-                    <tr style={{ background:"var(--bg0)" }}>
-                      {["Product Name","Category","Unit","MRP","Cost","Stock","GST%"].map(h => (
-                        <th key={h} style={{ padding:"10px 14px", textAlign:"left",
-                          fontSize:10, fontWeight:700, color:"var(--ink-faint)",
-                          textTransform:"uppercase", letterSpacing:"0.5px",
-                          borderBottom:"1px solid var(--rule)" }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {csvData.slice(0,50).map((p,i) => (
-                      <tr key={i} style={{ borderBottom:"1px solid #f5f7f5" }}>
-                        <td style={{ padding:"10px 14px", fontSize:12, fontWeight:500, color:"var(--ink)" }}>{p.name}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"var(--ink-faint)" }}>{p.category||"—"}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"var(--ink-faint)" }}>{p.unit||"pc"}</td>
-                        <td style={{ padding:"10px 14px", fontSize:12, fontWeight:600, color:"var(--jade)" }}>{INR(p.mrp)}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"var(--ink-faint)" }}>{INR(p.cost)}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"var(--ink-faint)" }}>{p.stock||0}</td>
-                        <td style={{ padding:"10px 14px", fontSize:11, color:"var(--ink-faint)" }}>{p.gst||0}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {csvData.length > 50 && (
-                  <div style={{ padding:"12px 16px", fontSize:11, color:"var(--ink-faint)",
-                    textAlign:"center", borderTop:"1px solid var(--rule)" }}>
-                    Showing 50 of {csvData.length} products
+                {csvData.length === 0 ? (
+                  <div style={{ padding:32, textAlign:"center", fontSize:12, color:"var(--ink-faint)" }}>
+                    All rows removed — click Cancel to go back.
+                  </div>
+                ) : (
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", minWidth:740 }}>
+                      <thead>
+                        <tr style={{ background:"var(--bg0)" }}>
+                          {["Product Name","Category","Unit","MRP (₹)","Cost (₹)","Stock","GST%",""].map(h => (
+                            <th key={h} style={{ padding:"8px 10px", textAlign:"left",
+                              fontSize:10, fontWeight:700, color:"var(--ink-faint)",
+                              textTransform:"uppercase", letterSpacing:"0.5px",
+                              borderBottom:"1px solid var(--rule)", whiteSpace:"nowrap" }}>
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvData.map((p, i) => (
+                          <tr key={i} style={{ borderBottom:"1px solid #f5f7f5" }}>
+                            {/* Name */}
+                            <td style={{ padding:"5px 8px", minWidth:180 }}>
+                              <input value={p.name || ""}
+                                onChange={e => updateRow(i, "name", e.target.value)}
+                                style={{ width:"100%", border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"4px 7px", fontSize:12, fontWeight:500,
+                                  color:"var(--ink)", outline:"none", background:"white" }}/>
+                            </td>
+                            {/* Category */}
+                            <td style={{ padding:"5px 8px" }}>
+                              <select value={p.category || "Other"}
+                                onChange={e => updateRow(i, "category", e.target.value)}
+                                style={{ border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"4px 5px", fontSize:11, outline:"none",
+                                  background:"white", width:100 }}>
+                                {CATS.map(c => <option key={c}>{c}</option>)}
+                              </select>
+                            </td>
+                            {/* Unit */}
+                            <td style={{ padding:"5px 8px" }}>
+                              <select value={p.unit || "pc"}
+                                onChange={e => updateRow(i, "unit", e.target.value)}
+                                style={{ border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"4px 5px", fontSize:11, outline:"none",
+                                  background:"white", width:72 }}>
+                                {["pc","kg","g","litre","ml","pack","box","dozen","carton","strip"].map(u => (
+                                  <option key={u}>{u}</option>
+                                ))}
+                              </select>
+                            </td>
+                            {/* MRP */}
+                            <td style={{ padding:"5px 8px" }}>
+                              <input type="number" min="0" step="0.01"
+                                value={p.mrp ?? ""}
+                                onChange={e => updateRow(i, "mrp", parseFloat(e.target.value) || 0)}
+                                style={{ width:80, border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"4px 7px", fontSize:12, fontWeight:600,
+                                  color:"var(--jade)", outline:"none", background:"white", textAlign:"right" }}/>
+                            </td>
+                            {/* Cost */}
+                            <td style={{ padding:"5px 8px" }}>
+                              <input type="number" min="0" step="0.01"
+                                value={p.cost ?? ""}
+                                onChange={e => updateRow(i, "cost", parseFloat(e.target.value) || 0)}
+                                style={{ width:80, border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"4px 7px", fontSize:11, outline:"none",
+                                  background:"white", textAlign:"right" }}/>
+                            </td>
+                            {/* Stock */}
+                            <td style={{ padding:"5px 8px" }}>
+                              <input type="number" min="0" step="1"
+                                value={p.stock ?? ""}
+                                onChange={e => updateRow(i, "stock", parseFloat(e.target.value) || 0)}
+                                style={{ width:62, border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"4px 7px", fontSize:11, outline:"none",
+                                  background:"white", textAlign:"right" }}/>
+                            </td>
+                            {/* GST */}
+                            <td style={{ padding:"5px 8px" }}>
+                              <select value={p.gst ?? 0}
+                                onChange={e => updateRow(i, "gst", parseFloat(e.target.value))}
+                                style={{ border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"4px 5px", fontSize:11, outline:"none",
+                                  background:"white", width:58 }}>
+                                {[0,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
+                              </select>
+                            </td>
+                            {/* Remove */}
+                            <td style={{ padding:"5px 6px", textAlign:"center" }}>
+                              <button onClick={() => deleteRow(i)} title="Remove this row"
+                                style={{ background:"none", border:"none", cursor:"pointer",
+                                  color:"#dc2626", fontSize:15, lineHeight:1,
+                                  padding:"2px 6px", borderRadius:6 }}>
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>

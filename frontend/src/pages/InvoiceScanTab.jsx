@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { getToken } from "../sync/db"
+import { getToken, tryRefresh, clearAuth } from "../sync/db"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
@@ -10,10 +10,11 @@ const MATCH_BADGE = {
 }
 
 const TIER_INFO = {
-  tesseract: { label: "Local OCR",    bg: "#ecfdf5", color: "#059669", icon: "📱" },
-  gemini:    { label: "Gemini AI",    bg: "#eff6ff", color: "#2563eb", icon: "✨" },
-  groq:      { label: "Groq AI",      bg: "#faf5ff", color: "#7c3aed", icon: "🤖" },
-  regex:     { label: "Text Parser",  bg: "#fefce8", color: "#b45309", icon: "📝" },
+  image: { label: "Image OCR",   bg: "#ecfdf5", color: "#059669", icon: "📷" },
+  pdf:   { label: "PDF Extract", bg: "#eff6ff", color: "#2563eb", icon: "📄" },
+  excel: { label: "Excel",       bg: "#f0fdf4", color: "#16a34a", icon: "📊" },
+  csv:   { label: "CSV",         bg: "#fefce8", color: "#b45309", icon: "📝" },
+  local: { label: "Local Parse", bg: "#faf5ff", color: "#7c3aed", icon: "⚙️" },
 }
 
 export default function InvoiceScanTab() {
@@ -42,66 +43,52 @@ export default function InvoiceScanTab() {
 
   async function handleFile(file) {
     if (!file) return
-    setPreview(URL.createObjectURL(file))
+    const isImage = file.type.startsWith("image/")
+    setPreview(isImage ? URL.createObjectURL(file) : null)
     setStep("scanning")
-    setOcrProgress(0)
+    setOcrProgress(20)
     setOcrStage("reading")
     setError("")
     setTier(null)
 
-    // ── Tier 1: Tesseract.js — browser OCR (images only, free) ──
-    let tesseractText = ""
-    let confidence    = 0
-    const isImage = file.type.startsWith("image/")
+    // Animate progress while server processes (OCR happens server-side)
+    const ticker = setInterval(() => {
+      setOcrProgress(p => p < 85 ? p + 5 : p)
+    }, 600)
 
-    if (isImage) {
-      try {
-        const tesseractPromise = (async () => {
-          const { createWorker } = await import("tesseract.js")
-          const worker = await createWorker("eng", 1, {
-            logger: m => {
-              if (m.status === "recognizing text") {
-                setOcrProgress(Math.round(m.progress * 65))
-              }
-            },
-          })
-          const { data } = await worker.recognize(file)
-          await worker.terminate()
-          return data
-        })()
-        // Give Tesseract max 20s — skip it if it hangs (CDN down, WASM issue, etc.)
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Tesseract timeout")), 20000)
-        )
-        const data    = await Promise.race([tesseractPromise, timeout])
-        tesseractText = data.text       || ""
-        confidence    = data.confidence || 0
-      } catch (e) {
-        console.warn("Tesseract skipped:", e.message)
-      }
-    }
+    // Send file directly to backend — server handles OCR/parsing
+    // Retries once with a fresh token if the access token has expired
+    const form = new FormData()
+    form.append("file", file)
 
-    setOcrStage("thinking")
-    setOcrProgress(70)
-
-    // ── Send to backend — cascade continues there ─────────────
-    const token = getToken()
-    const form  = new FormData()
-    form.append("file",           file)
-    form.append("tesseract_text", tesseractText)
-    form.append("confidence",     String(confidence))
-
-    try {
-      const res = await fetch(`${API}/invoice-scan/scan`, {
+    async function doScan() {
+      const token = getToken()
+      return fetch(`${API}/invoice-scan/scan`, {
         method:  "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body:    form,
       })
+    }
+
+    try {
+      let res = await doScan()
+
+      // 401 → try refreshing the token once, then retry
+      if (res.status === 401) {
+        const refreshed = await tryRefresh()
+        if (refreshed) {
+          res = await doScan()
+        } else {
+          clearAuth()
+          window.dispatchEvent(new Event("dk:logout"))
+          throw new Error("Session expired. Please log in again.")
+        }
+      }
+
+      clearInterval(ticker)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         const detail = err.detail || `Server error (${res.status})`
-        // 503 means Gemini rate-limited — give a specific, actionable message
-        if (res.status === 503) throw new Error("😢 " + detail)
         throw new Error(detail)
       }
       const data = await res.json()
@@ -119,6 +106,7 @@ export default function InvoiceScanTab() {
       setStats({ total: data.total, exact: data.exact, fuzzy: data.fuzzy, new: data.new })
       setStep("review")
     } catch (e) {
+      clearInterval(ticker)
       console.error("[InvoiceScan] fetch failed:", e, "url:", `${API}/invoice-scan/scan`)
       const msg = e.message || ""
       const isNet = msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network")
@@ -217,13 +205,9 @@ export default function InvoiceScanTab() {
   // ── Scanning / applying loader ────────────────────────────────
   if (step === "scanning" || step === "applying") {
     const isScanning = step === "scanning"
-    const stageMsg   = isScanning
-      ? (ocrStage === "reading" ? "Reading invoice text…" : "AI is matching your products…")
-      : "Updating inventory…"
+    const stageMsg   = isScanning ? "Reading invoice…" : "Updating inventory…"
     const stageSub   = isScanning
-      ? (ocrStage === "reading"
-          ? "Tesseract is extracting text from your image (free, private)"
-          : "Using AI to parse products, prices and quantities")
+      ? "EasyOCR is extracting text on the server — local, free, no API needed"
       : "Adding stock and creating new products"
 
     return (
@@ -251,9 +235,9 @@ export default function InvoiceScanTab() {
               }}/>
             </div>
             <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-              {ocrProgress < 65 ? "📱 Local OCR (no API cost)…"
-               : ocrProgress < 90 ? "☁️ Sending to AI…"
-               : "Almost done…"}
+              {ocrProgress < 50 ? "📂 Uploading…"
+               : ocrProgress < 85 ? "🔍 EasyOCR reading text…"
+               : "⚙️ Matching products…"}
             </div>
           </>
         ) : (
@@ -572,7 +556,7 @@ export default function InvoiceScanTab() {
           Upload Vendor Invoice
         </div>
         <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 16 }}>
-          JPG · PNG · WEBP · HEIC · PDF &nbsp;·&nbsp; Max 10 MB
+          JPG · PNG · WEBP · PDF · Excel · CSV &nbsp;·&nbsp; Max 10 MB
         </div>
         <div style={{ display: "inline-flex", gap: 10 }}>
           <div style={{ background: "linear-gradient(135deg,#0F6E56,#1D9E75)", color: "#fff",
@@ -581,9 +565,9 @@ export default function InvoiceScanTab() {
           </div>
         </div>
         <input ref={fileRef} type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+          accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,.xlsx,.xls,.csv,text/csv"
           style={{ display: "none" }}
-          onChange={e => handleFile(e.target.files[0])} capture="environment"/>
+          onChange={e => handleFile(e.target.files[0])}/>
       </div>
 
       <button
@@ -603,10 +587,10 @@ export default function InvoiceScanTab() {
           How it works
         </div>
         {[
-          ["📄", "Upload invoice photo or PDF from your vendor"],
-          ["📱", "Tesseract reads text locally — free, private, no internet needed"],
-          ["✨", "Gemini AI (1,500 free/day) gives full accuracy when needed"],
-          ["🤖", "Groq AI kicks in automatically if Gemini is busy"],
+          ["📷", "Photo / Image — EasyOCR reads text on the server (no API, local model)"],
+          ["📄", "PDF Invoice — extracts tables & text from digital PDFs"],
+          ["📊", "Excel (.xlsx/.xls) — reads rows directly, no conversion needed"],
+          ["📝", "CSV — export from any billing software and upload directly"],
           ["💾", "Review matches and apply — stock updates in one tap"],
         ].map(([icon, text]) => (
           <div key={text} style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "flex-start" }}>
@@ -614,10 +598,9 @@ export default function InvoiceScanTab() {
             <span style={{ fontSize: 12, color: "var(--ink-faint)", lineHeight: 1.5 }}>{text}</span>
           </div>
         ))}
-        {/* Cost indicator */}
         <div style={{ marginTop: 14, padding: "10px 14px", background: "#ecfdf5",
           borderRadius: 10, fontSize: 11, color: "#059669", fontWeight: 600 }}>
-          Zero cost · Tesseract → Gemini (free) → Groq (free) → Regex fallback
+          100% free · No API key · EasyOCR runs locally · PDF / Excel / CSV / Image
         </div>
       </div>
     </div>

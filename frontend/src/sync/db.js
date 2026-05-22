@@ -14,7 +14,7 @@ export const setVendor  = (v) => localStorage.setItem(VND, JSON.stringify(v))
 export const getPlan    = () => getVendor()?.plan || "free"
 export const isCloud    = () => !!getToken() && ["pro","wholesale"].includes(getPlan())
 
-async function tryRefresh() {
+export async function tryRefresh() {
   const r = getRefresh(); if (!r) return false
   try {
     const d = await call("POST", "/auth/refresh", { refresh_token: r }, false)

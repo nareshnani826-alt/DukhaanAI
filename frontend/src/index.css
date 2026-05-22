@@ -185,7 +185,10 @@ input, select, textarea, button {
   border-right: 1px solid var(--rule);
   box-shadow: 2px 0 12px var(--shadow);
 }
+/* Main area: flex column so pages that use flex-1/overflow-y-auto scroll correctly */
 .app-main    { flex:1; overflow:hidden; min-width:0; display:flex; flex-direction:column; background: var(--bg0); }
+/* Utility: pages wrap their content in this to get full-height scroll */
+.page-scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
 
 .sidebar-logo   { padding: 18px 16px 14px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
 .sidebar-nav    { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }

@@ -399,7 +399,8 @@ export default function Inventory() {
   const [initForm, setInitForm] = useState(EMPTY)
   const [notif,    setNotif]    = useState("")
   const [barcodeProduct, setBarcodeProduct] = useState(null)
-  const [voiceLang, setVoiceLang] = useState("hi-IN")
+  const [voiceLang,   setVoiceLang]   = useState("hi-IN")
+  const [dateFilter,  setDateFilter]  = useState("all")
   const { hasFeature } = usePlan()
 
   async function load() {
@@ -490,6 +491,37 @@ export default function Inventory() {
     load(); showNotif("Barcode saved!")
   }
 
+  function fmtUpdated(ts) {
+    if (!ts) return "—"
+    const d = new Date(ts), now = new Date(), diff = now - d
+    const mins = Math.floor(diff / 60000)
+    if (mins < 2)  return "just now"
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(diff / 3600000)
+    if (hrs < 24)  return `${hrs}h ago`
+    const days = Math.floor(diff / 86400000)
+    if (days === 1) return "Yesterday"
+    if (days < 7)  return d.toLocaleDateString("en-IN", { weekday: "short" })
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+  }
+
+  const DATE_FILTERS = [
+    { value: "all",   label: "All time" },
+    { value: "today", label: "Today" },
+    { value: "week",  label: "This week" },
+    { value: "month", label: "This month" },
+  ]
+
+  const displayProducts = products.filter(p => {
+    if (dateFilter === "all") return true
+    if (!p.updated_at) return false
+    const d = new Date(p.updated_at), now = new Date()
+    if (dateFilter === "today") { const s = new Date(now); s.setHours(0,0,0,0); return d >= s }
+    if (dateFilter === "week")  return d >= new Date(now - 7 * 86400000)
+    if (dateFilter === "month") return d >= new Date(now - 30 * 86400000)
+    return true
+  })
+
   const pct    = p => Math.max(4, Math.min(100, Math.round(p.stock / Math.max(p.min_stock*2,1) * 100)))
   const barCls = p => p.stock < p.min_stock*0.3 ? "bg-red-500" : p.stock < p.min_stock ? "bg-amber-400" : "bg-primary"
 
@@ -558,6 +590,14 @@ export default function Inventory() {
           <option value="">All categories</option>
           {CATS.map(c => <option key={c}>{c}</option>)}
         </select>
+        <select className="input" style={{ width: 130 }} value={dateFilter} onChange={e => setDateFilter(e.target.value)}>
+          {DATE_FILTERS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+        {dateFilter !== "all" && (
+          <span style={{ fontSize: 11, color: "var(--jade)", alignSelf: "center", fontWeight: 600 }}>
+            {displayProducts.length} of {products.length} products
+          </span>
+        )}
       </div>
 
       {/* Tip banner */}
@@ -584,17 +624,20 @@ export default function Inventory() {
               <th className="th">GST</th>
               <th className="th">Barcode</th>
               <th className="th">Status</th>
+              <th className="th">Updated</th>
               <th className="th"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="10" className="td text-center py-8 text-gray-400 text-xs">Loading...</td></tr>
-            ) : products.length === 0 ? (
-              <tr><td colSpan="10" className="td text-center py-8 text-gray-400 text-xs">
-                No products yet — click "+ Add Product" and speak or type!
+              <tr><td colSpan="11" className="td text-center py-8 text-gray-400 text-xs">Loading...</td></tr>
+            ) : displayProducts.length === 0 ? (
+              <tr><td colSpan="11" className="td text-center py-8 text-gray-400 text-xs">
+                {products.length === 0
+                  ? "No products yet — click \"+Add Product\" and speak or type!"
+                  : `No products updated ${DATE_FILTERS.find(f => f.value === dateFilter)?.label.toLowerCase()}`}
               </td></tr>
-            ) : products.map(p => {
+            ) : displayProducts.map(p => {
               const [sc, sl] = status(p)
               const ready    = hasBarcode(p)
               const displayUnit = resolveUnit(p.name)
@@ -633,6 +676,11 @@ export default function Inventory() {
                     </button>
                   </td>
                   <td className="td"><span className={`badge ${sc}`}>{sl}</span></td>
+                  <td className="td">
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)", whiteSpace: "nowrap" }}>
+                      {fmtUpdated(p.updated_at)}
+                    </div>
+                  </td>
                   <td className="td">
                     <div className="flex gap-1.5">
                       <button onClick={() => openEdit(p)} className="btn btn-sm">Edit</button>

@@ -29,6 +29,7 @@ from app.routers import (
     insights,
     learning,
     invoice_scan,
+    expiry,
 )
 
 _is_dev = settings.app_env != "production"
@@ -99,6 +100,7 @@ app.include_router(assemblyai.router)
 app.include_router(insights.router)
 app.include_router(learning.router)
 app.include_router(invoice_scan.router)
+app.include_router(expiry.router)
 app.include_router(
     voice.router,
     prefix="/api/voice",
