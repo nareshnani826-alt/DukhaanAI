@@ -1,5 +1,5 @@
 // ── Fast Browser Voice Engine ──────────────────────────────
-// Uses Web Speech API for realtime low-latency billing
+// Uses Web Speech API in browser, native Android STT in Capacitor APK
 
 import { translateToEnglish } from "./engine.js"
 
@@ -7,11 +7,14 @@ const SpeechRecognition =
   window.SpeechRecognition ||
   window.webkitSpeechRecognition
 
-const CONFIDENCE_THRESHOLD = 0.6 // try next alternative below this
+const CONFIDENCE_THRESHOLD = 0.6
+
+// Evaluated lazily at call time — Capacitor bridge may not exist at module load
+const isNative = () => !!(window.Capacitor?.isNativePlatform?.())
 
 export class AssemblyVoiceEngine {
   constructor() {
-    this.supported    = !!SpeechRecognition
+    this.supported    = !!SpeechRecognition || isNative()
     this.isListening  = false
     this.currentLang  = "te-IN"
     this.recognition  = null
@@ -19,12 +22,15 @@ export class AssemblyVoiceEngine {
     this.onEnd        = null
     this.onResult     = null
     this.onError      = null
+    this._nativeListener = null
 
-    if (this.supported) {
+    // Only set up Web Speech API when NOT running in Capacitor native
+    if (!isNative() && !!SpeechRecognition) {
       this._setupRecognition()
     }
   }
 
+  // ── Web Speech API (browser only) ────────────────────────
   _setupRecognition() {
     try {
       this.recognition = new SpeechRecognition()
@@ -82,10 +88,89 @@ export class AssemblyVoiceEngine {
       }
     } catch (e) {
       console.error("Could not initialise SpeechRecognition:", e)
-      this.supported = false
     }
   }
 
+  // ── Capacitor native Android STT ─────────────────────────
+  // Dynamic import lives here so web browsers never touch this code path.
+  // Vite will never pre-bundle @capacitor-community/speech-recognition
+  // for the web build (also excluded in vite.config.js).
+  async _startNative() {
+    let NativeSpeech
+    try {
+      const mod = await import("@capacitor-community/speech-recognition")
+      NativeSpeech = mod.SpeechRecognition
+    } catch (e) {
+      this.onError?.("Speech plugin not available. Rebuild the APK.")
+      return
+    }
+
+    try {
+      // Request mic permission
+      const perm = await NativeSpeech.requestPermissions()
+      const granted = perm?.speechRecognition === "granted" || perm?.microphone === "granted"
+      if (!granted) {
+        this.onError?.("Microphone permission denied. Allow it in Settings → Apps → DukaanAI → Permissions.")
+        return
+      }
+
+      this.isListening = true
+      this.onStart?.()
+
+      // Clean up any previous listener
+      if (this._nativeListener) {
+        await this._nativeListener.remove()
+        this._nativeListener = null
+      }
+
+      // partialResults fires once the recognizer has a confident match
+      this._nativeListener = await NativeSpeech.addListener("partialResults", async (data) => {
+        const matches = data?.matches || []
+        if (!matches.length) return
+        const original = matches[0]?.trim()
+        if (!original) return
+
+        // Stop after the first result — mirrors Web Speech API single-shot behaviour
+        await this._stopNative(NativeSpeech)
+
+        let translated = original
+        if (!this.currentLang.startsWith("en")) {
+          translated = await translateToEnglish(original, this.currentLang)
+        }
+        this.onResult?.(original, translated, 0.9)
+      })
+
+      await NativeSpeech.start({
+        language:       this.currentLang,
+        maxResults:     5,
+        prompt:         "Speak now...",
+        partialResults: true,
+        popup:          false,
+      })
+    } catch (e) {
+      this.isListening = false
+      this.onEnd?.()
+      if (e?.message?.toLowerCase().includes("permission")) {
+        this.onError?.("Microphone permission denied.")
+      } else {
+        this.onError?.("Voice error: " + (e?.message || "try again"))
+      }
+    }
+  }
+
+  async _stopNative(pluginRef) {
+    try {
+      if (this._nativeListener) {
+        await this._nativeListener.remove()
+        this._nativeListener = null
+      }
+      if (pluginRef) await pluginRef.stop()
+    } catch {}
+    this.isListening = false
+    this.onEnd?.()
+  }
+
+  // ── Public API ────────────────────────────────────────────
   setLanguage(code) {
     this.currentLang = code
     if (this.recognition) this.recognition.lang = code
@@ -102,16 +187,25 @@ export class AssemblyVoiceEngine {
       return
     }
     if (this.isListening) return
-    try {
-      this.recognition.start()
-    } catch (e) {
-      console.error("AssemblyVoiceEngine.start error:", e)
-      this.onError?.("Could not start voice: " + e.message)
+
+    if (isNative()) {
+      this._startNative()
+    } else {
+      try {
+        this.recognition.start()
+      } catch (e) {
+        console.error("AssemblyVoiceEngine.start error:", e)
+        this.onError?.("Could not start voice: " + e.message)
+      }
     }
   }
 
   stop() {
-    if (this.recognition && this.isListening) this.recognition.stop()
+    if (isNative()) {
+      this._stopNative(null)
+    } else if (this.recognition && this.isListening) {
+      this.recognition.stop()
+    }
   }
 
   toggle() {
@@ -119,6 +213,5 @@ export class AssemblyVoiceEngine {
   }
 }
 
-// Singleton export
 export const voiceEngine = new AssemblyVoiceEngine()
 export default voiceEngine
