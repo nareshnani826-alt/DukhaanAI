@@ -345,7 +345,7 @@ function ProductCard({ product, onAddVariants, onStockChange }) {
           <button
             onClick={()=>onAddVariants(product)}
             className="mt-3 w-full py-2 rounded-xl text-xs font-semibold border-2 border-dashed transition-colors"
-            style={{borderColor:"var(--jade)",color:"var(--jade)",background:"transparent"}}>
+            style={{borderColor:"var(--saffron)",color:"var(--saffron)",background:"transparent"}}>
             + Add Variants
           </button>
         </div>
@@ -420,7 +420,7 @@ export default function BangleInventory() {
           <div style={{fontSize:11,color:"var(--ink-faint)"}}>Variants by colour, size &amp; design</div>
         </div>
         <button onClick={()=>setShowAdd(true)}
-          style={{background:"linear-gradient(135deg,#0F6E56,#1D9E75)",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+          style={{background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
           + Add Product
         </button>
       </div>
@@ -430,7 +430,7 @@ export default function BangleInventory() {
         <div style={{display:"flex",gap:1,background:"var(--rule)",flexShrink:0}}>
           {[
             {label:"Products",  value:products.length,         color:"var(--jade)"},
-            {label:"Variants",  value:summary.total_variants,  color:"#4f46e5"},
+            {label:"Variants",  value:summary.total_variants,  color:"var(--jade)"},
             {label:"Pieces",    value:summary.total_pieces,    color:"var(--ink)"},
             {label:"Low Stock", value:summary.low_stock,       color:"#d97706"},
             {label:"Out",       value:summary.out_of_stock,    color:"#dc2626"},
@@ -452,7 +452,7 @@ export default function BangleInventory() {
           {["All",...CATS].map(c=>(
             <button key={c} onClick={()=>setCategory(c)}
               style={{padding:"4px 12px",borderRadius:20,border:"none",fontSize:11,fontWeight:500,whiteSpace:"nowrap",cursor:"pointer",flexShrink:0,
-                background:category===c?"var(--jade,#1D9E75)":"var(--bg2)",
+                background:category===c?"var(--saffron)":"var(--bg2)",
                 color:category===c?"#fff":"var(--ink-dim)"}}>
               {c}
             </button>
@@ -475,7 +475,7 @@ export default function BangleInventory() {
             </div>
             {products.length===0 && (
               <button onClick={()=>setShowAdd(true)}
-                style={{background:"linear-gradient(135deg,#0F6E56,#1D9E75)",color:"#fff",border:"none",borderRadius:12,padding:"12px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                style={{background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",color:"#fff",border:"none",borderRadius:12,padding:"12px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 + Add First Product
               </button>
             )}

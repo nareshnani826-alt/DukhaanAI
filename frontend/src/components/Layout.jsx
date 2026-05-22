@@ -517,11 +517,30 @@ export default function Layout({ children }) {
   const hasKirana = hasModule("kirana")
   const multiStore = hasBangle && hasKirana
 
-  const [storeMode, setStoreMode] = useState(() => {
-    const saved = localStorage.getItem("storeMode")
-    if (saved === "bangle_fancy" && hasBangle) return "bangle_fancy"
-    return hasBangle && !hasKirana ? "bangle_fancy" : "kirana"
-  })
+  const [storeMode, setStoreMode] = useState("kirana")
+
+  // Re-derive mode whenever vendor changes (login/logout) or modules change
+  useEffect(() => {
+    let newMode = "kirana"
+    if (!vendor) {
+      // Logged out — restore last used mode from localStorage
+      const saved = localStorage.getItem("storeMode")
+      newMode = saved === "bangle_fancy" ? "bangle_fancy" : "kirana"
+    } else if (hasBangle && !hasKirana) {
+      newMode = "bangle_fancy"
+    } else if (multiStore) {
+      const saved = localStorage.getItem("storeMode")
+      newMode = saved === "bangle_fancy" ? "bangle_fancy" : "kirana"
+    }
+    setStoreMode(newMode)
+
+    // Redirect kirana routes → bangle home when vendor has no kirana access
+    if (vendor && newMode === "bangle_fancy") {
+      const BANGLE_ROUTES = ["/bangle", "/voice", "/more", "/settings", "/help", "/install"]
+      const onBangleRoute = BANGLE_ROUTES.some(r => location.pathname.startsWith(r))
+      if (!onBangleRoute) navigate("/bangle-inventory")
+    }
+  }, [vendor, hasBangle, hasKirana])
 
   function switchMode(mode) {
     setStoreMode(mode)
@@ -530,7 +549,7 @@ export default function Layout({ children }) {
 
   const NAV      = storeMode === "bangle_fancy" ? BANGLE_NAV : KIRANA_NAV
   const MOB_TABS_ACTIVE = storeMode === "bangle_fancy" ? BANGLE_MOB_TABS : MOB_TABS
-  const storeLabel = storeMode === "bangle_fancy" ? "Bangle Store" : "Kirana POS"
+  const storeLabel = !loggedIn ? "Retail POS" : (storeMode === "bangle_fancy" ? "Bangle Store" : "Kirana POS")
 
   const { planLabel } = usePlan()
   const { theme, toggleTheme, isDark } = useTheme()
