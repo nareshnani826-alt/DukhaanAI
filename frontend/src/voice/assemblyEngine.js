@@ -22,10 +22,8 @@ export class AssemblyVoiceEngine {
     this.onEnd        = null
     this.onResult     = null
     this.onError      = null
-    this._nativeListener     = null
-    this._nativePlugin       = null
-    this._nativeTimeout      = null   // master 12 s safety stop
-    this._nativeProcessTimer = null   // 1.2 s debounce before processing
+    this._nativeListener = null
+    this._nativePlugin   = null
   }
 
   // ── Web Speech API (browser only) ────────────────────────
@@ -116,84 +114,50 @@ export class AssemblyVoiceEngine {
       this.isListening = true
       this.onStart?.()
 
-      // Clean up any previous listener
-      if (this._nativeListener) {
-        await this._nativeListener.remove()
-        this._nativeListener = null
-      }
-
-      // Master timeout — always stops after 12 s so UI never stays stuck
-      this._nativeTimeout = setTimeout(() => {
-        if (this.isListening) {
-          this._stopNative()
-          this.onError?.("No speech heard. Tap mic and speak clearly.")
-        }
-      }, 12000)
-
-      // Android fires partialResults multiple times during speech.
-      // We collect the latest and process 1.2 s after the last partial so we
-      // get the most complete transcript, not just the first noisy fragment.
-      let lastPartial = null
-
-      this._nativeListener = await NativeSpeech.addListener("partialResults", async (data) => {
-        const matches = data?.matches || []
-
-        // Empty result = recognizer ended with no speech detected
-        if (!matches.length) {
-          await this._stopNative()
-          this.onError?.("No speech heard. Tap mic and speak clearly.")
-          return
-        }
-
-        const original = matches[0]?.trim()
-        if (!original) {
-          await this._stopNative()
-          this.onError?.("No speech heard. Tap mic and speak clearly.")
-          return
-        }
-
-        // Keep the freshest (most complete) partial
-        lastPartial = original
-
-        // Reset debounce — process 1.2 s after the last partial arrives
-        clearTimeout(this._nativeProcessTimer)
-        this._nativeProcessTimer = setTimeout(async () => {
-          const text = lastPartial
-          lastPartial = null
-          await this._stopNative()
-          if (!text) return
-          let translated = text
-          if (!this.currentLang.startsWith("en")) {
-            translated = await translateToEnglish(text, this.currentLang)
-          }
-          this.onResult?.(text, translated, 0.9)
-        }, 1200)
-      })
-
-      await NativeSpeech.start({
+      // start() blocks until Android recognizer ends, then resolves with { matches: string[] }.
+      // This is the authoritative result — partialResults events are unreliable across devices.
+      const result = await NativeSpeech.start({
         language:       this.currentLang,
         maxResults:     5,
         prompt:         "Speak now...",
-        partialResults: true,
+        partialResults: false,
         popup:          false,
       })
+
+      // If user tapped stop mid-session, _stopNative already cleaned up — bail silently
+      if (!this.isListening) return
+
+      this._nativePlugin = null
+      this.isListening = false
+      this.onEnd?.()
+
+      const matches = result?.matches || []
+      const original = matches[0]?.trim()
+      if (!original) {
+        this.onError?.("No speech heard. Tap mic and speak clearly.")
+        return
+      }
+
+      let translated = original
+      if (!this.currentLang.startsWith("en")) {
+        translated = await translateToEnglish(original, this.currentLang)
+      }
+      this.onResult?.(original, translated, 0.9)
+
     } catch (e) {
+      if (!this.isListening) return   // already stopped by user — suppress
       this.isListening = false
       this._nativePlugin = null
       this.onEnd?.()
       if (e?.message?.toLowerCase().includes("permission")) {
         this.onError?.("Microphone permission denied.")
-      } else {
+      } else if (!e?.message?.toLowerCase().includes("aborted")) {
         this.onError?.("Voice error: " + (e?.message || "try again"))
       }
     }
   }
 
   async _stopNative() {
-    clearTimeout(this._nativeTimeout)
-    clearTimeout(this._nativeProcessTimer)
-    this._nativeTimeout      = null
-    this._nativeProcessTimer = null
     try {
       if (this._nativeListener) {
         await this._nativeListener.remove()
