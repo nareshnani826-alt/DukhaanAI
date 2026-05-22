@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
+from datetime import date as date_type
 from typing import Optional
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
 from app.core.database import get_db
@@ -246,3 +245,109 @@ async def stock_summary(vendor=Depends(get_current_vendor)):
         "low_stock":      len(low_stock),
         "out_of_stock":   len(out_stock),
     }
+
+
+# ── Sales schemas ─────────────────────────────────────────────
+
+class SaleItem(BaseModel):
+    variant_id:   str
+    product_id:   str
+    product_name: str
+    colour:       Optional[str] = None
+    size:         Optional[str] = None
+    design:       Optional[str] = None
+    unit:         str            # piece / dozen / set
+    unit_qty:     int
+    unit_price:   float
+    pieces:       int
+    amount:       float
+    gst_percent:  int = 3
+
+
+class SaleCreate(BaseModel):
+    items:          list[SaleItem]
+    customer_name:  Optional[str] = None
+    customer_phone: Optional[str] = None
+    payment_mode:   str = "cash"
+    apply_gst:      bool = False
+    notes:          Optional[str] = None
+
+
+# ── Sales routes ──────────────────────────────────────────────
+
+@router.post("/sales", status_code=201)
+async def create_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
+    if not body.items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+
+    db = get_db()
+    subtotal   = sum(i.amount for i in body.items)
+    gst_amount = sum(i.amount * i.gst_percent / 100 for i in body.items) if body.apply_gst else 0
+    total      = subtotal + gst_amount
+
+    sale = db.table("bangle_sales").insert({
+        "vendor_id":      vendor["id"],
+        "customer_name":  body.customer_name,
+        "customer_phone": body.customer_phone,
+        "items":          [i.model_dump() for i in body.items],
+        "subtotal":       round(subtotal, 2),
+        "gst_amount":     round(gst_amount, 2),
+        "total":          round(total, 2),
+        "payment_mode":   body.payment_mode,
+        "notes":          body.notes,
+    }).execute().data[0]
+
+    # Deduct stock from each variant
+    for item in body.items:
+        row = db.table("bangle_variants").select("stock") \
+            .eq("id", item.variant_id).eq("vendor_id", vendor["id"]).execute()
+        if row.data:
+            new_stock = max(0, row.data[0]["stock"] - item.pieces)
+            db.table("bangle_variants").update({"stock": new_stock}) \
+                .eq("id", item.variant_id).execute()
+
+    return sale
+
+
+@router.get("/sales/today")
+async def today_summary(vendor=Depends(get_current_vendor)):
+    db   = get_db()
+    today = date_type.today().isoformat()
+    sales = (
+        db.table("bangle_sales")
+        .select("total,items")
+        .eq("vendor_id", vendor["id"])
+        .eq("sale_date", today)
+        .execute()
+    ).data or []
+
+    return {
+        "total_revenue": round(sum(s["total"] for s in sales), 2),
+        "total_bills":   len(sales),
+        "total_pieces":  sum(
+            sum(i.get("pieces", 0) for i in s.get("items", []))
+            for s in sales
+        ),
+    }
+
+
+@router.get("/sales")
+async def list_sales(
+    sale_date: Optional[str] = Query(None),
+    vendor=Depends(get_current_vendor),
+):
+    db = get_db()
+    q  = db.table("bangle_sales").select("*").eq("vendor_id", vendor["id"])
+    if sale_date:
+        q = q.eq("sale_date", sale_date)
+    return (q.order("created_at", desc=True).limit(100).execute()).data or []
+
+
+@router.get("/sales/{sale_id}")
+async def get_sale(sale_id: str, vendor=Depends(get_current_vendor)):
+    db  = get_db()
+    row = db.table("bangle_sales").select("*") \
+        .eq("id", sale_id).eq("vendor_id", vendor["id"]).execute()
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    return row.data[0]
