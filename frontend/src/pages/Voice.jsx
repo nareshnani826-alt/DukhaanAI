@@ -128,7 +128,7 @@ Date: ${new Date().toLocaleDateString("en-IN")}
 ${lines}
 
 Subtotal: ${INR(invoice.subtotal)}
-GST: ${INR(invoice.gst_amount)}
+GST: ${INR((invoice.cgst || 0) + (invoice.sgst || 0))}
 *Total: ${INR(invoice.total)}*
 
 Payment: ${invoice.payment_mode}
@@ -350,7 +350,7 @@ Thank you! 🙏`
                   <div key={item.id} style={{
                     background:"var(--bg2)", borderRadius:10,
                     padding:"8px 10px", marginBottom:8,
-                    border:"1px solid #e8f5f0",
+                    border:"1px solid var(--rule-soft)",
                   }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                       <div style={{ fontSize:11, fontWeight:600, color:"#222", flex:1, paddingRight:8 }}>
@@ -517,7 +517,7 @@ Thank you! 🙏`
                   <span>Subtotal</span><span>{INR(invoice.subtotal)}</span>
                 </div>
                 <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"var(--ink-faint)", marginBottom:10 }}>
-                  <span>GST</span><span>{INR(invoice.gst_amount)}</span>
+                  <span>GST</span><span>{INR((invoice.cgst || 0) + (invoice.sgst || 0))}</span>
                 </div>
                 <div style={{
                   display:"flex", justifyContent:"space-between", alignItems:"baseline",

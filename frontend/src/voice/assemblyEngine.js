@@ -23,11 +23,7 @@ export class AssemblyVoiceEngine {
     this.onResult     = null
     this.onError      = null
     this._nativeListener = null
-
-    // Only set up Web Speech API when NOT running in Capacitor native
-    if (!isNative() && !!SpeechRecognition) {
-      this._setupRecognition()
-    }
+    this._nativePlugin   = null
   }
 
   // ── Web Speech API (browser only) ────────────────────────
@@ -114,6 +110,7 @@ export class AssemblyVoiceEngine {
         return
       }
 
+      this._nativePlugin = NativeSpeech
       this.isListening = true
       this.onStart?.()
 
@@ -131,7 +128,7 @@ export class AssemblyVoiceEngine {
         if (!original) return
 
         // Stop after the first result — mirrors Web Speech API single-shot behaviour
-        await this._stopNative(NativeSpeech)
+        await this._stopNative()
 
         let translated = original
         if (!this.currentLang.startsWith("en")) {
@@ -149,6 +146,7 @@ export class AssemblyVoiceEngine {
       })
     } catch (e) {
       this.isListening = false
+      this._nativePlugin = null
       this.onEnd?.()
       if (e?.message?.toLowerCase().includes("permission")) {
         this.onError?.("Microphone permission denied.")
@@ -158,13 +156,16 @@ export class AssemblyVoiceEngine {
     }
   }
 
-  async _stopNative(pluginRef) {
+  async _stopNative() {
     try {
       if (this._nativeListener) {
         await this._nativeListener.remove()
         this._nativeListener = null
       }
-      if (pluginRef) await pluginRef.stop()
+      if (this._nativePlugin) {
+        await this._nativePlugin.stop()
+        this._nativePlugin = null
+      }
     } catch {}
     this.isListening = false
     this.onEnd?.()
@@ -191,6 +192,9 @@ export class AssemblyVoiceEngine {
     if (isNative()) {
       this._startNative()
     } else {
+      // Recreate instance every time — Web Speech API objects cannot be reused
+      // after onend fires (Android Chrome throws InvalidStateError on second start)
+      this._setupRecognition()
       try {
         this.recognition.start()
       } catch (e) {
@@ -202,7 +206,7 @@ export class AssemblyVoiceEngine {
 
   stop() {
     if (isNative()) {
-      this._stopNative(null)
+      this._stopNative()
     } else if (this.recognition && this.isListening) {
       this.recognition.stop()
     }
