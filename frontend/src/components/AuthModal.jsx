@@ -8,6 +8,7 @@ export default function AuthModal({ onClose }) {
   const { login, register, sendOtp, verifyOtp, forgotPassword, loading, error, setError } = useAuth()
   const [mode, setMode]       = useState("login")   // login | register | otp | forgot
   const [form, setForm]       = useState({ identifier: "", password: "", store_name: "", phone: "", gstin: "" })
+  const [modules, setModules] = useState(["kirana"])
   const [remember, setRemember] = useState(true)
   const [fieldErr, setFieldErr] = useState({})
   // OTP state
@@ -46,7 +47,7 @@ export default function AuthModal({ onClose }) {
 
     try {
       if (mode === "login") await login(form.identifier, form.password, remember)
-      else await register({ ...form, email: form.identifier })
+      else await register({ ...form, email: form.identifier, modules })
       onClose()
     } catch {}
   }
@@ -151,6 +152,33 @@ export default function AuthModal({ onClose }) {
                   <input className="input" placeholder="9876543210" value={form.phone} onChange={e => set("phone", e.target.value)} /></div>
                 <div><label className="label">GSTIN</label>
                   <input className="input" placeholder="Optional" value={form.gstin} onChange={e => set("gstin", e.target.value)} /></div>
+              </div>
+            )}
+            {mode === "register" && (
+              <div>
+                <label className="label">Store Type *</label>
+                <div className="flex flex-col gap-1.5 mt-1">
+                  {[
+                    { id: "kirana",       label: "Kirana / Grocery store",  icon: "🛒" },
+                    { id: "bangle_fancy", label: "Bangles / Fancy store",   icon: "💍" },
+                  ].map(({ id, label, icon }) => {
+                    const checked = modules.includes(id)
+                    return (
+                      <label key={id} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg border transition-colors"
+                        style={{ borderColor: checked ? "var(--jade, #1D9E75)" : "#e5e7eb",
+                          background: checked ? "#f0faf6" : "white" }}>
+                        <input type="checkbox" className="accent-primary w-3.5 h-3.5"
+                          checked={checked}
+                          onChange={e => {
+                            if (e.target.checked) setModules(m => [...m, id])
+                            else setModules(m => m.filter(x => x !== id))
+                          }} />
+                        <span className="text-base">{icon}</span>
+                        <span className="text-[11px] font-medium text-gray-700">{label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
             )}
             {mode === "login" && (

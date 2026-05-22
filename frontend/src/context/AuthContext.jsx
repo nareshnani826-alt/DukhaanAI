@@ -8,8 +8,9 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState("")
 
-  const loggedIn = !!vendor
-  const cloud    = !!vendor && ["pro","wholesale"].includes(vendor?.plan)
+  const loggedIn   = !!vendor
+  const cloud      = !!vendor && ["pro","wholesale"].includes(vendor?.plan)
+  const hasModule  = (m) => vendor?.modules?.includes(m) ?? (m === "kirana")
 
   useEffect(() => {
     function onLogout() { setVendorState(null) }
@@ -22,7 +23,7 @@ export function AuthProvider({ children }) {
     try {
       const d = await api.post("/auth/login", { identifier, password })
       setTokens(d.access_token, d.refresh_token, remember)
-      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan }
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
       setVendor(v); setVendorState(v)
       return d
     } catch(e) { setError(e.message); throw e }
@@ -34,7 +35,7 @@ export function AuthProvider({ children }) {
     try {
       const d = await api.post("/auth/register", data)
       setTokens(d.access_token, d.refresh_token, true)
-      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan }
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
       setVendor(v); setVendorState(v)
       return d
     } catch(e) { setError(e.message); throw e }
@@ -74,7 +75,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, loading, error, setError, login, register, sendOtp, verifyOtp, forgotPassword, logout }}>
+    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, loading, error, setError, login, register, sendOtp, verifyOtp, forgotPassword, logout }}>
       {children}
     </AuthCtx.Provider>
   )

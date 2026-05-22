@@ -12,6 +12,7 @@ class VendorRegister(BaseModel):
     store_name: str
     gstin: Optional[str] = None
     phone: Optional[str] = None
+    modules: list[str] = ["kirana"]
 
     @field_validator("password")
     @classmethod
@@ -33,6 +34,7 @@ class TokenResponse(BaseModel):
     vendor_id: str
     store_name: str
     plan: str
+    modules: list[str] = ["kirana"]
 
 
 class RefreshRequest(BaseModel):
@@ -75,6 +77,7 @@ class VendorProfile(BaseModel):
     address: Optional[str]
     plan: str
     plan_expires_at: Optional[datetime]
+    modules: list[str] = ["kirana"]
     created_at: datetime
 
 
@@ -83,6 +86,7 @@ class VendorUpdate(BaseModel):
     gstin: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    modules: Optional[list[str]] = None
 
 
 # ── Product ──────────────────────────────────────────────────

@@ -78,6 +78,7 @@ async def register(request: Request, body: VendorRegister):
         "gstin": body.gstin,
         "phone": body.phone,
         "plan": "free",
+        "modules": body.modules or ["kirana"],
     }).execute().data[0]
 
     # Issue tokens
@@ -99,6 +100,7 @@ async def register(request: Request, body: VendorRegister):
         vendor_id=vendor["id"],
         store_name=vendor["store_name"],
         plan=vendor["plan"],
+        modules=vendor.get("modules", ["kirana"]),
     )
 
 
@@ -148,6 +150,7 @@ async def login(request: Request, body: VendorLogin):
         vendor_id=vendor["id"],
         store_name=vendor["store_name"],
         plan=vendor["plan"],
+        modules=vendor.get("modules", ["kirana"]),
     )
 
 
@@ -191,6 +194,7 @@ async def refresh(body: RefreshRequest):
         vendor_id=vendor["id"],
         store_name=vendor["store_name"],
         plan=vendor["plan"],
+        modules=vendor.get("modules", ["kirana"]),
     )
 
 

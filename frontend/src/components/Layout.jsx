@@ -8,7 +8,7 @@ import AuthModal from "./AuthModal"
 import { LANG_KEY, getSavedLang } from "../voice/i18n"
 import { getToken, Products, Sales, Invoices, Udhar } from "../sync/db"
 
-const NAV = [
+const KIRANA_NAV = [
   { label:"Home", to:"/dashboard",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>,
     sub:null },
@@ -24,6 +24,12 @@ const NAV = [
   { label:"More", to:"/day",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
     sub:[{to:"/day",label:"Day Ops"},{to:"/insights",label:"Insights"},{to:"/app-screens",label:"App Screens"},{to:"/help",label:"Help"},{to:"/settings",label:"Settings"},{to:"/install",label:"Install App"}] },
+]
+
+const BANGLE_NAV = [
+  { label:"Bangles", to:"/bangle-inventory",
+    icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>,
+    sub:[{to:"/bangle-inventory",label:"💍 Inventory"},{to:"/bangle-billing",label:"🧾 Billing"}] },
 ]
 
 const MOB_TABS = [
@@ -488,7 +494,11 @@ function AIChatWidget() {
 
 // ── Main Layout ───────────────────────────────────────────────
 export default function Layout({ children }) {
-  const { vendor, loggedIn, cloud, logout } = useAuth()
+  const { vendor, loggedIn, cloud, hasModule, logout } = useAuth()
+  const NAV = [
+    ...KIRANA_NAV,
+    ...(hasModule("bangle_fancy") ? BANGLE_NAV : []),
+  ]
   const { planLabel } = usePlan()
   const { theme, toggleTheme, isDark } = useTheme()
   const { appMode } = useAppMode()
