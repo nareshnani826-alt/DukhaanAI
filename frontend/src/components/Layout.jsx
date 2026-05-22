@@ -27,9 +27,27 @@ const KIRANA_NAV = [
 ]
 
 const BANGLE_NAV = [
-  { label:"Bangles", to:"/bangle-inventory",
+  { label:"Inventory", to:"/bangle-inventory",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>,
-    sub:[{to:"/bangle-inventory",label:"💍 Inventory"},{to:"/bangle-billing",label:"🧾 Billing"}] },
+    sub:[{to:"/bangle-inventory",label:"💍 Stock"},{to:"/bangle-billing",label:"🧾 Billing"}] },
+  { label:"Assistant", to:"/voice",
+    icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
+    sub:null },
+  { label:"More", to:"/more",
+    icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+    sub:[{to:"/settings",label:"Settings"},{to:"/help",label:"Help"},{to:"/install",label:"Install App"}] },
+]
+
+const BANGLE_MOB_TABS = [
+  { to:"/bangle-inventory", label:"Stock",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg> },
+  { to:"/bangle-billing", label:"Bill",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+  { to:"/voice", label:"", voice:true },
+  { to:"/dashboard", label:"Home",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg> },
+  { to:"/more", label:"More",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
 const MOB_TABS = [
@@ -495,10 +513,25 @@ function AIChatWidget() {
 // ── Main Layout ───────────────────────────────────────────────
 export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, hasModule, logout } = useAuth()
-  const NAV = [
-    ...KIRANA_NAV,
-    ...(hasModule("bangle_fancy") ? BANGLE_NAV : []),
-  ]
+  const hasBangle = hasModule("bangle_fancy")
+  const hasKirana = hasModule("kirana")
+  const multiStore = hasBangle && hasKirana
+
+  const [storeMode, setStoreMode] = useState(() => {
+    const saved = localStorage.getItem("storeMode")
+    if (saved === "bangle_fancy" && hasBangle) return "bangle_fancy"
+    return hasBangle && !hasKirana ? "bangle_fancy" : "kirana"
+  })
+
+  function switchMode(mode) {
+    setStoreMode(mode)
+    localStorage.setItem("storeMode", mode)
+  }
+
+  const NAV      = storeMode === "bangle_fancy" ? BANGLE_NAV : KIRANA_NAV
+  const MOB_TABS_ACTIVE = storeMode === "bangle_fancy" ? BANGLE_MOB_TABS : MOB_TABS
+  const storeLabel = storeMode === "bangle_fancy" ? "Bangle Store" : "Kirana POS"
+
   const { planLabel } = usePlan()
   const { theme, toggleTheme, isDark } = useTheme()
   const { appMode } = useAppMode()
@@ -537,7 +570,7 @@ export default function Layout({ children }) {
                 दुकान<span style={{color:"var(--saffron)"}}>•</span>AI
               </div>
               <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:2,
-                letterSpacing:"1.2px", textTransform:"uppercase" }}>Kirana POS</div>
+                letterSpacing:"1.2px", textTransform:"uppercase" }}>{storeLabel}</div>
             </div>
           </div>
           {loggedIn && (
@@ -549,6 +582,27 @@ export default function Layout({ children }) {
             </div>
           )}
         </div>
+
+        {multiStore && (
+          <div style={{ display:"flex", gap:6, padding:"10px 14px 2px" }}>
+            {[
+              { id:"kirana",       label:"🛒 Kirana" },
+              { id:"bangle_fancy", label:"💍 Bangle" },
+            ].map(({ id, label }) => {
+              const active = storeMode === id
+              return (
+                <button key={id} onClick={() => switchMode(id)}
+                  style={{ flex:1, padding:"6px 4px", borderRadius:8, border:"1px solid",
+                    fontSize:10, fontWeight:700, cursor:"pointer", transition:"all 0.15s",
+                    background: active ? "var(--saffron)" : "var(--bg2)",
+                    color:       active ? "#fff"          : "var(--ink-dim)",
+                    borderColor: active ? "var(--saffron)": "var(--rule)" }}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         <nav className="sidebar-nav">
           <div style={{ fontSize:9, fontWeight:700, color:"var(--ink-faint)",
@@ -678,14 +732,17 @@ export default function Layout({ children }) {
         background:"var(--bg2)", borderTop:"1px solid var(--rule)",
         display:"none", alignItems:"flex-end", justifyContent:"space-around",
         padding:"8px 4px 12px", boxShadow:"0 -4px 20px var(--shadow)" }}>
-        {[
-          ...MOB_TABS.slice(0, 3),
-          appMode === "lite"
-            ? { to:"/inventory", label:"Stock",
-                icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg> }
-            : MOB_TABS[3],
-          MOB_TABS[4],
-        ].map(tab => {
+        {(storeMode === "bangle_fancy"
+          ? MOB_TABS_ACTIVE
+          : [
+              ...MOB_TABS.slice(0, 3),
+              appMode === "lite"
+                ? { to:"/inventory", label:"Stock",
+                    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg> }
+                : MOB_TABS[3],
+              MOB_TABS[4],
+            ]
+        ).map(tab => {
           if (tab.voice) return (
             <div key="voice" onClick={() => navigate("/voice")}
               style={{ position:"relative", marginTop:-22, width:58, height:58, borderRadius:"50%",
@@ -700,7 +757,9 @@ export default function Layout({ children }) {
               </svg>
             </div>
           )
-          const PRIMARY = ["/dashboard", "/billing", "/voice", "/demand"]
+          const PRIMARY = storeMode === "bangle_fancy"
+            ? ["/bangle-inventory", "/bangle-billing", "/voice", "/dashboard"]
+            : ["/dashboard", "/billing", "/voice", "/demand"]
           const on = tab.to === "/more"
             ? !PRIMARY.some(p => location.pathname.startsWith(p)) && location.pathname !== "/"
             : location.pathname.startsWith(tab.to)
