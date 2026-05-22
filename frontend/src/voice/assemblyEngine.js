@@ -115,13 +115,14 @@ export class AssemblyVoiceEngine {
       this.onStart?.()
 
       // start() blocks until Android recognizer ends, then resolves with { matches: string[] }.
-      // This is the authoritative result — partialResults events are unreliable across devices.
+      // popup:true uses the system Google speech dialog — far more reliable than background STT
+      // across Android OEMs (Xiaomi MIUI, Samsung OneUI, Realme ColorOS all restrict bg services).
       const result = await NativeSpeech.start({
         language:       this.currentLang,
         maxResults:     5,
-        prompt:         "Speak now...",
+        prompt:         "बोलो / Speak now...",
         partialResults: false,
-        popup:          false,
+        popup:          true,
       })
 
       // If user tapped stop mid-session, _stopNative already cleaned up — bail silently
@@ -149,10 +150,19 @@ export class AssemblyVoiceEngine {
       this.isListening = false
       this._nativePlugin = null
       this.onEnd?.()
-      if (e?.message?.toLowerCase().includes("permission")) {
-        this.onError?.("Microphone permission denied.")
-      } else if (!e?.message?.toLowerCase().includes("aborted")) {
-        this.onError?.("Voice error: " + (e?.message || "try again"))
+      const msg = (e?.message || "").toLowerCase()
+      if (msg.includes("permission") || msg.includes("not_allowed")) {
+        this.onError?.("Microphone permission denied. Allow mic in Settings → Apps → DukaanAI → Permissions.")
+      } else if (msg.includes("no match") || msg.includes("nomatch") || msg.includes("no_match")) {
+        this.onError?.("Couldn't understand. Please speak clearly and try again.")
+      } else if (msg.includes("speech timeout") || msg.includes("timeout") || msg.includes("no speech")) {
+        this.onError?.("No speech heard. Tap mic and speak clearly.")
+      } else if (msg.includes("busy") || msg.includes("recognizer busy")) {
+        this.onError?.("Voice busy — wait a moment then try again.")
+      } else if (msg.includes("network")) {
+        this.onError?.("Network error. Check internet connection.")
+      } else if (!msg.includes("aborted") && !msg.includes("cancelled")) {
+        this.onError?.("Voice error — please try again.")
       }
     }
   }
