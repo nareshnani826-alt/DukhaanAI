@@ -34,6 +34,7 @@ import More                 from "./pages/More"
 import ResetPassword        from "./pages/ResetPassword"
 import BangleInventory      from "./pages/BangleInventory"
 import BangleBilling        from "./pages/BangleBilling"
+import BangleFestivals      from "./pages/BangleFestivals"
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
   return <UpgradeWall feature={feature}>{children}</UpgradeWall>
@@ -76,8 +77,9 @@ export default function App() {
                   <Route path="/day"        element={<Gated feature="day_ops"><DayOps /></Gated>} />
                   <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
                   <Route path="/more"             element={<More />} />
-                  <Route path="/bangle-inventory" element={<BangleInventory />} />
-                  <Route path="/bangle-billing"   element={<BangleBilling />} />
+                  <Route path="/bangle-inventory"  element={<BangleInventory />} />
+                  <Route path="/bangle-billing"    element={<BangleBilling />} />
+                  <Route path="/bangle-festivals"  element={<BangleFestivals />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                 </Routes>
               </Layout>
