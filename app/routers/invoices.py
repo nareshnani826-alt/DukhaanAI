@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.database import get_db
@@ -97,28 +98,34 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save invoice: {e}") from e
 
-    # Deduct stock and record sales for each line item
-    for item in line_items:
-        if not item.get("product_id"):
-            continue
-        prod = db.table("products").select("id,stock").eq("id", item["product_id"]).eq("vendor_id", vendor["id"]).execute().data
-        if not prod:
-            continue
-        current = float(prod[0]["stock"] or 0)
-        new_stock = max(0, round(current - float(item["qty"]), 4))
-        db.table("products").update({"stock": new_stock}).eq("id", item["product_id"]).execute()
-        raw_qty = float(item["qty"])
-        sale_qty = int(raw_qty) if raw_qty == int(raw_qty) else raw_qty
-        db.table("sales").insert({
-            "vendor_id": vendor["id"],
-            "product_id": item["product_id"],
-            "product_name": item["name"],
-            "qty": sale_qty,
-            "unit_price": item["unit_price"],
-            "total": item["total"],
-            "customer": body.customer_name,
-            "payment_mode": body.payment_mode,
-        }).execute()
+    # Deduct stock and record sales for each line item.
+    # Wrapped in try/except so a stock-update failure never blocks the invoice response.
+    sold_at = datetime.now(timezone.utc).isoformat()
+    try:
+        for item in line_items:
+            if not item.get("product_id"):
+                continue
+            prod = db.table("products").select("id,stock").eq("id", item["product_id"]).eq("vendor_id", vendor["id"]).execute().data
+            if not prod:
+                continue
+            current = float(prod[0]["stock"] or 0)
+            new_stock = max(0, round(current - float(item["qty"]), 4))
+            db.table("products").update({"stock": new_stock}).eq("id", item["product_id"]).execute()
+            raw_qty = float(item["qty"])
+            sale_qty = int(raw_qty) if raw_qty == int(raw_qty) else raw_qty
+            db.table("sales").insert({
+                "vendor_id":    vendor["id"],
+                "product_id":   item["product_id"],
+                "product_name": item["name"],
+                "qty":          sale_qty,
+                "unit_price":   item["unit_price"],
+                "total":        item["total"],
+                "customer":     body.customer_name,
+                "payment_mode": body.payment_mode,
+                "sold_at":      sold_at,
+            }).execute()
+    except Exception as stock_err:
+        logging.warning("Stock/sales update failed after invoice %s: %s", invoice_no, stock_err)
 
     return invoice
 

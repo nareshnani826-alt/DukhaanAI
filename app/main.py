@@ -75,6 +75,11 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 _cors_origins = [settings.frontend_url]
 if settings.allowed_origins:
     _cors_origins += [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+# Always allow the production Vercel deployment regardless of env-var state
+_cors_origins += [
+    "https://dukhaan-ai.vercel.app",
+    "https://dukhaan-ai-git-master-nareshnani826-alts-projects.vercel.app",
+]
 # Capacitor Android APK uses https://localhost as its WebView origin
 _cors_origins += ["https://localhost", "capacitor://localhost", "http://localhost"]
 if _is_dev:
