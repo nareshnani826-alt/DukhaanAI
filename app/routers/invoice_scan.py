@@ -52,6 +52,18 @@ async def _require_vendor(
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+async def _optional_vendor(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> Optional[str]:
+    if not credentials:
+        return None
+    try:
+        payload = decode_access_token(credentials.credentials)
+        return payload.get("sub")
+    except Exception:
+        return None
+
+
 # ── Fuzzy product matching ────────────────────────────────────
 
 def _norm(s: str) -> str:
@@ -849,26 +861,27 @@ async def apply_invoice(
 @router.get("/barcode/{code}")
 async def lookup_barcode(
     code:      str,
-    vendor_id: str = Depends(_require_vendor),
+    vendor_id: Optional[str] = Depends(_optional_vendor),
 ):
     """
     Look up a scanned barcode:
-      1. Vendor's own inventory (by barcode field)
+      1. Vendor's own inventory (by barcode field) — only if logged in
       2. Open Food Facts (free global product database)
     """
-    db   = get_db()
-    rows = (
-        db.table("products")
-        .select("id,name,stock,unit,mrp,cost_price,category,gst_percent,barcode")
-        .eq("vendor_id", vendor_id)
-        .eq("barcode", code)
-        .eq("is_active", True)
-        .limit(1)
-        .execute()
-    ).data or []
+    if vendor_id:
+        db   = get_db()
+        rows = (
+            db.table("products")
+            .select("id,name,stock,unit,mrp,cost_price,category,gst_percent,barcode")
+            .eq("vendor_id", vendor_id)
+            .eq("barcode", code)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        ).data or []
 
-    if rows:
-        return {"source": "inventory", "product": rows[0]}
+        if rows:
+            return {"source": "inventory", "product": rows[0]}
 
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:

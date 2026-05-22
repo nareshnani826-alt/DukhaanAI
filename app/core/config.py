@@ -32,6 +32,19 @@ class Settings(BaseSettings):
     # AssemblyAI (speech-to-text for voice assistant & chatbot)
     assemblyai_api_key: str = ""
 
+    # WhatsApp Business API (Meta) — for OTP login
+    # Setup: developers.facebook.com → My Apps → WhatsApp → API Setup
+    whatsapp_access_token: str = ""      # System user permanent token
+    whatsapp_phone_number_id: str = ""   # From API Setup page
+    whatsapp_otp_template: str = "otp_authentication"  # Your approved template name
+
+    # Email / SMTP (for password reset emails)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = "noreply@dukhaanai.com"
+
     # Razorpay
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""

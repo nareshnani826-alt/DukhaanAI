@@ -166,21 +166,72 @@ tr:hover td{background:#fafafa}
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Login</button>
       <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Register</button>
+      <button class="auth-tab" id="tab-otp" onclick="switchAuthTab('otp')" style="font-size:11px">💬 OTP</button>
     </div>
     <div id="auth-register-fields" style="display:none">
       <div class="fg" style="margin-bottom:8px"><label>Store Name *</label><input id="a-store" placeholder="Sharma General Stores"></div>
     </div>
-    <div class="fg" style="margin-bottom:8px"><label>Email *</label><input id="a-email" type="email" placeholder="you@store.com"></div>
-    <div class="fg" style="margin-bottom:8px"><label>Password *</label><input id="a-pass" type="password" placeholder="Min 8 characters"></div>
+    <div class="fg" style="margin-bottom:8px"><label id="a-email-label">Email or Phone *</label><input id="a-email" type="text" placeholder="you@store.com or 9876543210" required></div>
+    <div class="fg" style="margin-bottom:8px"><label>Password *</label><input id="a-pass" type="password" placeholder="Min 8 characters" required></div>
     <div id="auth-register-extra" style="display:none">
       <div class="form-grid" style="margin-bottom:8px">
         <div class="fg"><label>Phone</label><input id="a-phone" placeholder="9876543210"></div>
         <div class="fg"><label>GSTIN</label><input id="a-gstin" placeholder="Optional"></div>
       </div>
     </div>
+    <div id="auth-login-extras" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#555;cursor:pointer">
+        <input id="a-remember" type="checkbox" checked style="accent-color:#1D9E75;width:14px;height:14px;cursor:pointer">
+        Remember me
+      </label>
+      <button onclick="showForgotPassword()" style="background:none;border:none;color:#1D9E75;font-size:12px;cursor:pointer;padding:0;text-decoration:underline">
+        Forgot password?
+      </button>
+    </div>
     <div class="error-msg" id="auth-err"></div>
     <button class="btn btn-primary" style="width:100%;margin-bottom:8px" id="auth-submit-btn" onclick="submitAuth()">Login</button>
     <button class="btn" style="width:100%;font-size:10px;color:#888;border:none" onclick="closeModal('modal-auth')">Continue without account (free local mode)</button>
+
+    <!-- WhatsApp OTP section (hidden until OTP tab is selected) -->
+    <div id="auth-otp-section" style="display:none;flex-direction:column;gap:10px">
+      <div style="text-align:center;padding:6px 0 4px">
+        <div style="font-size:22px">💬</div>
+        <div style="font-size:13px;color:#555;margin-top:2px">We'll send a 6-digit code to your WhatsApp</div>
+      </div>
+      <!-- Step 1: phone -->
+      <div id="otp-step-phone">
+        <div class="fg" style="margin-bottom:8px"><label>Phone Number *</label><input id="a-otp-phone" type="tel" placeholder="9876543210"></div>
+        <div class="error-msg" id="otp-phone-err" style="margin-bottom:6px"></div>
+        <button class="btn" style="width:100%;background:#25D366;color:#fff;border:none;margin-bottom:8px;font-weight:600" id="otp-send-btn" onclick="otpSendCode()">Send OTP on WhatsApp</button>
+      </div>
+      <!-- Step 2: verify (hidden initially) -->
+      <div id="otp-step-verify" style="display:none">
+        <div style="font-size:12px;color:#555;text-align:center;margin-bottom:8px">OTP sent to <b id="otp-phone-display"></b></div>
+        <div class="fg" style="margin-bottom:8px">
+          <label>Enter 6-digit OTP *</label>
+          <input id="a-otp-code" type="number" placeholder="123456"
+            style="font-size:20px;text-align:center;letter-spacing:8px;padding:10px"
+            onkeydown="if(event.key==='Enter') otpVerifyCode()">
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#555;cursor:pointer;margin-bottom:8px">
+          <input id="otp-remember" type="checkbox" checked style="accent-color:#1D9E75;width:14px;height:14px">
+          Remember me
+        </label>
+        <div class="error-msg" id="otp-verify-err" style="margin-bottom:6px"></div>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:8px" id="otp-verify-btn" onclick="otpVerifyCode()">Verify OTP</button>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <button id="otp-resend-btn" disabled onclick="otpSendCode(true)"
+            style="background:none;border:none;color:#aaa;font-size:12px;cursor:not-allowed;padding:0">
+            Resend (<span id="otp-countdown">30</span>s)
+          </button>
+          <button onclick="document.getElementById('otp-step-phone').style.display='block';document.getElementById('otp-step-verify').style.display='none'"
+            style="background:none;border:none;color:#1D9E75;font-size:12px;cursor:pointer;padding:0;text-decoration:underline">
+            Change number
+          </button>
+        </div>
+      </div>
+      <button class="btn" style="width:100%;font-size:10px;color:#888;border:none" onclick="closeModal('modal-auth')">Continue without account (free local mode)</button>
+    </div>
   </div>
 </div>
 
@@ -368,10 +419,19 @@ function localWrite(d) { localStorage.setItem(LS_KEY, JSON.stringify(d)); }
 function newLocalId(d) { const id = "local-" + d.nextId++; localWrite(d); return id; }
 
 // ── API client ────────────────────────────────────────────
-function getToken()  { return localStorage.getItem("dk_access"); }
-function getRefresh(){ return localStorage.getItem("dk_refresh"); }
-function setTokens(a,r){ localStorage.setItem("dk_access",a); localStorage.setItem("dk_refresh",r); }
-function clearAuth() { ["dk_access","dk_refresh","dk_vendor"].forEach(k=>localStorage.removeItem(k)); }
+function _authStore() { return localStorage.getItem("dk_storage")==="session" ? sessionStorage : localStorage; }
+function getToken()  { return _authStore().getItem("dk_access"); }
+function getRefresh(){ return _authStore().getItem("dk_refresh"); }
+function setTokens(a,r,remember=true){
+  localStorage.setItem("dk_storage", remember ? "local" : "session");
+  const s = remember ? localStorage : sessionStorage;
+  s.setItem("dk_access",a); s.setItem("dk_refresh",r);
+}
+function clearAuth() {
+  ["dk_access","dk_refresh","dk_vendor","dk_storage"].forEach(k=>{
+    localStorage.removeItem(k); sessionStorage.removeItem(k);
+  });
+}
 function getVendor() { try { return JSON.parse(localStorage.getItem("dk_vendor")); } catch { return null; } }
 function getPlan()   { return getVendor()?.plan || "free"; }
 function isCloud()   { return !!getToken() && ["pro","wholesale"].includes(getPlan()); }
@@ -529,30 +589,187 @@ let authMode = "login";
 function openAuthModal() { openModal("modal-auth"); }
 function switchAuthTab(mode) {
   authMode = mode;
+  const isOtp = mode === "otp";
+
+  // Tab active states
   document.getElementById("tab-login").classList.toggle("active", mode==="login");
   document.getElementById("tab-register").classList.toggle("active", mode==="register");
-  document.getElementById("auth-register-fields").style.display = mode==="register"?"block":"none";
-  document.getElementById("auth-register-extra").style.display  = mode==="register"?"block":"none";
-  document.getElementById("auth-submit-btn").textContent = mode==="login"?"Login":"Create Account";
-  document.getElementById("auth-err").textContent = "";
+  document.getElementById("tab-otp").classList.toggle("active", isOtp);
+
+  // Show/hide password form vs OTP section
+  const pwFields = ["auth-register-fields","a-email","a-pass","auth-register-extra",
+                    "auth-login-extras","auth-err","auth-submit-btn"];
+  pwFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (isOtp) { el.style.display = "none"; }
+  });
+  document.getElementById("auth-otp-section").style.display = isOtp ? "flex" : "none";
+
+  if (!isOtp) {
+    document.getElementById("auth-register-fields").style.display = mode==="register"?"block":"none";
+    document.getElementById("auth-register-extra").style.display  = mode==="register"?"block":"none";
+    document.getElementById("auth-login-extras").style.display    = mode==="login"?"flex":"none";
+    document.getElementById("auth-submit-btn").style.display      = "block";
+    document.getElementById("auth-err").style.display             = "block";
+    document.getElementById("a-email").style.display              = "block";
+    document.getElementById("a-pass").style.display               = "block";
+    document.getElementById("auth-submit-btn").textContent = mode==="login"?"Login":"Create Account";
+    document.getElementById("auth-err").textContent = "";
+    // Adjust email field
+    const emailInput = document.getElementById("a-email");
+    const emailLabel = document.getElementById("a-email-label");
+    if (mode === "login") {
+      emailLabel.textContent = "Email or Phone *";
+      emailInput.type = "text";
+      emailInput.placeholder = "you@store.com or 9876543210";
+    } else {
+      emailLabel.textContent = "Email *";
+      emailInput.type = "email";
+      emailInput.placeholder = "you@store.com";
+    }
+  }
+  ["a-email","a-pass"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.border = "";
+  });
+}
+
+// ── WhatsApp OTP functions ──────────────────────────────────────
+let _otpResendTimer = null;
+
+function otpSendCode(isResend = false) {
+  const phoneEl = document.getElementById("a-otp-phone");
+  const errEl   = document.getElementById("otp-phone-err");
+  const btn     = document.getElementById("otp-send-btn");
+  const phone   = (phoneEl?.value ?? "").trim().replace(/\s/g,"");
+
+  errEl.textContent = "";
+  if (phoneEl) phoneEl.style.border = "";
+
+  if (!phone) {
+    if (phoneEl) phoneEl.style.border = "1.5px solid #dc2626";
+    errEl.textContent = "Phone number is required"; return;
+  }
+  if (!/^(\+91|0|91)?[6-9]\d{9}$/.test(phone)) {
+    if (phoneEl) phoneEl.style.border = "1.5px solid #dc2626";
+    errEl.textContent = "Enter a valid 10-digit Indian mobile number"; return;
+  }
+
+  btn.disabled = true; btn.textContent = "Sending...";
+  api.post("/auth/send-otp", { phone })
+    .then(res => {
+      document.getElementById("otp-step-phone").style.display = "none";
+      document.getElementById("otp-step-verify").style.display = "block";
+      document.getElementById("otp-phone-display").textContent = phone;
+      document.getElementById("a-otp-code")?.focus();
+      document.getElementById("otp-verify-err").textContent = "";
+      _otpStartCountdown();
+    })
+    .catch(e => {
+      errEl.textContent = e.message;
+      btn.disabled = false; btn.textContent = "Send OTP on WhatsApp";
+    });
+}
+
+function _otpStartCountdown() {
+  if (_otpResendTimer) clearInterval(_otpResendTimer);
+  let secs = 30;
+  const resendBtn = document.getElementById("otp-resend-btn");
+  const countdown = document.getElementById("otp-countdown");
+  resendBtn.disabled = true; resendBtn.style.cursor = "not-allowed"; resendBtn.style.color = "#aaa";
+  if (countdown) countdown.textContent = secs;
+  _otpResendTimer = setInterval(() => {
+    secs--;
+    if (countdown) countdown.textContent = secs;
+    if (secs <= 0) {
+      clearInterval(_otpResendTimer);
+      resendBtn.disabled = false; resendBtn.style.cursor = "pointer"; resendBtn.style.color = "#1D9E75";
+      resendBtn.textContent = "Resend OTP";
+    }
+  }, 1000);
+}
+
+async function otpVerifyCode() {
+  const codeEl  = document.getElementById("a-otp-code");
+  const errEl   = document.getElementById("otp-verify-err");
+  const btn     = document.getElementById("otp-verify-btn");
+  const phone   = document.getElementById("otp-phone-display")?.textContent ?? "";
+  const otp     = (codeEl?.value ?? "").trim();
+
+  errEl.textContent = ""; codeEl.style.border = "";
+
+  if (!otp || otp.length !== 6) {
+    codeEl.style.border = "1.5px solid #dc2626";
+    errEl.textContent = "Enter the 6-digit OTP"; return;
+  }
+
+  btn.disabled = true; btn.textContent = "Verifying...";
+  try {
+    const remember = document.getElementById("otp-remember")?.checked ?? true;
+    const data = await api.post("/auth/verify-otp", { phone, otp });
+    setTokens(data.access_token, data.refresh_token, remember);
+    localStorage.setItem("dk_vendor", JSON.stringify({ id:data.vendor_id, store_name:data.store_name, plan:data.plan }));
+    closeModal("modal-auth");
+    updateAuthUI();
+    showNotif("Welcome, " + data.store_name + "!");
+    renderDash();
+  } catch(e) {
+    errEl.textContent = e.message;
+    btn.disabled = false; btn.textContent = "Verify OTP";
+  }
 }
 
 async function submitAuth() {
-  const btn = document.getElementById("auth-submit-btn");
-  const err = document.getElementById("auth-err");
-  btn.disabled = true; btn.textContent = "Please wait..."; err.textContent = "";
+  const btn   = document.getElementById("auth-submit-btn");
+  const err   = document.getElementById("auth-err");
+  const identifier = document.getElementById("a-email").value.trim();
+  const pass       = document.getElementById("a-pass").value;
+
+  // Reset field styles
+  document.getElementById("a-email").style.border = "";
+  document.getElementById("a-pass").style.border  = "";
+  err.textContent = "";
+
+  // Mandatory validation
+  let hasErr = false;
+  if (!identifier) {
+    document.getElementById("a-email").style.border = "1.5px solid #dc2626";
+    err.textContent = authMode === "login" ? "Email or phone is required" : "Email is required";
+    hasErr = true;
+  } else if (authMode === "login") {
+    const isEmail = identifier.includes("@");
+    const isPhone = /^(\+91|0|91)?[6-9]\d{9}$/.test(identifier.replace(/\s/g, ""));
+    if (!isEmail && !isPhone) {
+      document.getElementById("a-email").style.border = "1.5px solid #dc2626";
+      err.textContent = "Enter a valid email or 10-digit phone number";
+      hasErr = true;
+    }
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
+    document.getElementById("a-email").style.border = "1.5px solid #dc2626";
+    err.textContent = "Enter a valid email address";
+    hasErr = true;
+  }
+  if (!pass) {
+    document.getElementById("a-pass").style.border = "1.5px solid #dc2626";
+    if (!hasErr) err.textContent = "Password is required";
+    hasErr = true;
+  }
+  if (hasErr) return;
+
+  btn.disabled = true; btn.textContent = "Please wait...";
   try {
-    const email = document.getElementById("a-email").value.trim();
-    const password = document.getElementById("a-pass").value;
     let data;
     if (authMode === "login") {
-      data = await api.post("/auth/login", { email, password });
+      data = await api.post("/auth/login", { identifier, password: pass });
+      const remember = document.getElementById("a-remember")?.checked ?? true;
+      setTokens(data.access_token, data.refresh_token, remember);
     } else {
       const store_name = document.getElementById("a-store").value.trim();
       if (!store_name) throw new Error("Store name is required");
-      data = await api.post("/auth/register", { email, password, store_name, phone: document.getElementById("a-phone").value, gstin: document.getElementById("a-gstin").value });
+      data = await api.post("/auth/register", { email: identifier, password: pass, store_name, phone: document.getElementById("a-phone").value, gstin: document.getElementById("a-gstin").value });
+      setTokens(data.access_token, data.refresh_token, true);
     }
-    setTokens(data.access_token, data.refresh_token);
     localStorage.setItem("dk_vendor", JSON.stringify({ id:data.vendor_id, store_name:data.store_name, plan:data.plan }));
     closeModal("modal-auth");
     updateAuthUI();
@@ -563,6 +780,52 @@ async function submitAuth() {
   } finally {
     btn.disabled = false;
     btn.textContent = authMode==="login"?"Login":"Create Account";
+  }
+}
+
+function showForgotPassword() {
+  const modalBody = document.querySelector("#modal-auth .modal");
+  if (!modalBody) return;
+  modalBody.innerHTML = `
+    <div class="modal-head">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1D9E75">Forgot Password?</div>
+        <div style="font-size:11px;color:#888">We'll send a reset link to your email</div>
+      </div>
+      <button class="close-btn" onclick="closeModal('modal-auth')">×</button>
+    </div>
+    <div class="fg" style="margin-bottom:8px"><label>Email *</label><input id="fp-email" type="email" placeholder="you@store.com" required></div>
+    <div class="error-msg" id="fp-msg"></div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" id="fp-btn" onclick="submitForgotPassword()">Send Reset Link</button>
+    <button class="btn" style="width:100%;font-size:11px;color:#1D9E75;border:none" onclick="openAuthModal()">← Back to Login</button>
+  `;
+}
+
+async function submitForgotPassword() {
+  const btn   = document.getElementById("fp-btn");
+  const msg   = document.getElementById("fp-msg");
+  const email = document.getElementById("fp-email")?.value.trim() ?? "";
+  document.getElementById("fp-email").style.border = "";
+  msg.style.color = "#dc2626"; msg.textContent = "";
+
+  if (!email) {
+    document.getElementById("fp-email").style.border = "1.5px solid #dc2626";
+    msg.textContent = "Email is required"; return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    document.getElementById("fp-email").style.border = "1.5px solid #dc2626";
+    msg.textContent = "Enter a valid email address"; return;
+  }
+
+  btn.disabled = true; btn.textContent = "Sending...";
+  try {
+    const res = await api.post("/auth/forgot-password", { email });
+    msg.style.color = "#1D9E75";
+    msg.textContent = res.message;
+    btn.textContent = "Sent!";
+  } catch(e) {
+    msg.textContent = e.message;
+    btn.disabled = false; btn.textContent = "Send Reset Link";
   }
 }
 

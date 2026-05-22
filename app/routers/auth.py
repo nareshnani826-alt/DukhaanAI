@@ -1,5 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
+import secrets
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from slowapi import Limiter
@@ -16,8 +20,42 @@ from app.core.security import (
 from app.schemas.schemas import (
     VendorRegister, VendorLogin, TokenResponse,
     RefreshRequest, VendorProfile, VendorUpdate, MessageResponse,
+    ForgotPasswordRequest, ResetPasswordRequest,
+    SendOtpRequest, VerifyOtpRequest,
 )
 from app.core.config import settings
+from app.core.whatsapp import send_otp as _send_whatsapp_otp, _normalize_phone
+
+
+def _send_reset_email(to_email: str, store_name: str, reset_url: str) -> None:
+    if not settings.smtp_host:
+        return
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Reset your DukaanAI password"
+        msg["From"] = settings.smtp_from
+        msg["To"] = to_email
+        text = (
+            f"Hi {store_name},\n\n"
+            f"Reset your DukaanAI password by visiting:\n{reset_url}\n\n"
+            "This link expires in 1 hour. If you didn't request this, ignore this email."
+        )
+        html = f"""<div style="font-family:sans-serif;max-width:480px">
+<h2 style="color:#1D9E75">DukaanAI Password Reset</h2>
+<p>Hi <b>{store_name}</b>,</p>
+<p>Click the button below to reset your password:</p>
+<p><a href="{reset_url}" style="display:inline-block;background:#1D9E75;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600">Reset Password</a></p>
+<p style="font-size:12px;color:#666">Or copy this link: {reset_url}</p>
+<p style="font-size:12px;color:#888">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+</div>"""
+        msg.attach(MIMEText(text, "plain"))
+        msg.attach(MIMEText(html, "html"))
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.starttls()
+            server.login(settings.smtp_user, settings.smtp_pass)
+            server.sendmail(settings.smtp_from, to_email, msg.as_string())
+    except Exception:
+        pass
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -69,13 +107,26 @@ async def register(request: Request, body: VendorRegister):
 async def login(request: Request, body: VendorLogin):
     db = get_db()
 
-    result = db.table("vendors").select("*").eq("email", body.email).execute()
+    # Accept email or phone number
+    ident = body.identifier.strip()
+    if "@" in ident:
+        result = db.table("vendors").select("*").eq("email", ident.lower()).execute()
+    else:
+        # Normalize: strip +91 / 91 / leading 0 to get bare 10-digit number
+        p = ident.replace(" ", "").replace("-", "")
+        if p.startswith("+91"): p = p[3:]
+        elif p.startswith("91") and len(p) == 12: p = p[2:]
+        elif p.startswith("0"): p = p[1:]
+        result = db.table("vendors").select("*").eq("phone", p).execute()
+        if not result.data:
+            result = db.table("vendors").select("*").eq("phone", ident).execute()
+
     if not result.data:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid email/phone or password")
 
     vendor = result.data[0]
     if not verify_password(body.password, vendor["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid email/phone or password")
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
 
@@ -169,3 +220,162 @@ async def update_profile(body: VendorUpdate, vendor=Depends(get_current_vendor))
         .execute()
     )
     return result.data[0]
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+@limiter.limit("5/minute")
+async def forgot_password(request: Request, body: ForgotPasswordRequest):
+    db = get_db()
+    result = db.table("vendors").select("id,email,store_name").eq("email", body.email).execute()
+
+    # Always return success to prevent email enumeration
+    _MSG = "If that email is registered, you'll receive a reset link shortly."
+    if not result.data:
+        return MessageResponse(message=_MSG)
+
+    vendor = result.data[0]
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+
+    # Replace any existing token for this vendor
+    db.table("password_reset_tokens").delete().eq("vendor_id", vendor["id"]).execute()
+    db.table("password_reset_tokens").insert({
+        "vendor_id": vendor["id"],
+        "token_hash": token_hash,
+        "expires_at": expires_at,
+    }).execute()
+
+    reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+    _send_reset_email(vendor["email"], vendor["store_name"], reset_url)
+
+    return MessageResponse(message=_MSG)
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(body: ResetPasswordRequest):
+    db = get_db()
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+
+    row = db.table("password_reset_tokens").select("*, vendors(*)").eq("token_hash", token_hash).execute()
+    if not row.data:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+
+    record = row.data[0]
+    if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
+        db.table("password_reset_tokens").delete().eq("token_hash", token_hash).execute()
+        raise HTTPException(status_code=400, detail="Reset link expired. Please request a new one.")
+
+    vendor = record["vendors"]
+    db.table("vendors").update({"password_hash": hash_password(body.new_password)}).eq("id", vendor["id"]).execute()
+    db.table("password_reset_tokens").delete().eq("token_hash", token_hash).execute()
+
+    return MessageResponse(message="Password updated successfully. You can now log in.")
+
+
+# ── WhatsApp OTP login ─────────────────────────────────────────
+
+def _otp_hash(otp: str) -> str:
+    return hashlib.sha256(otp.encode()).hexdigest()
+
+
+@router.post("/send-otp", response_model=MessageResponse)
+@limiter.limit("5/minute")
+async def send_otp(request: Request, body: SendOtpRequest):
+    db = get_db()
+    phone = _normalize_phone(body.phone)
+
+    # Vendor must have this phone registered
+    result = db.table("vendors").select("id,store_name,is_active").eq("phone", phone).execute()
+    if not result.data:
+        # Generic message to avoid phone enumeration
+        return MessageResponse(message="OTP sent to your WhatsApp if the number is registered.")
+
+    vendor = result.data[0]
+    if not vendor["is_active"]:
+        raise HTTPException(status_code=403, detail="Account suspended")
+
+    # Generate 6-digit OTP
+    otp = str(secrets.randbelow(900000) + 100000)
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+
+    # Replace any existing OTP for this phone
+    db.table("otp_codes").delete().eq("phone", phone).execute()
+    db.table("otp_codes").insert({
+        "phone": phone,
+        "code_hash": _otp_hash(otp),
+        "expires_at": expires_at,
+        "attempts": 0,
+    }).execute()
+
+    # Send via WhatsApp
+    try:
+        sent = await _send_whatsapp_otp(phone, otp)
+        if not sent:
+            raise HTTPException(
+                status_code=503,
+                detail="WhatsApp OTP is not configured. Please contact support."
+            )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to send OTP: {str(e)}")
+
+    return MessageResponse(message="OTP sent to your WhatsApp. Valid for 10 minutes.")
+
+
+@router.post("/verify-otp", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def verify_otp(request: Request, body: VerifyOtpRequest):
+    db = get_db()
+    phone = _normalize_phone(body.phone)
+    otp = body.otp.strip()
+
+    row = db.table("otp_codes").select("*").eq("phone", phone).execute()
+    if not row.data:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+
+    record = row.data[0]
+
+    # Max 5 attempts before invalidating
+    if record["attempts"] >= 5:
+        db.table("otp_codes").delete().eq("phone", phone).execute()
+        raise HTTPException(status_code=400, detail="Too many wrong attempts. Please request a new OTP.")
+
+    if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
+        db.table("otp_codes").delete().eq("phone", phone).execute()
+        raise HTTPException(status_code=400, detail="OTP expired. Please request a new one.")
+
+    if record["code_hash"] != _otp_hash(otp):
+        db.table("otp_codes").update({"attempts": record["attempts"] + 1}).eq("phone", phone).execute()
+        remaining = 5 - record["attempts"] - 1
+        raise HTTPException(status_code=400, detail=f"Incorrect OTP. {remaining} attempt(s) left.")
+
+    # OTP valid — delete it and issue tokens
+    db.table("otp_codes").delete().eq("phone", phone).execute()
+
+    vendor_result = db.table("vendors").select("*").eq("phone", phone).execute()
+    if not vendor_result.data:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    vendor = vendor_result.data[0]
+    if not vendor["is_active"]:
+        raise HTTPException(status_code=403, detail="Account suspended")
+
+    access_token = create_access_token({"sub": vendor["id"], "plan": vendor["plan"]})
+    raw_refresh, hashed_refresh = create_refresh_token()
+
+    db.table("refresh_tokens").insert({
+        "vendor_id": vendor["id"],
+        "token_hash": hashed_refresh,
+        "expires_at": (
+            datetime.now(timezone.utc)
+            + timedelta(days=settings.jwt_refresh_token_expire_days)
+        ).isoformat(),
+    }).execute()
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=raw_refresh,
+        vendor_id=vendor["id"],
+        store_name=vendor["store_name"],
+        plan=vendor["plan"],
+    )

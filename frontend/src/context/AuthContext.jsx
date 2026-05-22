@@ -8,23 +8,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState("")
 
-  // Derived from vendor state — reactive when login/logout changes vendor
   const loggedIn = !!vendor
   const cloud    = !!vendor && ["pro","wholesale"].includes(vendor?.plan)
 
-  // Handle session expiry from auto-refresh failure
   useEffect(() => {
     function onLogout() { setVendorState(null) }
     window.addEventListener("dk:logout", onLogout)
     return () => window.removeEventListener("dk:logout", onLogout)
   }, [])
 
-  async function login(email, password) {
+  async function login(identifier, password, remember = true) {
     setLoading(true); setError("")
     try {
-      const d = await api.post("/auth/login", { email, password })
-      setTokens(d.access_token, d.refresh_token)
-      const v = { id:d.vendor_id, store_name:d.store_name, plan:d.plan }
+      const d = await api.post("/auth/login", { identifier, password })
+      setTokens(d.access_token, d.refresh_token, remember)
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan }
       setVendor(v); setVendorState(v)
       return d
     } catch(e) { setError(e.message); throw e }
@@ -35,22 +33,48 @@ export function AuthProvider({ children }) {
     setLoading(true); setError("")
     try {
       const d = await api.post("/auth/register", data)
-      setTokens(d.access_token, d.refresh_token)
-      const v = { id:d.vendor_id, store_name:d.store_name, plan:d.plan }
+      setTokens(d.access_token, d.refresh_token, true)
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan }
       setVendor(v); setVendorState(v)
       return d
     } catch(e) { setError(e.message); throw e }
     finally { setLoading(false) }
   }
 
+  async function sendOtp(phone) {
+    setLoading(true); setError("")
+    try { return await api.post("/auth/send-otp", { phone }) }
+    catch(e) { setError(e.message); throw e }
+    finally { setLoading(false) }
+  }
+
+  async function verifyOtp(phone, otp, remember = true) {
+    setLoading(true); setError("")
+    try {
+      const d = await api.post("/auth/verify-otp", { phone, otp })
+      setTokens(d.access_token, d.refresh_token, remember)
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan }
+      setVendor(v); setVendorState(v)
+      return d
+    } catch(e) { setError(e.message); throw e }
+    finally { setLoading(false) }
+  }
+
+  async function forgotPassword(email) {
+    setLoading(true); setError("")
+    try { return await api.post("/auth/forgot-password", { email }) }
+    catch(e) { setError(e.message); throw e }
+    finally { setLoading(false) }
+  }
+
   async function logout() {
     const r = getRefresh()
-    if (r) await api.post("/auth/logout", { refresh_token: r }).catch(()=>{})
+    if (r) await api.post("/auth/logout", { refresh_token: r }).catch(() => {})
     clearAuth(); setVendorState(null)
   }
 
   return (
-    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, loading, error, setError, login, register, logout }}>
+    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, loading, error, setError, login, register, sendOtp, verifyOtp, forgotPassword, logout }}>
       {children}
     </AuthCtx.Provider>
   )

@@ -11,23 +11,34 @@ class ApiClient {
 
   // ── Token management ──────────────────────────────────
 
+  _store() {
+    return localStorage.getItem("dukaanai_storage") === "session"
+      ? sessionStorage
+      : localStorage;
+  }
+
   getAccessToken() {
-    return localStorage.getItem("dukaanai_access_token");
+    return this._store().getItem("dukaanai_access_token");
   }
 
   getRefreshToken() {
-    return localStorage.getItem("dukaanai_refresh_token");
+    return this._store().getItem("dukaanai_refresh_token");
   }
 
-  setTokens(accessToken, refreshToken) {
-    localStorage.setItem("dukaanai_access_token", accessToken);
-    localStorage.setItem("dukaanai_refresh_token", refreshToken);
+  setTokens(accessToken, refreshToken, remember = true) {
+    localStorage.setItem("dukaanai_storage", remember ? "local" : "session");
+    const store = remember ? localStorage : sessionStorage;
+    store.setItem("dukaanai_access_token", accessToken);
+    store.setItem("dukaanai_refresh_token", refreshToken);
   }
 
   clearTokens() {
     localStorage.removeItem("dukaanai_access_token");
     localStorage.removeItem("dukaanai_refresh_token");
+    sessionStorage.removeItem("dukaanai_access_token");
+    sessionStorage.removeItem("dukaanai_refresh_token");
     localStorage.removeItem("dukaanai_vendor");
+    localStorage.removeItem("dukaanai_storage");
   }
 
   isLoggedIn() {

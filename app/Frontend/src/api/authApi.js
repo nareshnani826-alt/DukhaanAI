@@ -18,15 +18,38 @@ export const authApi = {
     return data;
   },
 
-  async login({ email, password }) {
-    const data = await api.post("/auth/login", { email, password });
-    api.setTokens(data.access_token, data.refresh_token);
+  async login({ identifier, password, remember = true }) {
+    const data = await api.post("/auth/login", { identifier, password });
+    api.setTokens(data.access_token, data.refresh_token, remember);
     localStorage.setItem("dukaanai_vendor", JSON.stringify({
       id: data.vendor_id,
       store_name: data.store_name,
       plan: data.plan,
     }));
     return data;
+  },
+
+  async sendOtp(phone) {
+    return api.post("/auth/send-otp", { phone });
+  },
+
+  async verifyOtp(phone, otp, remember = true) {
+    const data = await api.post("/auth/verify-otp", { phone, otp });
+    api.setTokens(data.access_token, data.refresh_token, remember);
+    localStorage.setItem("dukaanai_vendor", JSON.stringify({
+      id: data.vendor_id,
+      store_name: data.store_name,
+      plan: data.plan,
+    }));
+    return data;
+  },
+
+  async forgotPassword(email) {
+    return api.post("/auth/forgot-password", { email });
+  },
+
+  async resetPassword(token, newPassword) {
+    return api.post("/auth/reset-password", { token, new_password: newPassword });
   },
 
   async logout() {

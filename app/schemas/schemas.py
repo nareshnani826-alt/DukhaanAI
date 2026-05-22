@@ -22,7 +22,7 @@ class VendorRegister(BaseModel):
 
 
 class VendorLogin(BaseModel):
-    email: EmailStr
+    identifier: str  # email or phone number
     password: str
 
 
@@ -37,6 +37,31 @@ class TokenResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class SendOtpRequest(BaseModel):
+    phone: str
+
+
+class VerifyOtpRequest(BaseModel):
+    phone: str
+    otp: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def strong_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
 
 
 # ── Vendor ───────────────────────────────────────────────────

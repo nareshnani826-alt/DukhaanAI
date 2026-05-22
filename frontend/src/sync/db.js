@@ -1,14 +1,21 @@
 // ── API Client ────────────────────────────────────────────
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
+const BASE = import.meta.env.VITE_API_URL ?? ""
 const LS   = "dukaanai_data"
 const TOK  = "dk_access"
 const REF  = "dk_refresh"
 const VND  = "dk_vendor"
 
-export const getToken   = () => localStorage.getItem(TOK)
-export const getRefresh = () => localStorage.getItem(REF)
-export const setTokens  = (a, r) => { localStorage.setItem(TOK, a); localStorage.setItem(REF, r) }
-export const clearAuth  = () => [TOK, REF, VND].forEach(k => localStorage.removeItem(k))
+const _store = () => localStorage.getItem("dk_storage") === "session" ? sessionStorage : localStorage
+export const getToken   = () => _store().getItem(TOK)
+export const getRefresh = () => _store().getItem(REF)
+export const setTokens  = (a, r, remember = true) => {
+  localStorage.setItem("dk_storage", remember ? "local" : "session")
+  const s = remember ? localStorage : sessionStorage
+  s.setItem(TOK, a); s.setItem(REF, r)
+}
+export const clearAuth  = () => {
+  [TOK, REF, VND, "dk_storage"].forEach(k => { localStorage.removeItem(k); sessionStorage.removeItem(k) })
+}
 export const getVendor  = () => { try { return JSON.parse(localStorage.getItem(VND)) } catch { return null } }
 export const setVendor  = (v) => localStorage.setItem(VND, JSON.stringify(v))
 export const getPlan    = () => getVendor()?.plan || "free"

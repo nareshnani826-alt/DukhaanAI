@@ -31,6 +31,7 @@ import Landing              from "./pages/Landing"
 import OfflineBanner        from "./components/OfflineBanner"
 import AITest               from "./pages/AITest"
 import More                 from "./pages/More"
+import ResetPassword        from "./pages/ResetPassword"
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
   return <UpgradeWall feature={feature}>{children}</UpgradeWall>
@@ -49,6 +50,7 @@ export default function App() {
           <OfflineBanner />
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/hero-loop" element={<HeroLoop />} />
             <Route path="/*" element={
               <Layout>

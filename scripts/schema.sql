@@ -145,6 +145,30 @@ create table refresh_tokens (
 );
 
 -- ────────────────────────────────────────────────────────────
+-- OTP CODES  (WhatsApp OTP login)
+-- ────────────────────────────────────────────────────────────
+create table otp_codes (
+  id          uuid primary key default uuid_generate_v4(),
+  phone       text not null,
+  code_hash   text not null,
+  attempts    int not null default 0,
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+create index idx_otp_codes_phone on otp_codes(phone);
+
+-- ────────────────────────────────────────────────────────────
+-- PASSWORD RESET TOKENS
+-- ────────────────────────────────────────────────────────────
+create table password_reset_tokens (
+  id          uuid primary key default uuid_generate_v4(),
+  vendor_id   uuid not null references vendors(id) on delete cascade,
+  token_hash  text not null unique,
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+
+-- ────────────────────────────────────────────────────────────
 -- INDEXES for performance
 -- ────────────────────────────────────────────────────────────
 create index idx_products_vendor    on products(vendor_id);

@@ -29,7 +29,11 @@ export default function BarcodeScannerTab() {
 
     scanner.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 280, height: 120 } },
+      {
+        fps: 15,
+        qrbox: { width: 300, height: 150 },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      },
       (code) => handleBarcode(code),
       () => {},
     ).catch(e => {
