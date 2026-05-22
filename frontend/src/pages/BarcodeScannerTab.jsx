@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
+import { getToken, Products } from "../sync/db"
 
 const FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13,
@@ -10,7 +11,9 @@ const FORMATS = [
   Html5QrcodeSupportedFormats.CODE_39,
   Html5QrcodeSupportedFormats.QR_CODE,
 ]
-import { getToken, Products } from "../sync/db"
+
+const NATIVE_FORMATS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","qr_code"]
+const hasNativeDetector = () => "BarcodeDetector" in window
 
 const API = import.meta.env.VITE_API_URL
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -27,32 +30,61 @@ export default function BarcodeScannerTab() {
   const [loading,   setLoading]   = useState(false)
   const [manualCode, setManualCode] = useState("")
 
-  const scannerRef = useRef(null)
-  const READER_ID  = "barcode-reader"
+  const scannerRef  = useRef(null)
+  const videoRef    = useRef(null)
+  const streamRef   = useRef(null)
+  const rafRef      = useRef(null)
+  const detectedRef = useRef(false)
+  const READER_ID   = "barcode-reader"
 
-  // Start/stop camera scanner
   useEffect(() => {
     if (!scanning) return
+    detectedRef.current = false
 
-    const scanner = new Html5Qrcode(READER_ID, { formatsToSupport: FORMATS, verbose: false })
-    scannerRef.current = scanner
+    if (hasNativeDetector()) {
+      // ── Native BarcodeDetector (Chrome/Android) ──────────────
+      let detector
+      try { detector = new window.BarcodeDetector({ formats: NATIVE_FORMATS }) }
+      catch { startHtml5(); return }
 
-    scanner.start(
-      { facingMode: "environment" },
-      {
-        fps: 20,
-        qrbox: { width: 320, height: 160 },
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-      },
-      (code) => handleBarcode(code),
-      () => {},
-    ).catch(e => {
-      setError("Camera not available. Enter barcode manually below.")
-      setScanning(false)
-    })
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      }).then(stream => {
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.play()
+        }
+        const tick = async () => {
+          if (detectedRef.current || !videoRef.current) return
+          try {
+            const codes = await detector.detect(videoRef.current)
+            if (codes.length > 0) { detectedRef.current = true; handleBarcode(codes[0].rawValue); return }
+          } catch {}
+          rafRef.current = requestAnimationFrame(tick)
+        }
+        rafRef.current = requestAnimationFrame(tick)
+      }).catch(() => startHtml5())
+    } else {
+      startHtml5()
+    }
+
+    function startHtml5() {
+      const scanner = new Html5Qrcode(READER_ID, { formatsToSupport: FORMATS, verbose: false })
+      scannerRef.current = scanner
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 20, qrbox: { width: 300, height: 150 } },
+        (code) => handleBarcode(code),
+        () => {},
+      ).catch(() => { setError("Camera not available. Enter barcode manually below."); setScanning(false) })
+    }
 
     return () => {
-      scanner.isRunning() && scanner.stop().catch(() => {})
+      cancelAnimationFrame(rafRef.current)
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+      scannerRef.current?.isRunning() && scannerRef.current.stop().catch(() => {})
     }
   }, [scanning])
 
@@ -339,8 +371,14 @@ export default function BarcodeScannerTab() {
       {/* Camera viewfinder */}
       {scanning && (
         <div style={{ marginBottom: 16 }}>
-          <div id={READER_ID} style={{ borderRadius: 16, overflow: "hidden",
-            border: "2px solid var(--jade)" }}/>
+          {hasNativeDetector() ? (
+            <video ref={videoRef} playsInline muted
+              style={{ width: "100%", borderRadius: 16, border: "2px solid var(--jade)",
+                display: "block", background: "#000", maxHeight: 280, objectFit: "cover" }} />
+          ) : (
+            <div id={READER_ID} style={{ borderRadius: 16, overflow: "hidden",
+              border: "2px solid var(--jade)" }} />
+          )}
           <button onClick={() => setScanning(false)}
             style={{ width: "100%", marginTop: 10, padding: "10px", background: "var(--bg2)",
               color: "var(--ink-dim)", border: "none", borderRadius: 10,
