@@ -74,6 +74,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 _cors_origins = [settings.frontend_url]
 if settings.allowed_origins:
     _cors_origins += [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+# Capacitor Android APK uses https://localhost as its WebView origin
+_cors_origins += ["https://localhost", "capacitor://localhost", "http://localhost"]
 if _is_dev:
     _cors_origins += ["http://localhost:3000", "http://localhost:5173"]
 # Deduplicate while preserving order
