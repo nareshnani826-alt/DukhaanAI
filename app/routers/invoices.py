@@ -68,21 +68,27 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
 
     invoice_no = _next_invoice_no(db, vendor["id"])
 
+    # Build insert row — omit optional columns that are None to avoid
+    # PGRST204 if those columns haven't been migrated in the live DB yet.
+    row: dict = {
+        "vendor_id":    vendor["id"],
+        "invoice_no":   invoice_no,
+        "customer_name": body.customer_name,
+        "payment_mode": body.payment_mode,
+        "subtotal":     subtotal,
+        "cgst":         cgst,
+        "sgst":         sgst,
+        "total":        grand_total,
+        "items":        line_items,
+        "status":       "paid",
+    }
+    if body.customer_phone:
+        row["customer_phone"] = body.customer_phone
+    if body.customer_gstin:
+        row["customer_gstin"] = body.customer_gstin
+
     try:
-        result = db.table("invoices").insert({
-            "vendor_id": vendor["id"],
-            "invoice_no": invoice_no,
-            "customer_name": body.customer_name,
-            "customer_phone": body.customer_phone,
-            "customer_gstin": body.customer_gstin,
-            "payment_mode": body.payment_mode,
-            "subtotal": subtotal,
-            "cgst": cgst,
-            "sgst": sgst,
-            "total": grand_total,
-            "items": line_items,
-            "status": "paid",
-        }).execute()
+        result = db.table("invoices").insert(row).execute()
         if not result.data:
             raise HTTPException(status_code=500, detail="Invoice insert returned no data")
         invoice = result.data[0]
