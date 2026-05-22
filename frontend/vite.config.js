@@ -10,6 +10,6 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     port: process.env.PORT || 4173,
-    allowedHosts: ['dukhaanai.onrender.com']
+    allowedHosts: 'all'
   }
 })
