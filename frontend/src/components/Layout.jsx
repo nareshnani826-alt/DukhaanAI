@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
+import { useAppMode } from "../context/AppModeContext"
 import { useState, useEffect, useRef } from "react"
 import AuthModal from "./AuthModal"
 import { LANG_KEY, getSavedLang } from "../voice/i18n"
@@ -490,6 +491,7 @@ export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, logout } = useAuth()
   const { planLabel } = usePlan()
   const { theme, toggleTheme, isDark } = useTheme()
+  const { appMode } = useAppMode()
   const [showAuth, setShowAuth] = useState(false)
   const [expanded, setExpanded] = useState(null)
   const navigate  = useNavigate()
@@ -666,7 +668,14 @@ export default function Layout({ children }) {
         background:"var(--bg2)", borderTop:"1px solid var(--rule)",
         display:"none", alignItems:"flex-end", justifyContent:"space-around",
         padding:"8px 4px 12px", boxShadow:"0 -4px 20px var(--shadow)" }}>
-        {MOB_TABS.map(tab => {
+        {[
+          ...MOB_TABS.slice(0, 3),
+          appMode === "lite"
+            ? { to:"/inventory", label:"Stock",
+                icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg> }
+            : MOB_TABS[3],
+          MOB_TABS[4],
+        ].map(tab => {
           if (tab.voice) return (
             <div key="voice" onClick={() => navigate("/voice")}
               style={{ position:"relative", marginTop:-22, width:58, height:58, borderRadius:"50%",

@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
+import { useAppMode, APP_MODES } from "../context/AppModeContext"
 
 const SECTIONS = [
   {
@@ -49,6 +50,7 @@ export default function More() {
   const { vendor, cloud, logout, loggedIn } = useAuth()
   const { planLabel } = usePlan()
   const { isDark, toggleTheme } = useTheme()
+  const { appMode, setAppMode, isScreenVisible, APP_MODES } = useAppMode()
 
   return (
     <div style={{ flex:1, overflowY:"auto", background:"var(--bg0)" }}>
@@ -95,44 +97,64 @@ export default function More() {
           </button>
         </div>
 
-        {/* Feature sections */}
-        {SECTIONS.map(sec => (
-          <div key={sec.label} style={{ marginBottom:20 }}>
-            {/* Section label */}
-            <div style={{ display:"flex", alignItems:"baseline", gap:8, marginBottom:10 }}>
-              <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
-                letterSpacing:"2px", textTransform:"uppercase" }}>{sec.label}</div>
-              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
-                fontSize:12, color:"var(--ink-faint)" }}>{sec.hindi}</div>
-            </div>
+        {/* Mode switcher strip */}
+        <div style={{ display:"flex", gap:6, marginBottom:18 }}>
+          {Object.entries(APP_MODES).map(([key, m]) => {
+            const active = appMode === key
+            return (
+              <button key={key} onClick={() => setAppMode(key)}
+                style={{ flex:1, padding:"8px 4px", borderRadius:10, cursor:"pointer",
+                  border: active ? `1.5px solid ${m.color}` : "1.5px solid var(--rule)",
+                  background: active ? `color-mix(in srgb, ${m.color} 10%, var(--bg2))` : "var(--bg2)",
+                  display:"flex", flexDirection:"column", alignItems:"center", gap:2,
+                  transition:"all 0.15s" }}>
+                <span style={{ fontSize:16 }}>{m.emoji}</span>
+                <span style={{ fontSize:10, fontWeight:700,
+                  color: active ? m.color : "var(--ink-faint)" }}>{m.label}</span>
+              </button>
+            )
+          })}
+        </div>
 
-            {/* 2-column grid */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              {sec.items.map(item => (
-                <button key={item.to} onClick={() => navigate(item.to)}
-                  style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
-                    borderRadius:14, padding:"14px 12px", cursor:"pointer",
-                    display:"flex", flexDirection:"column", alignItems:"flex-start", gap:6,
-                    boxShadow:"0 2px 8px var(--shadow)", textAlign:"left",
-                    transition:"all 0.15s" }}
-                  onTouchStart={e => e.currentTarget.style.transform="scale(0.97)"}
-                  onTouchEnd={e => e.currentTarget.style.transform="none"}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
-                    <span style={{ fontSize:22 }}>{item.icon}</span>
-                    <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
-                      fontSize:11, color:"var(--ink-faint)" }}>{item.hindi}</div>
-                  </div>
-                  <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", lineHeight:1.2 }}>
-                    {item.label}
-                  </div>
-                  <div style={{ fontSize:10, color:"var(--ink-faint)", lineHeight:1.4 }}>
-                    {item.desc}
-                  </div>
-                </button>
-              ))}
+        {/* Feature sections */}
+        {SECTIONS.map(sec => {
+          const visible = sec.items.filter(item => isScreenVisible(item.to))
+          if (visible.length === 0) return null
+          return (
+            <div key={sec.label} style={{ marginBottom:20 }}>
+              <div style={{ display:"flex", alignItems:"baseline", gap:8, marginBottom:10 }}>
+                <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
+                  letterSpacing:"2px", textTransform:"uppercase" }}>{sec.label}</div>
+                <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+                  fontSize:12, color:"var(--ink-faint)" }}>{sec.hindi}</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {visible.map(item => (
+                  <button key={item.to} onClick={() => navigate(item.to)}
+                    style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
+                      borderRadius:14, padding:"14px 12px", cursor:"pointer",
+                      display:"flex", flexDirection:"column", alignItems:"flex-start", gap:6,
+                      boxShadow:"0 2px 8px var(--shadow)", textAlign:"left",
+                      transition:"all 0.15s" }}
+                    onTouchStart={e => e.currentTarget.style.transform="scale(0.97)"}
+                    onTouchEnd={e => e.currentTarget.style.transform="none"}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
+                      <span style={{ fontSize:22 }}>{item.icon}</span>
+                      <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+                        fontSize:11, color:"var(--ink-faint)" }}>{item.hindi}</div>
+                    </div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", lineHeight:1.2 }}>
+                      {item.label}
+                    </div>
+                    <div style={{ fontSize:10, color:"var(--ink-faint)", lineHeight:1.4 }}>
+                      {item.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {/* Footer actions */}
         <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>

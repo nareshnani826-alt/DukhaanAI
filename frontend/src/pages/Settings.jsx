@@ -4,6 +4,7 @@ import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan } from "../context/PlanContext"
 import { useAuth } from "../context/AuthContext"
 import { useTheme } from "../context/ThemeContext"
+import { useAppMode, APP_MODES } from "../context/AppModeContext"
 import { useNavigate } from "react-router-dom"
 
 const TOGGLE_FEATURES = [
@@ -28,6 +29,7 @@ export default function Settings() {
   const { plan, hasFeature, planLabel } = usePlan()
   const { vendor, logout } = useAuth()
   const { theme, setTheme } = useTheme()
+  const { appMode, setAppMode } = useAppMode()
   const navigate = useNavigate()
 
   // Feature toggles stored locally (premium features can be toggled off even if plan allows)
@@ -172,6 +174,51 @@ export default function Settings() {
               }}
             >{m.label}</button>
           ))}
+        </div>
+      </div>
+
+      {/* App Mode selector */}
+      <div className="card mb-4" style={{ padding:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+          <div style={{ width:34, height:34, borderRadius:9,
+            background:"var(--saffron-bg)", border:"1px solid rgba(212,98,31,0.3)",
+            display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📱</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>App Mode</div>
+            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>
+              Choose how many features you want to see
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {Object.entries(APP_MODES).map(([key, m]) => {
+            const active = appMode === key
+            return (
+              <button key={key} onClick={() => setAppMode(key)}
+                style={{ display:"flex", alignItems:"center", gap:12,
+                  padding:"12px 14px", borderRadius:12, cursor:"pointer", textAlign:"left",
+                  border: active ? `2px solid ${m.color}` : "1.5px solid var(--rule)",
+                  background: active ? `color-mix(in srgb, ${m.color} 8%, var(--bg2))` : "var(--bg2)",
+                  transition:"all 0.15s" }}>
+                <span style={{ fontSize:22, flexShrink:0 }}>{m.emoji}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
+                    <span style={{ fontSize:13, fontWeight:700,
+                      color: active ? m.color : "var(--ink)" }}>{m.label}</span>
+                    <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+                      fontSize:11, color:"var(--ink-faint)" }}>{m.hindi}</span>
+                  </div>
+                  <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>{m.desc}</div>
+                </div>
+                {active && (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke={m.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 

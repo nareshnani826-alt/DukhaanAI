@@ -1,9 +1,10 @@
 import { useEffect }                    from "react"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { initializeSeedTraining }        from "./voice-ai/seedTraining"
-import { ThemeProvider } from "./context/ThemeContext"
-import { AuthProvider }  from "./context/AuthContext"
-import { PlanProvider }  from "./context/PlanContext"
+import { ThemeProvider }    from "./context/ThemeContext"
+import { AuthProvider }     from "./context/AuthContext"
+import { PlanProvider }     from "./context/PlanContext"
+import { AppModeProvider }  from "./context/AppModeContext"
 import Layout            from "./components/Layout"
 import UpgradeWall       from "./components/UpgradeWall"
 import InstallPrompt     from "./components/InstallPrompt"
@@ -42,6 +43,7 @@ export default function App() {
     <ThemeProvider>
     <AuthProvider>
       <PlanProvider>
+      <AppModeProvider>
         <BrowserRouter>
           <InstallPrompt />
           <OfflineBanner />
@@ -76,6 +78,7 @@ export default function App() {
             } />
           </Routes>
         </BrowserRouter>
+      </AppModeProvider>
       </PlanProvider>
     </AuthProvider>
     </ThemeProvider>
