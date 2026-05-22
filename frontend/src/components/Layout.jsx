@@ -445,11 +445,12 @@ function AIChatWidget() {
         </div>
       )}
 
-      {/* Floating bubble button */}
+      {/* Floating bubble button — hidden on Voice page (bill panel already occupies bottom-right) */}
       <button onClick={() => setOpen(o => !o)} title="AI Assistant"
         className="mob-chat-btn"
         style={{ position:"fixed", bottom:24, right:24, zIndex:201,
           width:52, height:52, borderRadius:"50%",
+          display: location.pathname === "/voice" ? "none" : "flex",
           background: open ? "var(--ink, #333)" : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
           border:"3px solid var(--bg1, #fff)",
           boxShadow:"0 4px 20px rgba(232,119,34,0.45)",
@@ -694,10 +695,11 @@ export default function Layout({ children }) {
         })}
       </nav>
 
-      {/* Floating mic — hidden on mobile (bottom nav has the mic) */}
+      {/* Floating mic — hidden on mobile (bottom nav has the mic) and on Voice page */}
       <button onClick={() => navigate("/voice")} title="Voice Entry"
         className="mob-voice-fab"
         style={{ position:"fixed", bottom:24, right:86, zIndex:50,
+          display: location.pathname === "/voice" ? "none" : undefined,
           width:52, height:52, borderRadius:"50%",
           background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
           border:"3px solid var(--bg1)",

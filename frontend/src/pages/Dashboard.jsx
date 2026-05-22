@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Products, Sales, api } from "../sync/db"
+import { Products, Sales, Invoices, api } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
 
 const INR = n => "₹" + (n || 0).toLocaleString("en-IN")
@@ -181,7 +181,9 @@ export default function Dashboard() {
   const [briefing, setBriefing] = useState(null)
 
   useEffect(() => {
-    Promise.all([Sales.today(), Sales.summary({ days:30 }), Products.lowStock(), Products.list()])
+    // Use Invoices.today() for revenue — it captures voice bills that have no
+    // product_id and therefore no matching sales record.
+    Promise.all([Invoices.today(), Sales.summary({ days:30 }), Products.lowStock(), Products.list()])
       .then(([t, s, l, p]) => { setToday(t); setSummary(s); setLow(l); setTotal(p.length) })
       .finally(() => setLoading(false))
 

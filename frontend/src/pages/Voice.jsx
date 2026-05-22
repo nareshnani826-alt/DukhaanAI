@@ -91,6 +91,9 @@ export default function Voice() {
     setGenerating(true)
     try {
       const items = billItems.map(i => ({
+        // Pass product_id when matched to a real product (not a voice-temp ID)
+        // so the backend can deduct stock and create a sales record.
+        ...(!i.id?.startsWith?.("voice-") && i.id ? { product_id: i.id } : {}),
         name:        i.name,
         qty:         i.qty,
         unit_price:  i.mrp,

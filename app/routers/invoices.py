@@ -142,6 +142,30 @@ async def list_invoices(
     return q.execute().data
 
 
+@router.get("/today")
+async def today_invoices(vendor=Depends(get_current_vendor)):
+    """Today's paid invoices — used by Dashboard and DayOps for revenue totals."""
+    db = get_db()
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    invoices = (
+        db.table("invoices")
+        .select("*")
+        .eq("vendor_id", vendor["id"])
+        .eq("status", "paid")
+        .gte("created_at", today_start)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    return {
+        "invoices": invoices,
+        "total": round(sum(inv["total"] for inv in invoices), 2),
+        "count": len(invoices),
+    }
+
+
 @router.get("/{invoice_id}", response_model=InvoiceOut)
 async def get_invoice(invoice_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()

@@ -135,6 +135,12 @@ export const Sales = {
 
 // ── Invoices ──────────────────────────────────────────────
 export const Invoices = {
+  async today() {
+    if (isCloud()) return api.get("/invoices/today")
+    const start = new Date(); start.setHours(0,0,0,0)
+    const invs = localRead().invoices.filter(i => i.status === "paid" && new Date(i.created_at) >= start)
+    return { invoices: invs, total: Math.round(invs.reduce((s,i) => s+i.total,0)*100)/100, count: invs.length }
+  },
   async generate({ customer_name, customer_phone, customer_gstin, payment_mode="Cash", items }) {
     if (isCloud()) return api.post("/invoices", { customer_name, customer_phone, customer_gstin, payment_mode, items })
     const d = localRead(); let sub=0, tax=0

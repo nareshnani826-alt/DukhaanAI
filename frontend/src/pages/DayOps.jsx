@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { api, isCloud } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
-import { Products, Sales } from "../sync/db.js"
+import { Products, Sales, Invoices } from "../sync/db.js"
 
 const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 const PCT = n => (n > 0 ? "+" : "") + Math.round(n || 0) + "%"
@@ -138,7 +138,7 @@ export default function DayOps() {
     try {
       const [prods, today] = await Promise.all([
         Products.list(),
-        Sales.today(),
+        Invoices.today(),
       ])
       setProducts(prods)
       setTodaySales(today)
