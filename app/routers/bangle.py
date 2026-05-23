@@ -141,28 +141,8 @@ async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
 
 
 # ── Variants ──────────────────────────────────────────────────
-
-@router.post("/products/{product_id}/variants", status_code=201)
-async def add_variant(product_id: str, body: VariantCreate, vendor=Depends(get_current_vendor)):
-    db = get_db()
-    # Verify product belongs to vendor
-    p = db.table("bangle_products").select("id").eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
-    if not p.data:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    row = db.table("bangle_variants").insert({
-        "product_id": product_id,
-        "vendor_id":  vendor["id"],
-        "colour":     body.colour,
-        "size":       body.size,
-        "design":     body.design,
-        "stock":      body.stock,
-        "min_stock":  body.min_stock,
-        "mrp":        body.mrp,
-        "cost_price": body.cost_price,
-    }).execute().data[0]
-    return row
-
+# NOTE: /bulk must be registered BEFORE /{product_id}/variants so Starlette
+# doesn't shadow it with the shorter path pattern.
 
 @router.post("/products/{product_id}/variants/bulk", status_code=201)
 async def bulk_create_variants(product_id: str, body: BulkVariantCreate, vendor=Depends(get_current_vendor)):
@@ -195,6 +175,27 @@ async def bulk_create_variants(product_id: str, body: BulkVariantCreate, vendor=
 
     result = db.table("bangle_variants").insert(rows).execute()
     return {"created": len(result.data), "variants": result.data}
+
+
+@router.post("/products/{product_id}/variants", status_code=201)
+async def add_variant(product_id: str, body: VariantCreate, vendor=Depends(get_current_vendor)):
+    db = get_db()
+    p = db.table("bangle_products").select("id").eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
+    if not p.data:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    row = db.table("bangle_variants").insert({
+        "product_id": product_id,
+        "vendor_id":  vendor["id"],
+        "colour":     body.colour,
+        "size":       body.size,
+        "design":     body.design,
+        "stock":      body.stock,
+        "min_stock":  body.min_stock,
+        "mrp":        body.mrp,
+        "cost_price": body.cost_price,
+    }).execute().data[0]
+    return row
 
 
 @router.patch("/variants/{variant_id}")

@@ -299,6 +299,52 @@ function DeadStockTab() {
   )
 }
 
+// ── Wikipedia thumbnail helper (free, CORS-safe) ──────────────
+const DESIGN_WIKI = {
+  "Kundan":      "Kundan_(jewellery)",
+  "Meenakari":   "Meenakari",
+  "Glass":       "Bangle",
+  "Lac":         "Bangle",
+  "Metal":       "Indian_jewellery",
+  "Stone Work":  "Indian_jewellery",
+  "Mirror Work": "Indian_jewellery",
+  "Pearl":       "Pearl_jewellery",
+  "Plain":       "Bangle",
+  "Antique":     "Indian_jewellery",
+  "Thread":      "Indian_jewellery",
+  "Crystal":     "Bangle",
+  "Silk":        "Indian_jewellery",
+  "Zari":        "Zari",
+}
+
+const COLOUR_HEX = {
+  Red:"#ef4444", Pink:"#ec4899", Green:"#16a34a", Blue:"#3b82f6",
+  Gold:"#f59e0b", Silver:"#94a3b8", White:"#d1d5db", Black:"#1e293b",
+  Orange:"#f97316", Purple:"#a855f7", Yellow:"#eab308", Maroon:"#9f1239",
+  Multi:"#ec4899", "Sky Blue":"#38bdf8", "Dark Green":"#15803d",
+}
+
+const INDIA_MARKET_BASE = [
+  { label: "Kundan",      article: "Kundan_(jewellery)" },
+  { label: "Meenakari",   article: "Meenakari" },
+  { label: "Glass",       article: "Bangle" },
+  { label: "Lac",         article: "Bangle" },
+  { label: "Metal",       article: "Indian_jewellery" },
+  { label: "Mirror Work", article: "Indian_jewellery" },
+]
+
+async function fetchWikiThumb(article) {
+  try {
+    const r = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(article)}`,
+      { headers: { "Api-User-Agent": "DukhaanAI/1.0 (bangle-store)" } }
+    )
+    if (!r.ok) return null
+    const d = await r.json()
+    return d.thumbnail?.source ?? null
+  } catch { return null }
+}
+
 // ── Profit tab ─────────────────────────────────────────────────
 function ProfitTab() {
   const [data, setData]       = useState(null)
@@ -381,52 +427,6 @@ function ProfitTab() {
       )}
     </div>
   )
-}
-
-// ── Wikipedia thumbnail helper (free, CORS-safe) ──────────────
-const DESIGN_WIKI = {
-  "Kundan":      "Kundan_(jewellery)",
-  "Meenakari":   "Meenakari",
-  "Glass":       "Bangle",
-  "Lac":         "Bangle",
-  "Metal":       "Indian_jewellery",
-  "Stone Work":  "Indian_jewellery",
-  "Mirror Work": "Indian_jewellery",
-  "Pearl":       "Pearl_jewellery",
-  "Plain":       "Bangle",
-  "Antique":     "Indian_jewellery",
-  "Thread":      "Indian_jewellery",
-  "Crystal":     "Bangle",
-  "Silk":        "Indian_jewellery",
-  "Zari":        "Zari",
-}
-
-const COLOUR_HEX = {
-  Red:"#ef4444", Pink:"#ec4899", Green:"#16a34a", Blue:"#3b82f6",
-  Gold:"#f59e0b", Silver:"#94a3b8", White:"#d1d5db", Black:"#1e293b",
-  Orange:"#f97316", Purple:"#a855f7", Yellow:"#eab308", Maroon:"#9f1239",
-  Multi:"#ec4899", "Sky Blue":"#38bdf8", "Dark Green":"#15803d",
-}
-
-const INDIA_MARKET_BASE = [
-  { label: "Kundan",      article: "Kundan_(jewellery)" },
-  { label: "Meenakari",   article: "Meenakari" },
-  { label: "Glass",       article: "Bangle" },
-  { label: "Lac",         article: "Bangle" },
-  { label: "Metal",       article: "Indian_jewellery" },
-  { label: "Mirror Work", article: "Indian_jewellery" },
-]
-
-async function fetchWikiThumb(article) {
-  try {
-    const r = await fetch(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(article)}`,
-      { headers: { "Api-User-Agent": "DukhaanAI/1.0 (bangle-store)" } }
-    )
-    if (!r.ok) return null
-    const d = await r.json()
-    return d.thumbnail?.source ?? null
-  } catch { return null }
 }
 
 // ── Trends tab ─────────────────────────────────────────────────
@@ -674,18 +674,21 @@ function TrendsTab() {
           {/* Colour comparison chart */}
           <div style={{ background: "var(--bg0)", border: "1px solid var(--rule)",
             borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
-              🎨 Colour Demand — Area vs Your Store
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
+                🎨 Colour Demand — Area vs Your Store
+              </div>
+              <span style={{ fontSize: 10, color: "var(--jade)", fontWeight: 700 }}>LIVE MARKET</span>
             </div>
             <div style={{ fontSize: 10, color: "var(--ink-faint)", marginBottom: 12 }}>
-              Area bar = total across {community.store_count} stores · avg ~{Math.round(community.total_pieces / community.store_count)} pcs/store
+              Total demand across {community.store_count} nearby stores.
             </div>
             {comparison.map(c => {
               const areaPct  = Math.round((c.areaPcs / maxArea) * 100)
               const myPct    = maxArea > 0 ? Math.round((c.mine / maxArea) * 100) : 0
               const sigColor = c.signal === "strong" ? "#2b9e6e"
                 : c.signal === "opportunity" ? "#c47f00" : "var(--ink-faint)"
-              const sigIcon  = c.signal === "strong" ? "↑" : c.signal === "opportunity" ? "→" : "~"
+              const sigText  = c.signal === "strong" ? "High" : c.signal === "opportunity" ? "Need Stock" : "OK"
               const hex      = COLOUR_HEX[c.label] ?? "#e87722"
               return (
                 <div key={c.label} style={{ marginBottom: 12 }}>
@@ -695,7 +698,7 @@ function TrendsTab() {
                       <div style={{ width: 12, height: 12, borderRadius: "50%",
                         border: `3px solid ${hex}`, flexShrink: 0 }} />
                       <span style={{ fontSize: 12, color: "var(--ink)", fontWeight: 600 }}>{c.label}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: sigColor }}>{sigIcon}</span>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: sigColor, padding: "1px 5px", borderRadius: 4, textTransform: "uppercase" }}>{sigText}</span>
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
                       {c.mine} / ~{c.areaAvg}

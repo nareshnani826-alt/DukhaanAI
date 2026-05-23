@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import * as XLSX from "xlsx"
 import { getToken } from "../sync/db.js"
 import { BANGLE_CATALOG as CATALOG, BANGLE_CATALOG_CATS } from "../data/bangleCatalog.js"
@@ -7,9 +8,52 @@ const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
 
 const CATS    = BANGLE_CATALOG_CATS
-const SIZES   = ["2.2","2.4","2.6","2.8","2.10","2.12","2.14","Free Size"]
-const COLOURS = ["Red","Pink","Green","Blue","Gold","Silver","White","Black","Orange","Purple","Multi"]
-const DESIGNS = ["Plain","Kundan","Meenakari","Stone Work","Mirror Work","Lac","Metal","Glass"]
+
+const CATEGORY_SIZES = {
+  "Bangles":     ["2.2","2.4","2.6","2.8","2.10","2.12","2.14","Free Size"],
+  "Earrings":    ["Studs","Drops","Hoops / Bali","Jhumka","Chandbali","Dangler","Ear Cuff","Tassel"],
+  "Necklace":    ["Choker","Short (16\")","Princess (18\")","Medium (20\")","Long (24\")","Mala (30+\")","Layered"],
+  "Maang Tikka": ["Small","Medium","Large","Jhoomar","Maathapatti"],
+  "Anklet":      ["Small","Medium","Large","Adjustable","Free Size"],
+  "Hair Clip":   ["Alligator","Claw","Bobby Pin","Banana","Butterfly","Scrunchie","U-Pin","Barrette","Hairband"],
+  "Bindi":       ["Round","Oval","Tear Drop","Long","Star","Crescent","Diamond","Flower"],
+  "Rings":       ["5","6","7","8","9","10","11","12","Adjustable"],
+  "Bracelet":    ["XS","Small","Medium","Large","Free Size"],
+  "Nose Ring":   ["Nath","Phool / Stud","Nose Ring","L-Shape Pin","Septum","Hoop","Screw"],
+  "Other":       ["Small","Medium","Large","Free Size","Adjustable"],
+}
+const SIZE_LABEL = {
+  "Bangles":     "BANGLE SIZE",
+  "Earrings":    "EARRING TYPE",
+  "Necklace":    "NECKLACE LENGTH",
+  "Maang Tikka": "TIKKA SIZE",
+  "Anklet":      "ANKLET SIZE",
+  "Hair Clip":   "CLIP TYPE",
+  "Bindi":       "BINDI SHAPE",
+  "Rings":       "RING SIZE",
+  "Bracelet":    "BRACELET SIZE",
+  "Nose Ring":   "NOSE RING TYPE",
+  "Other":       "SIZE / TYPE",
+}
+
+const COLOURS = [
+  "Red","Pink","Maroon","Green","Blue","Navy",
+  "Gold","Rose Gold","Silver","White","Black",
+  "Orange","Yellow","Purple","Peach","Multi",
+]
+const CATEGORY_DESIGNS = {
+  "Bangles":     ["Plain","Kundan","Meenakari","Stone Work","Mirror Work","Lac","Metal","Glass","Pearl","Crystal","Thread","Oxidized","Zari","Antique"],
+  "Earrings":    ["Plain","Kundan","Stone Work","Pearl","Crystal","Thread","Oxidized","Antique","Meenakari","Zari","Beaded","Tassel"],
+  "Necklace":    ["Plain","Kundan","Meenakari","Stone Work","Pearl","Crystal","Temple","Oxidized","Antique","Zari","Beaded","Pendant","Locket"],
+  "Maang Tikka": ["Plain","Kundan","Stone Work","Pearl","Crystal","Meenakari","Oxidized","Antique","Bridal"],
+  "Anklet":      ["Plain","Ghungroo","Stone Work","Beaded","Oxidized","Antique","Charm","Kundan","Silver"],
+  "Hair Clip":   ["Plain","Floral","Stone Work","Pearl","Crystal","Bow","Metal","Fabric","Bridal"],
+  "Bindi":       ["Velvet","Crystal","Stone","Glitter","Matte","Traditional","Zari","Fancy"],
+  "Rings":       ["Plain","Kundan","Stone Work","Pearl","Crystal","Oxidized","Antique","Band","Adjustable"],
+  "Bracelet":    ["Plain","Kundan","Stone Work","Pearl","Crystal","Charm","Beaded","Tennis","Oxidized","Antique","Evil Eye"],
+  "Nose Ring":   ["Plain","Stone Work","Kundan","Pearl","Oxidized","Antique","Traditional","Bridal"],
+  "Other":       ["Plain","Kundan","Stone Work","Metal","Crystal","Oxidized","Antique","Beaded"],
+}
 const GSTS    = [0, 3, 5, 12, 18]
 
 function authHeaders() {
@@ -84,6 +128,7 @@ function Chip({ label, active, onClick, colour }) {
 }
 
 export default function BangleBulkImport() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState("catalog") // catalog | csv | restock
 
   // ── Catalog tab state ─────────────────────────────────────
@@ -319,7 +364,7 @@ export default function BangleBulkImport() {
                 border:"none", borderRadius:12, fontSize:13, fontWeight:600, cursor:"pointer"}}>
               Import More
             </button>
-            <button onClick={() => window.location.href="/bangle-inventory"}
+            <button onClick={() => navigate("/bangle-inventory")}
               style={{flex:1, padding:12,
                 background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
                 color:"#fff", border:"none", borderRadius:12, fontSize:13,
@@ -626,9 +671,11 @@ export default function BangleBulkImport() {
 
                         <div>
                           <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
-                            marginBottom:6, letterSpacing:"0.5px"}}>SIZES</div>
+                            marginBottom:6, letterSpacing:"0.5px"}}>
+                            {SIZE_LABEL[p.category] || "SIZE"}
+                          </div>
                           <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
-                            {SIZES.map(s => (
+                            {(CATEGORY_SIZES[p.category] || CATEGORY_SIZES["Other"]).map(s => (
                               <Chip key={s} label={s}
                                 active={sel.sizes.includes(s)}
                                 onClick={() => toggleChip(p.name, "sizes", s)}/>
@@ -638,9 +685,9 @@ export default function BangleBulkImport() {
 
                         <div>
                           <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
-                            marginBottom:6, letterSpacing:"0.5px"}}>DESIGNS (optional)</div>
+                            marginBottom:6, letterSpacing:"0.5px"}}>DESIGN (optional)</div>
                           <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
-                            {DESIGNS.map(d => (
+                            {(CATEGORY_DESIGNS[p.category] || CATEGORY_DESIGNS["Other"]).map(d => (
                               <Chip key={d} label={d}
                                 active={sel.designs.includes(d)}
                                 onClick={() => toggleChip(p.name, "designs", d)}/>

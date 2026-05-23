@@ -1,13 +1,69 @@
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { getToken } from "../sync/db"
 import { BangleProducts } from "../sync/bangleDb"
+import { VOICE_LANGS } from "../voice/useProductVoice.js"
+import { getSavedLang } from "../voice/i18n.js"
+import { parseProductDescription } from "../voice/parseProductDescription.js"
+import { geminiParseProduct } from "../voice/geminiParse.js"
+import { scanImageForProduct, fileToBase64 } from "../voice/geminiVision.js"
+import { learnProduct, suggestMRP } from "../voice/productLearner.js"
 
 const API    = import.meta.env.VITE_API_URL ?? ""
 const INR    = n => "₹" + Number(n || 0).toLocaleString("en-IN")
-const CATS   = ["Bangles","Earrings","Necklace","Anklet","Hair Clip","Bindi","Rings","Other"]
-const SIZES  = ["2.2","2.4","2.6","2.8","2.10","2.12","2.14","Free Size"]
-const COLOURS= ["Red","Pink","Green","Blue","Gold","Silver","White","Black","Orange","Purple","Multi"]
-const DESIGNS= ["Plain","Kundan","Meenakari","Stone Work","Mirror Work","Lac","Metal","Glass"]
+const CATS = [
+  "Bangles","Earrings","Necklace","Maang Tikka",
+  "Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring","Other",
+]
+
+const CATEGORY_SIZES = {
+  "Bangles":     ["2.2","2.4","2.6","2.8","2.10","2.12","2.14","Free Size"],
+  "Earrings":    ["Studs","Drops","Hoops / Bali","Jhumka","Chandbali","Dangler","Ear Cuff","Tassel"],
+  "Necklace":    ["Choker","Short (16\")","Princess (18\")","Medium (20\")","Long (24\")","Mala (30+\")","Layered"],
+  "Maang Tikka": ["Small","Medium","Large","Jhoomar","Maathapatti"],
+  "Anklet":      ["Small","Medium","Large","Adjustable","Free Size"],
+  "Hair Clip":   ["Alligator","Claw","Bobby Pin","Banana","Butterfly","Scrunchie","U-Pin","Barrette","Hairband"],
+  "Bindi":       ["Round","Oval","Tear Drop","Long","Star","Crescent","Diamond","Flower"],
+  "Rings":       ["5","6","7","8","9","10","11","12","Adjustable"],
+  "Bracelet":    ["XS","Small","Medium","Large","Free Size"],
+  "Nose Ring":   ["Nath","Phool / Stud","Nose Ring","L-Shape Pin","Septum","Hoop","Screw"],
+  "Other":       ["Small","Medium","Large","Free Size","Adjustable"],
+}
+const SIZES = CATEGORY_SIZES["Bangles"]
+
+const SIZE_LABEL = {
+  "Bangles":     "BANGLE SIZE",
+  "Earrings":    "EARRING TYPE",
+  "Necklace":    "NECKLACE LENGTH",
+  "Maang Tikka": "TIKKA SIZE",
+  "Anklet":      "ANKLET SIZE",
+  "Hair Clip":   "CLIP TYPE",
+  "Bindi":       "BINDI SHAPE",
+  "Rings":       "RING SIZE",
+  "Bracelet":    "BRACELET SIZE",
+  "Nose Ring":   "NOSE RING TYPE",
+  "Other":       "SIZE / TYPE",
+}
+
+const COLOURS = [
+  "Red","Pink","Maroon","Green","Blue","Navy",
+  "Gold","Rose Gold","Silver","White","Black",
+  "Orange","Yellow","Purple","Peach","Multi",
+]
+
+const CATEGORY_DESIGNS = {
+  "Bangles":     ["Plain","Kundan","Meenakari","Stone Work","Mirror Work","Lac","Metal","Glass","Pearl","Crystal","Thread","Oxidized","Zari","Antique"],
+  "Earrings":    ["Plain","Kundan","Stone Work","Pearl","Crystal","Thread","Oxidized","Antique","Meenakari","Zari","Beaded","Tassel"],
+  "Necklace":    ["Plain","Kundan","Meenakari","Stone Work","Pearl","Crystal","Temple","Oxidized","Antique","Zari","Beaded","Pendant","Locket"],
+  "Maang Tikka": ["Plain","Kundan","Stone Work","Pearl","Crystal","Meenakari","Oxidized","Antique","Bridal"],
+  "Anklet":      ["Plain","Ghungroo","Stone Work","Beaded","Oxidized","Antique","Charm","Kundan","Silver"],
+  "Hair Clip":   ["Plain","Floral","Stone Work","Pearl","Crystal","Bow","Metal","Fabric","Bridal"],
+  "Bindi":       ["Velvet","Crystal","Stone","Glitter","Matte","Traditional","Zari","Fancy"],
+  "Rings":       ["Plain","Kundan","Stone Work","Pearl","Crystal","Oxidized","Antique","Band","Adjustable"],
+  "Bracelet":    ["Plain","Kundan","Stone Work","Pearl","Crystal","Charm","Beaded","Tennis","Oxidized","Antique","Evil Eye"],
+  "Nose Ring":   ["Plain","Stone Work","Kundan","Pearl","Oxidized","Antique","Traditional","Bridal"],
+  "Other":       ["Plain","Kundan","Stone Work","Metal","Crystal","Oxidized","Antique","Beaded"],
+}
 
 function authHeaders() {
   const t = getToken()
@@ -26,70 +82,598 @@ async function fetchSummary() {
   try { return await apiFetch("/bangle/stock-summary") } catch { return null }
 }
 
-// ── Add Product Modal ──────────────────────────────────────
+// ── Shared chip toggle helpers ─────────────────────────────
+function Chip({ label, active, onClick }) {
+  return (
+    <button onClick={onClick}
+      className="px-2 py-1 rounded-full text-[11px] font-medium border transition-all"
+      style={{
+        background:  active ? "var(--jade,#1D9E75)" : "var(--bg2,#f5f5f5)",
+        color:       active ? "#fff"                : "var(--ink-dim,#555)",
+        borderColor: active ? "var(--jade,#1D9E75)" : "transparent",
+      }}>
+      {label}
+    </button>
+  )
+}
+
+function toggleArr(arr, setArr, val) {
+  setArr(a => a.includes(val) ? a.filter(x => x !== val) : [...a, val])
+}
+
+// ── Add Product Modal — 2-step wizard ─────────────────────
 function AddProductModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name:"", category:"Bangles", mrp:"", cost_price:"", gst_percent:3 })
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState("")
+  const [step, setStep]           = useState(1)
+  const [form, setForm]           = useState({ name:"", category:"Bangles", mrp:"", cost_price:"", gst_percent:3 })
+  const [loading, setLoading]     = useState(false)
+  const [err, setErr]             = useState("")
+  const [voiceLang, setVoiceLang] = useState(() => getSavedLang() || "hi-IN")
+  const [flashField, setFlashField] = useState(null)
+  const [selColours, setSelColours] = useState([])
+  const [selSizes,   setSelSizes]   = useState([])
+  const [selDesigns, setSelDesigns] = useState([])
+  const [stockPer,   setStockPer]   = useState("")
+
+  // Smart Add state
+  const [smartText,    setSmartText]    = useState("")
+  const [smartParsing, setSmartParsing] = useState(false)
+  const [smartResult,  setSmartResult]  = useState(null)  // parsed preview
+  const [smartErr,     setSmartErr]     = useState("")
+  const [smartListening, setSmartListening] = useState(false)
+  const [cameraScanning, setCameraScanning] = useState(false)
+  const [cameraPreview,  setCameraPreview]  = useState(null)  // data URL for thumbnail
+  const smartRecRef  = useRef(null)
+  const cameraInputRef = useRef(null)
+
   const set = (k,v) => setForm(f => ({...f,[k]:v}))
 
-  async function save() {
-    if (!form.name.trim()) { setErr("Name is required"); return }
+  const hasVariants  = selColours.length > 0 || selSizes.length > 0 || selDesigns.length > 0
+  const variantCount = Math.max(1, selColours.length||1)
+    * Math.max(1, selSizes.length||1)
+    * Math.max(1, selDesigns.length||1)
+  const activeSizes   = CATEGORY_SIZES[form.category]   || CATEGORY_SIZES["Other"]
+  const activeDesigns = CATEGORY_DESIGNS[form.category] || CATEGORY_DESIGNS["Other"]
+  const sizeLabel     = SIZE_LABEL[form.category] || "SIZE"
+
+  useEffect(() => { setSelSizes([]); setSelDesigns([]) }, [form.category])
+  useEffect(() => {
+    if (!flashField) return
+    const t = setTimeout(() => setFlashField(null), 1500)
+    return () => clearTimeout(t)
+  }, [flashField])
+
+  async function parseSmartText(text) {
+    if (!text?.trim()) return
+    setSmartParsing(true); setSmartErr(""); setSmartResult(null)
+    try {
+      // Step 1: local parser (free, offline)
+      let result = parseProductDescription(text)
+
+      // Step 2: Gemini Flash fallback if local confidence is low
+      if (!result || result.confidence < 0.5) {
+        try {
+          result = await geminiParseProduct(text)
+        } catch {
+          // Gemini not available (no API key or network error) — use local result anyway
+        }
+      }
+
+      if (result && (result.name || result.category || result.mrp)) {
+        setSmartResult(result)
+      } else {
+        setSmartErr("Could not understand. Try: \"Red Kundan bangle, size 2.4, MRP 2500, cost 1800\"")
+      }
+    } catch (e) {
+      setSmartErr("Parse error — try manual entry below.")
+    } finally {
+      setSmartParsing(false)
+    }
+  }
+
+  function applySmartResult(result) {
+    if (!result) return
+    if (result.name)       set("name", result.name)
+    if (result.category)   set("category", result.category)
+    if (result.mrp)        set("mrp", String(result.mrp))
+    if (result.cost_price) set("cost_price", String(result.cost_price))
+    if (result.gst_percent != null) set("gst_percent", result.gst_percent)
+    if (result.colours?.length) setSelColours(result.colours)
+    if (result.sizes?.length)   setSelSizes(result.sizes)
+    if (result.designs?.length) setSelDesigns(result.designs)
+    setSmartResult(null); setSmartText(""); setCameraPreview(null)
+    // If variants found, advance to step 2 automatically
+    if (result.colours?.length || result.sizes?.length || result.designs?.length) {
+      setStep(2)
+    }
+  }
+
+  function startSmartVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { setSmartErr("Voice not supported in this browser. Use Chrome."); return }
+    setSmartListening(true); setSmartErr("")
+    const rec = new SR()
+    rec.lang = voiceLang; rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 1
+    rec.onend  = () => setSmartListening(false)
+    rec.onerror = (e) => { setSmartListening(false); if (e.error !== "aborted") setSmartErr("Mic error — try again.") }
+    rec.onresult = (e) => {
+      const t = e.results[0][0].transcript.trim()
+      setSmartText(t)
+      parseSmartText(t)
+    }
+    smartRecRef.current = rec
+    try { rec.start() } catch { setSmartListening(false) }
+  }
+
+  function stopSmartVoice() {
+    try { smartRecRef.current?.stop() } catch {}
+    setSmartListening(false)
+  }
+
+  async function handleCameraCapture(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Reset input so same file can be re-selected
+    e.target.value = ""
+
+    setCameraScanning(true); setSmartErr(""); setSmartResult(null)
+    try {
+      const { base64, mimeType, preview } = await fileToBase64(file)
+      setCameraPreview(preview)
+      const result = await scanImageForProduct(base64, mimeType)
+      if (result && (result.name || result.category || result.mrp)) {
+        setSmartResult(result)
+      } else {
+        setSmartErr("Could not read the image. Try better lighting or a clearer photo.")
+      }
+    } catch (err) {
+      setSmartErr(`Scan failed: ${err.message}`)
+      setCameraPreview(null)
+    } finally {
+      setCameraScanning(false)
+    }
+  }
+
+  function goNext() {
+    if (!form.name.trim()) { setErr("Product name is required"); return }
+    setErr(""); setStep(2)
+  }
+
+  async function saveProduct(withVariants) {
     setLoading(true); setErr("")
     try {
       const p = await apiFetch("/bangle/products", {
         method:"POST",
         body: JSON.stringify({...form, mrp:+form.mrp||0, cost_price:+form.cost_price||0})
       })
+      if (withVariants && hasVariants) {
+        await apiFetch(`/bangle/products/${p.id}/variants/bulk`, {
+          method:"POST",
+          body: JSON.stringify({
+            colours: selColours, sizes: selSizes, designs: selDesigns,
+            stock_per_variant: +stockPer||0,
+          })
+        })
+      }
+      learnProduct({
+        category: form.category,
+        colours:  selColours, sizes: selSizes, designs: selDesigns,
+        mrp: +form.mrp||0, cost_price: +form.cost_price||0,
+      })
       onSaved(p)
     } catch(e) { setErr(e.message) }
     finally { setLoading(false) }
   }
 
+  const flash = (f) => flashField===f
+    ? { transition:"background-color 0.3s ease", backgroundColor:"rgba(43,158,110,0.18)" }
+    : { transition:"background-color 0.3s ease" }
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={e => e.target===e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-        <div className="flex justify-between items-center mb-4">
-          <div className="text-sm font-bold" style={{color:"var(--ink)"}}>Add New Product</div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+      <style>{`
+        @keyframes voice-ring {
+          0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.45),0 4px 16px rgba(239,68,68,.25); }
+          50%    { box-shadow:0 0 0 14px rgba(239,68,68,0),0 6px 24px rgba(239,68,68,.1); }
+        }
+      `}</style>
+
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl flex flex-col max-h-[92vh]">
+
+        {/* ── Sticky header ── */}
+        <div className="px-5 pt-5 pb-4 border-b" style={{borderColor:"var(--rule,#e5e7eb)"}}>
+
+          {/* Title row */}
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <div className="text-sm font-bold" style={{color:"var(--ink)"}}>
+                {step===1 ? "Add New Product" : form.name || "Add Variants"}
+              </div>
+              {step===2 && (
+                <div className="text-[11px] mt-0.5" style={{color:"var(--ink-faint)"}}>
+                  {form.category} &nbsp;·&nbsp; MRP {form.mrp ? INR(form.mrp) : "—"}
+                  {form.cost_price ? ` · Cost ${INR(form.cost_price)}` : ""}
+                </div>
+              )}
+            </div>
+            <button onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          </div>
+
+          {/* Step indicator */}
+          <div style={{display:"flex", alignItems:"center", gap:0}}>
+            {[{n:1,label:"Details"},{n:2,label:"Variants"}].map(({n,label},i)=>(
+              <React.Fragment key={n}>
+                {i>0 && (
+                  <div style={{
+                    flex:1, height:2, margin:"0 6px",
+                    background: step>=2 ? "var(--saffron)" : "var(--rule,#e5e7eb)",
+                    transition:"background 0.3s",
+                  }}/>
+                )}
+                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                  <div style={{
+                    width:22, height:22, borderRadius:"50%", flexShrink:0,
+                    fontSize:10, fontWeight:800,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    background: step>n ? "var(--jade,#1D9E75)" : step===n ? "var(--saffron)" : "transparent",
+                    color:       step>=n ? "#fff" : "var(--ink-faint,#9ca3af)",
+                    border:      step<n  ? "1.5px solid var(--rule,#e5e7eb)" : "none",
+                    transition:"all 0.3s",
+                  }}>
+                    {step>n ? "✓" : n}
+                  </div>
+                  <span style={{
+                    fontSize:11, fontWeight: step===n ? 700 : 400,
+                    color: step===n ? "var(--ink)" : "var(--ink-faint,#9ca3af)",
+                    transition:"all 0.3s",
+                  }}>{label}</span>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
         </div>
-        <div className="space-y-3">
-          <div>
-            <label className="label">Product Name *</label>
-            <input className="input" placeholder="e.g. Kundan Bangle" value={form.name}
-              onChange={e=>set("name",e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Category</label>
-            <select className="input" value={form.category} onChange={e=>set("category",e.target.value)}>
-              {CATS.map(c=><option key={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="label">MRP (₹)</label>
-              <input className="input" type="number" min="0" placeholder="0" value={form.mrp}
-                onChange={e=>set("mrp",e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Cost (₹)</label>
-              <input className="input" type="number" min="0" placeholder="0" value={form.cost_price}
-                onChange={e=>set("cost_price",e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="label">GST %</label>
-            <select className="input" value={form.gst_percent} onChange={e=>set("gst_percent",+e.target.value)}>
-              {[0,3,5,12,18].map(g=><option key={g} value={g}>{g}%</option>)}
-            </select>
-          </div>
-          {err && <p className="text-red-500 text-xs">{err}</p>}
-          <button onClick={save} disabled={loading}
-            className="w-full py-2 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-            style={{background:"linear-gradient(135deg,#0F6E56,#1D9E75)"}}>
-            {loading ? "Saving..." : "Create Product"}
-          </button>
+
+        {/* ── Scrollable body ── */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+
+          {/* ── STEP 1: Basic details ── */}
+          {step===1 && (
+            <>
+              {/* Smart Add panel */}
+              <div style={{
+                background:"var(--bg2,#f9fafb)", border:"1.5px solid var(--rule,#e5e7eb)",
+                borderRadius:14, padding:"12px 14px",
+              }}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
+                  <span style={{fontSize:11, fontWeight:700, color:"var(--ink)"}}>
+                    ⚡ Smart Add <span style={{fontWeight:400, color:"var(--ink-faint)"}}>— describe in one line</span>
+                  </span>
+                  {/* Language picker for mic */}
+                  <div style={{display:"flex", gap:3, flexWrap:"wrap", justifyContent:"flex-end"}}>
+                    {VOICE_LANGS.map(l=>(
+                      <button key={l.code} onClick={()=>setVoiceLang(l.code)} title={l.name}
+                        style={{
+                          padding:"1px 7px", borderRadius:20, fontSize:10, fontWeight:700, cursor:"pointer",
+                          background: voiceLang===l.code ? "var(--saffron)" : "transparent",
+                          color:       voiceLang===l.code ? "#fff"          : "var(--ink-faint,#9ca3af)",
+                          border:`1px solid ${voiceLang===l.code?"var(--saffron)":"var(--rule,#e5e7eb)"}`,
+                        }}>
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{position:"relative"}}>
+                  <textarea
+                    value={smartText}
+                    onChange={e => setSmartText(e.target.value)}
+                    onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); parseSmartText(smartText) } }}
+                    placeholder={'e.g. "Red Kundan bangle, size 2.4, MRP 2500, cost 1800"'}
+                    rows={2}
+                    style={{
+                      width:"100%", boxSizing:"border-box",
+                      borderRadius:8, border:"1px solid var(--rule,#e5e7eb)",
+                      padding:"7px 10px", fontSize:12, resize:"none",
+                      background:"#fff", color:"var(--ink)",
+                      outline:"none",
+                    }}
+                  />
+                </div>
+                {/* Hidden camera file input — opens rear camera on mobile */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{display:"none"}}
+                  onChange={handleCameraCapture}
+                />
+
+                <div style={{display:"flex", gap:6, marginTop:8}}>
+                  <button
+                    onClick={() => parseSmartText(smartText)}
+                    disabled={smartParsing || cameraScanning || !smartText.trim()}
+                    style={{
+                      flex:1, padding:"6px 0", borderRadius:8, border:"none", cursor:"pointer",
+                      background: smartParsing ? "#ccc" : "linear-gradient(135deg,#0F6E56,#1D9E75)",
+                      color:"#fff", fontSize:12, fontWeight:700,
+                      opacity: smartText.trim() ? 1 : 0.55,
+                    }}>
+                    {smartParsing ? "Parsing…" : "⚡ Parse"}
+                  </button>
+                  <button
+                    onClick={smartListening ? stopSmartVoice : startSmartVoice}
+                    disabled={cameraScanning}
+                    style={{
+                      padding:"6px 12px", borderRadius:8, border:"none", cursor:"pointer",
+                      background: smartListening
+                        ? "linear-gradient(135deg,#ef4444,#dc2626)"
+                        : "linear-gradient(135deg,#e87722,#c47f00)",
+                      color:"#fff", fontSize:13,
+                      animation: smartListening ? "voice-ring 1.2s ease-in-out infinite" : "none",
+                    }}
+                    title={smartListening ? "Stop recording" : "Speak product description"}>
+                    {smartListening ? "⏹" : "🎤"}
+                  </button>
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={cameraScanning || smartParsing}
+                    style={{
+                      padding:"6px 12px", borderRadius:8, border:"none", cursor:"pointer",
+                      background: cameraScanning
+                        ? "#ccc"
+                        : "linear-gradient(135deg,#6366f1,#4f46e5)",
+                      color:"#fff", fontSize:15,
+                    }}
+                    title="Take photo of price tag or product">
+                    {cameraScanning ? "⏳" : "📷"}
+                  </button>
+                </div>
+                {smartListening && (
+                  <div style={{fontSize:11, color:"#ef4444", textAlign:"center", marginTop:6, fontWeight:600}}>
+                    Listening… speak your product description
+                  </div>
+                )}
+                {smartErr && (
+                  <div style={{fontSize:11, color:"#ef4444", marginTop:6, lineHeight:1.4}}>{smartErr}</div>
+                )}
+                {/* Camera scanning indicator */}
+                {cameraScanning && (
+                  <div style={{
+                    marginTop:10, textAlign:"center", padding:"14px 0",
+                    background:"#f0f0ff", borderRadius:10, border:"1.5px solid #6366f1",
+                  }}>
+                    <div style={{fontSize:22, marginBottom:4}}>📷</div>
+                    <div style={{fontSize:12, fontWeight:700, color:"#6366f1"}}>Reading image…</div>
+                    <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:2}}>Gemini Vision is scanning</div>
+                  </div>
+                )}
+
+                {/* Parsed result preview card */}
+                {smartResult && (
+                  <div style={{
+                    marginTop:10, background:"#fff", border:"1.5px solid #1D9E75",
+                    borderRadius:10, padding:"10px 12px",
+                  }}>
+                    <div style={{display:"flex", gap:10, alignItems:"flex-start"}}>
+                      {/* Camera thumbnail */}
+                      {cameraPreview && (
+                        <img src={cameraPreview} alt="scanned"
+                          style={{
+                            width:56, height:56, objectFit:"cover",
+                            borderRadius:8, flexShrink:0,
+                            border:"1px solid var(--rule,#e5e7eb)",
+                          }} />
+                      )}
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:11, fontWeight:700, color:"#1D9E75", marginBottom:5}}>
+                          {smartResult.source === "gemini-vision" ? "📷 Scanned" : "✅ Parsed"} — tap Confirm to fill form
+                        </div>
+                        <div style={{fontSize:11, color:"var(--ink)", lineHeight:1.8}}>
+                          {smartResult.name     && <div><b>Name:</b> {smartResult.name}</div>}
+                          {smartResult.category && <div><b>Category:</b> {smartResult.category}</div>}
+                          {smartResult.mrp      && <div><b>MRP:</b> {INR(smartResult.mrp)}</div>}
+                          {smartResult.cost_price && <div><b>Cost:</b> {INR(smartResult.cost_price)}</div>}
+                          {smartResult.colours?.length > 0 && <div><b>Colours:</b> {smartResult.colours.join(", ")}</div>}
+                          {smartResult.sizes?.length   > 0 && <div><b>Sizes:</b> {smartResult.sizes.join(", ")}</div>}
+                          {smartResult.designs?.length > 0 && <div><b>Design:</b> {smartResult.designs.join(", ")}</div>}
+                          <div style={{fontSize:10, color:"var(--ink-faint)", marginTop:2}}>
+                            via {smartResult.source === "gemini-vision" ? "Gemini Vision" : smartResult.source === "gemini" ? "Gemini AI" : "local parser"}
+                            {" · "}{Math.round((smartResult.confidence||0)*100)}% confidence
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex", gap:6, marginTop:8}}>
+                      <button onClick={() => { setSmartResult(null); setCameraPreview(null) }}
+                        style={{
+                          flex:1, padding:"5px 0", borderRadius:7, fontSize:11, fontWeight:600, cursor:"pointer",
+                          border:"1px solid var(--rule,#e5e7eb)", background:"transparent",
+                          color:"var(--ink-dim)",
+                        }}>Discard</button>
+                      <button onClick={() => applySmartResult(smartResult)}
+                        style={{
+                          flex:2, padding:"5px 0", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer",
+                          background:"linear-gradient(135deg,#0F6E56,#1D9E75)", color:"#fff", border:"none",
+                        }}>Confirm →</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                display:"flex", alignItems:"center", gap:8,
+                color:"var(--ink-faint,#9ca3af)", fontSize:10, fontWeight:600,
+              }}>
+                <div style={{flex:1, height:1, background:"var(--rule,#e5e7eb)"}}/>
+                OR FILL MANUALLY
+                <div style={{flex:1, height:1, background:"var(--rule,#e5e7eb)"}}/>
+              </div>
+
+              <div>
+                <label className="label">Product Name *</label>
+                <input className="input" placeholder="e.g. Kundan Bangle, Pearl Earrings…"
+                  value={form.name} onChange={e=>set("name",e.target.value)}
+                  style={flash("name")} />
+              </div>
+              <div>
+                <label className="label">Category</label>
+                <select className="input" value={form.category}
+                  onChange={e=>set("category",e.target.value)} style={flash("category")}>
+                  {CATS.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label">MRP (₹)</label>
+                  <input className="input" type="number" min="0" placeholder="0"
+                    value={form.mrp} onChange={e=>set("mrp",e.target.value)}
+                    style={flash("mrp")} />
+                </div>
+                <div>
+                  <label className="label">Cost (₹)</label>
+                  <input className="input" type="number" min="0" placeholder="0"
+                    value={form.cost_price} onChange={e=>{
+                      set("cost_price",e.target.value)
+                      if (!form.mrp) {
+                        const suggested = suggestMRP(+e.target.value, form.category)
+                        if (suggested > 0) set("mrp", String(suggested))
+                      }
+                    }}
+                    style={flash("cost_price")} />
+                </div>
+              </div>
+              <div>
+                <label className="label">GST %</label>
+                <select className="input" value={form.gst_percent}
+                  onChange={e=>set("gst_percent",+e.target.value)} style={flash("gst_percent")}>
+                  {[0,3,5,12,18].map(g=><option key={g} value={g}>{g}%</option>)}
+                </select>
+              </div>
+
+              {err && <p className="text-red-500 text-xs">{err}</p>}
+
+              {/* Step 1 actions */}
+              <div style={{display:"flex", gap:8, paddingTop:4}}>
+                <button onClick={()=>saveProduct(false)} disabled={loading}
+                  className="flex-1 py-2 rounded-xl text-sm font-semibold disabled:opacity-60"
+                  style={{
+                    border:"1.5px solid var(--rule,#e5e7eb)",
+                    color:"var(--ink-dim,#6b7280)",
+                    background:"transparent",
+                  }}>
+                  {loading ? "Saving…" : "Save Only"}
+                </button>
+                <button onClick={goNext} disabled={loading}
+                  className="flex-1 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-60"
+                  style={{background:"linear-gradient(135deg,#0F6E56,#1D9E75)"}}>
+                  Add Variants →
+                </button>
+              </div>
+              <p className="text-[10px] text-center" style={{color:"var(--ink-faint,#9ca3af)"}}>
+                "Save Only" for single items &nbsp;·&nbsp; "Add Variants" for multiple colours/sizes
+              </p>
+            </>
+          )}
+
+          {/* ── STEP 2: Variants ── */}
+          {step===2 && (
+            <>
+              {/* Colours */}
+              <div style={{borderRadius:8, padding:"2px 0", ...flash("colours")}}>
+                <div className="text-[10px] font-bold mb-1.5" style={{color:"var(--ink-faint)"}}>COLOURS</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOURS.map(c=>(
+                    <Chip key={c} label={c}
+                      active={selColours.includes(c)}
+                      onClick={()=>toggleArr(selColours,setSelColours,c)} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Sizes — label + options from category */}
+              <div style={{borderRadius:8, padding:"2px 0", ...flash("sizes")}}>
+                <div className="text-[10px] font-bold mb-1.5" style={{color:"var(--ink-faint)"}}>
+                  {sizeLabel}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeSizes.map(s=>(
+                    <Chip key={s} label={s}
+                      active={selSizes.includes(s)}
+                      onClick={()=>toggleArr(selSizes,setSelSizes,s)} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Designs */}
+              <div style={{borderRadius:8, padding:"2px 0", ...flash("designs")}}>
+                <div className="text-[10px] font-bold mb-1.5" style={{color:"var(--ink-faint)"}}>
+                  DESIGN <span style={{fontWeight:400}}>(optional)</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeDesigns.map(d=>(
+                    <Chip key={d} label={d}
+                      active={selDesigns.includes(d)}
+                      onClick={()=>toggleArr(selDesigns,setSelDesigns,d)} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Stock — only shows once a chip is selected */}
+              {hasVariants && (
+                <div style={{
+                  background:"var(--bg2,#f9fafb)", borderRadius:12,
+                  border:"1px solid var(--rule,#e5e7eb)", padding:"12px 14px",
+                }}>
+                  <label className="label">Opening Stock per Variant</label>
+                  <div style={{display:"flex", alignItems:"center", gap:8}}>
+                    <input className="input" type="number" min="0" placeholder="0"
+                      value={stockPer} onChange={e=>setStockPer(e.target.value)}
+                      style={{flex:1, ...flash("stock_per")}} />
+                    <span style={{fontSize:11, color:"var(--ink-faint)", whiteSpace:"nowrap"}}>
+                      ×{variantCount} = {variantCount*(+stockPer||0)} pcs
+                    </span>
+                  </div>
+                  <p style={{fontSize:10, color:"var(--jade,#1D9E75)", marginTop:6, fontWeight:600}}>
+                    {variantCount} variant{variantCount>1?"s":""} will be created
+                  </p>
+                </div>
+              )}
+
+              {!hasVariants && (
+                <p className="text-[11px] text-center py-2" style={{color:"var(--ink-faint,#9ca3af)"}}>
+                  Select colours / sizes above to create variants
+                </p>
+              )}
+
+              {err && <p className="text-red-500 text-xs">{err}</p>}
+
+              {/* Step 2 actions */}
+              <div style={{display:"flex", gap:8, paddingTop:4}}>
+                <button onClick={()=>{setStep(1);setErr("")}}
+                  className="py-2 rounded-xl text-sm font-semibold"
+                  style={{
+                    padding:"8px 16px",
+                    border:"1.5px solid var(--rule,#e5e7eb)",
+                    color:"var(--ink-dim,#6b7280)",
+                    background:"transparent",
+                  }}>
+                  ← Back
+                </button>
+                <button onClick={()=>saveProduct(true)} disabled={loading}
+                  className="flex-1 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-60"
+                  style={{background:"linear-gradient(135deg,#0F6E56,#1D9E75)"}}>
+                  {loading
+                    ? "Saving…"
+                    : hasVariants
+                      ? `Save + ${variantCount} Variant${variantCount>1?"s":""}`
+                      : "Save Product"}
+                </button>
+              </div>
+            </>
+          )}
+
         </div>
       </div>
     </div>
@@ -108,10 +692,6 @@ function AddVariantsModal({ product, onClose, onSaved }) {
 
   // Single variant
   const [single, setSingle] = useState({colour:"",size:"",design:"",stock:0})
-
-  function toggleArr(arr, setArr, val) {
-    setArr(a => a.includes(val) ? a.filter(x=>x!==val) : [...a, val])
-  }
 
   const matrixCount = Math.max(1,selColours.length||1) * Math.max(1,selSizes.length||1) * Math.max(1,selDesigns.length||1)
 
@@ -143,18 +723,6 @@ function AddVariantsModal({ product, onClose, onSaved }) {
     } catch(e) { setErr(e.message) }
     finally { setLoading(false) }
   }
-
-  const Chip = ({label, active, onClick}) => (
-    <button onClick={onClick}
-      className="px-2 py-1 rounded-full text-[11px] font-medium border transition-all"
-      style={{
-        background: active ? "var(--jade,#1D9E75)" : "var(--bg2,#f5f5f5)",
-        color: active ? "#fff" : "var(--ink-dim,#555)",
-        borderColor: active ? "var(--jade,#1D9E75)" : "transparent"
-      }}>
-      {label}
-    </button>
-  )
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
@@ -193,15 +761,18 @@ function AddVariantsModal({ product, onClose, onSaved }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs font-bold mb-2" style={{color:"var(--ink-dim)"}}>SIZES</div>
+                <div className="text-xs font-bold mb-2" style={{color:"var(--ink-dim)"}}>
+                  {SIZE_LABEL[product.category] || "SIZE"}
+                </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {SIZES.map(s=><Chip key={s} label={s} active={selSizes.includes(s)} onClick={()=>toggleArr(selSizes,setSelSizes,s)}/>)}
+                  {(CATEGORY_SIZES[product.category] || CATEGORY_SIZES["Other"])
+                    .map(s=><Chip key={s} label={s} active={selSizes.includes(s)} onClick={()=>toggleArr(selSizes,setSelSizes,s)}/>)}
                 </div>
               </div>
               <div>
-                <div className="text-xs font-bold mb-2" style={{color:"var(--ink-dim)"}}>DESIGNS (optional)</div>
+                <div className="text-xs font-bold mb-2" style={{color:"var(--ink-dim)"}}>DESIGN (optional)</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {DESIGNS.map(d=><Chip key={d} label={d} active={selDesigns.includes(d)} onClick={()=>toggleArr(selDesigns,setSelDesigns,d)}/>)}
+                  {(CATEGORY_DESIGNS[product.category] || CATEGORY_DESIGNS["Other"]).map(d=><Chip key={d} label={d} active={selDesigns.includes(d)} onClick={()=>toggleArr(selDesigns,setSelDesigns,d)}/>)}
                 </div>
               </div>
               <div>
@@ -362,6 +933,7 @@ function ProductCard({ product, onAddVariants, onStockChange }) {
 
 // ── Main Page ──────────────────────────────────────────────
 export default function BangleInventory() {
+  const navigate = useNavigate()
   const [products,   setProducts]   = useState([])
   const [loading,    setLoading]    = useState(true)
   const [category,   setCategory]   = useState("All")
@@ -426,7 +998,7 @@ export default function BangleInventory() {
           <div style={{fontSize:11,color:"var(--ink-faint)"}}>Variants by colour, size &amp; design</div>
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>window.location.href="/bangle-bulk-import"}
+          <button onClick={()=>navigate("/bangle-bulk-import")}
             style={{background:"var(--bg2)",color:"var(--ink-dim)",border:"none",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
             📦 Bulk Import
           </button>
