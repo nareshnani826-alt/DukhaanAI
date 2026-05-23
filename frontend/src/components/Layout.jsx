@@ -27,9 +27,12 @@ const KIRANA_NAV = [
 ]
 
 const BANGLE_NAV = [
+  { label:"Home", to:"/bangle-dashboard",
+    icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>,
+    sub:null },
   { label:"Inventory", to:"/bangle-inventory",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>,
-    sub:[{to:"/bangle-inventory",label:"💍 Stock"},{to:"/bangle-billing",label:"🧾 Billing"},{to:"/bangle-festivals",label:"🗓️ Festival Calendar"}] },
+    sub:[{to:"/bangle-inventory",label:"💍 Stock"},{to:"/bangle-billing",label:"🧾 Billing"},{to:"/bangle-festivals",label:"🗓️ Festival Calendar"},{to:"/bangle-insights",label:"📊 Insights"}] },
   { label:"Assistant", to:"/voice",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
     sub:null },
@@ -44,7 +47,7 @@ const BANGLE_MOB_TABS = [
   { to:"/bangle-billing", label:"Bill",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
   { to:"/voice", label:"", voice:true },
-  { to:"/dashboard", label:"Home",
+  { to:"/bangle-dashboard", label:"Home",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg> },
   { to:"/more", label:"More",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
@@ -538,7 +541,7 @@ export default function Layout({ children }) {
     if (vendor && newMode === "bangle_fancy") {
       const BANGLE_ROUTES = ["/bangle", "/voice", "/more", "/settings", "/help", "/install"]
       const onBangleRoute = BANGLE_ROUTES.some(r => location.pathname.startsWith(r))
-      if (!onBangleRoute) navigate("/bangle-inventory")
+      if (!onBangleRoute) navigate("/bangle-dashboard")
     }
   }, [vendor, hasBangle, hasKirana])
 
@@ -777,7 +780,7 @@ export default function Layout({ children }) {
             </div>
           )
           const PRIMARY = storeMode === "bangle_fancy"
-            ? ["/bangle-inventory", "/bangle-billing", "/voice", "/dashboard"]
+            ? ["/bangle-inventory", "/bangle-billing", "/voice", "/bangle-dashboard"]
             : ["/dashboard", "/billing", "/voice", "/demand"]
           const on = tab.to === "/more"
             ? !PRIMARY.some(p => location.pathname.startsWith(p)) && location.pathname !== "/"

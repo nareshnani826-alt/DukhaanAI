@@ -351,3 +351,205 @@ async def get_sale(sale_id: str, vendor=Depends(get_current_vendor)):
     if not row.data:
         raise HTTPException(status_code=404, detail="Sale not found")
     return row.data[0]
+
+
+# ── Insights ──────────────────────────────────────────────────
+from collections import defaultdict
+from datetime import timedelta
+
+@router.get("/insights/velocity")
+async def bangle_velocity(
+    days: int = Query(30, ge=7, le=90),
+    vendor=Depends(get_current_vendor),
+):
+    """Top-selling colours, sizes and designs by pieces sold."""
+    db    = get_db()
+    since = (date_type.today() - timedelta(days=days)).isoformat()
+    sales = (
+        db.table("bangle_sales").select("items,sale_date")
+        .eq("vendor_id", vendor["id"]).gte("sale_date", since).execute()
+    ).data or []
+
+    colour_map: dict = defaultdict(int)
+    size_map:   dict = defaultdict(int)
+    design_map: dict = defaultdict(int)
+    total_pieces = 0
+
+    for sale in sales:
+        for item in (sale.get("items") or []):
+            pcs = int(item.get("pieces") or 0)
+            total_pieces += pcs
+            if item.get("colour"): colour_map[item["colour"]] += pcs
+            if item.get("size"):   size_map[item["size"]]     += pcs
+            if item.get("design"): design_map[item["design"]] += pcs
+
+    return {
+        "period_days":   days,
+        "total_pieces":  total_pieces,
+        "top_colours":   [{"label": k, "pieces": v} for k, v in sorted(colour_map.items(), key=lambda x: -x[1])[:10]],
+        "top_sizes":     [{"label": k, "pieces": v} for k, v in sorted(size_map.items(),   key=lambda x: -x[1])[:8]],
+        "top_designs":   [{"label": k, "pieces": v} for k, v in sorted(design_map.items(), key=lambda x: -x[1])[:8]],
+    }
+
+
+@router.get("/insights/dead-stock")
+async def bangle_dead_stock(
+    days: int = Query(30, ge=7, le=90),
+    vendor=Depends(get_current_vendor),
+):
+    """Variants with stock > 0 but zero sales in the last N days."""
+    db    = get_db()
+    since = (date_type.today() - timedelta(days=days)).isoformat()
+
+    variants = (
+        db.table("bangle_variants").select("id,colour,size,design,stock,min_stock,cost_price,product_id")
+        .eq("vendor_id", vendor["id"]).eq("is_active", True).gt("stock", 0).execute()
+    ).data or []
+
+    sales = (
+        db.table("bangle_sales").select("items")
+        .eq("vendor_id", vendor["id"]).gte("sale_date", since).execute()
+    ).data or []
+
+    sold_ids: set = set()
+    for sale in sales:
+        for item in (sale.get("items") or []):
+            if item.get("variant_id"):
+                sold_ids.add(item["variant_id"])
+
+    # Fetch product names for context
+    product_ids = list({v["product_id"] for v in variants})
+    products    = {}
+    if product_ids:
+        rows = db.table("bangle_products").select("id,name").in_("id", product_ids).execute().data or []
+        products = {r["id"]: r["name"] for r in rows}
+
+    dead = []
+    for v in variants:
+        if v["id"] not in sold_ids:
+            cost = float(v.get("cost_price") or 0)
+            dead.append({
+                "variant_id":    v["id"],
+                "product_name":  products.get(v["product_id"], ""),
+                "colour":        v["colour"],
+                "size":          v["size"],
+                "design":        v["design"],
+                "stock":         v["stock"],
+                "blocked_value": round(v["stock"] * cost, 2),
+            })
+
+    dead.sort(key=lambda x: -x["blocked_value"])
+    return {
+        "period_days":    days,
+        "dead_count":     len(dead),
+        "total_blocked":  round(sum(d["blocked_value"] for d in dead), 2),
+        "items":          dead[:30],
+    }
+
+
+@router.get("/insights/profit")
+async def bangle_profit(vendor=Depends(get_current_vendor)):
+    """Today and month-to-date profit from bangle sales."""
+    db    = get_db()
+    today = date_type.today()
+    month_start = today.replace(day=1).isoformat()
+
+    sales = (
+        db.table("bangle_sales").select("total,items,sale_date")
+        .eq("vendor_id", vendor["id"]).gte("sale_date", month_start).execute()
+    ).data or []
+
+    # Fetch cost_price for all variants referenced in sales
+    all_variant_ids = list({
+        item["variant_id"]
+        for sale in sales for item in (sale.get("items") or [])
+        if item.get("variant_id")
+    })
+    variant_costs: dict = {}
+    if all_variant_ids:
+        rows = db.table("bangle_variants").select("id,cost_price") \
+            .in_("id", all_variant_ids).execute().data or []
+        variant_costs = {r["id"]: float(r.get("cost_price") or 0) for r in rows}
+
+    def calc(sale_list):
+        rev  = sum(float(s["total"]) for s in sale_list)
+        cost = sum(
+            float(item.get("pieces") or 0) * variant_costs.get(item.get("variant_id", ""), 0)
+            for s in sale_list for item in (s.get("items") or [])
+        )
+        profit = rev - cost
+        margin = (profit / rev * 100) if rev > 0 else 0
+        return {"revenue": round(rev, 2), "cost": round(cost, 2),
+                "profit": round(profit, 2), "margin_pct": round(margin, 1)}
+
+    today_str  = today.isoformat()
+    today_sales = [s for s in sales if s.get("sale_date", "")[:10] == today_str]
+
+    return {"today": calc(today_sales), "month": calc(sales)}
+
+
+@router.get("/insights/briefing")
+async def bangle_briefing(vendor=Depends(get_current_vendor)):
+    """All-in-one daily briefing card for bangle store dashboard."""
+    db    = get_db()
+    today = date_type.today()
+    since_30 = (today - timedelta(days=30)).isoformat()
+
+    # Today's sales
+    t_sales = (
+        db.table("bangle_sales").select("total,items")
+        .eq("vendor_id", vendor["id"]).eq("sale_date", today.isoformat()).execute()
+    ).data or []
+    t_revenue = round(sum(float(s["total"]) for s in t_sales), 2)
+    t_bills   = len(t_sales)
+    t_pieces  = sum(int(i.get("pieces", 0)) for s in t_sales for i in (s.get("items") or []))
+
+    # Today's top colour
+    colour_map: dict = defaultdict(int)
+    for sale in t_sales:
+        for item in (sale.get("items") or []):
+            if item.get("colour"):
+                colour_map[item["colour"]] += int(item.get("pieces", 0))
+    top_colour = max(colour_map, key=lambda k: colour_map[k]) if colour_map else None
+
+    # Low stock variants
+    low_stock = (
+        db.table("bangle_variants").select("id,colour,size,stock,min_stock")
+        .eq("vendor_id", vendor["id"]).eq("is_active", True).execute()
+    ).data or []
+    low_stock = [v for v in low_stock if v["stock"] < v["min_stock"]]
+    out_stock = [v for v in low_stock if v["stock"] == 0]
+
+    # Dead stock (30 days)
+    sold_ids: set = set()
+    recent_sales = (
+        db.table("bangle_sales").select("items")
+        .eq("vendor_id", vendor["id"]).gte("sale_date", since_30).execute()
+    ).data or []
+    for s in recent_sales:
+        for item in (s.get("items") or []):
+            if item.get("variant_id"):
+                sold_ids.add(item["variant_id"])
+    all_variants = (
+        db.table("bangle_variants").select("id,stock")
+        .eq("vendor_id", vendor["id"]).eq("is_active", True).gt("stock", 0).execute()
+    ).data or []
+    dead_count = sum(1 for v in all_variants if v["id"] not in sold_ids)
+
+    # Upcoming festival (next 60 days)
+    from app.routers.insights import get_upcoming_festivals
+    _, upcoming_fests = get_upcoming_festivals(days_ahead=60)
+    next_fest = upcoming_fests[0] if upcoming_fests else None
+
+    return {
+        "today": {
+            "revenue":    t_revenue,
+            "bills":      t_bills,
+            "pieces":     t_pieces,
+            "top_colour": top_colour,
+        },
+        "low_stock_count": len(low_stock),
+        "out_of_stock":    len(out_stock),
+        "dead_stock_count": dead_count,
+        "next_festival":   next_fest,
+    }

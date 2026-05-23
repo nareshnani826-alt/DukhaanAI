@@ -167,6 +167,31 @@ _INTENTS = [
         "tool": "get_monthly_sales",
         "args": {},
     },
+    # ── Bangle store intents ──────────────────────────────────────
+    {
+        "id": "bangle_velocity",
+        "keywords": [
+            # English
+            "bangle velocity", "top colour", "top color", "top selling colour",
+            "best colour", "which colour selling", "colour trend",
+            "top design", "best design", "top size", "which size selling",
+            "bangle trend", "bangle top", "colour demand",
+        ],
+        "tool": "get_bangle_velocity",
+        "args": {},
+    },
+    {
+        "id": "bangle_stock",
+        "keywords": [
+            # English
+            "bangle stock", "bangle low stock", "bangle out of stock",
+            "bangles running out", "bangle inventory", "bangle restock",
+            # Hindi
+            "bangle stock khatam", "bangle kam",
+        ],
+        "tool": "get_bangle_stock",
+        "args": {},
+    },
 ]
 
 
@@ -298,6 +323,36 @@ def _format_local(intent_id: str, data: dict) -> str:
             parts.append(f"🚨 {len(stolen)} theft record(s) — {INR(total)} potential loss")
         if high:
             parts.append("High-loss: " + ", ".join(p["product_name"] for p in high[:3]))
+        return "\n".join(parts)
+
+    if intent_id == "bangle_velocity":
+        total = data.get("total_pieces", 0)
+        if total == 0:
+            return "No bangle sales data in the last 30 days yet."
+        colours = data.get("top_colours", [])
+        sizes   = data.get("top_sizes", [])
+        designs = data.get("top_designs", [])
+        parts = [f"💍 Bangle velocity — last 30 days ({total} pieces sold):"]
+        if colours:
+            parts.append("🎨 Top colours: " + " | ".join(f"{c} ({p})" for c, p in colours[:4]))
+        if sizes:
+            parts.append("📐 Top sizes: "   + " | ".join(f"{s} ({p})" for s, p in sizes[:4]))
+        if designs:
+            parts.append("✨ Top designs: " + " | ".join(f"{d} ({p})" for d, p in designs[:4]))
+        return "\n".join(parts)
+
+    if intent_id == "bangle_stock":
+        out = data.get("out_count", 0)
+        low = data.get("low_count", 0)
+        if out == 0 and low == 0:
+            return "✅ All bangle variants are well stocked!"
+        parts = []
+        if out > 0:
+            sample = ", ".join(data.get("out_sample", []))
+            parts.append(f"🔴 Out of stock: {out} variant(s)" + (f" — {sample}" if sample else ""))
+        if low > 0:
+            sample = ", ".join(data.get("low_sample", []))
+            parts.append(f"🟡 Low stock: {low} variant(s)" + (f" — {sample}" if sample else ""))
         return "\n".join(parts)
 
     return str(data)
@@ -558,6 +613,39 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
         high = [{"product_name": v["name"], "total_loss": round(v["loss"], 2), "reasons": list(v["reasons"])} for v in wmap.values() if v["loss"] > 500]
         high.sort(key=lambda x: x["total_loss"], reverse=True)
         return {"stolen_records": stolen, "high_loss_products": high, "total_potential_leakage": round(sum(float(s.get("loss_value") or 0) for s in stolen), 2)}
+
+    if name == "get_bangle_velocity":
+        from datetime import timedelta
+        from collections import defaultdict
+        since = (date.today() - timedelta(days=30)).isoformat()
+        sales = db.table("bangle_sales").select("items").eq("vendor_id", vendor_id) \
+            .gte("sale_date", since).execute().data or []
+        colour_map: dict = defaultdict(int)
+        size_map:   dict = defaultdict(int)
+        design_map: dict = defaultdict(int)
+        total_pieces = 0
+        for sale in sales:
+            for item in (sale.get("items") or []):
+                pcs = int(item.get("pieces") or 0)
+                total_pieces += pcs
+                if item.get("colour"): colour_map[item["colour"]] += pcs
+                if item.get("size"):   size_map[item["size"]]     += pcs
+                if item.get("design"): design_map[item["design"]] += pcs
+        return {
+            "total_pieces": total_pieces,
+            "top_colours": sorted(colour_map.items(), key=lambda x: -x[1])[:5],
+            "top_sizes":   sorted(size_map.items(),   key=lambda x: -x[1])[:5],
+            "top_designs": sorted(design_map.items(), key=lambda x: -x[1])[:5],
+        }
+
+    if name == "get_bangle_stock":
+        variants = db.table("bangle_variants").select("colour,size,stock,min_stock,product_id") \
+            .eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
+        out  = [v for v in variants if (v.get("stock") or 0) == 0]
+        low  = [v for v in variants if 0 < (v.get("stock") or 0) < (v.get("min_stock") or 0)]
+        return {"out_count": len(out), "low_count": len(low),
+                "out_sample": [f"{v.get('colour','')} {v.get('size','')}".strip() for v in out[:5]],
+                "low_sample": [f"{v.get('colour','')} {v.get('size','')} ({v.get('stock')} left)".strip() for v in low[:5]]}
 
     return {"error": f"Unknown tool: {name}"}
 

@@ -1,0 +1,2 @@
+backend access: UPDATE vendors SET modules = '{"bangle_fancy"}' WHERE email = 'naresh826@yahoo.com';
+                UPDATE vendors SET modules = '{"kirana","bangle_fancy"}' WHERE email = 'naresh826@yahoo.com';
