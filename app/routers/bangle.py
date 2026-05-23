@@ -222,6 +222,134 @@ async def delete_variant(variant_id: str, vendor=Depends(get_current_vendor)):
     return {"message": "Variant deleted"}
 
 
+# ── Bulk product import ───────────────────────────────────────
+
+class BulkImportRow(BaseModel):
+    name: str
+    category: str = "Bangles"
+    mrp: float = 0
+    cost_price: float = 0
+    gst_percent: int = 3
+    colour: Optional[str] = None
+    size: Optional[str] = None
+    design: Optional[str] = None
+    stock: int = 0
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v):
+        v = v.strip()
+        if not v: raise ValueError("Name cannot be empty")
+        return v[:150]
+
+
+class BulkImportBody(BaseModel):
+    rows: list[BulkImportRow]
+
+
+@router.post("/products/bulk")
+async def bulk_import_products(body: BulkImportBody, vendor=Depends(get_current_vendor)):
+    """Bulk-import bangle products with variants. Rows with the same name share one product."""
+    db = get_db()
+    existing = (
+        db.table("bangle_products")
+        .select("id,name")
+        .eq("vendor_id", vendor["id"])
+        .eq("is_active", True)
+        .execute()
+    ).data or []
+    by_name: dict = {p["name"].lower().strip(): p["id"] for p in existing}
+
+    products_added = variants_added = failed = 0
+
+    for row in body.rows:
+        try:
+            key = row.name.lower().strip()
+            if key in by_name:
+                product_id = by_name[key]
+            else:
+                p = db.table("bangle_products").insert({
+                    "vendor_id":   vendor["id"],
+                    "name":        row.name,
+                    "category":    row.category,
+                    "mrp":         row.mrp,
+                    "cost_price":  row.cost_price,
+                    "gst_percent": row.gst_percent,
+                }).execute().data[0]
+                product_id = p["id"]
+                by_name[key] = product_id
+                products_added += 1
+
+            if row.colour or row.size or row.design or row.stock > 0:
+                db.table("bangle_variants").insert({
+                    "product_id": product_id,
+                    "vendor_id":  vendor["id"],
+                    "colour":     row.colour,
+                    "size":       row.size,
+                    "design":     row.design,
+                    "stock":      row.stock,
+                    "min_stock":  12,
+                }).execute()
+                variants_added += 1
+        except Exception:
+            failed += 1
+
+    return {
+        "products_added": products_added,
+        "variants_added": variants_added,
+        "failed":         failed,
+        "total":          len(body.rows),
+    }
+
+
+class RestockItem(BaseModel):
+    variant_id: str
+    qty: int
+
+
+class BulkRestockBody(BaseModel):
+    items: list[RestockItem]
+    mode: str = "add"  # "add" | "set"
+
+
+@router.post("/variants/bulk-restock")
+async def bulk_restock_variants(body: BulkRestockBody, vendor=Depends(get_current_vendor)):
+    """Set or add stock for multiple variants in one call."""
+    db = get_db()
+    updated = failed = 0
+
+    if body.mode == "add":
+        # Fetch all current stocks in one query
+        ids = [i.variant_id for i in body.items]
+        rows = (
+            db.table("bangle_variants")
+            .select("id,stock")
+            .in_("id", ids)
+            .eq("vendor_id", vendor["id"])
+            .execute()
+        ).data or []
+        current = {r["id"]: r["stock"] for r in rows}
+
+        for item in body.items:
+            try:
+                new_stock = max(0, current.get(item.variant_id, 0) + item.qty)
+                db.table("bangle_variants").update({"stock": new_stock}) \
+                    .eq("id", item.variant_id).eq("vendor_id", vendor["id"]).execute()
+                updated += 1
+            except Exception:
+                failed += 1
+    else:
+        for item in body.items:
+            try:
+                db.table("bangle_variants").update({"stock": max(0, item.qty)}) \
+                    .eq("id", item.variant_id).eq("vendor_id", vendor["id"]).execute()
+                updated += 1
+            except Exception:
+                failed += 1
+
+    return {"updated": updated, "failed": failed, "total": len(body.items)}
+
+
 # ── Stock summary ─────────────────────────────────────────────
 
 @router.get("/stock-summary")
@@ -552,4 +680,61 @@ async def bangle_briefing(vendor=Depends(get_current_vendor)):
         "out_of_stock":    len(out_stock),
         "dead_stock_count": dead_count,
         "next_festival":   next_fest,
+    }
+
+
+# ── Hyperlocal Trend Detector ─────────────────────────────────
+
+def _top_n(counter: dict, n: int) -> list:
+    return [
+        {"label": k, "pieces": v}
+        for k, v in sorted(counter.items(), key=lambda x: -x[1])[:n]
+    ]
+
+
+@router.get("/trends/community")
+async def community_trends(
+    days: int = Query(7, ge=1, le=30),
+    vendor=Depends(get_current_vendor),
+):
+    """
+    Aggregate colour/size/design sales across ALL bangle vendors.
+    Privacy: only totals returned — no vendor IDs, names, or prices exposed.
+    Authenticated vendors can see area-wide demand to spot stocking gaps.
+    """
+    db    = get_db()
+    since = (date_type.today() - timedelta(days=days)).isoformat()
+
+    # Pull all bangle sales in the period (every vendor)
+    all_sales = (
+        db.table("bangle_sales")
+        .select("vendor_id,items")
+        .gte("sale_date", since)
+        .execute()
+    ).data or []
+
+    colour_map:  dict = defaultdict(int)
+    size_map:    dict = defaultdict(int)
+    design_map:  dict = defaultdict(int)
+    vendor_ids:  set  = set()
+    total_pieces = 0
+
+    for sale in all_sales:
+        vendor_ids.add(sale.get("vendor_id"))
+        for item in (sale.get("items") or []):
+            pcs = int(item.get("pieces") or 0)
+            total_pieces += pcs
+            if item.get("colour"): colour_map[item["colour"]] += pcs
+            if item.get("size"):   size_map[item["size"]]     += pcs
+            if item.get("design"): design_map[item["design"]] += pcs
+
+    store_count = len(vendor_ids)
+
+    return {
+        "period_days":  days,
+        "store_count":  store_count,
+        "total_pieces": total_pieces,
+        "top_colours":  _top_n(colour_map, 10),
+        "top_sizes":    _top_n(size_map, 8),
+        "top_designs":  _top_n(design_map, 8),
     }

@@ -104,6 +104,56 @@ export const Products = {
     if (isCloud()) return api.get("/products/low-stock")
     return localRead().products.filter(p => p.is_active !== false && p.stock < p.min_stock).sort((a,b) => a.stock - b.stock)
   },
+  async bulkImport(items) {
+    if (isCloud()) return api.post("/products/bulk", { items })
+    // Local mode: upsert by name
+    const d = localRead()
+    const byName = {}
+    d.products.filter(p => p.is_active !== false).forEach(p => { byName[p.name.toLowerCase().trim()] = p })
+    let added = 0, updated = 0, failed = 0
+    for (const item of items) {
+      try {
+        const key = item.name.toLowerCase().trim()
+        if (byName[key]) {
+          const ex = byName[key]
+          const idx = d.products.findIndex(p => p.id === ex.id)
+          d.products[idx].stock = (ex.stock || 0) + (item.stock || 0)
+          if (item.mrp > 0) d.products[idx].mrp = item.mrp
+          if (item.cost_price > 0) d.products[idx].cost_price = item.cost_price
+          d.products[idx].updated_at = new Date().toISOString()
+          updated++
+        } else {
+          const p = {
+            ...item, id: lid(d), vendor_id: "local", is_active: true, sku: null,
+            created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          }
+          d.products.push(p)
+          byName[key] = p
+          added++
+        }
+      } catch { failed++ }
+    }
+    localWrite(d)
+    return { added, updated, failed, total: items.length }
+  },
+  async bulkUpdateStock(changes) {
+    // changes: [{id, stock}] — set stock directly (for restock tab)
+    if (isCloud()) {
+      const results = await Promise.allSettled(
+        changes.map(c => api.patch("/products/" + c.id, { stock: c.stock }))
+      )
+      const failed = results.filter(r => r.status === "rejected").length
+      return { updated: results.length - failed, failed, total: results.length }
+    }
+    const d = localRead()
+    let updated = 0
+    changes.forEach(({ id, stock }) => {
+      const i = d.products.findIndex(p => p.id === id)
+      if (i >= 0) { d.products[i].stock = stock; d.products[i].updated_at = new Date().toISOString(); updated++ }
+    })
+    localWrite(d)
+    return { updated, failed: 0, total: changes.length }
+  },
 }
 
 // ── Sales ─────────────────────────────────────────────────

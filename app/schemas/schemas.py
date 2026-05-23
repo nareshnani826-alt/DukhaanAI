@@ -300,6 +300,41 @@ class RazorpayWebhookEvent(BaseModel):
 
 # ── Generic responses ────────────────────────────────────────
 
+class BulkImportItem(BaseModel):
+    name: str
+    category: Optional[str] = "Other"
+    unit: Optional[str] = "pc"
+    mrp: float = 0
+    cost_price: float = 0
+    stock: float = 0
+    min_stock: float = 5
+    gst_percent: Literal[0, 5, 12, 18, 28] = 0
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Product name cannot be empty")
+        return v[:150]
+
+    @field_validator("mrp", "cost_price", "stock", "min_stock")
+    @classmethod
+    def non_negative(cls, v):
+        return max(0.0, v)
+
+
+class BulkImportRequest(BaseModel):
+    items: list[BulkImportItem]
+
+
+class BulkImportResponse(BaseModel):
+    added: int
+    updated: int
+    failed: int
+    total: int
+
+
 class MessageResponse(BaseModel):
     message: str
 

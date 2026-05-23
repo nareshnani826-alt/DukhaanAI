@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { getToken } from "../sync/db"
+import { BangleProducts } from "../sync/bangleDb"
 
 const API    = import.meta.env.VITE_API_URL ?? ""
 const INR    = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -18,6 +19,11 @@ async function apiFetch(path, opts = {}) {
   const res = await fetch(`${API}${path}`, { headers: authHeaders(), ...opts })
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || "Request failed") }
   return res.json()
+}
+
+// Fetch summary separately (no offline fallback needed — just skip if offline)
+async function fetchSummary() {
+  try { return await apiFetch("/bangle/stock-summary") } catch { return null }
 }
 
 // ── Add Product Modal ──────────────────────────────────────
@@ -370,11 +376,11 @@ export default function BangleInventory() {
     setLoading(true)
     try {
       const [prods, summ] = await Promise.all([
-        apiFetch("/bangle/products"),
-        apiFetch("/bangle/stock-summary"),
+        BangleProducts.list(),  // falls back to cache when offline
+        fetchSummary(),
       ])
       setProducts(prods)
-      setSummary(summ)
+      if (summ) setSummary(summ)
     } catch(e) { console.error(e) }
     finally { setLoading(false) }
   }
@@ -419,10 +425,16 @@ export default function BangleInventory() {
           <div style={{fontSize:15,fontWeight:700,color:"var(--ink)"}}>💍 Bangle Inventory</div>
           <div style={{fontSize:11,color:"var(--ink-faint)"}}>Variants by colour, size &amp; design</div>
         </div>
-        <button onClick={()=>setShowAdd(true)}
-          style={{background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-          + Add Product
-        </button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>window.location.href="/bangle-bulk-import"}
+            style={{background:"var(--bg2)",color:"var(--ink-dim)",border:"none",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+            📦 Bulk Import
+          </button>
+          <button onClick={()=>setShowAdd(true)}
+            style={{background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+            + Add Product
+          </button>
+        </div>
       </div>
 
       {/* Summary strip */}

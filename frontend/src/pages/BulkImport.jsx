@@ -1,4 +1,5 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
+import * as XLSX from "xlsx"
 import { Products } from "../sync/db.js"
 import { CATALOG, CATEGORIES, getCatalogByCategory } from "../data/productCatalog.js"
 import { CommunityCatalog } from "../sync/db.js"
@@ -37,11 +38,9 @@ function parseCSV(text) {
   if (lines.length < 2) return []
 
   const rawHeader  = lines[0].split(",").map(h => h.trim().replace(/"/g, ""))
-  // Normalise keys: lowercase, remove punctuation/spaces for reliable matching
   const normHeader = rawHeader.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ""))
 
   // ── Detect wholesale invoice format ──────────────────────────
-  // Signature: has ITEMS (or ITEM) column + QTY column + RATE or AMOUNT column
   const isInvoice = normHeader.some(h => h === "items" || h === "item") &&
                     normHeader.some(h => h.startsWith("qty")) &&
                     normHeader.some(h => h === "rate" || h === "amount")
@@ -70,10 +69,8 @@ function parseCSV(text) {
     for (let i = 1; i < lines.length; i++) {
       const vals = lines[i].split(",").map(v => v.trim().replace(/"/g, ""))
       const name = (vals[nameIdx] || "").trim()
-      // Skip blank, separator or pure-number rows (totals / S.No. cells)
       if (!name || name === "-" || /^[\d.]+$/.test(name)) continue
 
-      // Parse "1.0 BOR", "10.0 PCS", "25.0 KGS"
       const qtyStr  = qtyIdx >= 0 ? (vals[qtyIdx] || "") : ""
       const qtyM    = qtyStr.match(/^(\d+(?:\.\d+)?)\s*([A-Za-z]+)?/)
       const qtyNum  = qtyM ? parseFloat(qtyM[1]) : 1
@@ -84,18 +81,15 @@ function parseCSV(text) {
       const tax    = taxIdx    >= 0 ? parseFloat(vals[taxIdx])    || 0 : 0
       const amount = amountIdx >= 0 ? parseFloat(vals[amountIdx]) || 0 : 0
 
-      // GST%: snap to nearest standard rate
       const preTax = amount > tax ? amount - tax : rate * qtyNum
       const gst    = tax > 0 && preTax > 0 ? snapGST((tax / preTax) * 100) : 0
 
-      // Apply bulk/loose rule — same as backend _classify_weight
       const { unit: cUnit, weightKg } = classifyWeight(name)
-      let finalUnit  = cUnit !== null ? cUnit : unit   // classified > QTY-column unit
+      let finalUnit  = cUnit !== null ? cUnit : unit
       let finalStock = qtyNum
       let finalCost  = rate
 
       if (weightKg !== null) {
-        // Loose bulk product (>5 kg in name): convert bags → kg
         finalStock = Math.round(qtyNum * weightKg * 100) / 100
         finalCost  = weightKg > 0 ? Math.round(rate / weightKg * 100) / 100 : rate
       }
@@ -137,8 +131,30 @@ function parseCSV(text) {
   return results
 }
 
+// Parse Excel file via SheetJS → same shape as parseCSV
+function parseXLSX(buffer) {
+  const wb  = XLSX.read(buffer, { type: "array" })
+  const ws  = wb.Sheets[wb.SheetNames[0]]
+  const csv = XLSX.utils.sheet_to_csv(ws)
+  return parseCSV(csv)
+}
+
+// Map CSV rows (cost, gst) to API shape (cost_price, gst_percent)
+function toApiItems(rows) {
+  return rows.map(item => ({
+    name:        item.name,
+    category:    item.category || "Other",
+    unit:        item.unit     || "pc",
+    mrp:         Number(item.mrp)       || 0,
+    cost_price:  Number(item.cost)      || 0,
+    stock:       Number(item.stock)     || 0,
+    min_stock:   5,
+    gst_percent: Number(item.gst)       || 0,
+  }))
+}
+
 export default function BulkImport() {
-  const [tab,        setTab]        = useState("catalog") // catalog | excel | scan | barcode
+  const [tab,        setTab]        = useState("catalog") // catalog | excel | scan | barcode | restock
   const [category,   setCategory]   = useState("All")
   const [search,     setSearch]     = useState("")
   const [selected,   setSelected]   = useState(new Set())
@@ -152,11 +168,69 @@ export default function BulkImport() {
   const [quantities, setQuantities] = useState({}) // productName → qty
   const fileRef = useRef()
 
+  // ── Restock tab state ──────────────────────────────────────
+  const [restockItems,    setRestockItems]    = useState([])
+  const [restockLoading,  setRestockLoading]  = useState(false)
+  const [restockChanges,  setRestockChanges]  = useState({}) // id → qty string
+  const [restockMode,     setRestockMode]     = useState("add") // "add" | "set"
+  const [restockSearch,   setRestockSearch]   = useState("")
+  const [restockCategory, setRestockCategory] = useState("All")
+  const [restockSaving,   setRestockSaving]   = useState(false)
+  const [restockDone,     setRestockDone]     = useState(null)
+
+  // Load products when Restock tab opens
+  useEffect(() => {
+    if (tab !== "restock") return
+    setRestockLoading(true)
+    Products.list().then(list => {
+      setRestockItems(list || [])
+      setRestockLoading(false)
+    }).catch(() => setRestockLoading(false))
+  }, [tab])
+
+  const filteredRestock = restockItems.filter(p => {
+    const matchCat = restockCategory === "All" || p.category === restockCategory
+    const matchQ   = !restockSearch || p.name.toLowerCase().includes(restockSearch.toLowerCase())
+    return matchCat && matchQ
+  })
+
+  const pendingRestockCount = Object.keys(restockChanges).filter(
+    id => restockChanges[id] !== "" && Number(restockChanges[id]) !== 0
+  ).length
+
+  async function saveRestock() {
+    const changes = Object.entries(restockChanges)
+      .filter(([, qty]) => qty !== "" && Number(qty) !== 0)
+      .map(([id, qty]) => {
+        const product = restockItems.find(p => p.id === id)
+        const newStock = restockMode === "add"
+          ? (product?.stock || 0) + Number(qty)
+          : Number(qty)
+        return { id, stock: Math.max(0, newStock) }
+      })
+
+    if (changes.length === 0) return
+    setRestockSaving(true)
+    try {
+      const result = await Products.bulkUpdateStock(changes)
+      setRestockDone(result)
+      setRestockChanges({})
+      // Refresh list
+      const updated = await Products.list()
+      setRestockItems(updated || [])
+      showNotif(`✓ ${result.updated} products restocked`)
+    } catch (e) {
+      showNotif("Error saving: " + e.message)
+    }
+    setRestockSaving(false)
+  }
+
+  // ── Helpers ───────────────────────────────────────────────
   function setQty(name, qty) {
     setQuantities(q => ({ ...q, [name]: Math.max(0, parseInt(qty)||0) }))
   }
 
-  function showNotif(m) { setNotif(m); setTimeout(() => setNotif(""), 3000) }
+  function showNotif(m) { setNotif(m); setTimeout(() => setNotif(""), 3500) }
 
   function updateRow(idx, field, value) {
     setCsvData(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row))
@@ -174,19 +248,11 @@ export default function BulkImport() {
       setCommunityProducts([])
       return
     }
-
-    // 1. First check fuzzy search on built-in catalog (instant)
     const fuzzyResults = fuzzySearch(query)
-
-    // 2. Also search community catalog (if logged in)
     let communityResults = []
     setCommunityLoading(true)
-    try {
-      communityResults = await CommunityCatalog.search(query)
-    } catch {}
+    try { communityResults = await CommunityCatalog.search(query) } catch {}
     setCommunityLoading(false)
-
-    // Merge — community products that aren't in built-in catalog
     const builtInNames = fuzzyResults.map(p => p.name.toLowerCase())
     const newCommunity = communityResults.filter(p =>
       !builtInNames.includes(p.name.toLowerCase())
@@ -194,7 +260,7 @@ export default function BulkImport() {
     setCommunityProducts(newCommunity)
   }
 
-  // ── Catalog tab ───────────────────────────────────────
+  // ── Catalog tab ───────────────────────────────────────────
   const filtered = getCatalogByCategory(category).filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -206,93 +272,72 @@ export default function BulkImport() {
       return n
     })
   }
-
   function selectAll() {
-    setSelected(s => {
-      const n = new Set(s)
-      filtered.forEach(p => n.add(p.name))
-      return n
-    })
+    setSelected(s => { const n = new Set(s); filtered.forEach(p => n.add(p.name)); return n })
   }
-
   function clearAll() { setSelected(new Set()) }
 
-  // ── Excel tab ─────────────────────────────────────────
+  // ── File upload (CSV + XLSX) ───────────────────────────────
   function handleFile(e) {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
-      const text = ev.target.result
-      const parsed = parseCSV(text)
-      if (parsed.length === 0) {
-        showNotif("No valid products found. Check your CSV format.")
-        return
+    const isExcel = /\.(xlsx|xls|xlsm)$/i.test(file.name)
+    const reader  = new FileReader()
+
+    if (isExcel) {
+      reader.onload = ev => {
+        try {
+          const parsed = parseXLSX(new Uint8Array(ev.target.result))
+          if (parsed.length === 0) { showNotif("No valid products found in Excel file."); return }
+          setCsvData(parsed)
+          showNotif(`✓ Found ${parsed.length} products from Excel`)
+        } catch {
+          showNotif("Could not read Excel file. Try saving as CSV.")
+        }
       }
-      setCsvData(parsed)
-      showNotif(`✓ Found ${parsed.length} products`)
+      reader.readAsArrayBuffer(file)
+    } else {
+      reader.onload = ev => {
+        const parsed = parseCSV(ev.target.result)
+        if (parsed.length === 0) { showNotif("No valid products found. Check your CSV format."); return }
+        setCsvData(parsed)
+        showNotif(`✓ Found ${parsed.length} products`)
+      }
+      reader.readAsText(file)
     }
-    reader.readAsText(file)
   }
 
-  // ── Import ─────────────────────────────────────────────
+  // ── Bulk import (replaces N-call loop) ────────────────────
   async function importProducts() {
     const catalogItems   = CATALOG.filter(p => selected.has(p.name))
     const communityItems = communityProducts.filter(p => selected.has(p.name))
-    const items = tab === "catalog"
-      ? [...catalogItems, ...communityItems]
-      : csvData
 
-    if (items.length === 0) return showNotif("Please select at least one product first")
-
-    setImporting(true)
-    let added = 0, updated = 0, failed = 0
-
-    // Fetch existing products once to check duplicates
-    const existing = await Products.list()
-
-    for (const item of items) {
-      try {
-        // Check if product with same name already exists (case-insensitive)
-        const duplicate = existing.find(p =>
-          p.name.toLowerCase().trim() === item.name.toLowerCase().trim()
-        )
-
-        if (duplicate) {
-          // Product exists — update stock quantity instead of creating duplicate
-          const newStock = (duplicate.stock || 0) + (item.stock || 0)
-          await Products.update(duplicate.id, {
-            stock:       newStock,
-            // Also update price if new price provided
-            mrp:         item.mrp      || duplicate.mrp,
-            cost_price:  item.cost     || duplicate.cost_price,
-          })
-          updated++
-        } else {
-          // New product — add it
-          const qty = quantities[item.name] !== undefined
-            ? Number(quantities[item.name])
-            : Number(item.stock || 0)
-          await Products.create({
-            name:        item.name,
-            category:    item.category || "Other",
-            unit:        item.unit     || "pc",
-            mrp:         Number(item.mrp)       || 0,
-            cost_price:  Number(item.cost)      || 0,
-            stock:       qty,
-            min_stock:   5,
-            gst_percent: Number(item.gst)       || 0,
-          })
-          added++
-        }
-      } catch(e) { console.error('Import failed for', item.name, e.message); failed++ }
+    let rawItems
+    if (tab === "catalog") {
+      // Merge catalog + community, apply user-entered quantities
+      rawItems = [...catalogItems, ...communityItems].map(p => ({
+        ...p,
+        cost:  p.cost || p.cost_price || 0,
+        stock: quantities[p.name] !== undefined ? Number(quantities[p.name]) : (p.stock || 0),
+      }))
+    } else {
+      rawItems = csvData
     }
 
-    setDone({ added, updated, failed, total: items.length })
-    setStep(3)
+    if (rawItems.length === 0) return showNotif("Please select at least one product first")
+
+    setImporting(true)
+    try {
+      const result = await Products.bulkImport(toApiItems(rawItems))
+      setDone(result)
+      setStep(3)
+    } catch (e) {
+      showNotif("Import failed: " + e.message)
+    }
     setImporting(false)
   }
 
+  // ── Success screen ─────────────────────────────────────────
   if (step === 3 && done) {
     return (
       <div className="flex-1 overflow-y-auto p-6 flex items-center justify-center" style={{ background:"var(--bg0)" }}>
@@ -361,13 +406,13 @@ export default function BulkImport() {
         borderBottom:"1px solid var(--rule)", flexShrink:0 }}>
         <div>
           <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)" }}>
-            📦 Bulk Import Products
+            📦 Bulk Stock Import
           </div>
           <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-            Add 200+ products in seconds — no manual typing needed
+            Add 200+ products or restock existing inventory in seconds
           </div>
         </div>
-        {selectedItems.length > 0 && (
+        {(tab === "catalog" || tab === "excel") && selectedItems.length > 0 && (
           <button onClick={importProducts} disabled={importing}
             style={{ background:"linear-gradient(135deg,#0F6E56,#1D9E75)",
               color:"var(--bg1)", border:"none", borderRadius:10, padding:"9px 20px",
@@ -382,10 +427,11 @@ export default function BulkImport() {
       <div style={{ background:"var(--bg1)", borderBottom:"1px solid var(--rule)",
         display:"flex", padding:"0 12px", flexShrink:0, overflowX:"auto" }}>
         {[
-          { id:"scan",    label:"📸 AI Invoice Scan",      sub:"Photo → auto stock update" },
-          { id:"barcode", label:"📱 Barcode Scanner",       sub:"Scan product barcode" },
-          { id:"catalog", label:"📋 Product Catalog",       sub:"200+ grocery products" },
-          { id:"excel",   label:"📊 Excel / CSV Import",   sub:"Upload your price list" },
+          { id:"restock", label:"♻️ Restock Existing",    sub:"Update stock after delivery" },
+          { id:"scan",    label:"📸 AI Invoice Scan",     sub:"Photo → auto stock update" },
+          { id:"barcode", label:"📱 Barcode Scanner",      sub:"Scan product barcode" },
+          { id:"catalog", label:"📋 Product Catalog",      sub:"200+ grocery products" },
+          { id:"excel",   label:"📊 Excel / CSV Import",  sub:"Upload your price list (.csv, .xlsx)" },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ padding:"12px 16px 10px", border:"none", background:"none",
@@ -399,6 +445,146 @@ export default function BulkImport() {
           </button>
         ))}
       </div>
+
+      {/* ── Restock Tab ────────────────────────────────────── */}
+      {tab === "restock" && (
+        <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+          {/* Controls */}
+          <div style={{ background:"var(--bg1)", padding:"12px 24px",
+            borderBottom:"1px solid var(--rule)", flexShrink:0 }}>
+            <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}>
+              <input value={restockSearch} onChange={e => setRestockSearch(e.target.value)}
+                placeholder="🔍 Search products..."
+                style={{ flex:1, border:"1.5px solid #e5e7eb", borderRadius:10,
+                  padding:"8px 14px", fontSize:12, outline:"none" }}/>
+              {/* Mode toggle */}
+              <div style={{ display:"flex", background:"var(--bg2)", borderRadius:10, padding:3, flexShrink:0 }}>
+                <button onClick={() => setRestockMode("add")}
+                  style={{ padding:"6px 12px", borderRadius:8, border:"none", fontSize:11,
+                    fontWeight:600, cursor:"pointer", whiteSpace:"nowrap",
+                    background: restockMode==="add" ? "var(--jade)" : "transparent",
+                    color: restockMode==="add" ? "var(--bg1)" : "var(--ink-dim)" }}>
+                  + Add to stock
+                </button>
+                <button onClick={() => setRestockMode("set")}
+                  style={{ padding:"6px 12px", borderRadius:8, border:"none", fontSize:11,
+                    fontWeight:600, cursor:"pointer", whiteSpace:"nowrap",
+                    background: restockMode==="set" ? "#e87722" : "transparent",
+                    color: restockMode==="set" ? "var(--bg1)" : "var(--ink-dim)" }}>
+                  = Set value
+                </button>
+              </div>
+            </div>
+            {/* Category pills */}
+            <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:2 }}>
+              {["All", ...CATS].map(cat => (
+                <button key={cat} onClick={() => setRestockCategory(cat)}
+                  style={{ padding:"5px 12px", borderRadius:20, border:"none",
+                    fontSize:11, fontWeight:500, whiteSpace:"nowrap", cursor:"pointer", flexShrink:0,
+                    background: restockCategory===cat ? "var(--jade)" : "var(--bg2)",
+                    color: restockCategory===cat ? "var(--bg1)" : "var(--ink-dim)" }}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Product list */}
+          <div style={{ flex:1, overflowY:"auto", padding:"16px 24px" }}>
+            {restockLoading ? (
+              <div style={{ textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13 }}>
+                Loading inventory...
+              </div>
+            ) : filteredRestock.length === 0 ? (
+              <div style={{ textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13 }}>
+                {restockItems.length === 0
+                  ? "No products yet. Use Catalog or CSV tab to add products first."
+                  : "No products match this filter."}
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {filteredRestock.map(p => {
+                  const qty      = restockChanges[p.id] ?? ""
+                  const hasChange = qty !== "" && Number(qty) !== 0
+                  const newStock  = restockMode === "add"
+                    ? (p.stock || 0) + (Number(qty) || 0)
+                    : Number(qty) || 0
+                  const isLow     = (p.stock || 0) < (p.min_stock || 0)
+                  return (
+                    <div key={p.id} style={{
+                      background:"var(--bg1)", borderRadius:12, padding:"10px 14px",
+                      border: hasChange ? "1.5px solid #1D9E75" : "1px solid var(--rule)",
+                      display:"flex", alignItems:"center", gap:12,
+                      boxShadow: hasChange ? "0 2px 12px rgba(29,158,117,0.1)" : "none",
+                    }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
+                          marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                          {p.name}
+                        </div>
+                        <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
+                          {p.category} · {p.unit} · Stock:{" "}
+                          <b style={{ color: isLow ? "#dc2626" : "var(--jade)" }}>{p.stock}</b>
+                          {isLow && <span style={{ color:"#dc2626", marginLeft:4 }}>⚠ Low</span>}
+                          {hasChange && (
+                            <span style={{ color:"#1D9E75", marginLeft:4 }}>→ {newStock}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                        <span style={{ fontSize:10, color:"var(--ink-faint)", whiteSpace:"nowrap" }}>
+                          {restockMode === "add" ? "Add qty" : "Set to"}
+                        </span>
+                        <input type="number" min="0"
+                          value={qty}
+                          onChange={e => setRestockChanges(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          placeholder="0"
+                          style={{ width:70, border:"1.5px solid var(--rule)", borderRadius:8,
+                            padding:"5px 8px", fontSize:13, fontWeight:600, outline:"none",
+                            textAlign:"center", background:"white",
+                            borderColor: hasChange ? "#1D9E75" : "var(--rule)",
+                            color: hasChange ? "var(--jade)" : "var(--ink)" }}/>
+                        <span style={{ fontSize:10, color:"var(--ink-faint)", minWidth:24 }}>{p.unit}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom bar */}
+          {pendingRestockCount > 0 && (
+            <div style={{ background:"var(--bg1)", borderTop:"1px solid var(--rule)",
+              padding:"14px 24px", display:"flex", alignItems:"center",
+              justifyContent:"space-between", flexShrink:0,
+              boxShadow:"0 -4px 20px rgba(0,0,0,0.06)" }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)" }}>
+                  {pendingRestockCount} products to update
+                </div>
+                <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
+                  Mode: {restockMode === "add" ? "Adding to current stock" : "Setting new stock value"}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => setRestockChanges({})}
+                  style={{ background:"var(--bg2)", color:"var(--ink-dim)", border:"none",
+                    borderRadius:9, padding:"8px 16px", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                  Clear
+                </button>
+                <button onClick={saveRestock} disabled={restockSaving}
+                  style={{ background:"linear-gradient(135deg,#0F6E56,#1D9E75)",
+                    color:"var(--bg1)", border:"none", borderRadius:12,
+                    padding:"12px 28px", fontSize:13, fontWeight:700,
+                    cursor:"pointer", opacity: restockSaving ? 0.7 : 1 }}>
+                  {restockSaving ? "Saving..." : `Save Restock (${pendingRestockCount})`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── AI Invoice Scan Tab ────────────────────────── */}
       {tab === "scan" && (
@@ -456,7 +642,6 @@ export default function BulkImport() {
 
           {/* Product grid */}
           <div style={{ flex:1, overflowY:"auto", padding:20 }}>
-            {/* Community products from other vendors */}
             {communityProducts.length > 0 && (
               <div style={{ marginBottom:16 }}>
                 <div style={{ fontSize:11, fontWeight:700, color:"#7F77DD",
@@ -518,7 +703,6 @@ export default function BulkImport() {
                       cursor:"pointer", transition:"all 0.15s", position:"relative",
                       boxShadow: sel ? "0 2px 16px rgba(29,158,117,0.15)" : "0 1px 4px rgba(0,0,0,0.04)",
                     }}>
-                    {/* Checkbox */}
                     <div style={{
                       position:"absolute", top:10, right:10,
                       width:20, height:20, borderRadius:6,
@@ -599,7 +783,7 @@ export default function BulkImport() {
         </div>
       )}
 
-      {/* ── Excel Tab ──────────────────────────────────── */}
+      {/* ── Excel / CSV Tab ─────────────────────────────── */}
       {tab === "excel" && (
         <div style={{ flex:1, overflowY:"auto", padding:24 }}>
           {csvData.length === 0 ? (
@@ -618,14 +802,14 @@ export default function BulkImport() {
                   Upload your price list
                 </div>
                 <div style={{ fontSize:12, color:"var(--ink-faint)", marginBottom:16 }}>
-                  Supports CSV files (.csv) · Excel files (.xlsx coming soon)
+                  Supports CSV (.csv) and Excel (.xlsx, .xls) files
                 </div>
                 <div style={{ background:"linear-gradient(135deg,#e87722,#ff8e35)", color:"var(--bg1)", border:"none",
                   borderRadius:10, padding:"10px 24px", fontSize:12,
                   fontWeight:600, display:"inline-block" }}>
                   Choose File
                 </div>
-                <input ref={fileRef} type="file" accept=".csv,.txt"
+                <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm"
                   style={{ display:"none" }} onChange={handleFile}/>
               </div>
 
@@ -633,11 +817,11 @@ export default function BulkImport() {
               <div style={{ background:"var(--bg1)", borderRadius:16, padding:20,
                 border:"1px solid var(--rule)", marginBottom:16 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:12 }}>
-                  📋 Supported CSV Formats
+                  📋 Supported Formats
                 </div>
 
                 <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-dim)", marginBottom:6 }}>
-                  Format 1 — DukhaanAI Template
+                  Format 1 — DukhaanAI Template (CSV or Excel)
                 </div>
                 <div style={{ background:"#1e293b", borderRadius:10, padding:14,
                   fontFamily:"monospace", fontSize:11, overflowX:"auto", marginBottom:10 }}>
@@ -658,6 +842,7 @@ export default function BulkImport() {
 
                 <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
                   ✓ Both formats are auto-detected from the header row<br/>
+                  ✓ Excel files (.xlsx) are supported — no conversion needed<br/>
                   ✓ For invoice format: RATE is imported as cost price — set MRP after import<br/>
                   ✓ Column names are flexible (any order, case-insensitive)
                 </div>
@@ -741,7 +926,6 @@ export default function BulkImport() {
                       <tbody>
                         {csvData.map((p, i) => (
                           <tr key={i} style={{ borderBottom:"1px solid #f5f7f5" }}>
-                            {/* Name */}
                             <td style={{ padding:"5px 8px", minWidth:180 }}>
                               <input value={p.name || ""}
                                 onChange={e => updateRow(i, "name", e.target.value)}
@@ -749,7 +933,6 @@ export default function BulkImport() {
                                   padding:"4px 7px", fontSize:12, fontWeight:500,
                                   color:"var(--ink)", outline:"none", background:"white" }}/>
                             </td>
-                            {/* Category */}
                             <td style={{ padding:"5px 8px" }}>
                               <select value={p.category || "Other"}
                                 onChange={e => updateRow(i, "category", e.target.value)}
@@ -759,7 +942,6 @@ export default function BulkImport() {
                                 {CATS.map(c => <option key={c}>{c}</option>)}
                               </select>
                             </td>
-                            {/* Unit */}
                             <td style={{ padding:"5px 8px" }}>
                               <select value={p.unit || "pc"}
                                 onChange={e => updateRow(i, "unit", e.target.value)}
@@ -771,7 +953,6 @@ export default function BulkImport() {
                                 ))}
                               </select>
                             </td>
-                            {/* MRP */}
                             <td style={{ padding:"5px 8px" }}>
                               <input type="number" min="0" step="0.01"
                                 value={p.mrp ?? ""}
@@ -780,7 +961,6 @@ export default function BulkImport() {
                                   padding:"4px 7px", fontSize:12, fontWeight:600,
                                   color:"var(--jade)", outline:"none", background:"white", textAlign:"right" }}/>
                             </td>
-                            {/* Cost */}
                             <td style={{ padding:"5px 8px" }}>
                               <input type="number" min="0" step="0.01"
                                 value={p.cost ?? ""}
@@ -789,7 +969,6 @@ export default function BulkImport() {
                                   padding:"4px 7px", fontSize:11, outline:"none",
                                   background:"white", textAlign:"right" }}/>
                             </td>
-                            {/* Stock */}
                             <td style={{ padding:"5px 8px" }}>
                               <input type="number" min="0" step="1"
                                 value={p.stock ?? ""}
@@ -798,7 +977,6 @@ export default function BulkImport() {
                                   padding:"4px 7px", fontSize:11, outline:"none",
                                   background:"white", textAlign:"right" }}/>
                             </td>
-                            {/* GST */}
                             <td style={{ padding:"5px 8px" }}>
                               <select value={p.gst ?? 0}
                                 onChange={e => updateRow(i, "gst", parseFloat(e.target.value))}
@@ -808,7 +986,6 @@ export default function BulkImport() {
                                 {[0,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
                               </select>
                             </td>
-                            {/* Remove */}
                             <td style={{ padding:"5px 6px", textAlign:"center" }}>
                               <button onClick={() => deleteRow(i)} title="Remove this row"
                                 style={{ background:"none", border:"none", cursor:"pointer",

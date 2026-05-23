@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { getToken } from "../sync/db"
+import { useLang, LangToggle } from "../hooks/useLang"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 function authHeaders() {
@@ -238,18 +239,230 @@ function FestivalCard({ fest, days, stockedColors }) {
   )
 }
 
+// ── Reorder forecasting (client-side, zero API cost) ──────────
+function computeReorders(festivals, velocity, products) {
+  // Aggregate stock per colour across all variants
+  const stockByColour = {}
+  for (const p of products) {
+    for (const v of (p.variants || [])) {
+      if (v.colour && v.stock > 0)
+        stockByColour[v.colour] = (stockByColour[v.colour] || 0) + v.stock
+    }
+  }
+
+  // Daily velocity per colour from last-30-day sales
+  const dailyVel = {}
+  for (const c of (velocity?.top_colours || []))
+    dailyVel[c.label] = c.pieces / 30
+
+  const result = []
+  for (const fest of festivals) {
+    const days = daysUntil(fest.date)
+    if (days < 0 || days > 90) continue
+
+    const leadDays = Math.min(days, 21)  // plan 3 weeks ahead
+    const items = []
+
+    for (const colour of fest.colors) {
+      const vel        = dailyVel[colour] || 0
+      const projected  = Math.ceil(vel * leadDays * fest.multiplier)
+      // Baseline when no sales history: multiplier × 12 (one dozen)
+      const baseline   = vel === 0 ? Math.ceil(fest.multiplier * 12) : 0
+      const demand     = Math.max(projected, baseline)
+      const stock      = stockByColour[colour] || 0
+      const reorderQty = Math.max(0, demand - stock)
+
+      items.push({ colour, vel, demand, stock, reorderQty, hasHistory: vel > 0 })
+    }
+
+    items.sort((a, b) => b.reorderQty - a.reorderQty)
+    const needsAction = items.filter(i => i.reorderQty > 0)
+    if (items.length > 0)
+      result.push({ fest, days, items, needCount: needsAction.length,
+                    totalReorder: needsAction.reduce((s, i) => s + i.reorderQty, 0) })
+  }
+
+  return result.sort((a, b) => a.days - b.days)
+}
+
+// ── Reorder View ───────────────────────────────────────────────
+function ReorderView({ reorders, loading }) {
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: 48, color: "var(--ink-faint)", fontSize: 13 }}>
+      Calculating forecast…
+    </div>
+  )
+
+  const allItems = reorders.flatMap(r => r.items.filter(i => i.reorderQty > 0))
+  const totalPcs = allItems.reduce((s, i) => s + i.reorderQty, 0)
+
+  function shareWhatsApp() {
+    const lines = ["📦 *Festival Reorder List*", ""]
+    for (const r of reorders) {
+      const needs = r.items.filter(i => i.reorderQty > 0)
+      if (!needs.length) continue
+      lines.push(`*${r.fest.emoji} ${r.fest.name}* (${r.days} days away)`)
+      for (const i of needs)
+        lines.push(`  • ${i.colour}: ${i.reorderQty} pcs (stock: ${i.stock}, need: ${i.demand})`)
+      lines.push("")
+    }
+    lines.push(`Total: ${totalPcs} pieces to reorder`)
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank")
+  }
+
+  if (reorders.length === 0) return (
+    <div style={{ textAlign: "center", padding: 48 }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>No festivals in 90 days</div>
+      <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 6 }}>Check back closer to the next season</div>
+    </div>
+  )
+
+  return (
+    <div>
+      {/* Summary bar */}
+      <div style={{ background: totalPcs > 0 ? "rgba(220,38,38,0.06)" : "rgba(31,122,94,0.08)",
+        border: `1.5px solid ${totalPcs > 0 ? "rgba(220,38,38,0.2)" : "rgba(31,122,94,0.2)"}`,
+        borderRadius: 12, padding: "12px 14px", marginBottom: 14,
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700,
+            color: totalPcs > 0 ? "#dc2626" : "var(--jade)" }}>
+            {totalPcs > 0
+              ? `${totalPcs} pcs to reorder across ${reorders.filter(r => r.needCount > 0).length} festivals`
+              : "Stock looks ready for upcoming festivals"}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>
+            Based on 30-day sales velocity × festival multiplier × 3-week lead time
+          </div>
+        </div>
+        {totalPcs > 0 && (
+          <button onClick={shareWhatsApp}
+            style={{ background: "#25D366", color: "#fff", border: "none", borderRadius: 8,
+              padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+              flexShrink: 0, whiteSpace: "nowrap" }}>
+            📲 Share
+          </button>
+        )}
+      </div>
+
+      {/* Per-festival reorder tables */}
+      {reorders.map(r => {
+        const badge = demandBadge(r.fest.multiplier)
+        const hasAnyNeed = r.needCount > 0
+        return (
+          <div key={r.fest.name} style={{ borderRadius: 16, overflow: "hidden", marginBottom: 12,
+            border: `1.5px solid ${r.days <= 30 ? "rgba(220,38,38,0.3)" : "var(--rule)"}`,
+            background: "var(--bg1)" }}>
+
+            {/* Festival header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+              borderBottom: "1px solid var(--rule)" }}>
+              <span style={{ fontSize: 24 }}>{r.fest.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{r.fest.name}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20,
+                    background: badge.bg, color: badge.color }}>{badge.label}</span>
+                </div>
+                <div style={{ fontSize: 11, color: urgencyColor(r.days), fontWeight: 600, marginTop: 2 }}>
+                  {r.days} days away ·{" "}
+                  <span style={{ color: "var(--ink-faint)", fontWeight: 400 }}>
+                    {new Date(r.fest.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  </span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 800,
+                  color: hasAnyNeed ? "#dc2626" : "var(--jade)" }}>
+                  {hasAnyNeed ? `+${r.totalReorder}` : "✓"}
+                </div>
+                <div style={{ fontSize: 9, color: "var(--ink-faint)" }}>
+                  {hasAnyNeed ? "pcs needed" : "stock ok"}
+                </div>
+              </div>
+            </div>
+
+            {/* Colour rows */}
+            <div style={{ padding: "8px 0" }}>
+              {/* Column headers */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 56px 56px 72px",
+                padding: "2px 14px 6px", gap: 4 }}>
+                {["Colour", "Stock", "Need", "Order"].map(h => (
+                  <div key={h} style={{ fontSize: 9, fontWeight: 700, color: "var(--ink-faint)",
+                    textTransform: "uppercase", letterSpacing: "0.6px",
+                    textAlign: h === "Colour" ? "left" : "center" }}>{h}</div>
+                ))}
+              </div>
+
+              {r.items.map(item => (
+                <div key={item.colour}
+                  style={{ display: "grid", gridTemplateColumns: "1fr 56px 56px 72px",
+                    padding: "5px 14px", gap: 4, alignItems: "center",
+                    background: item.reorderQty > 0 ? "rgba(220,38,38,0.03)" : "transparent",
+                    borderTop: "1px solid var(--rule)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                      background: item.stock > 0 ? "rgba(31,122,94,0.08)" : "rgba(220,38,38,0.06)",
+                      color: item.stock > 0 ? "var(--jade)" : "#dc2626",
+                      border: `1.5px solid ${item.stock > 0 ? "rgba(31,122,94,0.2)" : "rgba(220,38,38,0.2)"}` }}>
+                      {item.colour}
+                    </span>
+                    {!item.hasHistory && (
+                      <span style={{ fontSize: 9, color: "var(--ink-faint)" }}>est.</span>
+                    )}
+                  </div>
+                  <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600,
+                    color: item.stock > 0 ? "var(--ink)" : "var(--ink-faint)" }}>
+                    {item.stock}
+                  </div>
+                  <div style={{ textAlign: "center", fontSize: 12, color: "var(--ink-dim)" }}>
+                    {item.demand}
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    {item.reorderQty > 0 ? (
+                      <span style={{ background: "rgba(220,38,38,0.1)", color: "#dc2626",
+                        border: "1.5px solid rgba(220,38,38,0.25)", borderRadius: 8,
+                        padding: "3px 10px", fontSize: 12, fontWeight: 800 }}>
+                        +{item.reorderQty}
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--jade)", fontSize: 13 }}>✓</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tip */}
+            <div style={{ padding: "8px 14px 12px",
+              fontSize: 11, color: "var(--ink-faint)", fontStyle: "italic" }}>
+              💡 {r.fest.tip}
+            </div>
+          </div>
+        )
+      })}
+      <div style={{ height: 20 }} />
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 export default function BangleFestivals() {
+  const { t } = useLang()
   const [products,  setProducts]  = useState([])
+  const [velocity,  setVelocity]  = useState(null)
   const [loading,   setLoading]   = useState(true)
-  const [filter,    setFilter]    = useState("upcoming") // upcoming / all
+  const [view,      setView]      = useState("upcoming") // upcoming / all / reorder
 
   useEffect(() => {
-    fetch(`${API}/bangle/products`, { headers: authHeaders() })
-      .then(r => r.json())
-      .then(setProducts)
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch(`${API}/bangle/products`, { headers: authHeaders() }).then(r => r.json()),
+      fetch(`${API}/bangle/insights/velocity?days=30`, { headers: authHeaders() }).then(r => r.json()).catch(() => null),
+    ]).then(([prods, vel]) => {
+      setProducts(prods)
+      setVelocity(vel)
+    }).catch(console.error).finally(() => setLoading(false))
   }, [])
 
   // Build set of colours currently in stock (any variant with stock > 0)
@@ -261,37 +474,47 @@ export default function BangleFestivals() {
     )
   )
 
-  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const allFestivals = FESTIVALS.map(f => ({ ...f, days: daysUntil(f.date) }))
 
-  const festivals = FESTIVALS
-    .map(f => ({ ...f, days: daysUntil(f.date) }))
-    .filter(f => filter === "all" ? true : f.days >= 0)
+  const festivals = allFestivals
+    .filter(f => view === "all" ? true : f.days >= 0)
     .sort((a, b) => a.days - b.days)
 
-  const urgent   = festivals.filter(f => f.days >= 0 && f.days <= URGENT_DAYS)
-  const upcoming = festivals.filter(f => f.days >= 0 && f.days <= PREPARE_DAYS)
+  const urgent   = allFestivals.filter(f => f.days >= 0 && f.days <= URGENT_DAYS)
+  const upcoming = allFestivals.filter(f => f.days >= 0 && f.days <= PREPARE_DAYS)
+  const reorders = computeReorders(allFestivals, velocity, products)
+  const totalReorderPcs = reorders.reduce((s, r) => s + r.totalReorder, 0)
+
+  const VIEWS = [
+    { id: "upcoming", label: t("Upcoming") },
+    { id: "all",      label: t("All") },
+    { id: "reorder",  label: `${t("Reorder")}${totalReorderPcs > 0 ? ` (${totalReorderPcs})` : ""}` },
+  ]
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden",
       background: "var(--bg0)" }}>
 
       {/* Header */}
-      <div style={{ background: "var(--bg1)", padding: "0 20px", height: 56, flexShrink: 0,
+      <div style={{ background: "var(--bg1)", padding: "0 16px", height: 56, flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         borderBottom: "1px solid var(--rule)" }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>🗓️ Festival Calendar</div>
-          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Stock up before demand spikes</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{t("🗓️ Festival Calendar")}</div>
+          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>{t("Stock up before demand spikes")}</div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {[{ id: "upcoming", label: "Upcoming" }, { id: "all", label: "All" }].map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)}
-              style={{ padding: "5px 12px", borderRadius: 8, border: "1.5px solid", fontSize: 11,
+        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+          <LangToggle />
+          {VIEWS.map(v => (
+            <button key={v.id} onClick={() => setView(v.id)}
+              style={{ padding: "5px 10px", borderRadius: 8, border: "1.5px solid", fontSize: 11,
                 fontWeight: 700, cursor: "pointer",
-                background:  filter === f.id ? "var(--saffron)" : "var(--bg2)",
-                color:       filter === f.id ? "#fff"           : "var(--ink-dim)",
-                borderColor: filter === f.id ? "var(--saffron)" : "var(--rule)" }}>
-              {f.label}
+                background:  view === v.id ? "var(--saffron)" : "var(--bg2)",
+                color:       view === v.id ? "#fff"           : "var(--ink-dim)",
+                borderColor: view === v.id
+                  ? "var(--saffron)"
+                  : (v.id === "reorder" && totalReorderPcs > 0 ? "rgba(220,38,38,0.4)" : "var(--rule)") }}>
+              {v.label}
             </button>
           ))}
         </div>
@@ -299,59 +522,73 @@ export default function BangleFestivals() {
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
 
-        {/* Alert strip */}
-        {urgent.length > 0 && (
-          <div style={{ background: "rgba(220,38,38,0.07)", border: "1.5px solid rgba(220,38,38,0.2)",
-            borderRadius: 12, padding: "12px 14px", marginBottom: 14, display: "flex",
-            alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 20 }}>⚠️</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
-                {urgent.length} festival{urgent.length > 1 ? "s" : ""} within 30 days
-              </div>
-              <div style={{ fontSize: 11, color: "var(--ink-dim)", marginTop: 2 }}>
-                {urgent.map(f => f.name).join(", ")} — check stock readiness below
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Summary chips */}
-        {!loading && (
-          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-            <div style={{ padding: "6px 12px", borderRadius: 20, background: "var(--bg1)",
-              border: "1px solid var(--rule)", fontSize: 11 }}>
-              <span style={{ fontWeight: 700, color: "var(--ink)" }}>{stockedColors.size}</span>
-              <span style={{ color: "var(--ink-faint)" }}> colours in stock</span>
-            </div>
-            <div style={{ padding: "6px 12px", borderRadius: 20, background: "var(--bg1)",
-              border: "1px solid var(--rule)", fontSize: 11 }}>
-              <span style={{ fontWeight: 700, color: "var(--saffron)" }}>{upcoming.length}</span>
-              <span style={{ color: "var(--ink-faint)" }}> festivals in 60 days</span>
-            </div>
-          </div>
-        )}
-
-        {/* Festival cards */}
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 48, color: "var(--ink-faint)", fontSize: 13 }}>
-            Loading inventory…
-          </div>
-        ) : festivals.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 48 }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🗓️</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>No upcoming festivals</div>
-            <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 6 }}>
-              Switch to "All" to see the full calendar
-            </div>
-          </div>
+        {view === "reorder" ? (
+          <ReorderView reorders={reorders} loading={loading} />
         ) : (
-          festivals.map(f => (
-            <FestivalCard key={f.name} fest={f} days={f.days} stockedColors={stockedColors} />
-          ))
-        )}
+          <>
+            {/* Alert strip */}
+            {urgent.length > 0 && (
+              <div style={{ background: "rgba(220,38,38,0.07)", border: "1.5px solid rgba(220,38,38,0.2)",
+                borderRadius: 12, padding: "12px 14px", marginBottom: 14, display: "flex",
+                alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>⚠️</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
+                    {urgent.length} festival{urgent.length > 1 ? "s" : ""} within 30 days
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--ink-dim)", marginTop: 2 }}>
+                    {urgent.map(f => f.name).join(", ")} — check stock readiness below
+                  </div>
+                </div>
+              </div>
+            )}
 
-        <div style={{ height: 20 }} />
+            {/* Summary chips */}
+            {!loading && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+                <div style={{ padding: "6px 12px", borderRadius: 20, background: "var(--bg1)",
+                  border: "1px solid var(--rule)", fontSize: 11 }}>
+                  <span style={{ fontWeight: 700, color: "var(--ink)" }}>{stockedColors.size}</span>
+                  <span style={{ color: "var(--ink-faint)" }}> colours in stock</span>
+                </div>
+                <div style={{ padding: "6px 12px", borderRadius: 20, background: "var(--bg1)",
+                  border: "1px solid var(--rule)", fontSize: 11 }}>
+                  <span style={{ fontWeight: 700, color: "var(--saffron)" }}>{upcoming.length}</span>
+                  <span style={{ color: "var(--ink-faint)" }}> festivals in 60 days</span>
+                </div>
+                {totalReorderPcs > 0 && (
+                  <button onClick={() => setView("reorder")}
+                    style={{ padding: "6px 12px", borderRadius: 20, background: "rgba(220,38,38,0.07)",
+                      border: "1px solid rgba(220,38,38,0.25)", fontSize: 11, cursor: "pointer",
+                      color: "#dc2626", fontWeight: 700 }}>
+                    {totalReorderPcs} pcs to reorder →
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Festival cards */}
+            {loading ? (
+              <div style={{ textAlign: "center", padding: 48, color: "var(--ink-faint)", fontSize: 13 }}>
+                Loading inventory…
+              </div>
+            ) : festivals.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 48 }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>🗓️</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>No upcoming festivals</div>
+                <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 6 }}>
+                  Switch to "All" to see the full calendar
+                </div>
+              </div>
+            ) : (
+              festivals.map(f => (
+                <FestivalCard key={f.name} fest={f} days={f.days} stockedColors={stockedColors} />
+              ))
+            )}
+
+            <div style={{ height: 20 }} />
+          </>
+        )}
       </div>
     </div>
   )

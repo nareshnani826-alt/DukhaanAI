@@ -2,11 +2,12 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { getToken } from "../sync/db"
+import { useLang, LangToggle } from "../hooks/useLang"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
 
-function greeting() {
+function greetingKey() {
   const h = new Date().getHours()
   if (h < 12) return "Good morning"
   if (h < 17) return "Good afternoon"
@@ -134,6 +135,7 @@ function BriefingCard({ data, navigate }) {
 export default function BangleDashboard() {
   const { vendor, cloud } = useAuth()
   const navigate = useNavigate()
+  const { t } = useLang()
 
   const [briefing, setBriefing] = useState(null)
   const [profit,   setProfit]   = useState(null)
@@ -177,7 +179,7 @@ export default function BangleDashboard() {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)",
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {greeting()}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
+              {t(greetingKey())}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
             </div>
             <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 1,
               display: "flex", alignItems: "center", gap: 6 }}>
@@ -193,10 +195,12 @@ export default function BangleDashboard() {
             </div>
           </div>
         </div>
-        <button onClick={() => navigate("/bangle-billing")} className="btn btn-primary btn-sm"
-          style={{ flexShrink: 0, marginLeft: 8 }}>
-          + New Bill
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0, marginLeft: 8 }}>
+          <LangToggle />
+          <button onClick={() => navigate("/bangle-billing")} className="btn btn-primary btn-sm">
+            {t("+ New Bill")}
+          </button>
+        </div>
       </div>
 
       <div className="page-content" style={{ padding: "16px" }}>
@@ -217,7 +221,7 @@ export default function BangleDashboard() {
           <div style={{ position: "relative" }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: "var(--brass-deep)",
               letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: 6 }}>
-              Today's Takings — Bangle Store
+              {t("Today's Takings — Bangle Store")}
             </div>
             <div className="hero-revenue" style={{ fontFamily: "'Tiro Devanagari Hindi',serif",
               fontSize: 48, fontWeight: 800, color: "var(--ink)", lineHeight: 1, letterSpacing: "-1px" }}>
@@ -269,21 +273,21 @@ export default function BangleDashboard() {
         <div className="dash-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
           {[
             {
-              label: "Bills Today",
+              label: t("Bills Today"),
               value: loading ? "—" : tod.bills || 0,
-              sub:   loading ? "" : tod.pieces > 0 ? `${tod.pieces} pieces` : "Start selling",
+              sub:   loading ? "" : tod.pieces > 0 ? `${tod.pieces} ${t("pieces sold")}` : t("Start selling"),
               color: "var(--saffron)", bar: "var(--saffron)",
             },
             {
-              label: "Avg Bill",
+              label: t("Avg Bill"),
               value: loading ? "—" : INR(avgBill),
-              sub:   "Today",
+              sub:   t("Today"),
               color: "var(--brass)", bar: "var(--brass-deep)",
             },
             {
-              label: "Low Stock",
+              label: t("Low Stock"),
               value: loading ? "—" : briefing?.low_stock_count ?? 0,
-              sub:   briefing?.out_of_stock > 0 ? `${briefing.out_of_stock} out of stock` : "Variants",
+              sub:   briefing?.out_of_stock > 0 ? `${briefing.out_of_stock} ${t("Out of stock")}` : t("variants"),
               color: briefing?.low_stock_count > 0 ? "var(--ember)" : "var(--jade)",
               bar:   briefing?.low_stock_count > 0 ? "var(--ember)" : "var(--jade)",
             },
@@ -302,14 +306,14 @@ export default function BangleDashboard() {
         {/* Quick actions */}
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: "var(--brass-deep)",
-            letterSpacing: "2px", textTransform: "uppercase" }}>QUICK ACTIONS</div>
+            letterSpacing: "2px", textTransform: "uppercase" }}>{t("QUICK ACTIONS")}</div>
         </div>
         <div className="dash-quick-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 20 }}>
           {[
-            { label: "New Bill",   emoji: "🧾", tone: "var(--saffron)", border: "rgba(212,98,31,0.35)",  to: "/bangle-billing" },
-            { label: "Add Stock",  emoji: "💍", tone: "var(--brass)",   border: "rgba(166,124,46,0.35)", to: "/bangle-inventory" },
-            { label: "Festivals",  emoji: "🎉", tone: "var(--jade)",    border: "rgba(46,156,122,0.35)", to: "/bangle-festivals" },
-            { label: "Insights",   emoji: "📊", tone: "#7c5cbf",        border: "rgba(124,92,191,0.35)", to: "/bangle-insights" },
+            { label: t("New Bill"),  emoji: "🧾", tone: "var(--saffron)", border: "rgba(212,98,31,0.35)",  to: "/bangle-billing" },
+            { label: t("Add Stock"), emoji: "💍", tone: "var(--brass)",   border: "rgba(166,124,46,0.35)", to: "/bangle-inventory" },
+            { label: t("Festivals"), emoji: "🎉", tone: "var(--jade)",    border: "rgba(46,156,122,0.35)", to: "/bangle-festivals" },
+            { label: t("Insights"),  emoji: "📊", tone: "#7c5cbf",        border: "rgba(124,92,191,0.35)", to: "/bangle-insights" },
           ].map((qa, i) => (
             <button key={i} onClick={() => navigate(qa.to)}
               style={{ background: "var(--bg2)", border: "1px solid var(--rule)",
@@ -334,11 +338,11 @@ export default function BangleDashboard() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "var(--brass-deep)", letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                Recent Bills
+                {t("Recent Bills")}
               </div>
               <button onClick={() => navigate("/bangle-billing")}
                 style={{ fontSize: 11, color: "var(--saffron)", fontWeight: 600,
-                  background: "none", border: "none", cursor: "pointer" }}>View all →</button>
+                  background: "none", border: "none", cursor: "pointer" }}>{t("View all →")}</button>
             </div>
             <div style={{ background: "var(--bg2)", borderRadius: 14,
               border: "1px solid var(--rule)", overflow: "hidden",
@@ -350,7 +354,7 @@ export default function BangleDashboard() {
                 <div style={{ padding: "28px 16px", textAlign: "center",
                   color: "var(--ink-faint)", fontSize: 13 }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>💍</div>
-                  No bills yet today
+                  {t("No bills yet today")}
                 </div>
               ) : sales.slice(0, 5).map((s, i) => {
                 const pieces = (s.items || []).reduce((t, it) => t + (it.pieces || 0), 0)
@@ -386,11 +390,11 @@ export default function BangleDashboard() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "var(--brass-deep)", letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                Stock Health
+                {t("Stock Health")}
               </div>
               <button onClick={() => navigate("/bangle-inventory")}
                 style={{ fontSize: 11, color: "var(--saffron)", fontWeight: 600,
-                  background: "none", border: "none", cursor: "pointer" }}>View all →</button>
+                  background: "none", border: "none", cursor: "pointer" }}>{t("View all →")}</button>
             </div>
             <div style={{ background: "var(--bg2)", borderRadius: 14,
               border: "1px solid var(--rule)", overflow: "hidden",
@@ -402,9 +406,9 @@ export default function BangleDashboard() {
                 <>
                   {/* Summary rows */}
                   {[
-                    { label: "Out of stock",  value: briefing?.out_of_stock ?? 0,    icon: "🔴", danger: true },
-                    { label: "Low stock",     value: briefing ? Math.max(0, (briefing.low_stock_count || 0) - (briefing.out_of_stock || 0)) : 0, icon: "🟡", warn: true },
-                    { label: "Dead stock (30d)", value: briefing?.dead_stock_count ?? 0, icon: "💤", muted: true },
+                    { label: t("Out of stock"),     value: briefing?.out_of_stock ?? 0,    icon: "🔴", danger: true },
+                    { label: t("Low Stock"),        value: briefing ? Math.max(0, (briefing.low_stock_count || 0) - (briefing.out_of_stock || 0)) : 0, icon: "🟡", warn: true },
+                    { label: t("Dead stock (30d)"), value: briefing?.dead_stock_count ?? 0, icon: "💤", muted: true },
                   ].map((row, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 12,
                       padding: "13px 14px", borderBottom: i < 2 ? "1px solid var(--rule-soft)" : "none" }}>

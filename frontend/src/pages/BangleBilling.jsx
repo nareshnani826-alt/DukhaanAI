@@ -1,25 +1,14 @@
 import { useState, useEffect } from "react"
-import { getToken } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
+import { BangleProducts, BangleSales, BangleSync } from "../sync/bangleDb"
+import { useLang, LangToggle } from "../hooks/useLang"
 
-const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const UNITS = [
   { id: "piece", label: "Piece", pcs: 1  },
   { id: "dozen", label: "Dozen", pcs: 12 },
   { id: "set",   label: "Set",   pcs: 6  },
 ]
-
-function authHeaders() {
-  const t = getToken()
-  return t ? { "Content-Type": "application/json", Authorization: `Bearer ${t}` }
-           : { "Content-Type": "application/json" }
-}
-async function apiFetch(path, opts = {}) {
-  const res = await fetch(`${API}${path}`, { headers: authHeaders(), ...opts })
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || "Request failed") }
-  return res.json()
-}
 
 // ── Chip selector ─────────────────────────────────────────────
 function Chips({ label, options, value, onChange }) {
@@ -45,7 +34,7 @@ function Chips({ label, options, value, onChange }) {
 }
 
 // ── Product Picker ────────────────────────────────────────────
-function ProductPicker({ products, onAdd }) {
+function ProductPicker({ products, onAdd, t }) {
   const [search,  setSearch]  = useState("")
   const [product, setProduct] = useState(null)
   const [colour,  setColour]  = useState(null)
@@ -53,6 +42,7 @@ function ProductPicker({ products, onAdd }) {
   const [design,  setDesign]  = useState(null)
   const [unit,    setUnit]    = useState("piece")
   const [qty,     setQty]     = useState(1)
+  const [sellingPrice, setSellingPrice] = useState(0)
 
   const filtered = products.filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase())
@@ -69,9 +59,22 @@ function ProductPicker({ products, onAdd }) {
   )
   const unitDef   = UNITS.find(u => u.id === unit)
   const pieces    = qty * (unitDef?.pcs || 1)
-  const unitPrice = matched?.mrp ?? product?.mrp ?? 0
-  const amount    = pieces * unitPrice
-  const canAdd    = product && matched && qty > 0 && unitPrice > 0
+  const costPrice = matched?.cost_price ?? product?.cost_price ?? 0
+  const mrp       = matched?.mrp ?? product?.mrp ?? 0
+  const margin    = sellingPrice > 0 && costPrice > 0
+    ? ((sellingPrice - costPrice) / sellingPrice) * 100
+    : null
+  const marginColor = margin === null ? "var(--ink-faint)"
+    : margin > 25 ? "#1a7a4a" : margin >= 10 ? "#c47f00" : "#c0392b"
+  const marginBg    = margin === null ? "var(--bg2)"
+    : margin > 25 ? "rgba(26,122,74,0.12)" : margin >= 10 ? "rgba(196,127,0,0.12)" : "rgba(192,57,43,0.12)"
+  const marginLabel = margin === null ? "—" : `${margin.toFixed(1)}%`
+  const amount    = pieces * sellingPrice
+  const canAdd    = product && matched && qty > 0 && sellingPrice > 0
+
+  useEffect(() => {
+    setSellingPrice(matched?.mrp ?? product?.mrp ?? 0)
+  }, [matched?.id, product?.id])
 
   function handleAdd() {
     if (!canAdd) return
@@ -84,7 +87,7 @@ function ProductPicker({ products, onAdd }) {
       design:       matched.design,
       unit,
       unit_qty:     qty,
-      unit_price:   unitPrice,
+      unit_price:   sellingPrice,
       pieces,
       amount,
       gst_percent:  product.gst_percent || 3,
@@ -103,7 +106,7 @@ function ProductPicker({ products, onAdd }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--rule)", flexShrink: 0 }}>
         <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search products..."
+          placeholder={t("Search products...")}
           style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 10,
             padding: "8px 12px", fontSize: 13, outline: "none", background: "var(--bg2)",
             color: "var(--ink)", boxSizing: "border-box" }}
@@ -133,7 +136,7 @@ function ProductPicker({ products, onAdd }) {
                   {p.name}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-                  {p.category} · {p.variant_count} variants · {INR(p.mrp)}
+                  {p.category} · {p.variant_count} {t("variants")} · {INR(p.mrp)}
                 </div>
               </div>
               <svg width="14" height="14" fill="none" stroke="var(--ink-faint)" strokeWidth="2" viewBox="0 0 24 24">
@@ -153,23 +156,23 @@ function ProductPicker({ products, onAdd }) {
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{product.name}</div>
           </div>
 
-          <Chips label="Colour" options={colours} value={colour} onChange={setColour} />
-          <Chips label="Size"   options={sizes}   value={size}   onChange={setSize}   />
-          <Chips label="Design" options={designs}  value={design} onChange={setDesign} />
+          <Chips label={t("Colour")} options={colours} value={colour} onChange={setColour} />
+          <Chips label={t("Size")}   options={sizes}   value={size}   onChange={setSize}   />
+          <Chips label={t("Design")} options={designs}  value={design} onChange={setDesign} />
 
           {variants.length > 0 && (
             <div style={{ fontSize: 11, padding: "6px 10px", borderRadius: 8, marginBottom: 10,
               background: matched ? "rgba(31,122,94,0.08)" : "rgba(179,38,30,0.07)",
               color: matched ? "var(--jade)" : "var(--ember)" }}>
               {matched
-                ? `✓ ${[matched.colour, matched.size, matched.design].filter(Boolean).join(" · ")} — ${matched.stock} pcs in stock`
-                : "Select combination to find variant"}
+                ? `✓ ${[matched.colour, matched.size, matched.design].filter(Boolean).join(" · ")} — ${matched.stock} ${t("pcs in stock")}`
+                : t("Select combination to find variant")}
             </div>
           )}
 
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)", marginBottom: 5,
-              textTransform: "uppercase", letterSpacing: "0.8px" }}>Billing Unit</div>
+              textTransform: "uppercase", letterSpacing: "0.8px" }}>{t("Billing Unit")}</div>
             <div style={{ display: "flex", gap: 6 }}>
               {UNITS.map(u => (
                 <button key={u.id} onClick={() => setUnit(u.id)}
@@ -187,7 +190,7 @@ function ProductPicker({ products, onAdd }) {
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)", marginBottom: 5,
-              textTransform: "uppercase", letterSpacing: "0.8px" }}>Quantity</div>
+              textTransform: "uppercase", letterSpacing: "0.8px" }}>{t("Quantity")}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button onClick={() => setQty(q => Math.max(1, q - 1))}
                 style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--rule)",
@@ -201,15 +204,48 @@ function ProductPicker({ products, onAdd }) {
                 style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--rule)",
                   background: "var(--bg2)", cursor: "pointer", fontSize: 16, color: "var(--ink-dim)" }}>+</button>
               <div style={{ fontSize: 11, color: "var(--ink-faint)", marginLeft: 4 }}>
-                = {pieces} pcs × {INR(unitPrice)}
+                = {pieces} pcs
               </div>
             </div>
           </div>
 
+          {/* ── Bargaining Margin Guard ── */}
+          {matched && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)", marginBottom: 5,
+                textTransform: "uppercase", letterSpacing: "0.8px" }}>{t("Selling Price / piece")}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                    fontSize: 13, color: "var(--ink-dim)", pointerEvents: "none", zIndex: 1 }}>₹</span>
+                  <input type="number" min="0" value={sellingPrice || ""}
+                    onChange={e => setSellingPrice(Math.max(0, +e.target.value || 0))}
+                    style={{ width: "100%", paddingLeft: 24, border: "1.5px solid var(--rule)",
+                      borderRadius: 8, padding: "7px 8px 7px 24px", fontSize: 14, fontWeight: 700,
+                      color: "var(--ink)", background: "var(--bg2)", outline: "none", boxSizing: "border-box" }}
+                    onFocus={e => e.target.style.borderColor = marginColor}
+                    onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
+                </div>
+                <div style={{ background: marginBg, border: `1.5px solid ${marginColor}`, borderRadius: 10,
+                  padding: "6px 10px", textAlign: "center", flexShrink: 0, minWidth: 68 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: marginColor }}>{marginLabel}</div>
+                  <div style={{ fontSize: 9, color: marginColor, opacity: 0.85, marginTop: 1 }}>
+                    {margin === null ? t("set cost") : margin > 25 ? t("✓ Good") : margin >= 10 ? t("⚠ Low") : t("✗ Risk")}
+                  </div>
+                </div>
+              </div>
+              {costPrice > 0 && (
+                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
+                  MRP {INR(mrp)} · Cost {INR(costPrice)}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ background: "var(--bg1)", border: "1px solid var(--rule)", borderRadius: 12,
             padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Amount</div>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>{t("Amount")} ({pieces} pcs × {INR(sellingPrice)})</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "var(--saffron)" }}>{INR(amount)}</div>
             </div>
             <button onClick={handleAdd} disabled={!canAdd}
@@ -219,7 +255,7 @@ function ProductPicker({ products, onAdd }) {
                 color: canAdd ? "#fff" : "var(--ink-faint)", border: "none", borderRadius: 10,
                 padding: "10px 20px", fontSize: 13, fontWeight: 700,
                 cursor: canAdd ? "pointer" : "default", transition: "all 0.15s" }}>
-              + Add to Cart
+              {t("+ Add to Cart")}
             </button>
           </div>
         </div>
@@ -330,7 +366,7 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
 }
 
 // ── Cart Panel ────────────────────────────────────────────────
-function CartPanel({ items, onRemove, onBill }) {
+function CartPanel({ items, onRemove, onBill, t }) {
   const [customer, setCustomer] = useState({ name: "", phone: "" })
   const [payment,  setPayment]  = useState("cash")
   const [applyGst, setApplyGst] = useState(false)
@@ -347,15 +383,12 @@ function CartPanel({ items, onRemove, onBill }) {
     if (!items.length) return
     setLoading(true); setErr("")
     try {
-      const sale = await apiFetch("/bangle/sales", {
-        method: "POST",
-        body: JSON.stringify({
-          items:          items.map(({ _id, ...rest }) => rest),
-          customer_name:  customer.name  || null,
-          customer_phone: customer.phone || null,
-          payment_mode:   payment,
-          apply_gst:      applyGst,
-        }),
+      const sale = await BangleSales.create({
+        items:          items.map(({ _id, ...rest }) => rest),
+        customer_name:  customer.name  || null,
+        customer_phone: customer.phone || null,
+        payment_mode:   payment,
+        apply_gst:      applyGst,
       })
       onBill(sale)
       setCustomer({ name: "", phone: "" }); setPayment("cash"); setApplyGst(false)
@@ -367,8 +400,8 @@ function CartPanel({ items, onRemove, onBill }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", padding: 32, color: "var(--ink-faint)" }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>🛒</div>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>Cart is empty</div>
-      <div style={{ fontSize: 12, marginTop: 6 }}>Add items from the left panel</div>
+      <div style={{ fontSize: 14, fontWeight: 600 }}>{t("Cart is empty")}</div>
+      <div style={{ fontSize: 12, marginTop: 6 }}>{t("Add items from the left panel")}</div>
     </div>
   )
 
@@ -401,11 +434,11 @@ function CartPanel({ items, onRemove, onBill }) {
       <div style={{ borderTop: "1px solid var(--rule)", padding: "12px 14px",
         background: "var(--bg1)", flexShrink: 0 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
-          <input placeholder="Customer name" value={customer.name}
+          <input placeholder={t("Customer name")} value={customer.name}
             onChange={e => setCustomer(c => ({ ...c, name: e.target.value }))}
             style={{ border: "1.5px solid var(--rule)", borderRadius: 8, padding: "6px 10px",
               fontSize: 12, background: "var(--bg2)", color: "var(--ink)", outline: "none" }} />
-          <input placeholder="Phone (optional)" value={customer.phone}
+          <input placeholder={t("Phone (optional)")} value={customer.phone}
             onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))}
             style={{ border: "1.5px solid var(--rule)", borderRadius: 8, padding: "6px 10px",
               fontSize: 12, background: "var(--bg2)", color: "var(--ink)", outline: "none" }} />
@@ -429,7 +462,7 @@ function CartPanel({ items, onRemove, onBill }) {
             onChange={e => setApplyGst(e.target.checked)}
             style={{ width: 15, height: 15, cursor: "pointer", accentColor: "var(--saffron)" }} />
           <label htmlFor="gst-toggle" style={{ fontSize: 12, color: "var(--ink-dim)", cursor: "pointer" }}>
-            Apply GST
+            {t("Apply GST")}
           </label>
         </div>
 
@@ -459,7 +492,7 @@ function CartPanel({ items, onRemove, onBill }) {
             color: loading ? "var(--ink-faint)" : "#fff", border: "none",
             borderRadius: 12, padding: "13px 0", fontSize: 15, fontWeight: 800,
             cursor: loading ? "default" : "pointer", transition: "all 0.15s" }}>
-          {loading ? "Saving…" : "🧾 Bill Karo"}
+          {loading ? t("Saving…") : t("🧾 Bill Karo")}
         </button>
       </div>
     </div>
@@ -469,21 +502,50 @@ function CartPanel({ items, onRemove, onBill }) {
 // ── Main Page ─────────────────────────────────────────────────
 export default function BangleBilling() {
   const { vendor } = useAuth()
+  const { t }      = useLang()
   const [products, setProducts] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [cart,     setCart]     = useState([])
   const [receipt,  setReceipt]  = useState(null)
   const [tab,      setTab]      = useState("items")
   const [today,    setToday]    = useState(null)
+  const [offline,  setOffline]  = useState(!navigator.onLine)
+  const [pending,  setPending]  = useState(BangleSync.pendingCount())
+  const [syncing,  setSyncing]  = useState(false)
 
   useEffect(() => {
     Promise.all([
-      apiFetch("/bangle/products"),
-      apiFetch("/bangle/sales/today"),
+      BangleProducts.list(),
+      BangleSales.todaySummary(),
     ]).then(([prods, summ]) => {
       setProducts(prods); setToday(summ)
     }).catch(console.error).finally(() => setLoading(false))
+
+    const onOnline  = () => { setOffline(false); syncQueue() }
+    const onOffline = () => setOffline(true)
+    window.addEventListener("online",  onOnline)
+    window.addEventListener("offline", onOffline)
+    return () => {
+      window.removeEventListener("online",  onOnline)
+      window.removeEventListener("offline", onOffline)
+    }
   }, [])
+
+  async function syncQueue() {
+    if (BangleSync.pendingCount() === 0) return
+    setSyncing(true)
+    const result = await BangleSync.processQueue()
+    setPending(result.pending)
+    if (result.synced > 0) {
+      const [prods, summ] = await Promise.all([
+        BangleProducts.list(),
+        BangleSales.todaySummary(),
+      ]).catch(() => [null, null])
+      if (prods) setProducts(prods)
+      if (summ)  setToday(summ)
+    }
+    setSyncing(false)
+  }
 
   function addToCart(item) { setCart(prev => [...prev, item]); setTab("cart") }
   function removeFromCart(id) { setCart(prev => prev.filter(i => i._id !== id)) }
@@ -510,40 +572,68 @@ export default function BangleBilling() {
           onNewBill={() => { setReceipt(null); setTab("items") }} />
       )}
 
+      {/* Offline / pending-sync banner */}
+      {(offline || pending > 0) && (
+        <div style={{ background: offline ? "rgba(220,38,38,0.08)" : "rgba(196,127,0,0.1)",
+          borderBottom: `1px solid ${offline ? "rgba(220,38,38,0.2)" : "rgba(196,127,0,0.25)"}`,
+          padding: "6px 16px", display: "flex", alignItems: "center",
+          justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 600,
+            color: offline ? "#dc2626" : "#c47f00" }}>
+            {offline
+              ? "📵 Offline — bills saved locally, will sync when connected"
+              : `☁ ${pending} bill${pending > 1 ? "s" : ""} pending sync`}
+          </div>
+          {!offline && pending > 0 && (
+            <button onClick={syncQueue} disabled={syncing}
+              style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
+                background: "rgba(196,127,0,0.15)", border: "1px solid rgba(196,127,0,0.3)",
+                color: "#c47f00", cursor: syncing ? "default" : "pointer" }}>
+              {syncing ? "Syncing…" : "Sync now"}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ background: "var(--bg1)", padding: "0 20px", height: 56, flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         borderBottom: "1px solid var(--rule)" }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>🧾 Bangle Billing</div>
-          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Piece · Dozen · Set</div>
-        </div>
-        {today && (
-          <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontWeight: 800, color: "var(--saffron)", fontSize: 14 }}>
-                ₹{Number(today.total_revenue || 0).toLocaleString("en-IN")}
-              </div>
-              <div style={{ color: "var(--ink-faint)" }}>Today</div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: 14 }}>{today.total_bills || 0}</div>
-              <div style={{ color: "var(--ink-faint)" }}>Bills</div>
-            </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{t("🧾 Bangle Billing")}</div>
+          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+            {t("Piece · Dozen · Set")}{today?._offline ? ` · ${t("offline mode")}` : ""}
           </div>
-        )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <LangToggle />
+          {today && (
+            <div style={{ display: "flex", gap: 14, fontSize: 11 }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 800, color: "var(--saffron)", fontSize: 14 }}>
+                  ₹{Number(today.total_revenue || 0).toLocaleString("en-IN")}
+                </div>
+                <div style={{ color: "var(--ink-faint)" }}>{t("Today")}</div>
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: 14 }}>{today.total_bills || 0}</div>
+                <div style={{ color: "var(--ink-faint)" }}>{t("Bills")}</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mobile tabs */}
       <div className="mobile-billing-tabs"
         style={{ display: "none", background: "var(--bg1)", borderBottom: "1px solid var(--rule)", flexShrink: 0 }}>
-        {[{ id: "items", label: "Add Items" }, { id: "cart", label: `Cart (${cart.length})` }].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+        {[{ id: "items", label: t("Add Items") }, { id: "cart", label: `${t("Cart")} (${cart.length})` }].map(tab_ => (
+          <button key={tab_.id} onClick={() => setTab(tab_.id)}
             style={{ flex: 1, padding: "10px 0", background: "none", border: "none",
-              borderBottom: `2px solid ${tab === t.id ? "var(--saffron)" : "transparent"}`,
-              fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-              color: tab === t.id ? "var(--saffron)" : "var(--ink-dim)", cursor: "pointer" }}>
-            {t.label}
+              borderBottom: `2px solid ${tab === tab_.id ? "var(--saffron)" : "transparent"}`,
+              fontSize: 13, fontWeight: tab === tab_.id ? 700 : 500,
+              color: tab === tab_.id ? "var(--saffron)" : "var(--ink-dim)", cursor: "pointer" }}>
+            {tab_.label}
           </button>
         ))}
       </div>
@@ -556,11 +646,11 @@ export default function BangleBilling() {
           <div className={`billing-left${tab === "cart" ? " billing-hidden-mobile" : ""}`}
             style={{ flex: 1, borderRight: "1px solid var(--rule)", overflow: "hidden",
               display: "flex", flexDirection: "column" }}>
-            <ProductPicker products={products} onAdd={addToCart} />
+            <ProductPicker products={products} onAdd={addToCart} t={t} />
           </div>
           <div className={`billing-right${tab === "items" ? " billing-hidden-mobile" : ""}`}
             style={{ width: 340, minWidth: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <CartPanel items={cart} onRemove={removeFromCart} onBill={onBill} />
+            <CartPanel items={cart} onRemove={removeFromCart} onBill={onBill} t={t} />
           </div>
         </div>
       )}

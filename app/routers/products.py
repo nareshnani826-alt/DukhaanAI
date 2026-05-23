@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.database import get_db
 from app.core.security import get_current_vendor
-from app.schemas.schemas import ProductCreate, ProductUpdate, ProductOut, MessageResponse
+from app.schemas.schemas import (
+    ProductCreate, ProductUpdate, ProductOut, MessageResponse,
+    BulkImportRequest, BulkImportResponse,
+)
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -52,6 +55,45 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
         data["sku"] = None
     result = db.table("products").insert(data).execute()
     return result.data[0]
+
+
+@router.post("/bulk", response_model=BulkImportResponse)
+async def bulk_import_products(body: BulkImportRequest, vendor=Depends(get_current_vendor)):
+    """Upsert products in bulk: adds new ones, adds to stock of existing ones (matched by name)."""
+    db = get_db()
+    existing_rows = (
+        db.table("products")
+        .select("id,name,stock,mrp,cost_price")
+        .eq("vendor_id", vendor["id"])
+        .eq("is_active", True)
+        .execute()
+        .data
+    )
+    by_name = {r["name"].lower().strip(): r for r in existing_rows}
+
+    added = updated = failed = 0
+    for item in body.items:
+        try:
+            key = item.name.lower().strip()
+            if key in by_name:
+                ex = by_name[key]
+                db.table("products").update({
+                    "stock":      ex["stock"] + item.stock,
+                    "mrp":        item.mrp        if item.mrp        > 0 else ex["mrp"],
+                    "cost_price": item.cost_price if item.cost_price > 0 else ex["cost_price"],
+                }).eq("id", ex["id"]).execute()
+                updated += 1
+            else:
+                data = item.model_dump()
+                data["vendor_id"] = vendor["id"]
+                data["sku"] = None
+                db.table("products").insert(data).execute()
+                by_name[key] = {"name": item.name, "stock": item.stock}  # prevent re-insert in same batch
+                added += 1
+        except Exception:
+            failed += 1
+
+    return BulkImportResponse(added=added, updated=updated, failed=failed, total=len(body.items))
 
 
 @router.get("/low-stock", response_model=list[ProductOut])
