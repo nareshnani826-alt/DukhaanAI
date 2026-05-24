@@ -2,7 +2,7 @@
 // Free tier: 1 million tokens/day (gemini-1.5-flash)
 // Set VITE_GEMINI_API_KEY in .env to enable
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 const PROMPT_TEMPLATE = (text) => `You are a product catalog assistant for an Indian jewellery/accessories store.
 Extract product details from the description below. Return ONLY valid JSON — no explanation, no markdown.

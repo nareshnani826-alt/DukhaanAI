@@ -1,7 +1,7 @@
 // geminiVision.js — Gemini 1.5 Flash Vision: photo → product fields
 // Works with price tags, product photos, handwritten labels, supplier catalogues
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 const VISION_PROMPT = `You are reading a price tag, product label, or product photo from an Indian jewellery and accessories shop.
 Extract all visible product details and return ONLY valid JSON — no explanation, no markdown fences.
