@@ -155,22 +155,32 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
   )
   const unitDef   = UNITS.find(u => u.id === unit)
   const pieces    = qty * (unitDef?.pcs || 1)
-  const costPrice = matched?.cost_price ?? product?.cost_price ?? 0
-  const mrp       = matched?.mrp ?? product?.mrp ?? 0
-  const margin    = sellingPrice > 0 && costPrice > 0
-    ? ((sellingPrice - costPrice) / sellingPrice) * 100
+  // MRP and cost are stored as PER-DOZEN prices (bangle trade convention)
+  const dozenMrp  = matched?.mrp ?? product?.mrp ?? 0
+  const dozenCost = matched?.cost_price ?? product?.cost_price ?? 0
+  // Per-unit price for selected billing unit
+  const unitPrice = (mrpDz) =>
+    unit === "dozen" ? mrpDz
+    : unit === "set"  ? +(mrpDz / 2).toFixed(2)   // set = 6 pcs = half dozen
+    :                   +(mrpDz / 12).toFixed(2)   // piece
+  const mrpPerUnit  = unitPrice(dozenMrp)
+  const costPerUnit = unitPrice(dozenCost)
+  const margin    = sellingPrice > 0 && costPerUnit > 0
+    ? ((sellingPrice - costPerUnit) / sellingPrice) * 100
     : null
   const marginColor = margin === null ? "var(--ink-faint)"
     : margin > 25 ? "#1a7a4a" : margin >= 10 ? "#c47f00" : "#c0392b"
   const marginBg    = margin === null ? "var(--bg2)"
     : margin > 25 ? "rgba(26,122,74,0.12)" : margin >= 10 ? "rgba(196,127,0,0.12)" : "rgba(192,57,43,0.12)"
   const marginLabel = margin === null ? "—" : `${margin.toFixed(1)}%`
-  const amount    = pieces * sellingPrice
+  // amount = qty × per-unit-price (NOT qty × pieces × per-piece-price)
+  const amount    = qty * sellingPrice
   const canAdd    = product && matched && qty > 0 && sellingPrice > 0
 
+  // Recompute selling price whenever product/variant or unit changes
   useEffect(() => {
-    setSellingPrice(matched?.mrp ?? product?.mrp ?? 0)
-  }, [matched?.id, product?.id])
+    setSellingPrice(unitPrice(matched?.mrp ?? product?.mrp ?? 0))
+  }, [matched?.id, product?.id, unit])
 
   // Auto-select from QR scan
   useEffect(() => {
@@ -194,9 +204,12 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
       const text = e.results[0][0].transcript.trim()
       const result = parseVoiceCart(text, products)
       if (!result) { setVoiceMsg(`Could not match: "${text}"`); return }
-      const unitDef = UNITS.find(u => u.id === result.unit) || UNITS[0]
-      const pieces  = result.qty * unitDef.pcs
-      const price   = result.variant.mrp || result.product.mrp || 0
+      const unitDef  = UNITS.find(u => u.id === result.unit) || UNITS[0]
+      const pieces   = result.qty * unitDef.pcs
+      const dozenMrp = result.variant.mrp || result.product.mrp || 0
+      const vPrice   = result.unit === "dozen" ? dozenMrp
+                     : result.unit === "set"   ? +(dozenMrp / 2).toFixed(2)
+                     :                           +(dozenMrp / 12).toFixed(2)
       onAdd({
         variant_id:   result.variant.id,
         product_id:   result.product.id,
@@ -206,9 +219,9 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
         design:       result.variant.design,
         unit:         result.unit,
         unit_qty:     result.qty,
-        unit_price:   price,
+        unit_price:   vPrice,
         pieces,
-        amount:       pieces * price,
+        amount:       result.qty * vPrice,
         gst_percent:  result.product.gst_percent || 3,
         _id:          Date.now(),
       })
@@ -309,7 +322,7 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
                   {p.name}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-                  {p.category} · {p.variant_count} {t("variants")} · {INR(p.mrp)}
+                  {p.category} · {p.variant_count} {t("variants")} · {INR(p.mrp)}/dz
                 </div>
               </div>
               <svg width="14" height="14" fill="none" stroke="var(--ink-faint)" strokeWidth="2" viewBox="0 0 24 24">
@@ -386,7 +399,9 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
           {matched && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)", marginBottom: 5,
-                textTransform: "uppercase", letterSpacing: "0.8px" }}>{t("Selling Price / piece")}</div>
+                textTransform: "uppercase", letterSpacing: "0.8px" }}>
+                {t("Selling Price")} / {unit}
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ position: "relative", flex: 1 }}>
                   <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
@@ -407,18 +422,22 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
                   </div>
                 </div>
               </div>
-              {costPrice > 0 && (
-                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
-                  MRP {INR(mrp)} · Cost {INR(costPrice)}
-                </div>
-              )}
+              <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
+                MRP {INR(mrpPerUnit)}/{unit}
+                {dozenCost > 0 && ` · Cost ${INR(costPerUnit)}/${unit}`}
+                {unit !== "dozen" && dozenMrp > 0 && (
+                  <span style={{ marginLeft: 6, opacity: 0.7 }}>({INR(dozenMrp)}/dozen)</span>
+                )}
+              </div>
             </div>
           )}
 
           <div style={{ background: "var(--bg1)", border: "1px solid var(--rule)", borderRadius: 12,
             padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>{t("Amount")} ({pieces} pcs × {INR(sellingPrice)})</div>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+                {qty} {unit} ({pieces} pcs) × {INR(sellingPrice)}
+              </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "var(--saffron)" }}>{INR(amount)}</div>
             </div>
             <button onClick={handleAdd} disabled={!canAdd}
