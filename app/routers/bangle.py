@@ -778,10 +778,10 @@ Return JSON only (null for anything not visible, empty array if none):
 
 # Try models in order; skip 404 (model name wrong) and 429 (rate limit)
 _VISION_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-002",
-    "gemini-1.5-flash-001",
 ]
 
 
