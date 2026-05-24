@@ -125,13 +125,23 @@ function AddProductModal({ onClose, onSaved }) {
   // Smart Add state
   const [smartText,    setSmartText]    = useState("")
   const [smartParsing, setSmartParsing] = useState(false)
-  const [smartResult,  setSmartResult]  = useState(null)  // parsed preview
+  const [smartResult,  setSmartResult]  = useState(null)
   const [smartErr,     setSmartErr]     = useState("")
   const [smartListening, setSmartListening] = useState(false)
   const [cameraScanning, setCameraScanning] = useState(false)
-  const [cameraPreview,  setCameraPreview]  = useState(null)  // data URL for thumbnail
+  const [cameraPreview,  setCameraPreview]  = useState(null)
   const smartRecRef  = useRef(null)
   const cameraInputRef = useRef(null)
+
+  // Scan Builder — full inline variant matrix after scan/parse
+  const [scanBuilder,    setScanBuilder]    = useState(null)  // result from scan/parse
+  const [scanForm,       setScanForm]       = useState({ name:"", category:"Bangles", mrp:"", cost_price:"", gst_percent:3 })
+  const [scanSelC,       setScanSelC]       = useState([])
+  const [scanSelS,       setScanSelS]       = useState([])
+  const [scanSelD,       setScanSelD]       = useState([])
+  const [scanStock,      setScanStock]      = useState("12")
+  const [scanSaving,     setScanSaving]     = useState(false)
+  const [scanErr,        setScanErr]        = useState("")
 
   const set = (k,v) => setForm(f => ({...f,[k]:v}))
 
@@ -167,7 +177,7 @@ function AddProductModal({ onClose, onSaved }) {
       }
 
       if (result && (result.name || result.category || result.mrp)) {
-        setSmartResult(result)
+        openScanBuilder(result)
       } else {
         setSmartErr("Could not understand. Try: \"Red Kundan bangle, size 2.4, MRP 2500, cost 1800\"")
       }
@@ -178,21 +188,60 @@ function AddProductModal({ onClose, onSaved }) {
     }
   }
 
-  function applySmartResult(result) {
+  function openScanBuilder(result) {
     if (!result) return
-    if (result.name)       set("name", result.name)
-    if (result.category)   set("category", result.category)
-    if (result.mrp)        set("mrp", String(result.mrp))
-    if (result.cost_price) set("cost_price", String(result.cost_price))
-    if (result.gst_percent != null) set("gst_percent", result.gst_percent)
-    if (result.colours?.length) setSelColours(result.colours)
-    if (result.sizes?.length)   setSelSizes(result.sizes)
-    if (result.designs?.length) setSelDesigns(result.designs)
+    setScanBuilder(result)
+    if (result._preview) setCameraPreview(result._preview)
+    setScanForm({
+      name:        result.name        || "",
+      category:    result.category    || "Bangles",
+      mrp:         result.mrp         ? String(result.mrp)        : "",
+      cost_price:  result.cost_price  ? String(result.cost_price) : "",
+      gst_percent: result.gst_percent ?? 3,
+    })
+    setScanSelC(result.colours || [])
+    setScanSelS(result.sizes   || [])
+    setScanSelD(result.designs || [])
+    setScanStock("12")
+    setScanErr("")
     setSmartResult(null); setSmartText(""); setCameraPreview(null)
-    // If variants found, advance to step 2 automatically
-    if (result.colours?.length || result.sizes?.length || result.designs?.length) {
-      setStep(2)
+  }
+
+  function closeScanBuilder() {
+    setScanBuilder(null); setScanErr("")
+  }
+
+  async function saveScanBuilder() {
+    if (!scanForm.name.trim()) { setScanErr("Product name is required"); return }
+    setScanSaving(true); setScanErr("")
+    try {
+      const product = await apiFetch("/bangle/products", {
+        method: "POST",
+        body: JSON.stringify({
+          name:        scanForm.name.trim(),
+          category:    scanForm.category,
+          mrp:         Number(scanForm.mrp)        || 0,
+          cost_price:  Number(scanForm.cost_price) || 0,
+          gst_percent: Number(scanForm.gst_percent) || 3,
+        })
+      })
+      if (scanSelC.length || scanSelS.length || scanSelD.length) {
+        await apiFetch(`/bangle/products/${product.id}/variants/bulk`, {
+          method: "POST",
+          body: JSON.stringify({
+            colours:           scanSelC,
+            sizes:             scanSelS,
+            designs:           scanSelD,
+            stock_per_variant: Number(scanStock) || 0,
+          })
+        })
+      }
+      learnProduct({ category: product.category, colours: scanSelC, sizes: scanSelS, designs: scanSelD, mrp: product.mrp, cost_price: product.cost_price })
+      onSaved()
+    } catch (e) {
+      setScanErr(e.message)
     }
+    setScanSaving(false)
   }
 
   function startSmartVoice() {
@@ -229,7 +278,7 @@ function AddProductModal({ onClose, onSaved }) {
       setCameraPreview(preview)
       const result = await scanImageForProduct(base64, mimeType)
       if (result && (result.name || result.category || result.mrp)) {
-        setSmartResult(result)
+        openScanBuilder({ ...result, _preview: preview })
       } else {
         setSmartErr("Could not read the image. Try better lighting or a clearer photo.")
       }
@@ -458,56 +507,135 @@ function AddProductModal({ onClose, onSaved }) {
                   </div>
                 )}
 
-                {/* Parsed result preview card */}
-                {smartResult && (
-                  <div style={{
-                    marginTop:10, background:"#fff", border:"1.5px solid #1D9E75",
-                    borderRadius:10, padding:"10px 12px",
-                  }}>
-                    <div style={{display:"flex", gap:10, alignItems:"flex-start"}}>
-                      {/* Camera thumbnail */}
-                      {cameraPreview && (
-                        <img src={cameraPreview} alt="scanned"
-                          style={{
-                            width:56, height:56, objectFit:"cover",
-                            borderRadius:8, flexShrink:0,
-                            border:"1px solid var(--rule,#e5e7eb)",
-                          }} />
-                      )}
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:11, fontWeight:700, color:"#1D9E75", marginBottom:5}}>
-                          {smartResult.source === "gemini-vision" ? "📷 Scanned" : "✅ Parsed"} — tap Confirm to fill form
+                {/* Scan Builder — full inline variant matrix */}
+                {scanBuilder && (() => {
+                  const cat      = scanForm.category || "Bangles"
+                  const sizes    = CATEGORY_SIZES[cat]   || CATEGORY_SIZES["Other"]
+                  const designs  = CATEGORY_DESIGNS[cat] || CATEGORY_DESIGNS["Other"]
+                  const varCount = Math.max(1,scanSelC.length||1) * Math.max(1,scanSelS.length||1) * Math.max(1,scanSelD.length||1)
+                  const toggleC  = v => setScanSelC(p => p.includes(v) ? p.filter(x=>x!==v) : [...p,v])
+                  const toggleS  = v => setScanSelS(p => p.includes(v) ? p.filter(x=>x!==v) : [...p,v])
+                  const toggleD  = v => setScanSelD(p => p.includes(v) ? p.filter(x=>x!==v) : [...p,v])
+                  return (
+                    <div style={{marginTop:10, background:"#f0faf6", border:"2px solid #1D9E75", borderRadius:14, padding:"12px 14px"}}>
+                      {/* Header */}
+                      <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:12}}>
+                        {cameraPreview && (
+                          <img src={cameraPreview} alt="scan"
+                            style={{width:52,height:52,objectFit:"cover",borderRadius:10,flexShrink:0,border:"1px solid #1D9E75"}}/>
+                        )}
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:12, fontWeight:700, color:"#0F6E56"}}>
+                            {scanBuilder.source==="gemini-vision" ? "📷 Image Scanned" : "⚡ Smart Parsed"} — configure all variants
+                          </div>
+                          <div style={{fontSize:10, color:"var(--ink-faint)", marginTop:1}}>
+                            Select colours, sizes & designs → save everything in one tap
+                          </div>
                         </div>
-                        <div style={{fontSize:11, color:"var(--ink)", lineHeight:1.8}}>
-                          {smartResult.name     && <div><b>Name:</b> {smartResult.name}</div>}
-                          {smartResult.category && <div><b>Category:</b> {smartResult.category}</div>}
-                          {smartResult.mrp      && <div><b>MRP:</b> {INR(smartResult.mrp)}</div>}
-                          {smartResult.cost_price && <div><b>Cost:</b> {INR(smartResult.cost_price)}</div>}
-                          {smartResult.colours?.length > 0 && <div><b>Colours:</b> {smartResult.colours.join(", ")}</div>}
-                          {smartResult.sizes?.length   > 0 && <div><b>Sizes:</b> {smartResult.sizes.join(", ")}</div>}
-                          {smartResult.designs?.length > 0 && <div><b>Design:</b> {smartResult.designs.join(", ")}</div>}
-                          <div style={{fontSize:10, color:"var(--ink-faint)", marginTop:2}}>
-                            via {smartResult.source === "gemini-vision" ? "Gemini Vision" : smartResult.source === "gemini" ? "Gemini AI" : "local parser"}
-                            {" · "}{Math.round((smartResult.confidence||0)*100)}% confidence
+                        <button onClick={closeScanBuilder}
+                          style={{background:"none",border:"none",cursor:"pointer",color:"var(--ink-faint)",fontSize:18,padding:"0 4px"}}>×</button>
+                      </div>
+
+                      {/* Product fields */}
+                      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12}}>
+                        <div style={{gridColumn:"1/-1"}}>
+                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>PRODUCT NAME *</div>
+                          <input value={scanForm.name}
+                            onChange={e => setScanForm(f=>({...f,name:e.target.value}))}
+                            placeholder="e.g. Kundan Bangle Set"
+                            style={{width:"100%",border:"1.5px solid #1D9E75",borderRadius:8,padding:"6px 10px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>CATEGORY</div>
+                          <select value={scanForm.category}
+                            onChange={e => { setScanForm(f=>({...f,category:e.target.value})); setScanSelS([]); setScanSelD([]) }}
+                            style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 8px",fontSize:12,outline:"none",background:"white"}}>
+                            {CATS.map(c=><option key={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>GST %</div>
+                          <select value={scanForm.gst_percent}
+                            onChange={e => setScanForm(f=>({...f,gst_percent:Number(e.target.value)}))}
+                            style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 8px",fontSize:12,outline:"none",background:"white"}}>
+                            {[0,3,5,12,18].map(g=><option key={g} value={g}>{g}%</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>MRP (₹)</div>
+                          <input type="number" min="0" value={scanForm.mrp}
+                            onChange={e => setScanForm(f=>({...f,mrp:e.target.value}))}
+                            placeholder="0"
+                            style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 10px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>COST (₹)</div>
+                          <input type="number" min="0" value={scanForm.cost_price}
+                            onChange={e => setScanForm(f=>({...f,cost_price:e.target.value}))}
+                            placeholder="0"
+                            style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 10px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                        </div>
+                      </div>
+
+                      {/* Colour chips */}
+                      <div style={{marginBottom:10}}>
+                        <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:6, letterSpacing:"0.5px"}}>COLOURS</div>
+                        <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                          {COLOURS.map(c=><Chip key={c} label={c} active={scanSelC.includes(c)} onClick={()=>toggleC(c)}/>)}
+                        </div>
+                      </div>
+
+                      {/* Size chips */}
+                      <div style={{marginBottom:10}}>
+                        <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:6, letterSpacing:"0.5px"}}>
+                          {SIZE_LABEL[cat] || "SIZE"}
+                        </div>
+                        <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                          {sizes.map(s=><Chip key={s} label={s} active={scanSelS.includes(s)} onClick={()=>toggleS(s)}/>)}
+                        </div>
+                      </div>
+
+                      {/* Design chips */}
+                      <div style={{marginBottom:12}}>
+                        <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:6, letterSpacing:"0.5px"}}>DESIGN <span style={{fontWeight:400}}>(optional)</span></div>
+                        <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                          {designs.map(d=><Chip key={d} label={d} active={scanSelD.includes(d)} onClick={()=>toggleD(d)}/>)}
+                        </div>
+                      </div>
+
+                      {/* Stock + variant count + save */}
+                      <div style={{background:"white", borderRadius:10, padding:"10px 12px", marginBottom:10}}>
+                        <div style={{display:"flex", alignItems:"center", gap:12}}>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>STOCK PER VARIANT</div>
+                            <input type="number" min="0" value={scanStock}
+                              onChange={e=>setScanStock(e.target.value)}
+                              style={{width:"100%",border:"1.5px solid var(--saffron)",borderRadius:8,padding:"6px 10px",fontSize:14,fontWeight:700,color:"var(--saffron)",textAlign:"center",outline:"none",boxSizing:"border-box"}}/>
+                          </div>
+                          <div style={{textAlign:"center", color:"var(--jade)", fontSize:11, fontWeight:700}}>
+                            <div style={{fontSize:20}}>{varCount}</div>
+                            <div>variants</div>
+                            <div style={{fontSize:10, color:"var(--ink-faint)", fontWeight:400}}>
+                              {varCount * (Number(scanStock)||0)} pcs total
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                    <div style={{display:"flex", gap:6, marginTop:8}}>
-                      <button onClick={() => { setSmartResult(null); setCameraPreview(null) }}
+
+                      {scanErr && <div style={{color:"#dc2626", fontSize:11, marginBottom:8}}>{scanErr}</div>}
+
+                      <button onClick={saveScanBuilder} disabled={scanSaving}
                         style={{
-                          flex:1, padding:"5px 0", borderRadius:7, fontSize:11, fontWeight:600, cursor:"pointer",
-                          border:"1px solid var(--rule,#e5e7eb)", background:"transparent",
-                          color:"var(--ink-dim)",
-                        }}>Discard</button>
-                      <button onClick={() => applySmartResult(smartResult)}
-                        style={{
-                          flex:2, padding:"5px 0", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer",
-                          background:"linear-gradient(135deg,#0F6E56,#1D9E75)", color:"#fff", border:"none",
-                        }}>Confirm →</button>
+                          width:"100%", padding:"12px 0",
+                          background: scanSaving ? "#ccc" : "linear-gradient(135deg,#0F6E56,#1D9E75)",
+                          color:"#fff", border:"none", borderRadius:10,
+                          fontSize:13, fontWeight:700, cursor: scanSaving ? "not-allowed" : "pointer",
+                        }}>
+                        {scanSaving ? "Saving…" : `📦 Add ${varCount} Variant${varCount!==1?"s":""} to Inventory`}
+                      </button>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
 
               <div style={{
