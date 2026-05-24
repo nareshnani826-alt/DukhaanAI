@@ -73,7 +73,15 @@ function authHeaders() {
 
 async function apiFetch(path, opts = {}) {
   const res = await fetch(`${API}${path}`, { headers: authHeaders(), ...opts })
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || "Request failed") }
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}))
+    const d = e.detail
+    const msg = typeof d === "string" ? d
+              : Array.isArray(d)      ? d.map(x => x.msg || JSON.stringify(x)).join("; ")
+              : d                     ? JSON.stringify(d)
+              : "Request failed"
+    throw new Error(msg)
+  }
   return res.json()
 }
 
