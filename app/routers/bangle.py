@@ -137,6 +137,17 @@ async def update_product(product_id: str, body: ProductUpdate, vendor=Depends(ge
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    # Cascade MRP / cost_price changes to all variants so billing picks up correct prices
+    variant_price_updates = {k: updates[k] for k in ("mrp", "cost_price") if k in updates}
+    if variant_price_updates:
+        db.table("bangle_variants") \
+            .update(variant_price_updates) \
+            .eq("product_id", product_id) \
+            .eq("vendor_id", vendor["id"]) \
+            .eq("is_active", True) \
+            .execute()
+
     return result.data[0]
 
 

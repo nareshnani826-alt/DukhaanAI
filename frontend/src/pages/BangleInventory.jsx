@@ -1005,18 +1005,138 @@ function VariantRow({ variant, productMrp, onStockChange }) {
   )
 }
 
+// ── Edit Product Modal ─────────────────────────────────────
+function EditProductModal({ product, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name:        product.name        || "",
+    category:    product.category    || "Bangles",
+    mrp:         product.mrp         != null ? String(product.mrp)        : "",
+    cost_price:  product.cost_price  != null ? String(product.cost_price) : "",
+    gst_percent: product.gst_percent != null ? product.gst_percent        : 3,
+  })
+  const [loading, setLoading] = useState(false)
+  const [err,     setErr]     = useState("")
+
+  const set = (k, v) => setForm(f => ({...f, [k]: v}))
+
+  async function save() {
+    if (!form.name.trim()) { setErr("Product name is required"); return }
+    setLoading(true); setErr("")
+    try {
+      const updated = await apiFetch(`/bangle/products/${product.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name:        form.name.trim(),
+          category:    form.category,
+          mrp:         Number(form.mrp)        || 0,
+          cost_price:  Number(form.cost_price) || 0,
+          gst_percent: Number(form.gst_percent),
+        })
+      })
+      onSaved(updated)
+    } catch (e) { setErr(e.message) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+        <div className="px-5 pt-5 pb-4 border-b flex justify-between items-center" style={{borderColor:"var(--rule)"}}>
+          <div>
+            <div className="text-sm font-bold" style={{color:"var(--ink)"}}>Edit Product</div>
+            <div className="text-[11px] mt-0.5" style={{color:"var(--ink-faint)"}}>Update pricing or product details</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <div>
+            <label className="label">Product Name *</label>
+            <input className="input" value={form.name}
+              onChange={e => set("name", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Category</label>
+            <select className="input" value={form.category}
+              onChange={e => set("category", e.target.value)}>
+              {CATS.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label">MRP (₹)</label>
+              <input className="input" type="number" min="0" placeholder="0"
+                value={form.mrp} onChange={e => set("mrp", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Cost Price (₹)</label>
+              <input className="input" type="number" min="0" placeholder="0"
+                value={form.cost_price} onChange={e => set("cost_price", e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="label">GST %</label>
+            <select className="input" value={form.gst_percent}
+              onChange={e => set("gst_percent", Number(e.target.value))}>
+              {[0,3,5,12,18].map(g => <option key={g} value={g}>{g}%</option>)}
+            </select>
+          </div>
+
+          {/* Profit preview */}
+          {form.mrp && form.cost_price && Number(form.mrp) > 0 && Number(form.cost_price) > 0 && (
+            <div style={{background:"#f0faf6", borderRadius:10, padding:"8px 12px", fontSize:11}}>
+              <div style={{display:"flex", justifyContent:"space-between"}}>
+                <span style={{color:"var(--ink-faint)"}}>Margin per piece</span>
+                <span style={{fontWeight:700, color:"var(--jade)"}}>
+                  {INR(Number(form.mrp) - Number(form.cost_price))}
+                  &nbsp;({Math.round((Number(form.mrp) - Number(form.cost_price)) / Number(form.mrp) * 100)}%)
+                </span>
+              </div>
+            </div>
+          )}
+
+          {err && <p className="text-red-500 text-xs">{err}</p>}
+
+          <div style={{display:"flex", gap:8, paddingTop:4}}>
+            <button onClick={onClose}
+              className="flex-1 py-2 rounded-xl text-sm font-semibold"
+              style={{border:"1.5px solid var(--rule)", color:"var(--ink-dim)", background:"transparent"}}>
+              Cancel
+            </button>
+            <button onClick={save} disabled={loading}
+              className="flex-1 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-60"
+              style={{background:"linear-gradient(135deg,#0F6E56,#1D9E75)"}}>
+              {loading ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Product Card ───────────────────────────────────────────
-function ProductCard({ product, onAddVariants, onStockChange }) {
-  const [expanded, setExpanded] = useState(false)
+function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }) {
+  const [expanded,  setExpanded]  = useState(false)
+  const [showEdit,  setShowEdit]  = useState(false)
   const isLow = product.low_stock_count > 0
   const isOut = product.total_stock === 0 && product.variant_count > 0
 
   return (
     <div className="rounded-2xl overflow-hidden mb-3" style={{background:"var(--bg1)",border:"1px solid var(--rule)"}}>
-      <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={()=>setExpanded(!expanded)}>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-          style={{background:"#fbeaef"}}>💍</div>
-        <div className="flex-1 min-w-0">
+      {showEdit && (
+        <EditProductModal
+          product={product}
+          onClose={() => setShowEdit(false)}
+          onSaved={updated => { onProductUpdated(updated); setShowEdit(false) }}
+        />
+      )}
+
+      <div className="flex items-center gap-3 p-4">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 cursor-pointer"
+          style={{background:"#fbeaef"}} onClick={() => setExpanded(!expanded)}>💍</div>
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           <div className="font-semibold text-sm truncate" style={{color:"var(--ink)"}}>{product.name}</div>
           <div className="text-[11px] flex gap-2 mt-0.5" style={{color:"var(--ink-faint)"}}>
             <span>{product.category}</span>
@@ -1026,9 +1146,21 @@ function ProductCard({ product, onAddVariants, onStockChange }) {
             <span style={{color: isOut?"#dc2626":isLow?"#d97706":"var(--jade)"}}>
               {product.total_stock} pcs
             </span>
+            {product.mrp > 0 && (
+              <>
+                <span>·</span>
+                <span>MRP {INR(product.mrp)}</span>
+              </>
+            )}
+            {product.cost_price > 0 && (
+              <>
+                <span>·</span>
+                <span>Cost {INR(product.cost_price)}</span>
+              </>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {isLow && !isOut && (
             <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{background:"#fffbeb",color:"#d97706"}}>
               {product.low_stock_count} low
@@ -1039,7 +1171,17 @@ function ProductCard({ product, onAddVariants, onStockChange }) {
               OUT
             </span>
           )}
-          <div style={{color:"var(--ink-faint)",fontSize:18,transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}}>⌄</div>
+          {/* Edit button */}
+          <button onClick={e => { e.stopPropagation(); setShowEdit(true) }}
+            title="Edit product details"
+            style={{
+              padding:"4px 8px", borderRadius:8, border:"1px solid var(--rule)",
+              background:"var(--bg2)", color:"var(--ink-dim)", fontSize:12, cursor:"pointer",
+              lineHeight:1,
+            }}>
+            ✏️
+          </button>
+          <div onClick={() => setExpanded(!expanded)} style={{color:"var(--ink-faint)",fontSize:18,transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s",cursor:"pointer"}}>⌄</div>
         </div>
       </div>
 
@@ -1056,7 +1198,7 @@ function ProductCard({ product, onAddVariants, onStockChange }) {
             ))}
           </div>
           <button
-            onClick={()=>onAddVariants(product)}
+            onClick={() => onAddVariants(product)}
             className="mt-3 w-full py-2 rounded-xl text-xs font-semibold border-2 border-dashed transition-colors"
             style={{borderColor:"var(--saffron)",color:"var(--saffron)",background:"transparent"}}>
             + Add Variants
@@ -1105,6 +1247,19 @@ export default function BangleInventory() {
       return { ...p, variants:newVars, variant_count:newVars.length, total_stock:newVars.reduce((s,v)=>s+v.stock,0) }
     }))
     setAddVariFor(null)
+  }
+
+  function onProductUpdated(updated) {
+    setProducts(prev => prev.map(p => {
+      if (p.id !== updated.id) return p
+      // Cascade price fields to variants so UI reflects immediately
+      const variants = p.variants.map(v => ({
+        ...v,
+        ...(updated.mrp        != null ? { mrp: updated.mrp }               : {}),
+        ...(updated.cost_price != null ? { cost_price: updated.cost_price } : {}),
+      }))
+      return { ...p, ...updated, variants }
+    }))
   }
 
   function onStockChange(productId, variantId, newStock) {
@@ -1201,7 +1356,7 @@ export default function BangleInventory() {
             )}
           </div>
         ) : filtered.map(p => (
-          <ProductCard key={p.id} product={p} onAddVariants={setAddVariFor} onStockChange={onStockChange} />
+          <ProductCard key={p.id} product={p} onAddVariants={setAddVariFor} onStockChange={onStockChange} onProductUpdated={onProductUpdated} />
         ))}
       </div>
     </div>
