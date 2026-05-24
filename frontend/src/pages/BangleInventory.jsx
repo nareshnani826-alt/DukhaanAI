@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
+import JsBarcode from "jsbarcode"
 import { useNavigate } from "react-router-dom"
 import { getToken } from "../sync/db"
 import { BangleProducts } from "../sync/bangleDb"
@@ -329,7 +330,7 @@ function AddProductModal({ onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={e => e.target===e.currentTarget && onClose()}>
       <style>{`
-        @keyframes voice-ring {
+        @keyframes voice-ring-inv {
           0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.45),0 4px 16px rgba(239,68,68,.25); }
           50%    { box-shadow:0 0 0 14px rgba(239,68,68,0),0 6px 24px rgba(239,68,68,.1); }
         }
@@ -468,7 +469,7 @@ function AddProductModal({ onClose, onSaved }) {
                         ? "linear-gradient(135deg,#ef4444,#dc2626)"
                         : "linear-gradient(135deg,#e87722,#c47f00)",
                       color:"#fff", fontSize:13,
-                      animation: smartListening ? "voice-ring 1.2s ease-in-out infinite" : "none",
+                      animation: smartListening ? "voice-ring-inv 1.2s ease-in-out infinite" : "none",
                     }}
                     title={smartListening ? "Stop recording" : "Speak product description"}>
                     {smartListening ? "⏹" : "🎤"}
@@ -1005,22 +1006,73 @@ function VariantRow({ variant, productMrp, onStockChange }) {
   )
 }
 
-// ── QR Labels Modal ────────────────────────────────────────
-function QRLabelsModal({ product, onClose }) {
-  const variants = product.variants || []
-  const qrBase   = "https://api.qrserver.com/v1/create-qr-code/?margin=4&size=120x120&data="
+// ── Barcode Labels Modal ────────────────────────────────────
+// Single barcode label — needs its own ref so JsBarcode can target the SVG
+function BarcodeLabel({ product, variant }) {
+  const svgRef = useRef(null)
+  const mrp = variant.mrp || product.mrp || 0
+
+  useEffect(() => {
+    if (!svgRef.current || !variant.id) return
+    try {
+      JsBarcode(svgRef.current, variant.id, {
+        format:       "CODE128",
+        width:        1.4,
+        height:       38,
+        displayValue: false,
+        margin:       4,
+        background:   "#ffffff",
+        lineColor:    "#000000",
+      })
+    } catch(e) { console.error("JsBarcode error:", e) }
+  }, [variant.id])
+
+  const variantLabel = [variant.colour, variant.size, variant.design].filter(Boolean).join(" · ") || "Default"
+
+  return (
+    <div className="barcode-label"
+      style={{ border:"1.5px solid #d1d5db", borderRadius:8, padding:"8px 10px",
+        textAlign:"center", background:"#fff", display:"flex", flexDirection:"column", alignItems:"center" }}>
+      {product.image_url ? (
+        <img src={product.image_url} alt={product.name}
+          style={{ width:44, height:44, objectFit:"cover", borderRadius:6, marginBottom:4 }} />
+      ) : (
+        <div style={{ width:44, height:44, borderRadius:6, marginBottom:4,
+          background:"#fbeaef", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+          💍
+        </div>
+      )}
+      <div style={{ fontWeight:700, color:"#111", fontSize:11, lineHeight:1.3, marginBottom:2 }}>
+        {product.name}
+      </div>
+      <div style={{ color:"#6b7280", fontSize:9, marginBottom:6 }}>{variantLabel}</div>
+      <svg ref={svgRef} style={{ maxWidth:"100%", height:50 }} />
+      <div style={{ fontWeight:800, color:"var(--saffron,#e87722)", fontSize:13, marginTop:4 }}>
+        {INR(mrp)}<span style={{ fontSize:8, fontWeight:500, color:"#9ca3af", marginLeft:2 }}>/dz</span>
+      </div>
+      {product.gst_percent > 0 && (
+        <div style={{ fontSize:8, color:"#9ca3af", marginTop:1 }}>
+          +{product.gst_percent}% GST
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BarcodeLabelsModal({ product, onClose }) {
+  const variants = (product.variants || []).filter(v => v.is_active !== false)
 
   return (
     <>
       <style>{`
         @media print {
-          body > *:not(#qr-print-area) { display: none !important; }
-          #qr-print-area {
+          body > *:not(#barcode-print-area) { display: none !important; }
+          #barcode-print-area {
             display: grid !important;
             grid-template-columns: repeat(3, 1fr);
-            gap: 12px; padding: 16px;
+            gap: 10px; padding: 12px;
           }
-          .qr-label { page-break-inside: avoid; }
+          .barcode-label { page-break-inside: avoid; }
           .no-print { display: none !important; }
         }
       `}</style>
@@ -1032,7 +1084,7 @@ function QRLabelsModal({ product, onClose }) {
           <div className="no-print" style={{ padding:"16px 20px", borderBottom:"1px solid var(--rule)",
             display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
-              <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)" }}>🏷️ QR Labels</div>
+              <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)" }}>🏷️ Barcode Labels</div>
               <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
                 {product.name} · {variants.length} label{variants.length !== 1 ? "s" : ""}
               </div>
@@ -1051,36 +1103,14 @@ function QRLabelsModal({ product, onClose }) {
           </div>
 
           {/* Labels grid */}
-          <div id="qr-print-area" style={{ overflowY:"auto", flex:1, padding:16,
-            display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))", gap:10 }}>
+          <div id="barcode-print-area" style={{ overflowY:"auto", flex:1, padding:14,
+            display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))", gap:10 }}>
             {variants.length === 0 ? (
               <div style={{ gridColumn:"1/-1", textAlign:"center", padding:32, color:"var(--ink-faint)", fontSize:13 }}>
-                No variants — add variants first to generate labels
+                No active variants — add variants first to generate labels
               </div>
             ) : variants.map(v => (
-              <div key={v.id} className="qr-label"
-                style={{ border:"1.5px solid #e5e7eb", borderRadius:10, padding:10,
-                  textAlign:"center", background:"#fff" }}>
-                <div style={{ fontWeight:700, color:"var(--ink)", fontSize:11, marginBottom:2, lineHeight:1.3 }}>
-                  {product.name}
-                </div>
-                <div style={{ color:"var(--ink-faint)", fontSize:9, marginBottom:8, lineHeight:1.4 }}>
-                  {[v.colour, v.size, v.design].filter(Boolean).join(" · ") || "Default"}
-                </div>
-                <img
-                  src={`${qrBase}${encodeURIComponent(v.id)}`}
-                  alt={v.id}
-                  style={{ width:100, height:100, display:"block", margin:"0 auto 8px" }}
-                />
-                <div style={{ fontWeight:800, color:"var(--saffron)", fontSize:14 }}>
-                  {INR(v.mrp || product.mrp)}
-                </div>
-                {product.gst_percent > 0 && (
-                  <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:1 }}>
-                    incl. {product.gst_percent}% GST
-                  </div>
-                )}
-              </div>
+              <BarcodeLabel key={v.id} product={product} variant={v} />
             ))}
           </div>
         </div>
@@ -1200,13 +1230,67 @@ function EditProductModal({ product, onClose, onSaved }) {
   )
 }
 
+// ── Image compress helper (client-side, before upload) ─────────
+function compressImage(file, maxPx = 900, quality = 0.78) {
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+      const w = Math.round(img.width  * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement("canvas")
+      canvas.width = w; canvas.height = h
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h)
+      canvas.toBlob(blob => resolve(blob || file), "image/jpeg", quality)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
+
 // ── Product Card ───────────────────────────────────────────
 function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }) {
-  const [expanded,   setExpanded]   = useState(false)
-  const [showEdit,   setShowEdit]   = useState(false)
-  const [showLabels, setShowLabels] = useState(false)
+  const [expanded,      setExpanded]      = useState(false)
+  const [showEdit,      setShowEdit]      = useState(false)
+  const [showLabels,    setShowLabels]    = useState(false)
+  const [imgUploading,  setImgUploading]  = useState(false)
+  const [imgErr,        setImgErr]        = useState("")
+  const imgInputRef = useRef(null)
+
   const isLow = product.low_stock_count > 0
   const isOut = product.total_stock === 0 && product.variant_count > 0
+
+  async function handleImageChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImgUploading(true); setImgErr("")
+    try {
+      const compressed = await compressImage(file)
+      const url = await BangleProducts.uploadImage(product.id, compressed)
+      onProductUpdated({ ...product, image_url: url })
+    } catch(err) {
+      setImgErr(err.message || "Upload failed")
+    } finally {
+      setImgUploading(false)
+      e.target.value = ""
+    }
+  }
+
+  async function handleRemoveImage(e) {
+    e.stopPropagation()
+    if (!window.confirm("Remove photo?")) return
+    setImgUploading(true); setImgErr("")
+    try {
+      await BangleProducts.removeImage(product.id)
+      onProductUpdated({ ...product, image_url: null })
+    } catch(err) {
+      setImgErr(err.message || "Remove failed")
+    } finally {
+      setImgUploading(false)
+    }
+  }
 
   return (
     <div className="rounded-2xl overflow-hidden mb-3" style={{background:"var(--bg1)",border:"1px solid var(--rule)"}}>
@@ -1218,12 +1302,41 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
         />
       )}
       {showLabels && (
-        <QRLabelsModal product={product} onClose={() => setShowLabels(false)} />
+        <BarcodeLabelsModal product={product} onClose={() => setShowLabels(false)} />
       )}
 
       <div className="flex items-center gap-3 p-4">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 cursor-pointer"
-          style={{background:"#fbeaef"}} onClick={() => setExpanded(!expanded)}>💍</div>
+        {/* Product image / placeholder — tap to upload */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <div
+            style={{ width: 52, height: 52, borderRadius: 12, overflow: "hidden",
+              background: "#fbeaef", cursor: "pointer", position: "relative" }}
+            onClick={() => imgInputRef.current?.click()}
+            title="Tap to add/change photo">
+            {product.image_url ? (
+              <img src={product.image_url} alt={product.name}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <div style={{ width: "100%", height: "100%",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                💍
+              </div>
+            )}
+            {imgUploading && (
+              <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.75)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 18, borderRadius: 12 }}>⟳</div>
+            )}
+          </div>
+          {/* Camera badge */}
+          <div style={{ position: "absolute", bottom: 0, right: 0,
+            background: "rgba(0,0,0,0.55)", borderRadius: "0 0 12px 0",
+            padding: "2px 4px", fontSize: 10, lineHeight: 1, pointerEvents: "none" }}>
+            📷
+          </div>
+          <input ref={imgInputRef} type="file" accept="image/*"
+            style={{ display: "none" }} onChange={handleImageChange} />
+        </div>
         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           <div className="font-semibold text-sm truncate" style={{color:"var(--ink)"}}>{product.name}</div>
           <div className="text-[11px] flex gap-2 mt-0.5" style={{color:"var(--ink-faint)"}}>
@@ -1285,6 +1398,9 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
                 onStockChange={(id, s) => onStockChange(product.id, id, s)} />
             ))}
           </div>
+          {imgErr && (
+            <div style={{fontSize:11, color:"#dc2626", marginTop:6}}>{imgErr}</div>
+          )}
           <div style={{display:"flex", gap:8, marginTop:12}}>
             <button
               onClick={() => onAddVariants(product)}
@@ -1292,12 +1408,19 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
               style={{borderColor:"var(--saffron)",color:"var(--saffron)",background:"transparent"}}>
               + Add Variants
             </button>
+            {product.image_url && (
+              <button onClick={handleRemoveImage}
+                className="py-2 rounded-xl text-xs font-semibold border"
+                style={{padding:"8px 10px", borderColor:"var(--ember)", color:"var(--ember)", background:"transparent", flexShrink:0}}>
+                🗑 Photo
+              </button>
+            )}
             {product.variants.length > 0 && (
               <button
                 onClick={() => setShowLabels(true)}
                 className="py-2 rounded-xl text-xs font-semibold border"
                 style={{padding:"8px 14px", borderColor:"var(--jade)", color:"var(--jade)", background:"transparent", flexShrink:0}}>
-                🏷️ QR Labels
+                🏷️ Barcodes
               </button>
             )}
           </div>
@@ -1386,12 +1509,12 @@ export default function BangleInventory() {
           <div style={{fontSize:15,fontWeight:700,color:"var(--ink)"}}>💍 Bangle Inventory</div>
           <div style={{fontSize:11,color:"var(--ink-faint)"}}>Variants by colour, size &amp; design</div>
         </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>navigate("/bangle-bulk-import")}
+        <div className="inv-header-actions" style={{display:"flex",gap:8}}>
+          <button className="inv-bulk-btn" onClick={()=>navigate("/bangle-bulk-import")}
             style={{background:"var(--bg2)",color:"var(--ink-dim)",border:"none",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
             📦 Bulk Import
           </button>
-          <button onClick={()=>setShowAdd(true)}
+          <button className="inv-add-btn" onClick={()=>setShowAdd(true)}
             style={{background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
             + Add Product
           </button>
@@ -1400,7 +1523,7 @@ export default function BangleInventory() {
 
       {/* Summary strip */}
       {summary && (
-        <div style={{display:"flex",gap:1,background:"var(--rule)",flexShrink:0}}>
+        <div className="bangle-summary-strip" style={{display:"flex",gap:1,background:"var(--rule)",flexShrink:0}}>
           {[
             {label:"Products",  value:products.length,         color:"var(--jade)"},
             {label:"Variants",  value:summary.total_variants,  color:"var(--jade)"},

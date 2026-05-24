@@ -29,7 +29,7 @@ const pulseStyle = `
   .wave-bar:nth-child(4){animation-delay:.3s} .wave-bar:nth-child(5){animation-delay:.15s}
 `
 
-export default function VoiceAgent({ onAddToBill, onLangChange }) {
+export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = [] }) {
   const [lang,       setLang]       = useState(() => getSavedLang())
   const [listening,  setListening]  = useState(false)
   const [transcript, setTranscript] = useState("")
@@ -49,10 +49,21 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
 
   useEffect(() => {
     Products.list().then((res) => {
-      const productList = Array.isArray(res) ? res : (res?.data || [])
-      setProducts(productList)
-      matcherRef.current = createAdaptiveMatcher(productList)
-      voiceEngine.setGrammarHints(productList.map(pr => pr.name))
+      const kiranaList = Array.isArray(res) ? res : (res?.data || [])
+      // Merge bangle products (flatten variants → product-level shape)
+      const bangleFlat = extraProducts.map(p => ({
+        id:          p.id,
+        name:        p.name,
+        mrp:         p.mrp,
+        unit:        "piece",
+        stock:       9999,
+        gst_percent: p.gst_percent || 3,
+        _isBangle:   true,
+      }))
+      const merged = [...kiranaList, ...bangleFlat]
+      setProducts(merged)
+      matcherRef.current = createAdaptiveMatcher(merged)
+      voiceEngine.setGrammarHints(merged.map(pr => pr.name))
     }).catch(e => console.error("Products load failed:", e))
     initContextPredictor()
     startSession()
@@ -60,7 +71,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
 
     // Load learned patterns from server so they work on any device
     if (getToken()) loadFromServer().catch(() => {})
-  }, [])
+  }, [extraProducts])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }) }, [history])
 
   useEffect(() => {
@@ -297,8 +308,10 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
       try {
         if (action === "ADD_BILL") {
           if (invMatch) {
-            const newStock = Math.max(0, invMatch.stock - qty)
-            await Products.update(invMatch.id, { stock: newStock })
+            if (!invMatch._isBangle) {
+              const newStock = Math.max(0, invMatch.stock - qty)
+              await Products.update(invMatch.id, { stock: newStock })
+            }
             onAddToBill?.({ product: invMatch, qty, unit })
           } else {
             onAddToBill?.({ product: null, productName: stdName, qty, unit, price: 0 })
@@ -325,9 +338,11 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
     try {
       if (action === "ADD_BILL") {
         if (invMatch) {
-          // Deduct stock + add to bill
-          const newStock = Math.max(0, invMatch.stock - qty)
-          await Products.update(invMatch.id, { stock: newStock })
+          // Bangle products have _isBangle flag — don't touch kirana stock
+          if (!invMatch._isBangle) {
+            const newStock = Math.max(0, invMatch.stock - qty)
+            await Products.update(invMatch.id, { stock: newStock })
+          }
           onAddToBill?.({ product: invMatch, qty, unit })
           // Record use for session frequency boost
           recordProductUse(invMatch.id, invMatch.name)
@@ -341,12 +356,19 @@ export default function VoiceAgent({ onAddToBill, onLangChange }) {
           speak(msg, lang)
           addHistory({ type:"bill", original, result: msg })
           setStatus("done"); setStatusMsg(msg)
-          Products.list().then(p => {
-            const list = Array.isArray(p) ? p : (p?.data || [])
-            setProducts(list)
-            matcherRef.current = createAdaptiveMatcher(list)
-            voiceEngine.setGrammarHints(list.map(pr => pr.name))
-          })
+          if (!invMatch._isBangle) {
+            Products.list().then(p => {
+              const list = Array.isArray(p) ? p : (p?.data || [])
+              const bangleFlat = extraProducts.map(ep => ({
+                id: ep.id, name: ep.name, mrp: ep.mrp, unit: "piece",
+                stock: 9999, gst_percent: ep.gst_percent || 3, _isBangle: true,
+              }))
+              const merged = [...list, ...bangleFlat]
+              setProducts(merged)
+              matcherRef.current = createAdaptiveMatcher(merged)
+              voiceEngine.setGrammarHints(merged.map(pr => pr.name))
+            })
+          }
         } else {
           onAddToBill?.({ product: null, productName: stdName, qty, unit, price: 0 })
           const msg = `"${stdName}" added to bill — set price manually`

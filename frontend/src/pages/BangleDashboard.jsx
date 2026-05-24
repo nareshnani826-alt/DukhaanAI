@@ -270,7 +270,7 @@ export default function BangleDashboard() {
         <BriefingCard data={briefing} navigate={navigate} />
 
         {/* Stats row */}
-        <div className="dash-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
+        <div className="dash-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px,1fr))", gap: 12, marginBottom: 16 }}>
           {[
             {
               label: t("Bills Today"),
@@ -308,7 +308,7 @@ export default function BangleDashboard() {
           <div style={{ fontSize: 10, fontWeight: 800, color: "var(--brass-deep)",
             letterSpacing: "2px", textTransform: "uppercase" }}>{t("QUICK ACTIONS")}</div>
         </div>
-        <div className="dash-quick-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 20 }}>
+        <div className="dash-quick-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(72px,1fr))", gap: 8, marginBottom: 20 }}>
           {[
             { label: t("New Bill"),  emoji: "🧾", tone: "var(--saffron)", border: "rgba(212,98,31,0.35)",  to: "/bangle-billing" },
             { label: t("Add Stock"), emoji: "💍", tone: "var(--brass)",   border: "rgba(166,124,46,0.35)", to: "/bangle-inventory" },

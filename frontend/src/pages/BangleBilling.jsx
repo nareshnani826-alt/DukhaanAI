@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react"
 import { useAuth } from "../context/AuthContext"
 import { BangleProducts, BangleSales, BangleSync } from "../sync/bangleDb"
 import { useLang, LangToggle } from "../hooks/useLang"
-import { Html5Qrcode } from "html5-qrcode"
+import { VOICE_LANGS } from "../voice/useProductVoice.js"
+import { getSavedLang } from "../voice/i18n.js"
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const UNITS = [
@@ -53,52 +55,411 @@ function parseVoiceCart(text, products) {
   return { product: best, variant, colour, size, qty, unit }
 }
 
-// ── QR / Barcode Scanner (html5-qrcode) ──────────────────────
-function BarcodeScanner({ products, onFound, onClose }) {
-  const [err,     setErr]     = useState("")
-  const [hint,    setHint]    = useState("")
-  const scannerRef = useRef(null)
-  const elId = "bangle-qr-reader"
+// ── Scan-to-Bill Modal ────────────────────────────────────────
+const isMobileDevice = () => /android|iphone|ipad|ipod/i.test(navigator.userAgent) || window.innerWidth < 640
+
+const BARCODE_FORMATS = [
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.QR_CODE,
+]
+
+function findVariantMatch(products, decoded) {
+  for (const p of products) {
+    for (const v of (p.variants || [])) {
+      if (v.id === decoded) return { product: p, variant: v }
+    }
+  }
+  return null
+}
+
+// Camera scanner — stays running after each scan (no stop), uses debounce to avoid double-reads
+function ScanCamera({ products, onScanned, feedback }) {
+  const [err, setErr]   = useState("")
+  const scannerRef      = useRef(null)
+  const lastRef         = useRef({ id: "", ts: 0 })
+  const elId            = "scan-bill-cam"
 
   useEffect(() => {
-    const qr = new Html5Qrcode(elId)
+    const qr = new Html5Qrcode(elId, { formatsToSupport: BARCODE_FORMATS, verbose: false })
     scannerRef.current = qr
     qr.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
+      { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 2.6 },
       (decoded) => {
-        // Look up variant by id
-        let match = null
-        for (const p of products) {
-          for (const v of (p.variants || [])) {
-            if (v.id === decoded) { match = { product: p, variant: v }; break }
-          }
-          if (match) break
-        }
-        if (match) {
-          qr.stop().catch(()=>{})
-          onFound(match)
-        } else {
-          setHint("No variant found for this code — try another label")
-        }
+        const now = Date.now()
+        // Debounce: ignore same code within 2 s
+        if (decoded === lastRef.current.id && now - lastRef.current.ts < 2000) return
+        lastRef.current = { id: decoded, ts: now }
+        const match = findVariantMatch(products, decoded)
+        onScanned(decoded, match)
       },
-      () => {}  // ignore per-frame errors
-    ).catch(e => setErr(e?.message || "Camera access denied. Allow camera in browser settings."))
-
-    return () => { qr.stop().catch(()=>{}) }
+      () => {}
+    ).catch(e => setErr(e?.message || "Camera access denied — allow in browser settings"))
+    return () => { qr.stop().catch(() => {}) }
   }, [])
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:60,
-      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14 }}>
-      <div style={{ fontSize:14, fontWeight:700, color:"#fff" }}>📷 Point at a QR label</div>
-      <div id={elId} style={{ width:"min(320px,90vw)", borderRadius:16, overflow:"hidden", background:"#000" }} />
-      {err  && <div style={{ color:"#ff6b6b", fontSize:12, textAlign:"center", maxWidth:280, padding:"0 16px" }}>{err}</div>}
-      {hint && <div style={{ color:"#ffd700", fontSize:12, textAlign:"center", maxWidth:280 }}>{hint}</div>}
-      {!err && !hint && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:11 }}>Scanning…</div>}
-      <button onClick={onClose}
-        style={{ background:"#fff", border:"none", borderRadius:10, padding:"10px 32px",
-          fontSize:14, fontWeight:700, cursor:"pointer", color:"#333" }}>Cancel</button>
+    <div style={{ position:"relative" }}>
+      <div id={elId} style={{ width:"100%", background:"#000", maxHeight:200, overflow:"hidden" }} />
+      {feedback && (
+        <div style={{ position:"absolute", bottom:6, left:0, right:0, textAlign:"center",
+          fontSize:12, fontWeight:700, color:"#fff",
+          background: feedback.startsWith("✓") ? "rgba(29,158,117,0.88)" : "rgba(220,38,38,0.88)",
+          padding:"4px 0", borderRadius:6, margin:"0 8px" }}>
+          {feedback}
+        </div>
+      )}
+      {err && <div style={{ padding:"6px 10px", fontSize:11, color:"#ff6b6b", textAlign:"center" }}>{err}</div>}
+      {!err && !feedback && (
+        <div style={{ position:"absolute", bottom:6, left:0, right:0, textAlign:"center",
+          fontSize:10, color:"rgba(255,255,255,0.6)" }}>Hold steady — scanning…</div>
+      )}
+    </div>
+  )
+}
+
+// Keyboard scanner — auto-clear + refocus after each scan
+function ScanKeyboard({ products, onScanned, feedback }) {
+  const [value, setValue] = useState("")
+  const inputRef = useRef(null)
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100) }, [])
+
+  function handleEnter() {
+    const id = value.trim()
+    if (!id) return
+    const match = findVariantMatch(products, id)
+    onScanned(id, match)
+    setValue("")
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  return (
+    <div style={{ padding:"10px 14px", background:"#1a1a1a", display:"flex", flexDirection:"column",
+      alignItems:"center", gap:8 }}>
+      <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>
+        ⌨️ Point your USB/Bluetooth scanner at a barcode label
+      </div>
+      <input ref={inputRef} value={value}
+        onChange={e => setValue(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && handleEnter()}
+        placeholder="Waiting for scanner…"
+        autoComplete="off"
+        style={{ width:"100%", maxWidth:320, padding:"9px 14px", borderRadius:10,
+          border:"1.5px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)",
+          color:"#fff", fontSize:13, outline:"none", textAlign:"center" }}
+      />
+      {feedback && (
+        <div style={{ fontSize:12, fontWeight:700,
+          color: feedback.startsWith("✓") ? "#4ade80" : "#f87171" }}>
+          {feedback}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
+  const [mode,       setMode]       = useState(() => isMobileDevice() ? "camera" : "keyboard")
+  const [scanItems,  setScanItems]  = useState([])
+  const [customer,   setCustomer]   = useState({ name: "", phone: "" })
+  const [payment,    setPayment]    = useState("cash")
+  const [discountPct,setDiscountPct]= useState(0)
+  const [loading,    setLoading]    = useState(false)
+  const [err,        setErr]        = useState("")
+  const [feedback,   setFeedback]   = useState("")
+
+  function showFeedback(msg) {
+    setFeedback(msg)
+    setTimeout(() => setFeedback(""), 2000)
+  }
+
+  function handleScanned(decoded, match) {
+    if (!match) { showFeedback("✗ No product for this barcode"); return }
+    const { product, variant } = match
+    const dozenMrp  = variant.mrp  ?? product.mrp  ?? 0
+    const dozenCost = variant.cost_price ?? product.cost_price ?? 0
+    const unitPrice = +(dozenMrp / 12).toFixed(2)
+
+    setScanItems(prev => {
+      const idx = prev.findIndex(i => i.variant_id === variant.id)
+      if (idx >= 0) {
+        const updated = [...prev]
+        const it = updated[idx]
+        updated[idx] = { ...it, unit_qty: it.unit_qty + 1, pieces: it.pieces + 1,
+          amount: +(it.amount + unitPrice).toFixed(2) }
+        return updated
+      }
+      return [...prev, {
+        variant_id:   variant.id,
+        product_id:   product.id,
+        product_name: product.name,
+        colour:       variant.colour,
+        size:         variant.size,
+        design:       variant.design,
+        unit:         "piece",
+        unit_qty:     1,
+        unit_price:   unitPrice,
+        pieces:       1,
+        amount:       unitPrice,
+        cost_price:   dozenCost,
+        gst_percent:  product.gst_percent || 3,
+        _id:          variant.id,
+      }]
+    })
+    const label = [product.name, variant.colour, variant.size].filter(Boolean).join(" · ")
+    showFeedback(`✓ ${label}`)
+  }
+
+  function changeQty(variantId, delta) {
+    setScanItems(prev => prev
+      .map(i => {
+        if (i.variant_id !== variantId) return i
+        const newQty = i.unit_qty + delta
+        if (newQty <= 0) return null
+        return { ...i, unit_qty: newQty, pieces: newQty,
+          amount: +(newQty * i.unit_price).toFixed(2) }
+      })
+      .filter(Boolean)
+    )
+  }
+
+  const subtotal     = scanItems.reduce((s, i) => s + i.amount, 0)
+  const discountAmt  = +(subtotal * discountPct / 100).toFixed(2)
+  const afterDiscount= +(subtotal - discountAmt).toFixed(2)
+  const totalCost    = scanItems.reduce((s, i) => s + (i.pieces * (i.cost_price || 0) / 12), 0)
+  const profit       = afterDiscount - totalCost
+  const hasCost      = scanItems.some(i => i.cost_price > 0)
+  const marginPct    = afterDiscount > 0 ? (profit / afterDiscount) * 100 : 0
+
+  async function generateBill() {
+    if (!scanItems.length) return
+    setLoading(true); setErr("")
+    try {
+      const mult = 1 - discountPct / 100
+      const sale = await BangleSales.create({
+        customer_name:  customer.name || "Walk-in Customer",
+        customer_phone: customer.phone || null,
+        items: scanItems.map(({ cost_price, _id, ...rest }) => ({
+          ...rest,
+          unit_price: +(rest.unit_price * mult).toFixed(2),
+          amount:     +(rest.amount     * mult).toFixed(2),
+        })),
+        payment_mode: payment,
+        apply_gst:    false,
+        notes:        discountPct > 0 ? `Discount: ${discountPct}%` : null,
+      })
+      onBill(sale)
+      onClose()
+    } catch (e) { setErr(e.message) }
+    finally { setLoading(false) }
+  }
+
+  function addToCartAndClose() {
+    scanItems.forEach(({ _id, cost_price, ...rest }) =>
+      onAddToCart({ ...rest, cost_price, _id: rest.variant_id + "-" + Date.now() })
+    )
+    onClose()
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:60, background:"var(--bg0)",
+      display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+      {/* Header */}
+      <div style={{ padding:"10px 14px", background:"var(--bg1)",
+        borderBottom:"1px solid var(--rule)", display:"flex",
+        alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+        <div>
+          <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)" }}>
+            📦 Scan to Bill
+          </div>
+          <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
+            {scanItems.length > 0
+              ? `${scanItems.length} item${scanItems.length > 1 ? "s" : ""} · ${INR(subtotal)}`
+              : "Scan barcodes to add items"}
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {/* Camera / Keyboard toggle */}
+          <div style={{ display:"flex", borderRadius:8, overflow:"hidden",
+            border:"1px solid var(--rule)" }}>
+            {[{ id:"camera", label:"📷" }, { id:"keyboard", label:"⌨️" }].map(m => (
+              <button key={m.id} onClick={() => setMode(m.id)}
+                style={{ padding:"5px 12px", border:"none", cursor:"pointer", fontSize:14,
+                  background: mode === m.id ? "var(--saffron)" : "var(--bg2)",
+                  color:      mode === m.id ? "#fff" : "var(--ink-dim)" }}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={onClose}
+            style={{ background:"none", border:"none", fontSize:22,
+              cursor:"pointer", color:"var(--ink-faint)", lineHeight:1 }}>
+            ×
+          </button>
+        </div>
+      </div>
+
+      {/* Scanner */}
+      <div style={{ flexShrink:0, background:"#111" }}>
+        {mode === "camera"
+          ? <ScanCamera    products={products} onScanned={handleScanned} feedback={feedback} />
+          : <ScanKeyboard  products={products} onScanned={handleScanned} feedback={feedback} />
+        }
+      </div>
+
+      {/* Scanned items list */}
+      <div style={{ flex:1, overflowY:"auto", padding:"8px 12px" }}>
+        {scanItems.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"32px 16px",
+            color:"var(--ink-faint)", fontSize:13 }}>
+            <div style={{ fontSize:36, marginBottom:10 }}>📷</div>
+            Scan a barcode to start adding items
+          </div>
+        ) : scanItems.map(item => (
+          <div key={item._id} style={{ display:"flex", alignItems:"center", gap:10,
+            padding:"9px 10px", borderRadius:10, marginBottom:6,
+            background:"var(--bg1)", border:"1px solid var(--rule)" }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
+                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                {item.product_name}
+              </div>
+              <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
+                {[item.colour, item.size, item.design].filter(Boolean).join(" · ") || "—"}
+              </div>
+              <div style={{ fontSize:11, color:"var(--ink-dim)", marginTop:1 }}>
+                {INR(item.unit_price)}/pc
+              </div>
+            </div>
+            {/* Qty controls */}
+            <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+              <button className="qty-btn" onClick={() => changeQty(item.variant_id, -1)}
+                style={{ borderRadius:7, border:"1.5px solid var(--rule)",
+                  background:"var(--bg2)", cursor:"pointer", fontWeight:700, fontSize:14,
+                  display:"flex", alignItems:"center", justifyContent:"center", color:"var(--ink-dim)" }}>
+                −
+              </button>
+              <span style={{ fontSize:14, fontWeight:700, minWidth:20, textAlign:"center",
+                color:"var(--ink)" }}>{item.unit_qty}</span>
+              <button className="qty-btn" onClick={() => changeQty(item.variant_id, +1)}
+                style={{ borderRadius:7, border:"1.5px solid var(--saffron)",
+                  background:"rgba(232,119,34,0.1)", cursor:"pointer", fontWeight:700, fontSize:14,
+                  display:"flex", alignItems:"center", justifyContent:"center", color:"var(--saffron)" }}>
+                +
+              </button>
+            </div>
+            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)",
+              minWidth:52, textAlign:"right", flexShrink:0 }}>
+              {INR(item.amount)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Checkout footer */}
+      {scanItems.length > 0 && (
+        <div style={{ borderTop:"1px solid var(--rule)", padding:"10px 14px",
+          background:"var(--bg1)", flexShrink:0 }}>
+
+          {/* Customer + payment */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
+            <input placeholder="Customer name" value={customer.name}
+              onChange={e => setCustomer(c => ({ ...c, name: e.target.value }))}
+              style={{ border:"1.5px solid var(--rule)", borderRadius:8, padding:"6px 10px",
+                fontSize:12, background:"var(--bg2)", color:"var(--ink)", outline:"none" }} />
+            <input placeholder="Phone (optional)" value={customer.phone}
+              onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))}
+              style={{ border:"1.5px solid var(--rule)", borderRadius:8, padding:"6px 10px",
+                fontSize:12, background:"var(--bg2)", color:"var(--ink)", outline:"none" }} />
+          </div>
+
+          {/* Payment mode */}
+          <div style={{ display:"flex", gap:5, marginBottom:8 }}>
+            {["cash","upi","card","credit"].map(m => (
+              <button key={m} onClick={() => setPayment(m)}
+                style={{ flex:1, padding:"5px 2px", borderRadius:7, border:"1.5px solid",
+                  fontSize:10, fontWeight:700, cursor:"pointer", textTransform:"uppercase",
+                  background:  payment === m ? "var(--saffron)" : "var(--bg2)",
+                  color:       payment === m ? "#fff"           : "var(--ink-dim)",
+                  borderColor: payment === m ? "var(--saffron)" : "var(--rule)" }}>
+                {m}
+              </button>
+            ))}
+          </div>
+
+          {/* Discount */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <span style={{ fontSize:12, color:"var(--ink-dim)", fontWeight:600 }}>Discount</span>
+            <div style={{ position:"relative", flex:1 }}>
+              <input type="number" min="0" max="100" step="0.5"
+                value={discountPct || ""}
+                onChange={e => setDiscountPct(Math.min(100, Math.max(0, +e.target.value || 0)))}
+                placeholder="0"
+                style={{ width:"100%", border:"1.5px solid var(--rule)", borderRadius:8,
+                  padding:"5px 26px 5px 10px", fontSize:12, background:"var(--bg2)",
+                  color:"var(--ink)", outline:"none", boxSizing:"border-box" }} />
+              <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
+                fontSize:12, color:"var(--ink-faint)" }}>%</span>
+            </div>
+            {discountPct > 0 && (
+              <span style={{ fontSize:11, color:"var(--jade)", fontWeight:600, flexShrink:0 }}>
+                −{INR(discountAmt)}
+              </span>
+            )}
+          </div>
+
+          {/* Bill summary */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+            marginBottom:8, padding:"8px 10px", borderRadius:8,
+            background:"var(--bg2)", border:"1px solid var(--rule)" }}>
+            <div>
+              {discountPct > 0 && (
+                <div style={{ fontSize:10, color:"var(--ink-faint)", textDecoration:"line-through" }}>
+                  {INR(subtotal)}
+                </div>
+              )}
+              <div style={{ fontSize:17, fontWeight:800, color:"var(--ink)" }}>
+                Total {INR(afterDiscount)}
+              </div>
+            </div>
+            {hasCost && (
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontSize:10, color:"var(--ink-faint)" }}>Profit</div>
+                <div style={{ fontSize:14, fontWeight:800,
+                  color: marginPct >= 20 ? "var(--jade)" : marginPct >= 8 ? "#c47f00" : "#dc2626" }}>
+                  {profit >= 0 ? "+" : ""}{INR(profit)}
+                  <span style={{ fontSize:10, fontWeight:500, marginLeft:4 }}>
+                    ({marginPct.toFixed(0)}%)
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {err && <div style={{ fontSize:11, color:"#dc2626", marginBottom:6 }}>{err}</div>}
+
+          {/* Action buttons */}
+          <button onClick={generateBill} disabled={loading}
+            style={{ width:"100%", padding:"13px", borderRadius:12, border:"none",
+              fontSize:15, fontWeight:800, cursor: loading ? "default" : "pointer",
+              background: loading ? "var(--bg2)"
+                : "linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+              color: loading ? "var(--ink-faint)" : "#fff",
+              marginBottom:7 }}>
+            {loading ? "Saving…" : `🧾 Generate Bill · ${INR(afterDiscount)}`}
+          </button>
+
+          <button onClick={addToCartAndClose}
+            style={{ width:"100%", padding:"9px", borderRadius:10, border:"1px dashed var(--rule)",
+              fontSize:12, color:"var(--ink-faint)", background:"transparent", cursor:"pointer" }}>
+            Add to cart instead
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -127,7 +488,7 @@ function Chips({ label, options, value, onChange }) {
 }
 
 // ── Product Picker ────────────────────────────────────────────
-function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
+function ProductPicker({ products, onAdd, t, onScanRequest }) {
   const [search,  setSearch]  = useState("")
   const [product, setProduct] = useState(null)
   const [colour,  setColour]  = useState(null)
@@ -138,6 +499,7 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
   const [sellingPrice, setSellingPrice] = useState(0)
   const [voiceListening, setVoiceListening] = useState(false)
   const [voiceMsg, setVoiceMsg] = useState("")
+  const [voiceLang, setVoiceLang] = useState(() => getSavedLang() || "te-IN")
   const voiceRecRef = useRef(null)
 
   const filtered = products.filter(p =>
@@ -182,22 +544,14 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
     setSellingPrice(unitPrice(matched?.mrp ?? product?.mrp ?? 0))
   }, [matched?.id, product?.id, unit])
 
-  // Auto-select from QR scan
-  useEffect(() => {
-    if (!scannedItem) return
-    setProduct(scannedItem.product)
-    setColour(scannedItem.variant.colour || null)
-    setSize(scannedItem.variant.size     || null)
-    setDesign(scannedItem.variant.design || null)
-    setUnit("piece"); setQty(1); setSearch("")
-  }, [scannedItem])
+
 
   function startVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) { setVoiceMsg("Voice not supported — use Chrome"); return }
     setVoiceListening(true); setVoiceMsg("")
     const rec = new SR()
-    rec.lang = "hi-IN"; rec.continuous = false; rec.interimResults = false
+    rec.lang = voiceLang; rec.continuous = false; rec.interimResults = false
     rec.onend  = () => setVoiceListening(false)
     rec.onerror = () => { setVoiceListening(false); setVoiceMsg("Mic error — try again") }
     rec.onresult = (e) => {
@@ -259,7 +613,7 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
       <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--rule)", flexShrink: 0 }}>
         {/* Search + scan + voice row */}
         <div style={{ display:"flex", gap:6, marginBottom: voiceMsg ? 6 : 0 }}>
@@ -270,11 +624,18 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
               color: "var(--ink)", boxSizing: "border-box" }}
             onFocus={e => e.target.style.borderColor = "var(--saffron)"}
             onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
-          {/* QR Scanner */}
-          <button onClick={onScanRequest} title="Scan QR label"
-            style={{ padding:"8px 11px", borderRadius:10, border:"1.5px solid var(--rule)",
-              background:"var(--bg2)", cursor:"pointer", fontSize:18, flexShrink:0 }}>
-            📷
+          {/* Barcode Scanner */}
+          <button onClick={onScanRequest} title="Scan barcode"
+            style={{ padding:"8px 10px", borderRadius:10, border:"1.5px solid var(--rule)",
+              background:"var(--bg2)", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ color:"var(--ink-dim)" }}>
+              <rect x="3"  y="4" width="2" height="16"/>
+              <rect x="7"  y="4" width="1" height="16"/>
+              <rect x="10" y="4" width="2" height="16"/>
+              <rect x="14" y="4" width="1" height="16"/>
+              <rect x="17" y="4" width="2" height="16"/>
+              <rect x="21" y="4" width="1" height="16"/>
+            </svg>
           </button>
           {/* Voice */}
           <button onClick={voiceListening ? () => { voiceRecRef.current?.stop(); setVoiceListening(false) } : startVoice}
@@ -286,6 +647,21 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
               animation: voiceListening ? "voice-ring 1.2s ease-in-out infinite" : "none" }}>
             🎤
           </button>
+        </div>
+        {/* Language selector — shown when voice is active or on tap */}
+        <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginTop:6 }}>
+          {VOICE_LANGS.map(l => (
+            <button key={l.code} onClick={() => setVoiceLang(l.code)}
+              title={l.name}
+              style={{ padding:"2px 8px", borderRadius:20, fontSize:10, fontWeight:600,
+                border:"1.5px solid",
+                borderColor: voiceLang === l.code ? "var(--saffron)" : "var(--rule)",
+                background:  voiceLang === l.code ? "var(--saffron)" : "var(--bg2)",
+                color:       voiceLang === l.code ? "#fff" : "var(--ink-dim)",
+                cursor:"pointer", lineHeight:1.6 }}>
+              {l.label}
+            </button>
+          ))}
         </div>
         {voiceMsg && (
           <div style={{ fontSize:11, marginTop:4, fontWeight:600, padding:"4px 8px", borderRadius:7,
@@ -314,9 +690,13 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
                 background: "var(--bg1)", border: "1px solid var(--rule)", transition: "all 0.12s" }}
               onMouseEnter={e => e.currentTarget.style.borderColor = "var(--saffron)"}
               onMouseLeave={e => e.currentTarget.style.borderColor = "var(--rule)"}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: "#fbeaef",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                💍
+              <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden",
+                background: "#fbeaef", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {p.image_url
+                  ? <img src={p.image_url} alt={p.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <span style={{ fontSize: 18 }}>💍</span>}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 2 }}>
@@ -379,16 +759,16 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)", marginBottom: 5,
               textTransform: "uppercase", letterSpacing: "0.8px" }}>{t("Quantity")}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => setQty(q => Math.max(1, q - 1))}
-                style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--rule)",
+              <button className="qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))}
+                style={{ borderRadius: 8, border: "1.5px solid var(--rule)",
                   background: "var(--bg2)", cursor: "pointer", fontSize: 16, color: "var(--ink-dim)" }}>−</button>
               <input type="number" min="1" value={qty}
                 onChange={e => setQty(Math.max(1, +e.target.value || 1))}
                 style={{ width: 60, textAlign: "center", border: "1.5px solid var(--rule)", borderRadius: 8,
                   padding: "6px 0", fontSize: 14, fontWeight: 700, color: "var(--ink)",
                   background: "var(--bg2)", outline: "none" }} />
-              <button onClick={() => setQty(q => q + 1)}
-                style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--rule)",
+              <button className="qty-btn" onClick={() => setQty(q => q + 1)}
+                style={{ borderRadius: 8, border: "1.5px solid var(--rule)",
                   background: "var(--bg2)", cursor: "pointer", fontSize: 16, color: "var(--ink-dim)" }}>+</button>
               <div style={{ fontSize: 11, color: "var(--ink-faint)", marginLeft: 4 }}>
                 = {pieces} pcs
@@ -625,7 +1005,7 @@ function CartPanel({ items, onRemove, onBill, t }) {
   )
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px" }}>
         {items.map(item => (
           <div key={item._id} style={{ display: "flex", alignItems: "flex-start", gap: 8,
@@ -801,7 +1181,6 @@ export default function BangleBilling() {
   const [pending,      setPending]      = useState(BangleSync.pendingCount())
   const [syncing,      setSyncing]      = useState(false)
   const [showScanner,  setShowScanner]  = useState(false)
-  const [scannedItem,  setScannedItem]  = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -853,8 +1232,7 @@ export default function BangleBilling() {
   const storeName = vendor?.store_name || "Bangle Store"
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden",
-      background: "var(--bg0)" }}>
+    <div className="page-flex-fill" style={{ background: "var(--bg0)" }}>
 
       {receipt && (
         <ReceiptModal sale={receipt} storeName={storeName}
@@ -862,9 +1240,10 @@ export default function BangleBilling() {
           onNewBill={() => { setReceipt(null); setTab("items") }} />
       )}
       {showScanner && (
-        <BarcodeScanner
+        <ScanBillModal
           products={products}
-          onFound={item => { setScannedItem(item); setShowScanner(false); setTab("items") }}
+          onBill={sale => { onBill(sale); setShowScanner(false) }}
+          onAddToCart={item => { addToCart(item); setTab("cart") }}
           onClose={() => setShowScanner(false)}
         />
       )}
@@ -922,8 +1301,7 @@ export default function BangleBilling() {
       </div>
 
       {/* Mobile tabs */}
-      <div className="mobile-billing-tabs"
-        style={{ display: "none", background: "var(--bg1)", borderBottom: "1px solid var(--rule)", flexShrink: 0 }}>
+      <div className="mobile-billing-tabs">
         {[{ id: "items", label: t("Add Items") }, { id: "cart", label: `${t("Cart")} (${cart.length})` }].map(tab_ => (
           <button key={tab_.id} onClick={() => setTab(tab_.id)}
             style={{ flex: 1, padding: "10px 0", background: "none", border: "none",
@@ -944,7 +1322,6 @@ export default function BangleBilling() {
             style={{ flex: 1, borderRight: "1px solid var(--rule)", overflow: "hidden",
               display: "flex", flexDirection: "column" }}>
             <ProductPicker products={products} onAdd={addToCart} t={t}
-              scannedItem={scannedItem}
               onScanRequest={() => setShowScanner(true)} />
           </div>
           <div className={`billing-right${tab === "items" ? " billing-hidden-mobile" : ""}`}
@@ -954,18 +1331,6 @@ export default function BangleBilling() {
         </div>
       )}
 
-      <style>{`
-        @media (max-width: 680px) {
-          .mobile-billing-tabs { display: flex !important; }
-          .billing-layout { display: block !important; height: 100%; }
-          .billing-left, .billing-right { width: 100% !important; height: 100%; border-right: none !important; }
-          .billing-hidden-mobile { display: none !important; }
-        }
-        @keyframes voice-ring {
-          0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.45); }
-          50%    { box-shadow:0 0 0 10px rgba(239,68,68,0); }
-        }
-      `}</style>
     </div>
   )
 }

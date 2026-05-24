@@ -492,8 +492,7 @@ export default function BangleFestivals() {
   ]
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden",
-      background: "var(--bg0)" }}>
+    <div className="page-flex-fill" style={{ background: "var(--bg0)" }}>
 
       {/* Header */}
       <div style={{ background: "var(--bg1)", padding: "0 16px", height: 56, flexShrink: 0,

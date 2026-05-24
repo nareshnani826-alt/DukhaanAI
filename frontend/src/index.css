@@ -342,3 +342,63 @@ input, select, textarea, button {
     .app-main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   }
 }
+
+/* ── Voice-ring animation (used in Billing voice button) ───── */
+@keyframes voice-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .45); }
+  50%      { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+/* ── Bangle Billing split layout ───────────────────────────── */
+/* Mobile tabs hidden by default, shown at ≤680px */
+.mobile-billing-tabs { display: none; }
+
+@media (max-width: 680px) {
+  .mobile-billing-tabs {
+    display: flex !important;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+  /* Keep billing-layout as flex-row; hiding one panel gives the other flex:1 full width */
+  .billing-left,
+  .billing-right        { min-width: 0 !important; border-right: none !important; }
+  .billing-hidden-mobile { display: none !important; }
+}
+
+/* ── Dashboard responsive grids ────────────────────────────── */
+@media (max-width: 640px) {
+  /* Stats: 3-col → 2-col */
+  .dash-stats-grid  { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Quick actions: 4-col → 2-col */
+  .dash-quick-grid  { grid-template-columns: repeat(2, 1fr) !important; }
+  .dash-quick-grid button { padding: 14px 8px !important; font-size: 11px !important; }
+}
+
+/* ── Page height fix: flex children instead of height 100% ── */
+/* Pages use .page-flex-fill to take remaining space in app-main flex column */
+.page-flex-fill {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Inventory header — compact on very small screens ────── */
+@media (max-width: 400px) {
+  .inv-header-actions .inv-bulk-btn { display: none; }
+  .inv-header-actions .inv-add-btn  { font-size: 12px !important; padding: 7px 12px !important; }
+}
+
+/* ── Bangle summary strip — scroll on mobile ────────────── */
+.bangle-summary-strip { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+.bangle-summary-strip::-webkit-scrollbar { display: none; }
+
+/* ── Touch targets: always at least 44px tall ──────────── */
+@media (max-width: 768px) {
+  /* Qty +/- buttons in scan-bill and cart get bigger hit area */
+  .qty-btn { min-width: 40px !important; min-height: 40px !important; }
+  /* Modal close × gets padding */
+  .modal-close-btn { padding: 8px !important; min-width: 40px !important; min-height: 40px !important; }
+}

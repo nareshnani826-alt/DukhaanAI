@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import VoiceAgent from "../voice/VoiceAgent.jsx"
 import { Invoices, Products } from "../sync/db.js"
+import { BangleProducts } from "../sync/bangleDb.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { t, getSavedLang } from "../voice/i18n.js"
 
@@ -26,6 +27,7 @@ function normalizeUnit(spokenUnit) {
 
 export default function Voice() {
   const { vendor } = useAuth()
+  const [bangleProducts, setBangleProducts] = useState([])
   const [billItems, setBillItems] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("dk_voice_bill") || "{}")
@@ -46,6 +48,13 @@ export default function Voice() {
   const isIOS       = /iphone|ipad|ipod/i.test(navigator.userAgent)
   const isCapacitor = !!(window.Capacitor?.isNativePlatform?.())
   const isMobile    = isCapacitor || window.innerWidth < 640
+
+  useEffect(() => {
+    BangleProducts.list().then(res => {
+      const list = Array.isArray(res) ? res : (res?.data || [])
+      setBangleProducts(list)
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     localStorage.setItem("dk_voice_bill", JSON.stringify({ vendorId: vendor?.id, items: billItems }))
@@ -301,7 +310,7 @@ Thank you! 🙏`
             flex:1, overflowY:"auto", padding:16,
             paddingBottom: isMobile ? 88 : 16,
           }}>
-            <VoiceAgent onAddToBill={handleAddToBill} onLangChange={setLang} />
+            <VoiceAgent onAddToBill={handleAddToBill} onLangChange={setLang} extraProducts={bangleProducts} />
 
             {/* Floating pill — mobile only, when items are in the bill */}
             {isMobile && billItems.length > 0 && (

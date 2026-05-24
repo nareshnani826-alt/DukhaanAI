@@ -46,6 +46,21 @@ async function apiFetch(path, opts = {}) {
   return res.json()
 }
 
+// Multipart upload — do NOT set Content-Type; browser fills in the boundary
+async function apiUpload(path, formData) {
+  const t = getToken()
+  const res = await fetch(API + path, {
+    method: "POST",
+    headers: t ? { Authorization: `Bearer ${t}` } : {},
+    body: formData,
+  })
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}))
+    throw new Error(e.detail || "Upload failed")
+  }
+  return res.json()
+}
+
 // ── Products ───────────────────────────────────────────────────
 export const BangleProducts = {
   async list() {
@@ -75,6 +90,23 @@ export const BangleProducts = {
 
   cached() { return readCache().products || [] },
   syncedAt() { return readCache().productsSyncedAt || null },
+
+  async uploadImage(productId, file) {
+    const fd = new FormData()
+    fd.append("file", file)
+    const data = await apiUpload(`/bangle/products/${productId}/image`, fd)
+    const c = readCache()
+    const p = (c.products || []).find(p => p.id === productId)
+    if (p) { p.image_url = data.image_url; writeCache(c) }
+    return data.image_url
+  },
+
+  async removeImage(productId) {
+    await apiFetch(`/bangle/products/${productId}/image`, { method: "DELETE" })
+    const c = readCache()
+    const p = (c.products || []).find(p => p.id === productId)
+    if (p) { p.image_url = null; writeCache(c) }
+  },
 }
 
 // ── Sales ──────────────────────────────────────────────────────

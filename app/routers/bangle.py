@@ -2,7 +2,7 @@ from datetime import date as date_type
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, field_validator
 
 from app.core.config import settings
@@ -156,6 +156,71 @@ async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     db.table("bangle_products").update({"is_active": False}).eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
     return {"message": "Product deleted"}
+
+
+# ── Product image upload ───────────────────────────────────────
+
+@router.post("/products/{product_id}/image")
+async def upload_product_image(
+    product_id: str,
+    file: UploadFile = File(...),
+    vendor=Depends(get_current_vendor),
+):
+    db = get_db()
+    existing = (
+        db.table("bangle_products")
+        .select("id, image_url")
+        .eq("id", product_id)
+        .eq("vendor_id", vendor["id"])
+        .execute()
+    ).data
+    if not existing:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large — max 5 MB")
+
+    content_type = file.content_type or "image/jpeg"
+    # Fixed storage path per product — overwrite previous image
+    path = f"{vendor['id']}/{product_id}"
+
+    # Remove old file first so upload never conflicts
+    try:
+        db.storage.from_("bangle-images").remove([path])
+    except Exception:
+        pass
+
+    db.storage.from_("bangle-images").upload(
+        path, content, {"content-type": content_type}
+    )
+    public_url = db.storage.from_("bangle-images").get_public_url(path)
+
+    db.table("bangle_products").update({"image_url": public_url}).eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
+    return {"image_url": public_url}
+
+
+@router.delete("/products/{product_id}/image")
+async def delete_product_image(product_id: str, vendor=Depends(get_current_vendor)):
+    db = get_db()
+    existing = (
+        db.table("bangle_products")
+        .select("id")
+        .eq("id", product_id)
+        .eq("vendor_id", vendor["id"])
+        .execute()
+    ).data
+    if not existing:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    path = f"{vendor['id']}/{product_id}"
+    try:
+        db.storage.from_("bangle-images").remove([path])
+    except Exception:
+        pass
+
+    db.table("bangle_products").update({"image_url": None}).eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
+    return {"message": "Image removed"}
 
 
 # ── Variants ──────────────────────────────────────────────────
