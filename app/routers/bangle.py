@@ -1,9 +1,11 @@
 from datetime import date as date_type
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_vendor
 
@@ -64,6 +66,11 @@ class BulkVariantCreate(BaseModel):
     sizes: list[str] = []
     designs: list[str] = []
     stock_per_variant: int = 0
+
+
+class ScanImageRequest(BaseModel):
+    image_base64: str
+    mime_type: str = "image/jpeg"
 
 
 # ── Products ──────────────────────────────────────────────────
@@ -739,3 +746,98 @@ async def community_trends(
         "top_sizes":    _top_n(size_map, 8),
         "top_designs":  _top_n(design_map, 8),
     }
+
+
+# ── Gemini Vision: scan product image → fields ───────────────
+
+_VISION_PROMPT = """You are reading a price tag, product label, or product photo from an Indian jewellery and accessories shop.
+Extract all visible product details and return ONLY valid JSON — no explanation, no markdown fences.
+
+What to look for:
+- Product name: written on tag, or describe the product you see (e.g. "Kundan Bangle", "Pearl Earrings")
+- Category: must be exactly one of — Bangles | Earrings | Necklace | Maang Tikka | Anklet | Hair Clip | Bindi | Rings | Bracelet | Nose Ring | Other
+- MRP or price: look for ₹ symbol, "MRP", "Rate", "Price", "Rs.", "Daam", "Bhav"
+- Colours: visible in product photo or mentioned on tag
+- Sizes: bangle sizes like 2.2/2.4/2.6/2.8/2.10/2.12/2.14, ring sizes 5-12, or Small/Medium/Large/Free Size
+- Design: visible craftsmanship or mentioned on tag
+
+VALID colours: Red, Pink, Maroon, Green, Blue, Navy, Gold, Rose Gold, Silver, White, Black, Orange, Yellow, Purple, Peach, Multi
+VALID gst_percent values: 0, 3, 5, 12, 18
+
+Return JSON only (null for anything not visible, empty array if none):
+{
+  "name": null,
+  "category": null,
+  "mrp": null,
+  "cost_price": null,
+  "gst_percent": null,
+  "colours": [],
+  "sizes": [],
+  "designs": []
+}"""
+
+_VISION_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"]
+
+
+@router.post("/scan-image")
+async def scan_product_image(
+    body: ScanImageRequest,
+    vendor=Depends(get_current_vendor),
+):
+    if not settings.gemini_api_key:
+        raise HTTPException(status_code=503, detail="Image scan not configured on this server")
+
+    last_err = None
+    for model in _VISION_MODELS:
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent?key={settings.gemini_api_key}"
+        )
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": _VISION_PROMPT},
+                    {"inline_data": {"mime_type": body.mime_type, "data": body.image_base64}},
+                ]
+            }],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 512},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(url, json=payload)
+            if res.status_code == 429:
+                last_err = "Gemini rate limit — try again in a moment"
+                continue
+            if not res.ok:
+                data = res.json()
+                last_err = data.get("error", {}).get("message", "Gemini error")
+                continue
+            data = res.json()
+            raw  = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            import re, json as _json
+            m = re.search(r"\{[\s\S]*\}", raw)
+            if not m:
+                raise HTTPException(status_code=502, detail="Gemini returned no JSON")
+            p = _json.loads(m.group())
+            def _str(v):  return v if isinstance(v, str) and v else None
+            def _num(v):  return v if isinstance(v, (int, float)) and v > 0 else None
+            def _arr(v):  return [x for x in v if x] if isinstance(v, list) else []
+            return {
+                "name":        _str(p.get("name")),
+                "category":    _str(p.get("category")),
+                "mrp":         _num(p.get("mrp")),
+                "cost_price":  _num(p.get("cost_price")),
+                "gst_percent": p.get("gst_percent") if isinstance(p.get("gst_percent"), (int, float)) else None,
+                "colours":     _arr(p.get("colours", [])),
+                "sizes":       _arr(p.get("sizes", [])),
+                "designs":     _arr(p.get("designs", [])),
+                "confidence":  0.85,
+                "source":      "gemini-vision",
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    raise HTTPException(status_code=503, detail=last_err or "Image scan failed")
