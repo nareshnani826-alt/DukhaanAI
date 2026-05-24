@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "../context/AuthContext"
 import { BangleProducts, BangleSales, BangleSync } from "../sync/bangleDb"
 import { useLang, LangToggle } from "../hooks/useLang"
+import { Html5Qrcode } from "html5-qrcode"
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const UNITS = [
@@ -9,6 +10,98 @@ const UNITS = [
   { id: "dozen", label: "Dozen", pcs: 12 },
   { id: "set",   label: "Set",   pcs: 6  },
 ]
+const COLOURS = ["Red","Pink","Maroon","Green","Blue","Navy","Gold","Rose Gold","Silver","White","Black","Orange","Yellow","Purple","Peach","Multi"]
+
+// ── Voice cart parser ─────────────────────────────────────────
+function parseVoiceCart(text, products) {
+  const lower = text.toLowerCase().trim()
+  const hindiNums = { ek:1,एक:1, do:2,दो:2, teen:3,तीन:3, char:4,चार:4, paanch:5,पाँच:5, chhe:6,छह:6, saat:7,सात:7, aath:8,आठ:8, nau:9,नौ:9, das:10,दस:10 }
+  let qty = 1
+  const numM = lower.match(/\b(\d+)\b/)
+  if (numM) qty = parseInt(numM[1])
+  else { for (const [w, v] of Object.entries(hindiNums)) { if (lower.includes(w)) { qty = v; break } } }
+
+  let unit = "piece"
+  if (/dozen|dz|दर्जन/.test(lower)) unit = "dozen"
+  else if (/\bset\b|सेट/.test(lower)) unit = "set"
+
+  let colour = null
+  for (const c of COLOURS) { if (lower.includes(c.toLowerCase())) { colour = c; break } }
+
+  const sizeM = text.match(/\b2\.\d+\b/)
+  const size = sizeM ? sizeM[0] : null
+
+  // Score products by keyword match
+  let best = null, bestScore = 0
+  const qWords = lower.split(/[\s,]+/).filter(w => w.length > 2)
+  for (const p of products) {
+    const pWords = p.name.toLowerCase().split(/\s+/)
+    let score = 0
+    for (const pw of pWords) {
+      if (pw.length > 2 && qWords.some(qw => qw.includes(pw) || pw.includes(qw))) score++
+    }
+    if (score > bestScore) { bestScore = score; best = p }
+  }
+  if (!best || bestScore === 0) return null
+
+  const variants = best.variants || []
+  const variant =
+    variants.find(v => (!colour || v.colour === colour) && (!size || v.size === size)) ||
+    variants.find(v => !colour || v.colour === colour) ||
+    variants[0]
+  if (!variant) return null
+  return { product: best, variant, colour, size, qty, unit }
+}
+
+// ── QR / Barcode Scanner (html5-qrcode) ──────────────────────
+function BarcodeScanner({ products, onFound, onClose }) {
+  const [err,     setErr]     = useState("")
+  const [hint,    setHint]    = useState("")
+  const scannerRef = useRef(null)
+  const elId = "bangle-qr-reader"
+
+  useEffect(() => {
+    const qr = new Html5Qrcode(elId)
+    scannerRef.current = qr
+    qr.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
+      (decoded) => {
+        // Look up variant by id
+        let match = null
+        for (const p of products) {
+          for (const v of (p.variants || [])) {
+            if (v.id === decoded) { match = { product: p, variant: v }; break }
+          }
+          if (match) break
+        }
+        if (match) {
+          qr.stop().catch(()=>{})
+          onFound(match)
+        } else {
+          setHint("No variant found for this code — try another label")
+        }
+      },
+      () => {}  // ignore per-frame errors
+    ).catch(e => setErr(e?.message || "Camera access denied. Allow camera in browser settings."))
+
+    return () => { qr.stop().catch(()=>{}) }
+  }, [])
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:60,
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14 }}>
+      <div style={{ fontSize:14, fontWeight:700, color:"#fff" }}>📷 Point at a QR label</div>
+      <div id={elId} style={{ width:"min(320px,90vw)", borderRadius:16, overflow:"hidden", background:"#000" }} />
+      {err  && <div style={{ color:"#ff6b6b", fontSize:12, textAlign:"center", maxWidth:280, padding:"0 16px" }}>{err}</div>}
+      {hint && <div style={{ color:"#ffd700", fontSize:12, textAlign:"center", maxWidth:280 }}>{hint}</div>}
+      {!err && !hint && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:11 }}>Scanning…</div>}
+      <button onClick={onClose}
+        style={{ background:"#fff", border:"none", borderRadius:10, padding:"10px 32px",
+          fontSize:14, fontWeight:700, cursor:"pointer", color:"#333" }}>Cancel</button>
+    </div>
+  )
+}
 
 // ── Chip selector ─────────────────────────────────────────────
 function Chips({ label, options, value, onChange }) {
@@ -34,7 +127,7 @@ function Chips({ label, options, value, onChange }) {
 }
 
 // ── Product Picker ────────────────────────────────────────────
-function ProductPicker({ products, onAdd, t }) {
+function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
   const [search,  setSearch]  = useState("")
   const [product, setProduct] = useState(null)
   const [colour,  setColour]  = useState(null)
@@ -43,6 +136,9 @@ function ProductPicker({ products, onAdd, t }) {
   const [unit,    setUnit]    = useState("piece")
   const [qty,     setQty]     = useState(1)
   const [sellingPrice, setSellingPrice] = useState(0)
+  const [voiceListening, setVoiceListening] = useState(false)
+  const [voiceMsg, setVoiceMsg] = useState("")
+  const voiceRecRef = useRef(null)
 
   const filtered = products.filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase())
@@ -76,6 +172,52 @@ function ProductPicker({ products, onAdd, t }) {
     setSellingPrice(matched?.mrp ?? product?.mrp ?? 0)
   }, [matched?.id, product?.id])
 
+  // Auto-select from QR scan
+  useEffect(() => {
+    if (!scannedItem) return
+    setProduct(scannedItem.product)
+    setColour(scannedItem.variant.colour || null)
+    setSize(scannedItem.variant.size     || null)
+    setDesign(scannedItem.variant.design || null)
+    setUnit("piece"); setQty(1); setSearch("")
+  }, [scannedItem])
+
+  function startVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { setVoiceMsg("Voice not supported — use Chrome"); return }
+    setVoiceListening(true); setVoiceMsg("")
+    const rec = new SR()
+    rec.lang = "hi-IN"; rec.continuous = false; rec.interimResults = false
+    rec.onend  = () => setVoiceListening(false)
+    rec.onerror = () => { setVoiceListening(false); setVoiceMsg("Mic error — try again") }
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript.trim()
+      const result = parseVoiceCart(text, products)
+      if (!result) { setVoiceMsg(`Could not match: "${text}"`); return }
+      const unitDef = UNITS.find(u => u.id === result.unit) || UNITS[0]
+      const pieces  = result.qty * unitDef.pcs
+      const price   = result.variant.mrp || result.product.mrp || 0
+      onAdd({
+        variant_id:   result.variant.id,
+        product_id:   result.product.id,
+        product_name: result.product.name,
+        colour:       result.variant.colour,
+        size:         result.variant.size,
+        design:       result.variant.design,
+        unit:         result.unit,
+        unit_qty:     result.qty,
+        unit_price:   price,
+        pieces,
+        amount:       pieces * price,
+        gst_percent:  result.product.gst_percent || 3,
+        _id:          Date.now(),
+      })
+      setVoiceMsg(`✓ Added: ${result.product.name}${result.variant.colour ? " · " + result.variant.colour : ""} × ${result.qty} ${result.unit}`)
+    }
+    voiceRecRef.current = rec
+    rec.start()
+  }
+
   function handleAdd() {
     if (!canAdd) return
     onAdd({
@@ -105,13 +247,44 @@ function ProductPicker({ products, onAdd, t }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--rule)", flexShrink: 0 }}>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder={t("Search products...")}
-          style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 10,
-            padding: "8px 12px", fontSize: 13, outline: "none", background: "var(--bg2)",
-            color: "var(--ink)", boxSizing: "border-box" }}
-          onFocus={e => e.target.style.borderColor = "var(--saffron)"}
-          onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
+        {/* Search + scan + voice row */}
+        <div style={{ display:"flex", gap:6, marginBottom: voiceMsg ? 6 : 0 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder={t("Search products...")}
+            style={{ flex:1, border: "1.5px solid var(--rule)", borderRadius: 10,
+              padding: "8px 12px", fontSize: 13, outline: "none", background: "var(--bg2)",
+              color: "var(--ink)", boxSizing: "border-box" }}
+            onFocus={e => e.target.style.borderColor = "var(--saffron)"}
+            onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
+          {/* QR Scanner */}
+          <button onClick={onScanRequest} title="Scan QR label"
+            style={{ padding:"8px 11px", borderRadius:10, border:"1.5px solid var(--rule)",
+              background:"var(--bg2)", cursor:"pointer", fontSize:18, flexShrink:0 }}>
+            📷
+          </button>
+          {/* Voice */}
+          <button onClick={voiceListening ? () => { voiceRecRef.current?.stop(); setVoiceListening(false) } : startVoice}
+            title={voiceListening ? "Stop listening" : "Voice command"}
+            style={{ padding:"8px 11px", borderRadius:10, border:"1.5px solid",
+              borderColor: voiceListening ? "#ef4444" : "var(--rule)",
+              background: voiceListening ? "rgba(239,68,68,0.1)" : "var(--bg2)",
+              cursor:"pointer", fontSize:18, flexShrink:0,
+              animation: voiceListening ? "voice-ring 1.2s ease-in-out infinite" : "none" }}>
+            🎤
+          </button>
+        </div>
+        {voiceMsg && (
+          <div style={{ fontSize:11, marginTop:4, fontWeight:600, padding:"4px 8px", borderRadius:7,
+            background: voiceMsg.startsWith("✓") ? "rgba(29,158,117,0.12)" : "rgba(220,38,38,0.08)",
+            color: voiceMsg.startsWith("✓") ? "var(--jade)" : "#dc2626" }}>
+            {voiceMsg}
+          </div>
+        )}
+        {voiceListening && (
+          <div style={{ fontSize:11, color:"#ef4444", fontWeight:600, textAlign:"center", marginTop:4 }}>
+            🎙 Listening… say product name, colour, size &amp; quantity
+          </div>
+        )}
       </div>
 
       {!product ? (
@@ -503,15 +676,17 @@ function CartPanel({ items, onRemove, onBill, t }) {
 export default function BangleBilling() {
   const { vendor } = useAuth()
   const { t }      = useLang()
-  const [products, setProducts] = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [cart,     setCart]     = useState([])
-  const [receipt,  setReceipt]  = useState(null)
-  const [tab,      setTab]      = useState("items")
-  const [today,    setToday]    = useState(null)
-  const [offline,  setOffline]  = useState(!navigator.onLine)
-  const [pending,  setPending]  = useState(BangleSync.pendingCount())
-  const [syncing,  setSyncing]  = useState(false)
+  const [products,     setProducts]     = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [cart,         setCart]         = useState([])
+  const [receipt,      setReceipt]      = useState(null)
+  const [tab,          setTab]          = useState("items")
+  const [today,        setToday]        = useState(null)
+  const [offline,      setOffline]      = useState(!navigator.onLine)
+  const [pending,      setPending]      = useState(BangleSync.pendingCount())
+  const [syncing,      setSyncing]      = useState(false)
+  const [showScanner,  setShowScanner]  = useState(false)
+  const [scannedItem,  setScannedItem]  = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -570,6 +745,13 @@ export default function BangleBilling() {
         <ReceiptModal sale={receipt} storeName={storeName}
           onClose={() => setReceipt(null)}
           onNewBill={() => { setReceipt(null); setTab("items") }} />
+      )}
+      {showScanner && (
+        <BarcodeScanner
+          products={products}
+          onFound={item => { setScannedItem(item); setShowScanner(false); setTab("items") }}
+          onClose={() => setShowScanner(false)}
+        />
       )}
 
       {/* Offline / pending-sync banner */}
@@ -646,7 +828,9 @@ export default function BangleBilling() {
           <div className={`billing-left${tab === "cart" ? " billing-hidden-mobile" : ""}`}
             style={{ flex: 1, borderRight: "1px solid var(--rule)", overflow: "hidden",
               display: "flex", flexDirection: "column" }}>
-            <ProductPicker products={products} onAdd={addToCart} t={t} />
+            <ProductPicker products={products} onAdd={addToCart} t={t}
+              scannedItem={scannedItem}
+              onScanRequest={() => setShowScanner(true)} />
           </div>
           <div className={`billing-right${tab === "items" ? " billing-hidden-mobile" : ""}`}
             style={{ width: 340, minWidth: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -661,6 +845,10 @@ export default function BangleBilling() {
           .billing-layout { display: block !important; height: 100%; }
           .billing-left, .billing-right { width: 100% !important; height: 100%; border-right: none !important; }
           .billing-hidden-mobile { display: none !important; }
+        }
+        @keyframes voice-ring {
+          0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.45); }
+          50%    { box-shadow:0 0 0 10px rgba(239,68,68,0); }
         }
       `}</style>
     </div>

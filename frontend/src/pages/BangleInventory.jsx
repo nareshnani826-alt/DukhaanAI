@@ -1005,6 +1005,90 @@ function VariantRow({ variant, productMrp, onStockChange }) {
   )
 }
 
+// ── QR Labels Modal ────────────────────────────────────────
+function QRLabelsModal({ product, onClose }) {
+  const variants = product.variants || []
+  const qrBase   = "https://api.qrserver.com/v1/create-qr-code/?margin=4&size=120x120&data="
+
+  return (
+    <>
+      <style>{`
+        @media print {
+          body > *:not(#qr-print-area) { display: none !important; }
+          #qr-print-area {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px; padding: 16px;
+          }
+          .qr-label { page-break-inside: avoid; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+        onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl"
+          style={{ maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
+          {/* Header */}
+          <div className="no-print" style={{ padding:"16px 20px", borderBottom:"1px solid var(--rule)",
+            display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)" }}>🏷️ QR Labels</div>
+              <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
+                {product.name} · {variants.length} label{variants.length !== 1 ? "s" : ""}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => window.print()}
+                style={{ background:"var(--saffron)", color:"#fff", border:"none", borderRadius:8,
+                  padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                🖨️ Print All
+              </button>
+              <button onClick={onClose}
+                style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"var(--ink-faint)" }}>
+                ×
+              </button>
+            </div>
+          </div>
+
+          {/* Labels grid */}
+          <div id="qr-print-area" style={{ overflowY:"auto", flex:1, padding:16,
+            display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))", gap:10 }}>
+            {variants.length === 0 ? (
+              <div style={{ gridColumn:"1/-1", textAlign:"center", padding:32, color:"var(--ink-faint)", fontSize:13 }}>
+                No variants — add variants first to generate labels
+              </div>
+            ) : variants.map(v => (
+              <div key={v.id} className="qr-label"
+                style={{ border:"1.5px solid #e5e7eb", borderRadius:10, padding:10,
+                  textAlign:"center", background:"#fff" }}>
+                <div style={{ fontWeight:700, color:"var(--ink)", fontSize:11, marginBottom:2, lineHeight:1.3 }}>
+                  {product.name}
+                </div>
+                <div style={{ color:"var(--ink-faint)", fontSize:9, marginBottom:8, lineHeight:1.4 }}>
+                  {[v.colour, v.size, v.design].filter(Boolean).join(" · ") || "Default"}
+                </div>
+                <img
+                  src={`${qrBase}${encodeURIComponent(v.id)}`}
+                  alt={v.id}
+                  style={{ width:100, height:100, display:"block", margin:"0 auto 8px" }}
+                />
+                <div style={{ fontWeight:800, color:"var(--saffron)", fontSize:14 }}>
+                  {INR(v.mrp || product.mrp)}
+                </div>
+                {product.gst_percent > 0 && (
+                  <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:1 }}>
+                    incl. {product.gst_percent}% GST
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Edit Product Modal ─────────────────────────────────────
 function EditProductModal({ product, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -1118,8 +1202,9 @@ function EditProductModal({ product, onClose, onSaved }) {
 
 // ── Product Card ───────────────────────────────────────────
 function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }) {
-  const [expanded,  setExpanded]  = useState(false)
-  const [showEdit,  setShowEdit]  = useState(false)
+  const [expanded,   setExpanded]   = useState(false)
+  const [showEdit,   setShowEdit]   = useState(false)
+  const [showLabels, setShowLabels] = useState(false)
   const isLow = product.low_stock_count > 0
   const isOut = product.total_stock === 0 && product.variant_count > 0
 
@@ -1131,6 +1216,9 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
           onClose={() => setShowEdit(false)}
           onSaved={updated => { onProductUpdated(updated); setShowEdit(false) }}
         />
+      )}
+      {showLabels && (
+        <QRLabelsModal product={product} onClose={() => setShowLabels(false)} />
       )}
 
       <div className="flex items-center gap-3 p-4">
@@ -1197,12 +1285,22 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
                 onStockChange={(id, s) => onStockChange(product.id, id, s)} />
             ))}
           </div>
-          <button
-            onClick={() => onAddVariants(product)}
-            className="mt-3 w-full py-2 rounded-xl text-xs font-semibold border-2 border-dashed transition-colors"
-            style={{borderColor:"var(--saffron)",color:"var(--saffron)",background:"transparent"}}>
-            + Add Variants
-          </button>
+          <div style={{display:"flex", gap:8, marginTop:12}}>
+            <button
+              onClick={() => onAddVariants(product)}
+              className="flex-1 py-2 rounded-xl text-xs font-semibold border-2 border-dashed transition-colors"
+              style={{borderColor:"var(--saffron)",color:"var(--saffron)",background:"transparent"}}>
+              + Add Variants
+            </button>
+            {product.variants.length > 0 && (
+              <button
+                onClick={() => setShowLabels(true)}
+                className="py-2 rounded-xl text-xs font-semibold border"
+                style={{padding:"8px 14px", borderColor:"var(--jade)", color:"var(--jade)", background:"transparent", flexShrink:0}}>
+                🏷️ QR Labels
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
