@@ -574,7 +574,8 @@ async def bangle_dead_stock(
     dead = []
     for v in variants:
         if v["id"] not in sold_ids:
-            cost = float(v.get("cost_price") or 0)
+            # cost_price is per-dozen; stock is in pieces → cost per piece = cost/12
+            cost = float(v.get("cost_price") or 0) / 12
             dead.append({
                 "variant_id":    v["id"],
                 "product_name":  products.get(v["product_id"], ""),
@@ -620,8 +621,9 @@ async def bangle_profit(vendor=Depends(get_current_vendor)):
 
     def calc(sale_list):
         rev  = sum(float(s["total"]) for s in sale_list)
+        # cost_price is stored per-dozen; divide by 12 to get per-piece cost
         cost = sum(
-            float(item.get("pieces") or 0) * variant_costs.get(item.get("variant_id", ""), 0)
+            float(item.get("pieces") or 0) * variant_costs.get(item.get("variant_id", ""), 0) / 12
             for s in sale_list for item in (s.get("items") or [])
         )
         profit = rev - cost
