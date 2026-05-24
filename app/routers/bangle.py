@@ -808,7 +808,7 @@ async def scan_product_image(
             if res.status_code == 429:
                 last_err = "Gemini rate limit — try again in a moment"
                 continue
-            if not res.ok:
+            if not res.is_success:
                 data = res.json()
                 last_err = data.get("error", {}).get("message", "Gemini error")
                 continue
