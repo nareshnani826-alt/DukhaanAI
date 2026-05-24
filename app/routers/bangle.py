@@ -776,7 +776,13 @@ Return JSON only (null for anything not visible, empty array if none):
   "designs": []
 }"""
 
-_VISION_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"]
+# Try models in order; skip 404 (model name wrong) and 429 (rate limit)
+_VISION_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-flash-001",
+]
 
 
 @router.post("/scan-image")
@@ -788,6 +794,7 @@ async def scan_product_image(
         raise HTTPException(status_code=503, detail="Image scan not configured on this server")
 
     last_err = None
+    quota_hit = False
     for model in _VISION_MODELS:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
@@ -806,7 +813,11 @@ async def scan_product_image(
             async with httpx.AsyncClient(timeout=30.0) as client:
                 res = await client.post(url, json=payload)
             if res.status_code == 429:
-                last_err = "Gemini rate limit — try again in a moment"
+                quota_hit = True
+                last_err = "Gemini quota exceeded — please create a free API key at aistudio.google.com and set GEMINI_API_KEY in Railway"
+                continue
+            if res.status_code == 404:
+                # Model name not valid for this key — try next
                 continue
             if not res.is_success:
                 data = res.json()
