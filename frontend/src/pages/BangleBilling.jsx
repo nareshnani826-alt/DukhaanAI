@@ -245,6 +245,7 @@ function ProductPicker({ products, onAdd, t, scannedItem, onScanRequest }) {
       unit_price:   sellingPrice,
       pieces,
       amount,
+      cost_price:   dozenCost,   // per-dozen cost — used for profit preview in cart
       gst_percent:  product.gst_percent || 3,
       _id:          Date.now(),
     })
@@ -517,6 +518,14 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
         </div>
 
         <div style={{ padding: "0 20px 14px" }}>
+          {/* Show discount line if notes contains discount info */}
+          {sale.notes && sale.notes.startsWith("Discount:") && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12,
+              color: "#dc2626", padding: "4px 0" }}>
+              <span>{sale.notes}</span>
+              <span>applied</span>
+            </div>
+          )}
           {sale.gst_amount > 0 && (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12,
@@ -559,31 +568,49 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
 
 // ── Cart Panel ────────────────────────────────────────────────
 function CartPanel({ items, onRemove, onBill, t }) {
-  const [customer, setCustomer] = useState({ name: "", phone: "" })
-  const [payment,  setPayment]  = useState("cash")
-  const [applyGst, setApplyGst] = useState(false)
-  const [loading,  setLoading]  = useState(false)
-  const [err,      setErr]      = useState("")
+  const [customer,    setCustomer]    = useState({ name: "", phone: "" })
+  const [payment,     setPayment]     = useState("cash")
+  const [applyGst,    setApplyGst]    = useState(false)
+  const [discountPct, setDiscountPct] = useState(0)
+  const [loading,     setLoading]     = useState(false)
+  const [err,         setErr]         = useState("")
 
-  const subtotal  = items.reduce((s, i) => s + i.amount, 0)
-  const gstAmount = applyGst
+  const subtotal    = items.reduce((s, i) => s + i.amount, 0)
+  const discountAmt = +(subtotal * discountPct / 100).toFixed(2)
+  const afterDiscount = +(subtotal - discountAmt).toFixed(2)
+  const gstAmount   = applyGst
     ? items.reduce((s, i) => s + i.amount * (i.gst_percent / 100), 0)
     : 0
-  const total = subtotal + gstAmount
+  const total = +(afterDiscount + gstAmount).toFixed(2)
+
+  // Profit = revenue after discount − cost of goods sold
+  // cost_price is stored per-dozen; divide by 12 for per-piece cost
+  const totalCost = items.reduce((s, i) => s + (i.pieces * (i.cost_price || 0) / 12), 0)
+  const profit     = +(afterDiscount - totalCost).toFixed(2)
+  const marginPct  = afterDiscount > 0 ? (profit / afterDiscount * 100) : 0
+  const hasCost    = items.some(i => (i.cost_price || 0) > 0)
 
   async function checkout() {
     if (!items.length) return
     setLoading(true); setErr("")
     try {
+      // Apply discount proportionally across item amounts
+      const multiplier = discountPct > 0 ? (1 - discountPct / 100) : 1
+      const sendItems = items.map(({ _id, cost_price, ...rest }) => ({
+        ...rest,
+        amount: +(rest.amount * multiplier).toFixed(2),
+      }))
       const sale = await BangleSales.create({
-        items:          items.map(({ _id, ...rest }) => rest),
+        items:          sendItems,
         customer_name:  customer.name  || null,
         customer_phone: customer.phone || null,
         payment_mode:   payment,
         apply_gst:      applyGst,
+        notes:          discountPct > 0 ? `Discount: ${discountPct}%` : null,
       })
       onBill(sale)
-      setCustomer({ name: "", phone: "" }); setPayment("cash"); setApplyGst(false)
+      setCustomer({ name: "", phone: "" }); setPayment("cash")
+      setApplyGst(false); setDiscountPct(0)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
@@ -649,6 +676,30 @@ function CartPanel({ items, onRemove, onBill, t }) {
           ))}
         </div>
 
+        {/* Discount */}
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+          <span style={{ fontSize:12, color:"var(--ink-dim)", flexShrink:0, fontWeight:600 }}>
+            {t("Discount")}
+          </span>
+          <div style={{ position:"relative", flex:1 }}>
+            <input type="number" min="0" max="100" step="0.5"
+              value={discountPct || ""}
+              onChange={e => setDiscountPct(Math.min(100, Math.max(0, +e.target.value || 0)))}
+              placeholder="0"
+              style={{ width:"100%", border:"1.5px solid var(--rule)", borderRadius:8,
+                padding:"5px 24px 5px 10px", fontSize:13, fontWeight:700, outline:"none",
+                background:"var(--bg2)", color:"var(--ink)", boxSizing:"border-box" }} />
+            <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
+              fontSize:12, color:"var(--ink-faint)", pointerEvents:"none" }}>%</span>
+          </div>
+          {discountPct > 0 && (
+            <span style={{ fontSize:12, color:"#dc2626", fontWeight:700, flexShrink:0 }}>
+              −{INR(discountAmt)}
+            </span>
+          )}
+        </div>
+
+        {/* GST toggle */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <input type="checkbox" id="gst-toggle" checked={applyGst}
             onChange={e => setApplyGst(e.target.checked)}
@@ -658,22 +709,67 @@ function CartPanel({ items, onRemove, onBill, t }) {
           </label>
         </div>
 
-        {applyGst && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12,
-            color: "var(--ink-dim)", marginBottom: 4 }}>
-            <span>Subtotal</span><span>{INR(subtotal)}</span>
-          </div>
-        )}
-        {applyGst && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12,
-            color: "var(--ink-dim)", marginBottom: 6 }}>
-            <span>GST</span><span>{INR(gstAmount)}</span>
-          </div>
-        )}
+        {/* Bill breakdown */}
+        <div style={{ fontSize:12, color:"var(--ink-dim)", marginBottom:4 }}>
+          {discountPct > 0 && (
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
+              <span>Subtotal</span><span>{INR(subtotal)}</span>
+            </div>
+          )}
+          {discountPct > 0 && (
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2, color:"#dc2626" }}>
+              <span>Discount ({discountPct}%)</span><span>−{INR(discountAmt)}</span>
+            </div>
+          )}
+          {applyGst && (
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
+              <span>After discount</span><span>{INR(afterDiscount)}</span>
+            </div>
+          )}
+          {applyGst && (
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
+              <span>GST</span><span>{INR(gstAmount)}</span>
+            </div>
+          )}
+        </div>
+
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18,
           fontWeight: 800, color: "var(--saffron)", marginBottom: 10 }}>
           <span>Total</span><span>{INR(total)}</span>
         </div>
+
+        {/* Profit preview */}
+        {hasCost && (
+          <div style={{
+            marginBottom: 10, padding:"10px 12px", borderRadius:10,
+            background: profit >= 0 ? "rgba(26,122,74,0.08)" : "rgba(192,57,43,0.08)",
+            border:`1px solid ${profit >= 0 ? "rgba(26,122,74,0.25)" : "rgba(192,57,43,0.25)"}`,
+          }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ fontSize:11, color:"var(--ink-faint)", marginBottom:2 }}>
+                  Profit on this bill
+                </div>
+                <div style={{ fontSize:16, fontWeight:800,
+                  color: profit >= 0 ? "var(--jade)" : "#dc2626" }}>
+                  {profit >= 0 ? "+" : ""}{INR(profit)}
+                </div>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontSize:11, color:"var(--ink-faint)", marginBottom:2 }}>Margin</div>
+                <div style={{ fontSize:18, fontWeight:800,
+                  color: marginPct >= 25 ? "var(--jade)" : marginPct >= 10 ? "#c47f00" : "#dc2626" }}>
+                  {marginPct.toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:10,
+              color:"var(--ink-faint)", marginTop:6 }}>
+              <span>Revenue {INR(afterDiscount)}</span>
+              <span>Cost {INR(totalCost)}</span>
+            </div>
+          </div>
+        )}
 
         {err && <div style={{ fontSize: 11, color: "var(--ember)", marginBottom: 8 }}>{err}</div>}
 
