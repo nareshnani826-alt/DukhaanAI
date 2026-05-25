@@ -9,6 +9,17 @@ const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
 
 const CATS    = BANGLE_CATALOG_CATS
 
+const CAT_GROUPS = {
+  "Jewellery":    ["Bangles","Earrings","Necklace","Maang Tikka","Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring"],
+  "Beauty":       ["Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care"],
+  "Personal Care":["Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color"],
+}
+const CAT_GROUP_ICONS = { "Jewellery":"💍", "Beauty":"💄", "Personal Care":"🧴" }
+const BEAUTY_CATS = new Set([
+  "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care",
+  "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color",
+])
+
 const CATEGORY_SIZES = {
   "Bangles":     ["2.2","2.4","2.6","2.8","2.10","2.12","2.14","Free Size"],
   "Earrings":    ["Studs","Drops","Hoops / Bali","Jhumka","Chandbali","Dangler","Ear Cuff","Tassel"],
@@ -142,6 +153,8 @@ export default function BangleBulkImport() {
   // ── Catalog tab state ─────────────────────────────────────
   const [catFilter,  setCatFilter]  = useState("All")
   const [catSearch,  setCatSearch]  = useState("")
+  const [openGroup,  setOpenGroup]  = useState(null)
+  const catFilterRef = useRef(null)
   const [selected,   setSelected]   = useState({}) // name → {colours,sizes,designs,stock,mrp,cost,gst,category}
   const [importing,  setImporting]  = useState(false)
   const [done,       setDone]       = useState(null)
@@ -163,6 +176,15 @@ export default function BangleBulkImport() {
   const [notif, setNotif] = useState("")
 
   function showNotif(m) { setNotif(m); setTimeout(() => setNotif(""), 3500) }
+
+  useEffect(() => {
+    if (!openGroup) return
+    function handleClick(e) {
+      if (catFilterRef.current && !catFilterRef.current.contains(e.target)) setOpenGroup(null)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [openGroup])
 
   // Load products when restock tab opens
   useEffect(() => {
@@ -613,16 +635,61 @@ export default function BangleBulkImport() {
                 style={{flex:1, border:"1.5px solid #e5e7eb", borderRadius:10,
                   padding:"7px 12px", fontSize:12, outline:"none"}}/>
             </div>
-            <div style={{display:"flex", gap:6, overflowX:"auto", paddingBottom:2}}>
-              {["All",...CATS].map(c => (
-                <button key={c} onClick={() => setCatFilter(c)}
-                  style={{padding:"4px 12px", borderRadius:20, border:"none", fontSize:11,
-                    fontWeight:500, whiteSpace:"nowrap", cursor:"pointer", flexShrink:0,
-                    background: catFilter===c ? "var(--saffron)" : "var(--bg2)",
-                    color: catFilter===c ? "#fff" : "var(--ink-dim)"}}>
-                  {c}
-                </button>
-              ))}
+            {/* Grouped category filter */}
+            <div ref={catFilterRef} style={{display:"flex", gap:6, alignItems:"center", flexWrap:"wrap"}}>
+              <button onClick={()=>{setCatFilter("All");setOpenGroup(null)}}
+                style={{padding:"5px 14px",borderRadius:20,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+                  background:catFilter==="All"?"var(--saffron)":"var(--bg2)",
+                  color:catFilter==="All"?"#fff":"var(--ink-dim)"}}>
+                All
+              </button>
+              {Object.entries(CAT_GROUPS).map(([group, cats]) => {
+                const activeInGroup = cats.includes(catFilter)
+                const isOpen = openGroup === group
+                return (
+                  <div key={group} style={{position:"relative"}}>
+                    <button
+                      onClick={() => setOpenGroup(isOpen ? null : group)}
+                      style={{
+                        display:"flex",alignItems:"center",gap:4,
+                        padding:"5px 12px",borderRadius:20,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+                        background: activeInGroup ? "var(--saffron)" : isOpen ? "var(--bg3,#e5e7eb)" : "var(--bg2)",
+                        color: activeInGroup ? "#fff" : "var(--ink-dim)",
+                        boxShadow: isOpen ? "0 0 0 2px var(--saffron)" : "none",
+                      }}>
+                      <span>{CAT_GROUP_ICONS[group]}</span>
+                      <span>{activeInGroup ? catFilter : group}</span>
+                      <span style={{fontSize:9,opacity:0.7,marginLeft:1}}>▾</span>
+                    </button>
+                    {isOpen && (
+                      <div style={{
+                        position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:200,
+                        background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.15)",
+                        border:"1px solid var(--rule)",padding:"6px",minWidth:160,
+                      }}>
+                        {cats.map(c => (
+                          <button key={c} onClick={()=>{setCatFilter(c);setOpenGroup(null)}}
+                            style={{
+                              display:"block",width:"100%",textAlign:"left",
+                              padding:"7px 12px",borderRadius:8,border:"none",
+                              fontSize:12,fontWeight:catFilter===c?700:400,cursor:"pointer",
+                              background:catFilter===c?"#fff8f0":"transparent",
+                              color:catFilter===c?"var(--saffron)":"var(--ink)",
+                            }}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <button onClick={()=>{setCatFilter("Other");setOpenGroup(null)}}
+                style={{padding:"5px 14px",borderRadius:20,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+                  background:catFilter==="Other"?"var(--saffron)":"var(--bg2)",
+                  color:catFilter==="Other"?"#fff":"var(--ink-dim)"}}>
+                Other
+              </button>
             </div>
           </div>
 
@@ -665,59 +732,78 @@ export default function BangleBulkImport() {
                         display:"flex", flexDirection:"column", gap:10}}
                         onClick={e => e.stopPropagation()}>
 
-                        <div>
-                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
-                            marginBottom:6, letterSpacing:"0.5px"}}>COLOURS</div>
-                          <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
-                            {COLOURS.map(c => (
-                              <Chip key={c} label={c}
-                                active={sel.colours.includes(c)}
-                                onClick={() => toggleChip(p.name, "colours", c)}/>
-                            ))}
+                        {BEAUTY_CATS.has(p.category) ? (
+                          /* Beauty / Personal Care — single SKU, stock only */
+                          <div style={{display:"flex", alignItems:"center", gap:10}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
+                                marginBottom:4, letterSpacing:"0.5px"}}>OPENING STOCK</div>
+                              <input type="number" min="0" value={sel.stock}
+                                onChange={e => updateSel(p.name, "stock", e.target.value)}
+                                style={{width:"100%", border:"1.5px solid var(--saffron)", borderRadius:9,
+                                  padding:"6px 10px", fontSize:13, fontWeight:700, outline:"none",
+                                  color:"var(--saffron)", textAlign:"center"}}/>
+                            </div>
+                            <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:16}}>pcs</div>
                           </div>
-                        </div>
+                        ) : (
+                          /* Jewellery — colours + sizes + designs */
+                          <>
+                            <div>
+                              <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
+                                marginBottom:6, letterSpacing:"0.5px"}}>COLOURS</div>
+                              <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                                {COLOURS.map(c => (
+                                  <Chip key={c} label={c}
+                                    active={sel.colours.includes(c)}
+                                    onClick={() => toggleChip(p.name, "colours", c)}/>
+                                ))}
+                              </div>
+                            </div>
 
-                        <div>
-                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
-                            marginBottom:6, letterSpacing:"0.5px"}}>
-                            {SIZE_LABEL[p.category] || "SIZE"}
-                          </div>
-                          <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
-                            {(CATEGORY_SIZES[p.category] || CATEGORY_SIZES["Other"]).map(s => (
-                              <Chip key={s} label={s}
-                                active={sel.sizes.includes(s)}
-                                onClick={() => toggleChip(p.name, "sizes", s)}/>
-                            ))}
-                          </div>
-                        </div>
+                            <div>
+                              <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
+                                marginBottom:6, letterSpacing:"0.5px"}}>
+                                {SIZE_LABEL[p.category] || "SIZE"}
+                              </div>
+                              <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                                {(CATEGORY_SIZES[p.category] || CATEGORY_SIZES["Other"]).map(s => (
+                                  <Chip key={s} label={s}
+                                    active={sel.sizes.includes(s)}
+                                    onClick={() => toggleChip(p.name, "sizes", s)}/>
+                                ))}
+                              </div>
+                            </div>
 
-                        <div>
-                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
-                            marginBottom:6, letterSpacing:"0.5px"}}>DESIGN (optional)</div>
-                          <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
-                            {(CATEGORY_DESIGNS[p.category] || CATEGORY_DESIGNS["Other"]).map(d => (
-                              <Chip key={d} label={d}
-                                active={sel.designs.includes(d)}
-                                onClick={() => toggleChip(p.name, "designs", d)}/>
-                            ))}
-                          </div>
-                        </div>
+                            <div>
+                              <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
+                                marginBottom:6, letterSpacing:"0.5px"}}>DESIGN (optional)</div>
+                              <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                                {(CATEGORY_DESIGNS[p.category] || CATEGORY_DESIGNS["Other"]).map(d => (
+                                  <Chip key={d} label={d}
+                                    active={sel.designs.includes(d)}
+                                    onClick={() => toggleChip(p.name, "designs", d)}/>
+                                ))}
+                              </div>
+                            </div>
 
-                        <div style={{display:"flex", gap:10, alignItems:"center"}}>
-                          <div style={{flex:1}}>
-                            <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
-                              marginBottom:4, letterSpacing:"0.5px"}}>STOCK PER VARIANT</div>
-                            <input type="number" min="0" value={sel.stock}
-                              onChange={e => updateSel(p.name, "stock", e.target.value)}
-                              style={{width:"100%", border:"1.5px solid var(--saffron)", borderRadius:9,
-                                padding:"6px 10px", fontSize:13, fontWeight:700, outline:"none",
-                                color:"var(--saffron)", textAlign:"center"}}/>
-                          </div>
-                          <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:16}}>
-                            ×{Math.max(1,sel.colours.length||1) * Math.max(1,sel.sizes.length||1) * Math.max(1,sel.designs.length||1)}{" "}
-                            = {sel.stock * Math.max(1,sel.colours.length||1) * Math.max(1,sel.sizes.length||1) * Math.max(1,sel.designs.length||1)} pcs
-                          </div>
-                        </div>
+                            <div style={{display:"flex", gap:10, alignItems:"center"}}>
+                              <div style={{flex:1}}>
+                                <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
+                                  marginBottom:4, letterSpacing:"0.5px"}}>STOCK PER VARIANT</div>
+                                <input type="number" min="0" value={sel.stock}
+                                  onChange={e => updateSel(p.name, "stock", e.target.value)}
+                                  style={{width:"100%", border:"1.5px solid var(--saffron)", borderRadius:9,
+                                    padding:"6px 10px", fontSize:13, fontWeight:700, outline:"none",
+                                    color:"var(--saffron)", textAlign:"center"}}/>
+                              </div>
+                              <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:16}}>
+                                ×{Math.max(1,sel.colours.length||1) * Math.max(1,sel.sizes.length||1) * Math.max(1,sel.designs.length||1)}{" "}
+                                = {sel.stock * Math.max(1,sel.colours.length||1) * Math.max(1,sel.sizes.length||1) * Math.max(1,sel.designs.length||1)} pcs
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
