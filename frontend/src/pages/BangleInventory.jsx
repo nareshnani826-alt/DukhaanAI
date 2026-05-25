@@ -1292,6 +1292,19 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
     }
   }
 
+  async function handleAutoImage(e) {
+    e.stopPropagation()
+    setImgUploading(true); setImgErr("")
+    try {
+      const url = await BangleProducts.autoImage(product.id)
+      onProductUpdated({ ...product, image_url: url })
+    } catch(err) {
+      setImgErr("Auto-image failed — check BING_SEARCH_KEY in .env")
+    } finally {
+      setImgUploading(false)
+    }
+  }
+
   return (
     <div className="rounded-2xl overflow-hidden mb-3" style={{background:"var(--bg1)",border:"1px solid var(--rule)"}}>
       {showEdit && (
@@ -1408,11 +1421,18 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
               style={{borderColor:"var(--saffron)",color:"var(--saffron)",background:"transparent"}}>
               + Add Variants
             </button>
+            {/* Auto-fetch image from internet — always available */}
+            <button onClick={handleAutoImage} disabled={imgUploading}
+              className="py-2 rounded-xl text-xs font-semibold border"
+              style={{padding:"8px 10px", borderColor:"var(--sky,#2471a3)", color:"var(--sky,#2471a3)",
+                background:"transparent", flexShrink:0, opacity: imgUploading ? 0.5 : 1}}>
+              🔄 Photo
+            </button>
             {product.image_url && (
-              <button onClick={handleRemoveImage}
+              <button onClick={handleRemoveImage} disabled={imgUploading}
                 className="py-2 rounded-xl text-xs font-semibold border"
                 style={{padding:"8px 10px", borderColor:"var(--ember)", color:"var(--ember)", background:"transparent", flexShrink:0}}>
-                🗑 Photo
+                🗑
               </button>
             )}
             {product.variants.length > 0 && (

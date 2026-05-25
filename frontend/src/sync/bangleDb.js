@@ -107,6 +107,14 @@ export const BangleProducts = {
     const p = (c.products || []).find(p => p.id === productId)
     if (p) { p.image_url = null; writeCache(c) }
   },
+
+  async autoImage(productId) {
+    const data = await apiFetch(`/bangle/products/${productId}/auto-image`, { method: "POST" })
+    const c = readCache()
+    const p = (c.products || []).find(p => p.id === productId)
+    if (p) { p.image_url = data.image_url; writeCache(c) }
+    return data.image_url
+  },
 }
 
 // ── Sales ──────────────────────────────────────────────────────

@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Free tier: ~1,500 req/day (Gemini 1.5 Flash). Get key at aistudio.google.com
     gemini_api_key: str = ""
 
+    # Bing Image Search (auto-fetch product images from the web)
+    # Get key: portal.azure.com → Create resource → Bing Search v7 → Keys
+    bing_search_key: str = ""
+
     # AssemblyAI (speech-to-text for voice assistant & chatbot)
     assemblyai_api_key: str = ""
 

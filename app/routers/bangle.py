@@ -116,6 +116,13 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
         "cost_price":  body.cost_price,
         "gst_percent": body.gst_percent,
     }).execute().data[0]
+
+    # Auto-fetch image from the web — failure is silent, product still created
+    query = f"{body.name} {body.category} Indian jewelry"
+    image_url = await _auto_fetch_image(row["id"], vendor["id"], query)
+    if image_url:
+        row["image_url"] = image_url
+
     row["variants"] = []
     row["total_stock"] = 0
     row["variant_count"] = 0
@@ -156,6 +163,82 @@ async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     db.table("bangle_products").update({"is_active": False}).eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
     return {"message": "Product deleted"}
+
+
+# ── Auto image fetch (Bing Image Search → Supabase Storage) ──────
+
+async def _auto_fetch_image(product_id: str, vendor_id: str, query: str) -> str | None:
+    """Search Bing Images, download first usable result, store in Supabase, return public URL."""
+    if not settings.bing_search_key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            r = await client.get(
+                "https://api.bing.microsoft.com/v7.0/images/search",
+                params={"q": query, "count": 5, "safeSearch": "Strict", "imageType": "Photo"},
+                headers={"Ocp-Apim-Subscription-Key": settings.bing_search_key},
+            )
+            r.raise_for_status()
+            hits = r.json().get("value", [])
+            if not hits:
+                return None
+
+            content, ctype = None, "image/jpeg"
+            for hit in hits:
+                try:
+                    img_r = await client.get(hit["contentUrl"], follow_redirects=True)
+                    img_r.raise_for_status()
+                    ct = img_r.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+                    if not ct.startswith("image/"):
+                        continue
+                    if len(img_r.content) > 8 * 1024 * 1024:
+                        continue
+                    content, ctype = img_r.content, ct
+                    break
+                except Exception:
+                    continue
+
+            if not content:
+                return None
+
+            db = get_db()
+            path = f"{vendor_id}/{product_id}"
+            try:
+                db.storage.from_("bangle-images").remove([path])
+            except Exception:
+                pass
+            db.storage.from_("bangle-images").upload(path, content, {"content-type": ctype})
+            public_url = db.storage.from_("bangle-images").get_public_url(path)
+            db.table("bangle_products").update({"image_url": public_url}) \
+                .eq("id", product_id).eq("vendor_id", vendor_id).execute()
+            return public_url
+
+    except Exception:
+        return None
+
+
+@router.post("/products/{product_id}/auto-image")
+async def auto_image_product(product_id: str, vendor=Depends(get_current_vendor)):
+    """Re-fetch product image from Bing (e.g. when staff wants a different image)."""
+    db = get_db()
+    existing = (
+        db.table("bangle_products")
+        .select("id, name, category")
+        .eq("id", product_id)
+        .eq("vendor_id", vendor["id"])
+        .execute()
+    ).data
+    if not existing:
+        raise HTTPException(status_code=404, detail="Product not found")
+    p = existing[0]
+    query = f"{p['name']} {p['category']} Indian jewelry"
+    url = await _auto_fetch_image(product_id, vendor["id"], query)
+    if not url:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not fetch image — add BING_SEARCH_KEY to .env or try again",
+        )
+    return {"image_url": url}
 
 
 # ── Product image upload ───────────────────────────────────────
