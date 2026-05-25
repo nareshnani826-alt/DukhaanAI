@@ -1,5 +1,8 @@
 {
   "dependencies": {
+    "@capacitor-community/barcode-scanner": "^4.0.1",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
     "fuse.js": "^7.3.0"
   }
 }
