@@ -1,5 +1,8 @@
+import sys
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+_WEAK_SECRETS = {"", "change-me", "change-me-in-production", "secret", "password"}
 
 
 class Settings(BaseSettings):
@@ -66,7 +69,13 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    if s.app_env == "production":
+        if s.admin_secret_key in _WEAK_SECRETS:
+            sys.exit("FATAL: admin_secret_key must be changed in production")
+        if s.jwt_secret_key in _WEAK_SECRETS:
+            sys.exit("FATAL: jwt_secret_key must be changed in production")
+    return s
 
 
 settings = get_settings()

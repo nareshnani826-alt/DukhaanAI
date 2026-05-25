@@ -149,7 +149,7 @@ async def delete_customer(customer_id: str, vendor=Depends(get_current_vendor)):
     )
     if not existing.data:
         raise HTTPException(status_code=404, detail="Customer not found")
-    db.table("customers").delete().eq("id", customer_id).execute()
+    db.table("customers").delete().eq("id", customer_id).eq("vendor_id", vendor["id"]).execute()
     return {"message": "Customer removed"}
 
 
@@ -182,5 +182,5 @@ async def update_customer(
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
-    result = db.table("customers").update(updates).eq("id", customer_id).execute()
+    result = db.table("customers").update(updates).eq("id", customer_id).eq("vendor_id", vendor["id"]).execute()
     return result.data[0]

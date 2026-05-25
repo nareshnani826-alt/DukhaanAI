@@ -11,6 +11,25 @@ from app.core.security import get_current_vendor
 
 router = APIRouter(prefix="/bangle", tags=["bangle"])
 
+_IMAGE_MAGIC: list[tuple[bytes, str]] = [
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+    (b"RIFF", "image/webp"),   # check bytes[8:12] == b"WEBP" below
+]
+
+def _detect_image_content_type(data: bytes) -> str:
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return ""
+
 
 # ── Schemas ───────────────────────────────────────────────────
 
@@ -199,7 +218,7 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
 
     # Auto-fetch image from the web — failure is silent, product still created
     query = f"{body.name} {body.category} Indian jewelry"
-    image_url = await _auto_fetch_image(row["id"], vendor["id"], query)
+    image_url = await _auto_fetch_image(row["id"], vendor["id"], query, category=body.category, product_name=body.name)
     if image_url:
         row["image_url"] = image_url
 
@@ -321,14 +340,34 @@ async def _search_wikimedia(query: str) -> tuple[bytes | None, str]:
         return None, "image/jpeg"
 
 
-async def _auto_fetch_image(product_id: str, vendor_id: str, query: str) -> str | None:
+async def _auto_fetch_image(
+    product_id: str, vendor_id: str, query: str,
+    category: str = "", product_name: str = "",
+) -> str | None:
     """Fetch product image (Bing if key set, else Wikimedia Commons), upload to Supabase storage."""
     if settings.bing_search_key:
         content, ctype = await _search_bing(query)
     else:
-        # Free fallback — use just the first two words (product name) for better Wikimedia hits
-        simple_query = " ".join(query.split()[:2])  # e.g. "Plain bangles"
-        content, ctype = await _search_wikimedia(simple_query)
+        # Wikimedia Commons works best with generic category terms, not brand names.
+        # Try progressively broader queries until one returns an image.
+        wiki_attempts = []
+        if category:
+            wiki_attempts.append(category)                          # "Nail Polish"
+        if product_name:
+            words = product_name.split()
+            # Skip first word if it looks like a brand (capitalized, >3 chars)
+            start = 1 if (len(words) > 2 and words[0][0].isupper() and len(words[0]) > 3) else 0
+            generic = " ".join(words[start:start + 3])
+            if generic and generic not in wiki_attempts:
+                wiki_attempts.append(generic)                       # "Nail Polish Pink"
+        if not wiki_attempts:
+            wiki_attempts.append(" ".join(query.split()[:3]))
+
+        content, ctype = None, "image/jpeg"
+        for wq in wiki_attempts:
+            content, ctype = await _search_wikimedia(wq)
+            if content:
+                break
 
     if not content:
         return None
@@ -364,7 +403,7 @@ async def auto_image_product(product_id: str, vendor=Depends(get_current_vendor)
         raise HTTPException(status_code=404, detail="Product not found")
     p = existing[0]
     query = f"{p['name']} {p['category']} Indian jewelry"
-    url = await _auto_fetch_image(product_id, vendor["id"], query)
+    url = await _auto_fetch_image(product_id, vendor["id"], query, category=p["category"], product_name=p["name"])
     if not url:
         raise HTTPException(
             status_code=503,
@@ -396,7 +435,10 @@ async def upload_product_image(
     if len(content) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large — max 5 MB")
 
-    content_type = file.content_type or "image/jpeg"
+    content_type = _detect_image_content_type(content)
+    if not content_type:
+        raise HTTPException(status_code=400, detail="Invalid image — only JPEG, PNG, GIF, WebP allowed")
+
     # Fixed storage path per product — overwrite previous image
     path = f"{vendor['id']}/{product_id}"
 

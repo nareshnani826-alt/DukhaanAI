@@ -33,26 +33,25 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         const reader = new ZXing.BrowserMultiFormatReader()
         readerRef.current = reader
 
-        // List cameras and pick the back-facing one if available
-        const devices = await ZXing.BrowserCodeReader.listVideoInputDevices()
-        const backCamera = devices.find(d =>
-          /back|rear|environment/i.test(d.label)
-        ) || devices[devices.length - 1] || null
-
-        const deviceId = backCamera?.deviceId || undefined
-
         setStatus("scanning")
 
-        await reader.decodeFromVideoDevice(deviceId, videoRef.current, (result, err) => {
-          if (!mounted || detectedRef.current) return
-          if (result) {
-            const code = result.getText()
-            detectedRef.current = true
-            setLastCode(code)
-            onDetected(code)
+        // Use facingMode constraint — avoids iOS label-enumeration bug where
+        // camera labels are empty before permission is granted, causing the
+        // back-camera regex to fail and ZXing to open the front camera instead.
+        await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+          videoRef.current,
+          (result, err) => {
+            if (!mounted || detectedRef.current) return
+            if (result) {
+              const code = result.getText()
+              detectedRef.current = true
+              setLastCode(code)
+              onDetected(code)
+            }
+            // NotFoundException fires every frame when no barcode is visible — ignore it
           }
-          // NotFoundException fires every frame when no barcode is visible — ignore it
-        })
+        )
 
       } catch (e) {
         if (!mounted) return

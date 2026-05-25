@@ -217,7 +217,7 @@ class InvoiceLineItem(BaseModel):
     name: str
     qty: float
     unit_price: float
-    gst_percent: int
+    gst_percent: Literal[0, 5, 12, 18, 28]
 
     @field_validator("qty")
     @classmethod

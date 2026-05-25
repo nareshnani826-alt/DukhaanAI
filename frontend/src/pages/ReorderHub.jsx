@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { getToken } from "../sync/db"
+import { getToken, tryRefresh, clearAuth } from "../sync/db"
 
 const API = import.meta.env.VITE_API_URL
 
@@ -169,11 +169,16 @@ export default function ReorderHub() {
     setLoading(true)
     setError("")
     try {
-      const token = getToken()
-      const res = await fetch(
+      const doFetch = () => fetch(
         `${API}/bangle/reorder-analysis?days=${days}&threshold_days=${threshold}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        { headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {} }
       )
+      let res = await doFetch()
+      if (res.status === 401) {
+        const ok = await tryRefresh()
+        if (ok) res = await doFetch()
+        else { clearAuth(); window.location.href = "/"; return }
+      }
       if (!res.ok) throw new Error(await res.text())
       setData(await res.json())
     } catch (e) {

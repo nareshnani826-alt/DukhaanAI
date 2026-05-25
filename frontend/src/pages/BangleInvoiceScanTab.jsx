@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { getToken } from "../sync/db"
+import { getToken, tryRefresh, clearAuth } from "../sync/db"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
@@ -63,12 +63,17 @@ export default function BangleInvoiceScanTab() {
     form.append("store", "bangle")  // ← key difference: match against bangle_products
 
     try {
-      const token = getToken()
-      const res = await fetch(`${API}/invoice-scan/scan`, {
+      const doScan = () => fetch(`${API}/invoice-scan/scan`, {
         method:  "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
         body:    form,
       })
+      let res = await doScan()
+      if (res.status === 401) {
+        const ok = await tryRefresh()
+        if (ok) res = await doScan()
+        else { clearAuth(); window.location.href = "/"; return }
+      }
       clearInterval(ticker)
 
       if (!res.ok) {
@@ -100,7 +105,6 @@ export default function BangleInvoiceScanTab() {
 
   async function applyToInventory() {
     setStep("applying")
-    const token = getToken()
     const payload = {
       items: items
         .filter(it => it.action !== "skip")
@@ -117,14 +121,20 @@ export default function BangleInvoiceScanTab() {
         })),
     }
     try {
-      const res = await fetch(`${API}/invoice-scan/apply-bangle`, {
+      const doApply = () => fetch(`${API}/invoice-scan/apply-bangle`, {
         method:  "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
         },
         body: JSON.stringify(payload),
       })
+      let res = await doApply()
+      if (res.status === 401) {
+        const ok = await tryRefresh()
+        if (ok) res = await doApply()
+        else { clearAuth(); window.location.href = "/"; return }
+      }
       if (!res.ok) throw new Error("Apply failed")
       const data = await res.json()
       setResult(data)

@@ -2,7 +2,7 @@
 // Strategy: always try the server; on failure serve from localStorage cache.
 // Offline sales go into a queue and auto-sync when the network returns.
 
-import { getToken } from "./db"
+import { getToken, tryRefresh, clearAuth } from "./db"
 
 const CACHE_KEY = "dk_bangle"
 const QUEUE_KEY = "dk_bangle_queue"
@@ -37,8 +37,13 @@ function authHeaders() {
     ? { "Content-Type": "application/json", Authorization: `Bearer ${t}` }
     : { "Content-Type": "application/json" }
 }
-async function apiFetch(path, opts = {}) {
+async function apiFetch(path, opts = {}, retry = true) {
   const res = await fetch(API + path, { headers: authHeaders(), ...opts })
+  if (res.status === 401 && retry) {
+    const ok = await tryRefresh()
+    if (ok) return apiFetch(path, opts, false)
+    clearAuth(); window.location.href = "/"; return
+  }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
     throw new Error(e.detail || "HTTP " + res.status)
@@ -47,13 +52,18 @@ async function apiFetch(path, opts = {}) {
 }
 
 // Multipart upload — do NOT set Content-Type; browser fills in the boundary
-async function apiUpload(path, formData) {
+async function apiUpload(path, formData, retry = true) {
   const t = getToken()
   const res = await fetch(API + path, {
     method: "POST",
     headers: t ? { Authorization: `Bearer ${t}` } : {},
     body: formData,
   })
+  if (res.status === 401 && retry) {
+    const ok = await tryRefresh()
+    if (ok) return apiUpload(path, formData, false)
+    clearAuth(); window.location.href = "/"; return
+  }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
     throw new Error(e.detail || "Upload failed")
