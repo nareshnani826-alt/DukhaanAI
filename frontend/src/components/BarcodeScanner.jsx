@@ -16,9 +16,6 @@ function loadZXing() {
 
 export default function BarcodeScanner({ onDetected, onClose }) {
   const videoRef    = useRef(null)
-  const canvasRef   = useRef(null)
-  const streamRef   = useRef(null)
-  const timerRef    = useRef(null)
   const readerRef   = useRef(null)
   const detectedRef = useRef(false)
   const [status,   setStatus]   = useState("loading")
@@ -33,49 +30,29 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         const ZXing = await loadZXing()
         if (!mounted) return
 
-        // Use getUserMedia directly — avoids ZXing's internal stream wrapper
-        // which has known issues on iOS WebKit (Safari/Chrome)
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false,
-        })
-        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
-
-        streamRef.current = stream
-        const video = videoRef.current
-        video.srcObject = stream
-        await video.play()
-
         const reader = new ZXing.BrowserMultiFormatReader()
         readerRef.current = reader
 
-        const canvas = canvasRef.current
-        const ctx    = canvas.getContext("2d", { willReadFrequently: true })
-
         setStatus("scanning")
 
-        // Poll at 10 fps — draw each frame to canvas, then decode
-        timerRef.current = setInterval(() => {
-          if (!mounted || detectedRef.current) return
-          if (video.readyState < video.HAVE_ENOUGH_DATA) return
-
-          canvas.width  = video.videoWidth
-          canvas.height = video.videoHeight
-          ctx.drawImage(video, 0, 0)
-
-          try {
-            const result = reader.decodeFromCanvas(canvas)
+        // decodeFromConstraints with facingMode avoids the iOS label-enumeration
+        // bug where camera labels are empty before permission is granted.
+        await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: "environment" } } },
+          videoRef.current,
+          (result, err) => {
+            if (!mounted || detectedRef.current) return
             if (result) {
               const code = result.getText()
               detectedRef.current = true
               setLastCode(code)
               onDetected(code)
+              // Reset after 1.5 s so the next product can be scanned
               setTimeout(() => { detectedRef.current = false }, 1500)
             }
-          } catch (_) {
-            // NotFoundException on every empty frame — ignore
+            // NotFoundException fires every frame when no barcode visible — ignore
           }
-        }, 100)
+        )
 
       } catch (e) {
         if (!mounted) return
@@ -93,14 +70,12 @@ export default function BarcodeScanner({ onDetected, onClose }) {
 
     return () => {
       mounted = false
-      clearInterval(timerRef.current)
-      streamRef.current?.getTracks().forEach(t => t.stop())
+      try { readerRef.current?.reset() } catch (_) {}
     }
   }, [])
 
   function handleClose() {
-    clearInterval(timerRef.current)
-    streamRef.current?.getTracks().forEach(t => t.stop())
+    try { readerRef.current?.reset() } catch (_) {}
     onClose()
   }
 
@@ -118,16 +93,14 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:"12px 16px", background:"rgba(0,0,0,0.5)",
       }}>
-        <span style={{ color:"#fff", fontSize:14, fontWeight:500 }}>
-          Scan barcode
-        </span>
+        <span style={{ color:"#fff", fontSize:14, fontWeight:500 }}>Scan barcode</span>
         <button onClick={handleClose} style={{
           background:"rgba(255,255,255,0.15)", border:"none", color:"#fff",
           borderRadius:8, padding:"7px 14px", fontSize:12, cursor:"pointer",
         }}>✕ Close</button>
       </div>
 
-      {/* Video + hidden canvas for frame decoding */}
+      {/* Video */}
       <div style={{ position:"relative", width:"min(400px,95vw)" }}>
         {status === "loading" && (
           <div style={{
@@ -166,8 +139,6 @@ export default function BarcodeScanner({ onDetected, onClose }) {
             maxHeight:"60vh",
           }}
         />
-        {/* Canvas is off-screen — used only for frame decoding */}
-        <canvas ref={canvasRef} style={{ display:"none" }} />
 
         {/* Scanning overlay */}
         {status === "scanning" && (
@@ -178,8 +149,7 @@ export default function BarcodeScanner({ onDetected, onClose }) {
           }}>
             <div style={{
               width:"80%", height:80,
-              border:"2.5px solid #1D9E75",
-              borderRadius:8,
+              border:"2.5px solid #1D9E75", borderRadius:8,
               boxShadow:"0 0 0 2000px rgba(0,0,0,0.45)",
             }} />
           </div>
