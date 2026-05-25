@@ -1,6 +1,36 @@
 import { useState, useEffect, useRef } from "react"
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { getToken, Products } from "../sync/db"
+import { BangleProducts } from "../sync/bangleDb"
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
+import { Capacitor } from '@capacitor/core'
+
+// Copy of findVariantMatch from BangleBilling
+function findVariantMatch(products, decoded) {
+  if (!decoded) return null
+  const q = decoded.trim()
+  // 1. Exact barcode field match on the product
+  for (const p of products) {
+    if (p.barcode && p.barcode === q) {
+      const variant = (p.variants || []).find(v => v.stock > 0) || (p.variants || [])[0]
+      if (variant) return { product: p, variant }
+    }
+  }
+  // 2. SKU match
+  for (const p of products) {
+    if (p.sku && (p.sku === q || p.sku.replace(/[-\s]/g, "") === q.replace(/[-\s]/g, ""))) {
+      const variant = (p.variants || []).find(v => v.stock > 0) || (p.variants || [])[0]
+      if (variant) return { product: p, variant }
+    }
+  }
+  // 3. Variant ID match (for QR codes)
+  for (const p of products) {
+    for (const v of (p.variants || [])) {
+      if (v.id === q) return { product: p, variant: v }
+    }
+  }
+  return null
+}
 
 const FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13,
@@ -14,21 +44,25 @@ const FORMATS = [
 
 const NATIVE_FORMATS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","qr_code"]
 const hasNativeDetector = () => "BarcodeDetector" in window
+const isNative = () =>
+  (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+  (Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())
 
 const API = import.meta.env.VITE_API_URL
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
 
 export default function BarcodeScannerTab() {
-  const [scanning,  setScanning]  = useState(false)
-  const [result,    setResult]    = useState(null)   // {source, product}
-  const [qty,       setQty]       = useState(1)
-  const [mrp,       setMrp]       = useState("")
-  const [cost,      setCost]      = useState("")
-  const [category,  setCategory]  = useState("Other")
-  const [done,      setDone]      = useState(null)   // {action, name}
-  const [error,     setError]     = useState("")
-  const [loading,   setLoading]   = useState(false)
+  const [scanning,   setScanning]   = useState(false)
+  const [result,     setResult]     = useState(null)
+  const [qty,        setQty]        = useState(1)
+  const [mrp,        setMrp]        = useState("")
+  const [cost,       setCost]       = useState("")
+  const [category,   setCategory]   = useState("Other")
+  const [done,       setDone]       = useState(null)
+  const [error,      setError]      = useState("")
+  const [loading,    setLoading]    = useState(false)
   const [manualCode, setManualCode] = useState("")
+  const [products,   setProducts]   = useState([])
 
   const scannerRef  = useRef(null)
   const videoRef    = useRef(null)
@@ -37,12 +71,102 @@ export default function BarcodeScannerTab() {
   const detectedRef = useRef(false)
   const READER_ID   = "barcode-reader"
 
+  // Load products on mount
+  useEffect(() => {
+    BangleProducts.list()
+      .then(prods => setProducts(prods || []))
+      .catch(() => setProducts([]))
+  }, [])
+
+  // ── Async barcode handler used by all scan sources ─────────────
+  async function handleBarcode(code) {
+    setScanning(false)
+    const match = findVariantMatch(products, code)
+    if (match) {
+      setResult({ source: "inventory", product: match.product, variant: match.variant })
+      setQty(1)
+      return
+    }
+    await lookupBarcode(code)
+  }
+
+  async function lookupBarcode(code) {
+    const token = getToken()
+    setLoading(true)
+    try {
+      const res = await fetch(`${API}/invoice-scan/barcode/${encodeURIComponent(code)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error("Lookup failed")
+      const data = await res.json()
+      setResult(data)
+      if (data.source === "inventory") {
+        setQty(1)
+      } else if (data.product) {
+        setMrp("")
+        setCost("")
+        setQty(1)
+      } else {
+        setResult({ source: "not_found", product: { barcode: code } })
+      }
+    } catch (e) {
+      setError('Barcode lookup failed: ' + (e?.message || e))
+      setResult({ source: "not_found", product: { barcode: code } })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Native (Google MLKit) scan ─────────────────────────────────
+  const handleNativeScan = async () => {
+    try {
+      if (typeof BarcodeScanner.isGoogleBarcodeScannerModuleAvailable === 'function') {
+        try {
+          const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
+          if (!available && typeof BarcodeScanner.installGoogleBarcodeScannerModule === 'function') {
+            alert('Google Barcode Scanner module not found. Installing now...')
+            await BarcodeScanner.installGoogleBarcodeScannerModule()
+            alert('Google Barcode Scanner module installed. You can now scan barcodes.')
+          }
+        } catch (modErr) {
+          console.warn('module check skipped:', modErr)
+        }
+      }
+      try {
+        const perm = await BarcodeScanner.requestPermissions()
+        if (!perm.camera) {
+          alert('Camera permission is required for barcode scanning.')
+          return
+        }
+      } catch (permErr) {
+        console.warn('perm check skipped:', permErr)
+      }
+      const scanRes = await BarcodeScanner.scan()
+      if (scanRes?.barcodes?.length) {
+        const code = scanRes.barcodes[0].rawValue
+        await handleBarcode(code)
+      } else {
+        alert('No barcode detected.')
+      }
+    } catch (e) {
+      console.error('handleNativeScan error:', e)
+      // MLKit not available (browser) → fall back to browser camera scan
+      const msg = (e?.message || '' + e).toLowerCase()
+      if (msg.includes('not implemented') || msg.includes('not available') || msg.includes('unimplemented')) {
+        setScanning(true)
+        return
+      }
+      alert('Barcode scan failed: ' + (e?.message || e))
+    }
+  }
+
+  // ── Browser camera scan ────────────────────────────────────────
   useEffect(() => {
     if (!scanning) return
+    if (isNative()) return // native path uses MLKit directly, not this effect
     detectedRef.current = false
 
     if (hasNativeDetector()) {
-      // ── Native BarcodeDetector (Chrome/Android) ──────────────
       let detector
       try { detector = new window.BarcodeDetector({ formats: NATIVE_FORMATS }) }
       catch { startHtml5(); return }
@@ -59,7 +183,11 @@ export default function BarcodeScannerTab() {
           if (detectedRef.current || !videoRef.current) return
           try {
             const codes = await detector.detect(videoRef.current)
-            if (codes.length > 0) { detectedRef.current = true; handleBarcode(codes[0].rawValue); return }
+            if (codes.length > 0) {
+              detectedRef.current = true
+              handleBarcode(codes[0].rawValue)
+              return
+            }
           } catch {}
           rafRef.current = requestAnimationFrame(tick)
         }
@@ -74,51 +202,24 @@ export default function BarcodeScannerTab() {
       scannerRef.current = scanner
       scanner.start(
         { facingMode: "environment" },
-        { fps: 20, qrbox: { width: 300, height: 150 } },
+        { fps: 20 },
         (code) => handleBarcode(code),
         () => {},
-      ).catch(() => { setError("Camera not available. Enter barcode manually below."); setScanning(false) })
+      ).catch(() => {
+        setError("Camera not available. Enter barcode manually below.")
+        setScanning(false)
+      })
     }
 
     return () => {
       cancelAnimationFrame(rafRef.current)
       streamRef.current?.getTracks().forEach(t => t.stop())
-      streamRef.current = null
-      scannerRef.current?.isRunning() && scannerRef.current.stop().catch(() => {})
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {})
+        scannerRef.current = null
+      }
     }
   }, [scanning])
-
-  async function handleBarcode(code) {
-    if (loading) return
-    // Stop scanner
-    if (scannerRef.current?.isRunning()) {
-      await scannerRef.current.stop().catch(() => {})
-    }
-    setScanning(false)
-    setLoading(true)
-    setError("")
-
-    const token = getToken()
-    try {
-      const res = await fetch(`${API}/invoice-scan/barcode/${encodeURIComponent(code)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error("Lookup failed")
-      const data = await res.json()
-      setResult(data)
-      if (data.source === "inventory") {
-        setQty(1)
-      } else if (data.product) {
-        setMrp("")
-        setCost("")
-        setQty(1)
-      }
-    } catch (e) {
-      setError("Could not look up barcode. Check your connection.")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function addStock() {
     if (!result?.product?.id) return
@@ -259,9 +360,9 @@ export default function BarcodeScannerTab() {
     )
   }
 
-  // ── Product found in Open Food Facts (new product) ────────────
+  // ── Product found in Open Food Facts / not found ─────────────
   if ((result?.source === "openfoodfacts" || result?.source === "not_found") && result !== null) {
-    const p   = result.product || {}
+    const p = result.product || {}
     const isFF = result.source === "openfoodfacts"
     return (
       <div style={{ padding: 20, maxWidth: 420, margin: "0 auto" }}>
@@ -352,7 +453,7 @@ export default function BarcodeScannerTab() {
     )
   }
 
-  // ── Scanner screen ───────────────────────────────────────────
+  // ── Scanner / start screen ───────────────────────────────────
   return (
     <div style={{ padding: 20, maxWidth: 480, margin: "0 auto" }}>
       {error && (
@@ -368,8 +469,8 @@ export default function BarcodeScannerTab() {
         </div>
       )}
 
-      {/* Camera viewfinder */}
-      {scanning && (
+      {/* Camera viewfinder (browser only) */}
+      {scanning && !isNative() && (
         <div style={{ marginBottom: 16 }}>
           {hasNativeDetector() ? (
             <video ref={videoRef} playsInline muted
@@ -377,7 +478,7 @@ export default function BarcodeScannerTab() {
                 display: "block", background: "#000", maxHeight: 280, objectFit: "cover" }} />
           ) : (
             <div id={READER_ID} style={{ borderRadius: 16, overflow: "hidden",
-              border: "2px solid var(--jade)" }} />
+              border: "2px solid var(--jade)", width: '100%', height: 280, background: '#000' }} />
           )}
           <button onClick={() => setScanning(false)}
             style={{ width: "100%", marginTop: 10, padding: "10px", background: "var(--bg2)",
@@ -390,8 +491,13 @@ export default function BarcodeScannerTab() {
 
       {!scanning && !loading && (
         <>
-          {/* Start camera button */}
-          <button onClick={() => { setError(""); setScanning(true) }}
+          {/* Start scan button */}
+          <button
+            onClick={() => {
+              setError("")
+              // Always try MLKit first; falls back to browser camera if not available
+              handleNativeScan()
+            }}
             style={{ width: "100%", padding: "20px", background: "linear-gradient(135deg,#0F6E56,#1D9E75)",
               color: "#fff", border: "none", borderRadius: 16, cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 8,

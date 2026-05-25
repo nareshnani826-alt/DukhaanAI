@@ -1,3 +1,5 @@
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { Capacitor } from '@capacitor/core';
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "../context/AuthContext"
 import { BangleProducts, BangleSales, BangleSync } from "../sync/bangleDb"
@@ -140,7 +142,7 @@ function ScanCamera({ products, onScanned, feedback }) {
     scannerRef.current = qr
     qr.start(
       { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-      { fps: 30, qrbox: { width: 320, height: 160 }, aspectRatio: 2.0 },
+      { fps: 30, aspectRatio: 2.0 }, // No qrbox: full area
       (decoded) => {
         const now = Date.now()
         // Debounce: ignore same code within 0.5 s
@@ -155,8 +157,8 @@ function ScanCamera({ products, onScanned, feedback }) {
   }, [])
 
   return (
-    <div style={{ position:"relative" }}>
-      <div id={elId} style={{ width:"100%", background:"#000", maxHeight:200, overflow:"hidden" }} />
+    <div style={{ position: "relative", width: "100%", height: 320, minHeight: 240, maxHeight: '60vh', background: '#000', borderRadius: 12, overflow: 'hidden' }}>
+      <div id={elId} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#000' }} />
       {feedback && (
         <div style={{ position:"absolute", bottom:6, left:0, right:0, textAlign:"center",
           fontSize:12, fontWeight:700, color:"#fff",
@@ -797,7 +799,15 @@ function Chips({ label, options, value, onChange }) {
 }
 
 // ── Product Picker ────────────────────────────────────────────
-function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem }) {
+function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativeScan }) {
+    // Scan button: always use native scan in app, web scan in browser
+    const handleScanButton = () => {
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        if (typeof onNativeScan === 'function') onNativeScan();
+      } else {
+        onScanRequest();
+      }
+    };
   const [search,  setSearch]  = useState("")
   const [product, setProduct] = useState(null)
   const [colour,  setColour]  = useState(null)
@@ -941,7 +951,7 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem }) {
             ⚡
           </button>
           {/* Barcode Scanner */}
-          <button onClick={onScanRequest} title="Scan barcode"
+          <button onClick={handleScanButton} title="Scan barcode"
             style={{ padding:"8px 10px", borderRadius:10, border:"1.5px solid var(--rule)",
               background:"var(--bg2)", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ color:"var(--ink-dim)" }}>
@@ -1555,6 +1565,90 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function BangleBilling() {
+    // Unified scan handler: always use native scanner in app, web scanner in browser
+    const handleScan = async () => {
+      if (Capacitor.isNativePlatform()) {
+        // Native scan (MLKit)
+        try {
+          // 1. Check/install Google Barcode Scanner module
+          if (typeof BarcodeScanner.isGoogleBarcodeScannerModuleAvailable === 'function') {
+            const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+            if (!available && typeof BarcodeScanner.installGoogleBarcodeScannerModule === 'function') {
+              alert('Google Barcode Scanner module not found. Installing now...');
+              await BarcodeScanner.installGoogleBarcodeScannerModule();
+              alert('Google Barcode Scanner module installed. You can now scan barcodes.');
+            }
+          }
+          const perm = await BarcodeScanner.requestPermissions();
+          if (!perm.camera) {
+            alert('Camera permission is required for barcode scanning.');
+            return;
+          }
+          // Show instructions overlay before scanning
+          const overlay = document.createElement('div');
+          overlay.style.position = 'fixed';
+          overlay.style.top = '0';
+          overlay.style.left = '0';
+          overlay.style.width = '100vw';
+          overlay.style.height = '100vh';
+          overlay.style.display = 'flex';
+          overlay.style.alignItems = 'center';
+          overlay.style.justifyContent = 'center';
+          overlay.style.background = 'rgba(0,0,0,0.25)';
+          overlay.style.zIndex = '9999';
+          overlay.innerHTML = '<div style="color: #fff; font-size: 1.3em; font-weight: bold; text-align: center; background: rgba(0,0,0,0.5); padding: 18px 24px; border-radius: 16px;">Align the barcode anywhere in the camera view to scan automatically.<br><span style="font-size:0.9em;font-weight:400;">Tip: Hold steady and ensure good lighting.</span></div>';
+          document.body.appendChild(overlay);
+          let scanError = null;
+          try {
+            const result = await BarcodeScanner.scan();
+            document.body.removeChild(overlay);
+            if (result?.barcodes?.length) {
+              const code = result.barcodes[0].rawValue;
+              const match = findVariantMatch(products, code);
+              if (match) {
+                const { product, variant } = match;
+                const dozenMrp  = variant.mrp  ?? product.mrp  ?? 0;
+                const dozenCost = variant.cost_price ?? product.cost_price ?? 0;
+                const unitPrice = +(dozenMrp / 12).toFixed(2);
+                addToCart({
+                  variant_id:   variant.id,
+                  product_id:   product.id,
+                  product_name: product.name,
+                  colour:       variant.colour,
+                  size:         variant.size,
+                  design:       variant.design,
+                  unit:         "piece",
+                  unit_qty:     1,
+                  unit_price:   unitPrice,
+                  pieces:       1,
+                  amount:       unitPrice,
+                  cost_price:   dozenCost,
+                  gst_percent:  product.gst_percent || 3,
+                  _id:          variant.id + '-' + Date.now(),
+                });
+                alert('✓ Added: ' + product.name + (variant.colour ? ' · ' + variant.colour : ''));
+              } else {
+                alert('✗ No product for this barcode');
+              }
+            } else {
+              alert('No barcode detected.');
+            }
+          } catch (e) {
+            scanError = e;
+            console.error('BarcodeScanner.scan error:', e);
+          } finally {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            if (scanError) alert('Barcode scan failed: ' + (scanError?.message || scanError));
+          }
+        } catch (e) {
+          console.error('handleScan outer error:', e);
+          alert('Unexpected error: ' + (e?.message || e));
+        }
+      } else {
+        // Web: open ScanBillModal in camera mode
+        setShowScanner(true);
+      }
+    };
   const { vendor } = useAuth()
   const { t }      = useLang()
   const [products,     setProducts]     = useState([])
@@ -1632,13 +1726,20 @@ export default function BangleBilling() {
 
   return (
     <div className="page-flex-fill" style={{ background: "var(--bg0)" }}>
+      {/* Native Barcode Scan Button */}
+      <div style={{ padding: 16 }}>
+        <button onClick={handleScan} style={{ marginBottom: 12, padding: '8px 16px', fontWeight: 'bold' }}>
+          Scan Barcode
+        </button>
+      </div>
 
       {receipt && (
         <ReceiptModal sale={receipt} storeName={storeName}
           onClose={() => setReceipt(null)}
           onNewBill={() => { setReceipt(null); setTab("items") }} />
       )}
-      {showScanner && (
+      {/* Only show ScanBillModal (web scanner) in browser, never in native app */}
+      {showScanner && !Capacitor.isNativePlatform() && (
         <ScanBillModal
           products={products}
           onBill={sale => { onBill(sale); setShowScanner(false) }}
@@ -1653,58 +1754,6 @@ export default function BangleBilling() {
           onClose={() => setShowQuick(false)}
         />
       )}
-
-      {/* Offline / pending-sync banner */}
-      {(offline || pending > 0) && (
-        <div style={{ background: offline ? "rgba(220,38,38,0.08)" : "rgba(196,127,0,0.1)",
-          borderBottom: `1px solid ${offline ? "rgba(220,38,38,0.2)" : "rgba(196,127,0,0.25)"}`,
-          padding: "6px 16px", display: "flex", alignItems: "center",
-          justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 600,
-            color: offline ? "#dc2626" : "#c47f00" }}>
-            {offline
-              ? "📵 Offline — bills saved locally, will sync when connected"
-              : `☁ ${pending} bill${pending > 1 ? "s" : ""} pending sync`}
-          </div>
-          {!offline && pending > 0 && (
-            <button onClick={syncQueue} disabled={syncing}
-              style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
-                background: "rgba(196,127,0,0.15)", border: "1px solid rgba(196,127,0,0.3)",
-                color: "#c47f00", cursor: syncing ? "default" : "pointer" }}>
-              {syncing ? "Syncing…" : "Sync now"}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Header */}
-      <div style={{ background: "var(--bg1)", padding: "0 20px", height: 56, flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderBottom: "1px solid var(--rule)" }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{t("🧾 Bangle Billing")}</div>
-          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-            {t("Piece · Dozen · Set")}{today?._offline ? ` · ${t("offline mode")}` : ""}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <LangToggle />
-          {today && (
-            <div style={{ display: "flex", gap: 14, fontSize: 11 }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontWeight: 800, color: "var(--saffron)", fontSize: 14 }}>
-                  ₹{Number(today.total_revenue || 0).toLocaleString("en-IN")}
-                </div>
-                <div style={{ color: "var(--ink-faint)" }}>{t("Today")}</div>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: 14 }}>{today.total_bills || 0}</div>
-                <div style={{ color: "var(--ink-faint)" }}>{t("Bills")}</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Mobile tabs */}
       <div className="mobile-billing-tabs">
@@ -1727,9 +1776,14 @@ export default function BangleBilling() {
           <div className={`billing-left${tab === "cart" ? " billing-hidden-mobile" : ""}`}
             style={{ flex: 1, borderRight: "1px solid var(--rule)", overflow: "hidden",
               display: "flex", flexDirection: "column" }}>
-            <ProductPicker products={products} onAdd={addToCart} t={t}
+            <ProductPicker
+              products={products}
+              onAdd={addToCart}
+              t={t}
               onScanRequest={() => setShowScanner(true)}
-              onQuickItem={() => setShowQuick(true)} />
+              onQuickItem={() => setShowQuick(true)}
+              onNativeScan={handleScan}
+            />
           </div>
           <div className={`billing-right${tab === "items" ? " billing-hidden-mobile" : ""}`}
             style={{ width: 340, minWidth: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>

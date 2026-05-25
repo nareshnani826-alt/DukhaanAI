@@ -9,6 +9,14 @@ import { parseProductDescription } from "../voice/parseProductDescription.js"
 import { geminiParseProduct } from "../voice/geminiParse.js"
 import { scanImageForProduct, fileToBase64 } from "../voice/geminiVision.js"
 import { learnProduct, suggestMRP } from "../voice/productLearner.js"
+import { BarcodeScanner as MLKitBarcodeScanner } from "@capacitor-mlkit/barcode-scanning"
+import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
+
+const isNativeApp = () =>
+  typeof window !== "undefined" &&
+  window.Capacitor &&
+  typeof window.Capacitor.isNativePlatform === "function" &&
+  window.Capacitor.isNativePlatform()
 
 const API    = import.meta.env.VITE_API_URL ?? ""
 const INR    = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -494,6 +502,56 @@ function AddProductModal({ onClose, onSaved }) {
     return "Other"
   }
 
+  async function lookupBarcode(barcode) {
+    const res = await lookupBarcodeAPI(barcode, "bangle")
+    const productData = {
+      name:     res.name,
+      brand:    res.brand,
+      barcode:  res.barcode,
+      category: res.category || "Bangles",
+      mrp:      res.mrp,
+      source:   "barcode-scan",
+    }
+    if (!res.found) {
+      setBarcodeErr(`Barcode ${barcode} not found in catalogs. ${res.diag}`)
+    }
+    openScanBuilder(productData)
+  }
+
+  async function handleBarcodeNative() {
+    setBarcodeScanning(true); setBarcodeErr(""); setSmartErr("")
+    try {
+      if (typeof MLKitBarcodeScanner.isGoogleBarcodeScannerModuleAvailable === "function") {
+        try {
+          const { available } = await MLKitBarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
+          if (!available && typeof MLKitBarcodeScanner.installGoogleBarcodeScannerModule === "function") {
+            await MLKitBarcodeScanner.installGoogleBarcodeScannerModule()
+          }
+        } catch (modErr) { console.warn("mlkit module check skipped", modErr) }
+      }
+      try {
+        const perm = await MLKitBarcodeScanner.requestPermissions()
+        if (!perm.camera) {
+          setBarcodeErr("Camera permission is required.")
+          setBarcodeScanning(false)
+          return
+        }
+      } catch (permErr) { console.warn("mlkit perm skipped", permErr) }
+      const result = await MLKitBarcodeScanner.scan()
+      if (!result?.barcodes?.length) {
+        setBarcodeErr("No barcode detected. Try again.")
+        setBarcodeScanning(false)
+        return
+      }
+      const barcode = result.barcodes[0].rawValue
+      await lookupBarcode(barcode)
+    } catch (err) {
+      setBarcodeErr(`Scan failed: ${err?.message || err}`)
+    } finally {
+      setBarcodeScanning(false)
+    }
+  }
+
   async function handleBarcodeCapture(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -744,7 +802,7 @@ function AddProductModal({ onClose, onSaved }) {
                     {cameraScanning ? "⏳" : "📷"}
                   </button>
                   <button
-                    onClick={() => barcodeInputRef.current?.click()}
+                    onClick={() => isNativeApp() ? handleBarcodeNative() : barcodeInputRef.current?.click()}
                     disabled={barcodeScanning || cameraScanning || smartParsing}
                     style={{
                       padding:"6px 12px", borderRadius:8, border:"none", cursor:"pointer",

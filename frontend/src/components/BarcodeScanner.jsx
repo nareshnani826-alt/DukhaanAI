@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
+import { BarcodeScanner as MLKitBarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
+import { Capacitor } from '@capacitor/core'
 
-// ZXing supports EAN-13, UPC-A, Code-128, Code-39, QR and 20+ formats
+// ZXing supports EAN-13, UPC-A, Code-128, Code-39, QR and 20+ formats (browser fallback)
 const ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"
 
 function loadZXing() {
@@ -14,15 +16,75 @@ function loadZXing() {
   })
 }
 
+const isNative = () =>
+  (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+  (Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())
+
 export default function BarcodeScanner({ onDetected, onClose }) {
   const videoRef    = useRef(null)
   const readerRef   = useRef(null)
   const detectedRef = useRef(false)
+  const nativeTriedRef = useRef(false)
   const [status,   setStatus]   = useState("loading")
   const [error,    setError]    = useState("")
   const [lastCode, setLastCode] = useState("")
 
+  // ── Native (Google MLKit / Lens) ─────────────────────────────
   useEffect(() => {
+    if (!isNative()) return
+    if (nativeTriedRef.current) return
+    nativeTriedRef.current = true
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (typeof MLKitBarcodeScanner.isGoogleBarcodeScannerModuleAvailable === 'function') {
+          try {
+            const { available } = await MLKitBarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
+            if (!available && typeof MLKitBarcodeScanner.installGoogleBarcodeScannerModule === 'function') {
+              alert('Google Barcode Scanner module not found. Installing now...')
+              await MLKitBarcodeScanner.installGoogleBarcodeScannerModule()
+              alert('Google Barcode Scanner module installed.')
+            }
+          } catch (modErr) {
+            console.warn('module check skipped:', modErr)
+          }
+        }
+        try {
+          const perm = await MLKitBarcodeScanner.requestPermissions()
+          if (!perm.camera) {
+            alert('Camera permission is required for barcode scanning.')
+            if (!cancelled) onClose && onClose()
+            return
+          }
+        } catch (permErr) {
+          console.warn('perm check skipped:', permErr)
+        }
+        const scanRes = await MLKitBarcodeScanner.scan()
+        if (cancelled) return
+        if (scanRes?.barcodes?.length) {
+          const code = scanRes.barcodes[0].rawValue
+          setLastCode(code)
+          onDetected && onDetected(code)
+        }
+        // Close the overlay after scan returns (whether or not a code was read)
+        onClose && onClose()
+      } catch (e) {
+        console.error('MLKit scan error:', e)
+        if (!cancelled) {
+          alert('Barcode scan failed: ' + (e?.message || e))
+          onClose && onClose()
+        }
+      }
+    })()
+
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Browser (ZXing) ──────────────────────────────────────────
+  useEffect(() => {
+    if (isNative()) return
     let mounted = true
 
     async function start() {
@@ -30,9 +92,6 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         const ZXing = await loadZXing()
         if (!mounted) return
 
-        // TRY_HARDER + explicit format list dramatically improves reliability
-        // on physical product barcodes (EAN-13, UPC-A, Code-128 are the
-        // formats printed on grocery/retail packaging).
         const hints = new Map([
           [ZXing.DecodeHintType.TRY_HARDER, true],
           [ZXing.DecodeHintType.POSSIBLE_FORMATS, [
@@ -50,26 +109,20 @@ export default function BarcodeScanner({ onDetected, onClose }) {
 
         setStatus("scanning")
 
-        // decodeFromConstraints with facingMode avoids the iOS label-enumeration
-        // bug where camera labels are empty before permission is granted.
-        // Higher resolution gives ZXing cleaner barcode bar images to decode.
         await reader.decodeFromConstraints(
           { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
           videoRef.current,
-          (result, err) => {
+          (result) => {
             if (!mounted || detectedRef.current) return
             if (result) {
               const code = result.getText()
               detectedRef.current = true
               setLastCode(code)
               onDetected(code)
-              // Reset after 1.5 s so the next product can be scanned
               setTimeout(() => { detectedRef.current = false }, 1500)
             }
-            // NotFoundException fires every frame when no barcode visible — ignore
           }
         )
-
       } catch (e) {
         if (!mounted) return
         setStatus("error")
@@ -88,12 +141,16 @@ export default function BarcodeScanner({ onDetected, onClose }) {
       mounted = false
       try { readerRef.current?.reset() } catch (_) {}
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function handleClose() {
     try { readerRef.current?.reset() } catch (_) {}
     onClose()
   }
+
+  // On native, MLKit shows its own full-screen scanner; we don't render any UI
+  if (isNative()) return null
 
   return (
     <div style={{
@@ -103,7 +160,6 @@ export default function BarcodeScanner({ onDetected, onClose }) {
     }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* Top bar */}
       <div style={{
         position:"absolute", top:0, left:0, right:0,
         display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -116,7 +172,6 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         }}>✕ Close</button>
       </div>
 
-      {/* Video */}
       <div style={{ position:"relative", width:"min(400px,95vw)" }}>
         {status === "loading" && (
           <div style={{
@@ -156,7 +211,6 @@ export default function BarcodeScanner({ onDetected, onClose }) {
           }}
         />
 
-        {/* Scanning overlay */}
         {status === "scanning" && (
           <div style={{
             position:"absolute", inset:0,

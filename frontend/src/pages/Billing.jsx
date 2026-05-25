@@ -3,6 +3,7 @@ import { Products, Invoices, Customers } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
+import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
@@ -21,6 +22,7 @@ export default function Billing() {
   const [scanner,   setScanner]   = useState(false)
   const [barcodeInput, setBarcodeInput] = useState("")
   const [barcodeResult, setBarcodeResult] = useState(null)
+  const [quickAdd, setQuickAdd] = useState(null)  // { code, name, mrp, gst }
   const barcodeRef = useRef(null)
 
   useEffect(() => {
@@ -40,7 +42,7 @@ export default function Billing() {
   const delRow = i   => setRows(r => r.filter((_, ri) => ri !== i))
 
   // ── Barcode lookup (manual + camera) ─────────────────────
-  function lookupBarcode(code) {
+  async function lookupBarcode(code) {
     const q = (code || barcodeInput).trim()
     if (!q) return
     const matched = products.find(p =>
@@ -51,8 +53,39 @@ export default function Billing() {
     )
     if (matched) {
       setBarcodeResult(matched)
-    } else {
-      setBarcodeResult({ notFound: true, code: q })
+      return
+    }
+    // Not in local inventory — try external catalogs so we can offer Quick Add
+    setBarcodeResult({ notFound: true, code: q, looking: true })
+    try {
+      const ext = await lookupBarcodeAPI(q, "kirana")
+      setBarcodeResult({ notFound: true, code: q, looking: false, ext })
+    } catch (e) {
+      setBarcodeResult({ notFound: true, code: q, looking: false, ext: { found:false, diag: e.message } })
+    }
+  }
+
+  async function quickAddToInventoryAndBill(code, ext) {
+    try {
+      const newProd = await Products.create({
+        name:        ext?.name || `Item ${code}`,
+        sku:         code,
+        category:    ext?.category || "Other",
+        unit:        "piece",
+        stock:       Number(ext?.stock) || 1,
+        min_stock:   10,
+        mrp:         ext?.mrp ? Number(ext.mrp) : 0,
+        cost_price:  ext?.cost_price ? Number(ext.cost_price) : 0,
+        gst_percent: ext?.gst_percent ?? 5,
+      })
+      const updated = await Products.list()
+      setProducts(updated)
+      const created = updated.find(p => p.id === newProd.id) || newProd
+      addBarcodeProductToBill(created)
+      setQuickAdd(null)
+      showNotif(`✓ ${created.name} added to inventory & bill`)
+    } catch (e) {
+      showNotif("Quick add failed: " + e.message)
     }
   }
 
@@ -190,11 +223,99 @@ Thank you for shopping! 🙏`
         {barcodeResult && (
           <div className={`mt-2 p-3 rounded-lg text-xs ${barcodeResult.notFound ? "bg-red-50" : "bg-primary-light"}`}>
             {barcodeResult.notFound ? (
-              <div className="text-red-600">
-                No product found for "{barcodeResult.code}".
-                <span className="text-gray-500 ml-1">
-                  Go to Inventory → Edit a product → set its SKU to this barcode number.
-                </span>
+              <div>
+                <div className="text-red-600">
+                  No product found in your inventory for "{barcodeResult.code}".
+                </div>
+                {barcodeResult.looking && (
+                  <div className="mt-1 text-gray-500">Looking up product catalogs…</div>
+                )}
+                {!barcodeResult.looking && barcodeResult.ext?.found && (
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-gray-700">{barcodeResult.ext.name}</div>
+                      <div className="text-gray-500 mt-0.5">
+                        {barcodeResult.ext.brand ? `${barcodeResult.ext.brand} · ` : ""}
+                        {barcodeResult.ext.category}
+                        {barcodeResult.ext.mrp ? ` · MRP ₹${barcodeResult.ext.mrp}` : ""}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => quickAddToInventoryAndBill(barcodeResult.code, barcodeResult.ext)}
+                      className="btn btn-primary btn-sm whitespace-nowrap">
+                      + Add to inventory & bill
+                    </button>
+                  </div>
+                )}
+                {!barcodeResult.looking && !barcodeResult.ext?.found && !quickAdd && (
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="text-gray-600">
+                      Not in public catalogs. Register it quickly here:
+                    </div>
+                    <button
+                      onClick={() => setQuickAdd({ code: barcodeResult.code, name:"", mrp:"", stock:"1", gst_percent:5, category:"Other" })}
+                      className="btn btn-primary btn-sm whitespace-nowrap">
+                      + Quick Add
+                    </button>
+                  </div>
+                )}
+                {quickAdd && quickAdd.code === barcodeResult.code && (
+                  <div className="mt-3 p-3 rounded-lg bg-white border border-gray-200 space-y-2">
+                    <div className="text-[11px] text-gray-500">Barcode: <span className="font-mono">{quickAdd.code}</span></div>
+                    <input
+                      className="input w-full"
+                      placeholder="Product name *"
+                      value={quickAdd.name}
+                      onChange={e => setQuickAdd(q => ({...q, name:e.target.value}))}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        className="input flex-1"
+                        type="number"
+                        placeholder="MRP ₹"
+                        value={quickAdd.mrp}
+                        onChange={e => setQuickAdd(q => ({...q, mrp:e.target.value}))}
+                      />
+                      <input
+                        className="input w-20"
+                        type="number"
+                        placeholder="Qty"
+                        value={quickAdd.stock}
+                        onChange={e => setQuickAdd(q => ({...q, stock:e.target.value}))}
+                      />
+                      <select
+                        className="input w-20"
+                        value={quickAdd.gst_percent}
+                        onChange={e => setQuickAdd(q => ({...q, gst_percent:Number(e.target.value)}))}
+                      >
+                        {[0,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
+                      </select>
+                    </div>
+                    <select
+                      className="input w-full"
+                      value={quickAdd.category}
+                      onChange={e => setQuickAdd(q => ({...q, category:e.target.value}))}
+                    >
+                      {["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"].map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setQuickAdd(null)} className="btn btn-sm text-gray-500">Cancel</button>
+                      <button
+                        disabled={!quickAdd.name.trim() || !quickAdd.mrp}
+                        onClick={() => quickAddToInventoryAndBill(quickAdd.code, {
+                          name:        quickAdd.name.trim(),
+                          category:    quickAdd.category,
+                          mrp:         quickAdd.mrp,
+                          stock:       quickAdd.stock,
+                          gst_percent: quickAdd.gst_percent,
+                        })}
+                        className="btn btn-primary btn-sm">
+                        Save & Add to Bill
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center justify-between">

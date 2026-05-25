@@ -2,11 +2,13 @@ import { useEffect, useState, useCallback } from "react"
 import { Products } from "../sync/db.js"
 import BarcodeGenerator from "../components/BarcodeGenerator.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
+import BulkBarcodeManager from "../components/BulkBarcodeManager.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import { useVoiceField, MicButton } from "../voice/useVoiceField.jsx"
 import { detectUnit, parseSpokenQty, UNIT_TYPES } from "../voice/unitDetector.js"
 import { LANGUAGES } from "../voice/languages.js"
 import { lookupPrice, getVariants } from "../data/productPrices.js"
+import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 
 const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
 const GSTS = [0,5,12,18,28]
@@ -460,6 +462,7 @@ export default function Inventory() {
   const [notif,    setNotif]    = useState("")
   const [barcodeProduct, setBarcodeProduct] = useState(null)
   const [showScanner,  setShowScanner]  = useState(false)
+  const [showBulkBarcodes, setShowBulkBarcodes] = useState(false)
   const [restockTarget, setRestockTarget] = useState(null)
   const [voiceLang,   setVoiceLang]   = useState("hi-IN")
   const [dateFilter,  setDateFilter]  = useState("all")
@@ -558,12 +561,27 @@ export default function Inventory() {
     )
     if (existing) {
       setRestockTarget(existing)
-    } else {
-      // New product — open add modal with barcode pre-filled
-      setInitForm({ ...EMPTY, sku: code })
+      return
+    }
+    // New product — try to enrich from public barcode databases before opening modal
+    ;(async () => {
+      const init = { ...EMPTY, sku: code }
+      try {
+        const res = await lookupBarcodeAPI(code, "kirana")
+        if (res.found) {
+          init.name = res.name || ""
+          if (res.category && CATS.includes(res.category)) init.category = res.category
+          if (res.mrp) init.mrp = res.mrp
+        } else {
+          showNotif(`Barcode ${code} not found in catalogs — fill manually`)
+        }
+      } catch (e) {
+        console.warn("barcode lookup failed", e)
+      }
+      setInitForm(init)
       setEditId(null)
       setModal(true)
-    }
+    })()
   }
 
   async function handleRestock(product, addQty) {
@@ -655,6 +673,14 @@ export default function Inventory() {
         />
       )}
 
+      {showBulkBarcodes && (
+        <BulkBarcodeManager
+          products={products}
+          onClose={() => setShowBulkBarcodes(false)}
+          onChanged={load}
+        />
+      )}
+
       {restockTarget && (
         <RestockModal
           product={restockTarget}
@@ -678,6 +704,12 @@ export default function Inventory() {
               className="btn btn-sm"
               style={{ display:"flex", alignItems:"center", gap:4 }}>
               <span>⬛</span> Scan
+            </button>
+            <button onClick={() => setShowBulkBarcodes(true)}
+              className="btn btn-sm"
+              style={{ display:"flex", alignItems:"center", gap:4 }}
+              title="Auto-generate barcodes for all products and print labels">
+              🏷️ Bulk Barcodes
             </button>
             <button onClick={openAdd} className="btn btn-primary btn-sm">+ Add Product</button>
           </div>
