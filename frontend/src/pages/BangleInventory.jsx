@@ -188,6 +188,28 @@ const BEAUTY_CATS = new Set([
   "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color",
 ])
 
+// Beauty categories where colour = shade
+const BEAUTY_SHADE_CATS = new Set(["Nail Polish","Lipstick"])
+// Beauty categories where colour chip is irrelevant (size/type variant only)
+const BEAUTY_NO_COLOUR_CATS = new Set([
+  "Kajal","Mehendi","Perfume","Compact","Skin Care",
+  "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color",
+])
+
+const BEAUTY_SHADES = {
+  "Nail Polish": [
+    "Red","Dark Red","Crimson","Pink","Baby Pink","Hot Pink","Coral","Peach",
+    "Orange","Maroon","Burgundy","Wine","Purple","Lavender","Brown","Nude","Beige",
+    "White","Black","Blue","Dark Green","Rose Gold","Gold","Silver",
+    "Glitter","Shimmer","Holographic","French White","Multi",
+  ],
+  "Lipstick": [
+    "Red","Dark Red","Crimson","Pink","Baby Pink","Hot Pink","Coral","Peach",
+    "Mauve","Rosewood","Nude","Beige","Brown","Caramel","Berry","Plum",
+    "Maroon","Burgundy","Wine","Orange","Magenta","Rose",
+  ],
+}
+
 const CATEGORY_BRANDS = {
   // Beauty & Makeup
   "Nail Polish":   ["Lakme","Maybelline","OPI","Revlon","Elle 18","Nykaa","Colorbar","Faces Canada","Sugar","Wet n Wild"],
@@ -854,11 +876,14 @@ function AddProductModal({ onClose, onSaved }) {
                         )}
                       </div>
 
-                      {/* Colour chips — searchable; filtered to detected family when colours are auto-detected */}
+                      {/* Colour / Shade chips — context-aware per category */}
+                      {BEAUTY_NO_COLOUR_CATS.has(cat) ? null : (
                       <div style={{marginBottom:10}}>
                         <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5}}>
-                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", letterSpacing:"0.5px"}}>COLOURS</div>
-                          {scanSelC.length > 0 && !scanColourQ && (
+                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", letterSpacing:"0.5px"}}>
+                            {BEAUTY_SHADE_CATS.has(cat) ? "SHADES" : "COLOURS"}
+                          </div>
+                          {!BEAUTY_SHADE_CATS.has(cat) && scanSelC.length > 0 && !scanColourQ && (
                             <button onClick={()=>setScanShowAllC(v=>!v)}
                               style={{background:"none",border:"none",fontSize:10,color:"var(--jade)",cursor:"pointer",padding:0,fontWeight:600}}>
                               {scanShowAllC ? "Show related only" : `Show all ${COLOURS.length}`}
@@ -867,15 +892,23 @@ function AddProductModal({ onClose, onSaved }) {
                         </div>
                         <input
                           value={scanColourQ} onChange={e=>setScanColourQ(e.target.value)}
-                          placeholder="Search colour…"
+                          placeholder={`Search ${BEAUTY_SHADE_CATS.has(cat) ? "shade" : "colour"}…`}
                           style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"5px 10px",fontSize:11,outline:"none",boxSizing:"border-box",marginBottom:6}}/>
                         <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
-                          {(scanColourQ
-                            ? COLOURS.filter(c=>c.toLowerCase().includes(scanColourQ.toLowerCase()))
-                            : (scanShowAllC ? COLOURS : suggestedColours(scanSelC, scanForm.category))
-                          ).map(c=><Chip key={c} label={c} active={scanSelC.includes(c)} onClick={()=>toggleC(c)}/>)}
+                          {BEAUTY_SHADE_CATS.has(cat) ? (
+                            (scanColourQ
+                              ? BEAUTY_SHADES[cat].filter(c=>c.toLowerCase().includes(scanColourQ.toLowerCase()))
+                              : BEAUTY_SHADES[cat]
+                            ).map(c=><Chip key={c} label={c} active={scanSelC.includes(c)} onClick={()=>toggleC(c)}/>)
+                          ) : (
+                            (scanColourQ
+                              ? COLOURS.filter(c=>c.toLowerCase().includes(scanColourQ.toLowerCase()))
+                              : (scanShowAllC ? COLOURS : suggestedColours(scanSelC, scanForm.category))
+                            ).map(c=><Chip key={c} label={c} active={scanSelC.includes(c)} onClick={()=>toggleC(c)}/>)
+                          )}
                         </div>
                       </div>
+                      )}
 
                       {/* Size chips */}
                       <div style={{marginBottom:10}}>
@@ -1021,11 +1054,14 @@ function AddProductModal({ onClose, onSaved }) {
           {/* ── STEP 2: Variants ── */}
           {step===2 && (
             <>
-              {/* Colours — searchable; filtered to detected family when colours are pre-selected */}
+              {/* Colours / Shades — context-aware per category */}
+              {!BEAUTY_NO_COLOUR_CATS.has(form.category) && (
               <div style={{borderRadius:8, padding:"2px 0", ...flash("colours")}}>
                 <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5}}>
-                  <div className="text-[10px] font-bold" style={{color:"var(--ink-faint)"}}>COLOURS</div>
-                  {selColours.length > 0 && !step2ColourQ && (
+                  <div className="text-[10px] font-bold" style={{color:"var(--ink-faint)"}}>
+                    {BEAUTY_SHADE_CATS.has(form.category) ? "SHADES" : "COLOURS"}
+                  </div>
+                  {!BEAUTY_SHADE_CATS.has(form.category) && selColours.length > 0 && !step2ColourQ && (
                     <button onClick={()=>setStep2ShowAllC(v=>!v)}
                       style={{background:"none",border:"none",fontSize:10,color:"var(--jade)",cursor:"pointer",padding:0,fontWeight:600}}>
                       {step2ShowAllC ? "Show related only" : `Show all ${COLOURS.length}`}
@@ -1034,19 +1070,31 @@ function AddProductModal({ onClose, onSaved }) {
                 </div>
                 <input
                   value={step2ColourQ} onChange={e=>setStep2ColourQ(e.target.value)}
-                  placeholder="Search colour…"
+                  placeholder={`Search ${BEAUTY_SHADE_CATS.has(form.category) ? "shade" : "colour"}…`}
                   style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"5px 10px",fontSize:11,outline:"none",boxSizing:"border-box",marginBottom:6}}/>
                 <div className="flex flex-wrap gap-1.5">
-                  {(step2ColourQ
-                    ? COLOURS.filter(c=>c.toLowerCase().includes(step2ColourQ.toLowerCase()))
-                    : (step2ShowAllC ? COLOURS : suggestedColours(selColours, form.category))
-                  ).map(c=>(
-                    <Chip key={c} label={c}
-                      active={selColours.includes(c)}
-                      onClick={()=>toggleArr(selColours,setSelColours,c)} />
-                  ))}
+                  {BEAUTY_SHADE_CATS.has(form.category) ? (
+                    (step2ColourQ
+                      ? BEAUTY_SHADES[form.category].filter(c=>c.toLowerCase().includes(step2ColourQ.toLowerCase()))
+                      : BEAUTY_SHADES[form.category]
+                    ).map(c=>(
+                      <Chip key={c} label={c}
+                        active={selColours.includes(c)}
+                        onClick={()=>toggleArr(selColours,setSelColours,c)} />
+                    ))
+                  ) : (
+                    (step2ColourQ
+                      ? COLOURS.filter(c=>c.toLowerCase().includes(step2ColourQ.toLowerCase()))
+                      : (step2ShowAllC ? COLOURS : suggestedColours(selColours, form.category))
+                    ).map(c=>(
+                      <Chip key={c} label={c}
+                        active={selColours.includes(c)}
+                        onClick={()=>toggleArr(selColours,setSelColours,c)} />
+                    ))
+                  )}
                 </div>
               </div>
+              )}
 
               {/* Sizes — label + options from category */}
               <div style={{borderRadius:8, padding:"2px 0", ...flash("sizes")}}>

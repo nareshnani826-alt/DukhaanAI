@@ -19,6 +19,24 @@ const BEAUTY_CATS = new Set([
   "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care",
   "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color",
 ])
+const BEAUTY_SHADE_CATS = new Set(["Nail Polish","Lipstick"])
+const BEAUTY_NO_COLOUR_CATS = new Set([
+  "Kajal","Mehendi","Perfume","Compact","Skin Care",
+  "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color",
+])
+const BEAUTY_SHADES = {
+  "Nail Polish": [
+    "Red","Dark Red","Crimson","Pink","Baby Pink","Hot Pink","Coral","Peach",
+    "Orange","Maroon","Burgundy","Wine","Purple","Lavender","Brown","Nude","Beige",
+    "White","Black","Blue","Dark Green","Rose Gold","Gold","Silver",
+    "Glitter","Shimmer","Holographic","French White","Multi",
+  ],
+  "Lipstick": [
+    "Red","Dark Red","Crimson","Pink","Baby Pink","Hot Pink","Coral","Peach",
+    "Mauve","Rosewood","Nude","Beige","Brown","Caramel","Berry","Plum",
+    "Maroon","Burgundy","Wine","Orange","Magenta","Rose",
+  ],
+}
 
 const CATEGORY_SIZES = {
   "Bangles":     ["2.2","2.4","2.6","2.8","2.10","2.12","2.14","Free Size"],
@@ -733,19 +751,50 @@ export default function BangleBulkImport() {
                         onClick={e => e.stopPropagation()}>
 
                         {BEAUTY_CATS.has(p.category) ? (
-                          /* Beauty / Personal Care — single SKU, stock only */
-                          <div style={{display:"flex", alignItems:"center", gap:10}}>
-                            <div style={{flex:1}}>
+                          /* Beauty — shade variants for nail polish/lipstick; size variants for personal care; stock for rest */
+                          <>
+                            {BEAUTY_SHADE_CATS.has(p.category) && (
+                              <div>
+                                <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
+                                  marginBottom:6, letterSpacing:"0.5px"}}>SHADES</div>
+                                <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                                  {BEAUTY_SHADES[p.category].map(c => (
+                                    <Chip key={c} label={c}
+                                      active={sel.colours.includes(c)}
+                                      onClick={() => toggleChip(p.name, "colours", c)}/>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            <div>
                               <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
-                                marginBottom:4, letterSpacing:"0.5px"}}>OPENING STOCK</div>
-                              <input type="number" min="0" value={sel.stock}
-                                onChange={e => updateSel(p.name, "stock", e.target.value)}
-                                style={{width:"100%", border:"1.5px solid var(--saffron)", borderRadius:9,
-                                  padding:"6px 10px", fontSize:13, fontWeight:700, outline:"none",
-                                  color:"var(--saffron)", textAlign:"center"}}/>
+                                marginBottom:6, letterSpacing:"0.5px"}}>
+                                {SIZE_LABEL[p.category] || "SIZE / TYPE"}
+                              </div>
+                              <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
+                                {(CATEGORY_SIZES[p.category] || []).map(s => (
+                                  <Chip key={s} label={s}
+                                    active={sel.sizes.includes(s)}
+                                    onClick={() => toggleChip(p.name, "sizes", s)}/>
+                                ))}
+                              </div>
                             </div>
-                            <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:16}}>pcs</div>
-                          </div>
+                            <div style={{display:"flex", gap:10, alignItems:"center"}}>
+                              <div style={{flex:1}}>
+                                <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
+                                  marginBottom:4, letterSpacing:"0.5px"}}>STOCK PER VARIANT</div>
+                                <input type="number" min="0" value={sel.stock}
+                                  onChange={e => updateSel(p.name, "stock", e.target.value)}
+                                  style={{width:"100%", border:"1.5px solid var(--saffron)", borderRadius:9,
+                                    padding:"6px 10px", fontSize:13, fontWeight:700, outline:"none",
+                                    color:"var(--saffron)", textAlign:"center"}}/>
+                              </div>
+                              <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:16}}>
+                                ×{Math.max(1,sel.colours.length||1) * Math.max(1,sel.sizes.length||1)}{" "}
+                                = {sel.stock * Math.max(1,sel.colours.length||1) * Math.max(1,sel.sizes.length||1)} pcs
+                              </div>
+                            </div>
+                          </>
                         ) : (
                           /* Jewellery — colours + sizes + designs */
                           <>
