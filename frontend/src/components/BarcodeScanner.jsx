@@ -48,6 +48,8 @@ export default function BarcodeScanner({ onDetected, onClose }) {
               detectedRef.current = true
               setLastCode(code)
               onDetected(code)
+              // Reset after 1.5 s so the next product can be scanned
+              setTimeout(() => { detectedRef.current = false }, 1500)
             }
             // NotFoundException fires every frame when no barcode is visible — ignore it
           }
