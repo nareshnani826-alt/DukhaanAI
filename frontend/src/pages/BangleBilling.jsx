@@ -140,11 +140,11 @@ function ScanCamera({ products, onScanned, feedback }) {
     scannerRef.current = qr
     qr.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 2.6 },
+      { fps: 30, qrbox: { width: 260, height: 100 }, aspectRatio: 2.6 },
       (decoded) => {
         const now = Date.now()
-        // Debounce: ignore same code within 2 s
-        if (decoded === lastRef.current.id && now - lastRef.current.ts < 2000) return
+        // Debounce: ignore same code within 0.5 s
+        if (decoded === lastRef.current.id && now - lastRef.current.ts < 500) return
         lastRef.current = { id: decoded, ts: now }
         const match = findVariantMatch(products, decoded)
         onScanned(decoded, match)
