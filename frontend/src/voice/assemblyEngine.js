@@ -28,6 +28,15 @@ export class AssemblyVoiceEngine {
 
   // ── Web Speech API (browser only) ────────────────────────
   _setupRecognition() {
+    // Null out old handlers before replacing — prevents the old object's
+    // deferred onend from firing after the new recognition has already started,
+    // which would flip isListening back to false mid-session.
+    if (this.recognition) {
+      this.recognition.onstart  = null
+      this.recognition.onend    = null
+      this.recognition.onerror  = null
+      this.recognition.onresult = null
+    }
     try {
       this.recognition = new SpeechRecognition()
       this.recognition.continuous      = false
@@ -47,14 +56,15 @@ export class AssemblyVoiceEngine {
 
       this.recognition.onerror = (event) => {
         this.isListening = false
-        // Specific messages match engine.js for consistent UX
         if (event.error === "aborted") return
         let msg = "Voice error — try again"
-        if (event.error === "no-speech")     msg = "No speech heard. Tap mic and speak clearly."
-        if (event.error === "not-allowed")   msg = "Microphone blocked. Allow mic permission."
-        if (event.error === "network")       msg = "Network error. Check internet."
-        if (event.error === "audio-capture") msg = "No microphone found."
-        this.onError?.(msg)
+        let permanent = false
+        if (event.error === "no-speech")          msg = "No speech heard — tap mic and speak clearly."
+        if (event.error === "not-allowed")       { msg = "Microphone blocked — allow mic permission in browser settings."; permanent = true }
+        if (event.error === "service-not-allowed"){ msg = "Voice service unavailable — try reloading the page."; permanent = true }
+        if (event.error === "network")             msg = "Network error — check internet connection."
+        if (event.error === "audio-capture")     { msg = "No microphone found on this device."; permanent = true }
+        this.onError?.(msg, permanent)
       }
 
       this.recognition.onresult = async (event) => {

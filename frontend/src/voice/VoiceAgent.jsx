@@ -109,9 +109,17 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
       setTranscript(""); setTranslated(""); setPending(null)
     }
     voiceEngine.onEnd   = () => setListening(false)
-    voiceEngine.onError = (msg) => {
+    voiceEngine.onError = (msg, permanent = false) => {
       setListening(false); setStatus("error"); setStatusMsg(msg)
       addHistory({ type:"error", text: msg })
+      // Non-permanent errors (no-speech, network, generic): auto-reset to idle
+      // after 3 s so the mic button is clearly available again.
+      if (!permanent) {
+        setTimeout(() => {
+          setStatus(s  => s  === "error" ? "idle"  : s)
+          setStatusMsg(m => m === msg    ? ""      : m)
+        }, 3000)
+      }
     }
     voiceEngine.onResult = async (original, translated) => {
       setStatus("processing"); setStatusMsg("Understanding...")

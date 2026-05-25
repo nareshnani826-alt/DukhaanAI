@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Products } from "../sync/db.js"
 import BarcodeGenerator from "../components/BarcodeGenerator.jsx"
+import BarcodeScanner from "../components/BarcodeScanner.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import { useVoiceField, MicButton } from "../voice/useVoiceField.jsx"
 import { detectUnit, parseSpokenQty, UNIT_TYPES } from "../voice/unitDetector.js"
@@ -388,6 +389,65 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
   )
 }
 
+// ── Quick restock modal (shown after barcode scan finds an existing product) ──
+function RestockModal({ product, onConfirm, onClose }) {
+  const [qty, setQty] = useState("1")
+  const [saving, setSaving] = useState(false)
+
+  async function handleConfirm() {
+    const add = parseFloat(qty)
+    if (!add || add <= 0) return
+    setSaving(true)
+    await onConfirm(product, add)
+    setSaving(false)
+  }
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
+      zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16,
+    }}>
+      <div style={{ background:"#fff", borderRadius:16, padding:24, width:"100%", maxWidth:360 }}>
+        <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>Add Stock</div>
+        <div style={{ fontSize:12, color:"#555", marginBottom:16 }}>{product.name}</div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+          <span style={{ fontSize:11, color:"#888", flex:1 }}>Current stock</span>
+          <span style={{ fontSize:13, fontWeight:600 }}>{product.stock} {product.unit || "pc"}</span>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
+          <span style={{ fontSize:11, color:"#888", flex:1 }}>Add qty</span>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <button onClick={() => setQty(q => String(Math.max(1, +q - 1)))}
+              style={{ width:32, height:32, borderRadius:8, border:"1px solid #e5e7eb",
+                       background:"#f9fafb", fontSize:16, cursor:"pointer" }}>−</button>
+            <input type="number" value={qty} onChange={e => setQty(e.target.value)}
+              style={{ width:60, textAlign:"center", border:"1px solid #e5e7eb",
+                       borderRadius:8, padding:"6px 4px", fontSize:14, fontWeight:600 }} />
+            <button onClick={() => setQty(q => String(+q + 1))}
+              style={{ width:32, height:32, borderRadius:8, border:"1px solid #e5e7eb",
+                       background:"#f9fafb", fontSize:16, cursor:"pointer" }}>+</button>
+          </div>
+        </div>
+
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={onClose}
+            style={{ flex:1, padding:"10px 0", borderRadius:10, border:"1px solid #e5e7eb",
+                     background:"#fff", fontSize:13, cursor:"pointer" }}>
+            Cancel
+          </button>
+          <button onClick={handleConfirm} disabled={saving}
+            style={{ flex:2, padding:"10px 0", borderRadius:10, border:"none",
+                     background:"#1D9E75", color:"#fff", fontSize:13,
+                     fontWeight:600, cursor:"pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving…" : `Add ${qty || 0} → ${(product.stock||0) + (+qty||0)} ${product.unit||"pc"}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Inventory page ───────────────────────────────────
 export default function Inventory() {
   const [products, setProducts] = useState([])
@@ -399,6 +459,8 @@ export default function Inventory() {
   const [initForm, setInitForm] = useState(EMPTY)
   const [notif,    setNotif]    = useState("")
   const [barcodeProduct, setBarcodeProduct] = useState(null)
+  const [showScanner,  setShowScanner]  = useState(false)
+  const [restockTarget, setRestockTarget] = useState(null)
   const [voiceLang,   setVoiceLang]   = useState("hi-IN")
   const [dateFilter,  setDateFilter]  = useState("all")
   const { hasFeature } = usePlan()
@@ -488,6 +550,29 @@ export default function Inventory() {
     load(); showNotif("Barcode saved!")
   }
 
+  function handleBarcodeDetected(code) {
+    setShowScanner(false)
+    const clean = code.replace(/[-\s]/g, "")
+    const existing = products.find(p =>
+      p.sku === code || (p.sku && p.sku.replace(/[-\s]/g, "") === clean)
+    )
+    if (existing) {
+      setRestockTarget(existing)
+    } else {
+      // New product — open add modal with barcode pre-filled
+      setInitForm({ ...EMPTY, sku: code })
+      setEditId(null)
+      setModal(true)
+    }
+  }
+
+  async function handleRestock(product, addQty) {
+    await Products.update(product.id, { stock: (product.stock || 0) + addQty })
+    setRestockTarget(null)
+    load()
+    showNotif(`+${addQty} added to ${product.name}`)
+  }
+
   function fmtUpdated(ts) {
     if (!ts) return "—"
     const d = new Date(ts), now = new Date(), diff = now - d
@@ -563,6 +648,21 @@ export default function Inventory() {
         />
       )}
 
+      {showScanner && (
+        <BarcodeScanner
+          onDetected={handleBarcodeDetected}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {restockTarget && (
+        <RestockModal
+          product={restockTarget}
+          onConfirm={handleRestock}
+          onClose={() => setRestockTarget(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="page-sticky-header mb-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -574,6 +674,11 @@ export default function Inventory() {
                 <option key={l.code} value={l.code}>{l.native} ({l.name})</option>
               ))}
             </select>
+            <button onClick={() => setShowScanner(true)}
+              className="btn btn-sm"
+              style={{ display:"flex", alignItems:"center", gap:4 }}>
+              <span>⬛</span> Scan
+            </button>
             <button onClick={openAdd} className="btn btn-primary btn-sm">+ Add Product</button>
           </div>
         </div>
