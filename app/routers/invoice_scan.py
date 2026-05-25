@@ -666,6 +666,7 @@ async def scan_invoice(
     file:           UploadFile = File(...),
     tesseract_text: str        = Form(""),   # kept for API compatibility, no longer used
     confidence:     float      = Form(0.0),
+    store:          str        = Form("kirana"),  # "kirana" or "bangle"
     vendor_id:      str        = Depends(_require_vendor),
 ):
     """
@@ -754,14 +755,23 @@ async def scan_invoice(
             detail="Could not extract any items. Try a clearer file or use Excel/CSV format.",
         )
 
-    db        = get_db()
-    inventory = (
-        db.table("products")
-        .select("id,name,stock,unit,mrp,cost_price,category")
-        .eq("vendor_id", vendor_id)
-        .eq("is_active", True)
-        .execute()
-    ).data or []
+    db = get_db()
+    if store == "bangle":
+        inventory = (
+            db.table("bangle_products")
+            .select("id,name,mrp,cost_price,category")
+            .eq("vendor_id", vendor_id)
+            .eq("is_active", True)
+            .execute()
+        ).data or []
+    else:
+        inventory = (
+            db.table("products")
+            .select("id,name,stock,unit,mrp,cost_price,category")
+            .eq("vendor_id", vendor_id)
+            .eq("is_active", True)
+            .execute()
+        ).data or []
 
     results = _build_results(extracted, inventory)
 
@@ -919,3 +929,107 @@ async def lookup_barcode(
         logger.warning("Open Food Facts failed for %s: %s", code, e)
 
     return {"source": "not_found", "product": None}
+
+
+class BangleApplyItem(BaseModel):
+    action:      str
+    product_id:  Optional[str]   = None
+    name:        str             = ""
+    qty:         float           = 0
+    unit:        str             = "pc"
+    unit_price:  Optional[float] = None
+    mrp:         Optional[float] = None
+    gst_percent: Optional[float] = None
+    category:    Optional[str]   = "Other"
+
+
+class BangleApplyPayload(BaseModel):
+    items: list[BangleApplyItem]
+
+
+@router.post("/apply-bangle")
+async def apply_invoice_bangle(
+    body:      BangleApplyPayload,
+    vendor_id: str = Depends(_require_vendor),
+):
+    """Apply invoice items to the bangle store inventory."""
+    db      = get_db()
+    added   = 0
+    updated = 0
+    errors  = []
+
+    for item in body.items:
+        if item.action == "skip":
+            continue
+        try:
+            if item.action == "add_stock" and item.product_id:
+                # Find the first active variant and add stock to it
+                variants = (
+                    db.table("bangle_variants")
+                    .select("id,stock")
+                    .eq("product_id", item.product_id)
+                    .eq("vendor_id", vendor_id)
+                    .eq("is_active", True)
+                    .order("created_at")
+                    .limit(1)
+                    .execute()
+                ).data or []
+
+                qty_to_add = max(1, round(float(item.qty)))
+
+                if variants:
+                    v         = variants[0]
+                    new_stock = (v.get("stock") or 0) + qty_to_add
+                    db.table("bangle_variants").update({"stock": new_stock}).eq("id", v["id"]).execute()
+                else:
+                    # No variants yet — create a default one
+                    db.table("bangle_variants").insert({
+                        "vendor_id":  vendor_id,
+                        "product_id": item.product_id,
+                        "stock":      qty_to_add,
+                        "min_stock":  6,
+                        "mrp":        float(item.mrp or item.unit_price or 0),
+                        "cost_price": float(item.unit_price or 0),
+                    }).execute()
+
+                # Update product cost/mrp if provided
+                patch = {}
+                if item.unit_price:
+                    patch["cost_price"] = float(item.unit_price)
+                if item.mrp:
+                    patch["mrp"] = float(item.mrp)
+                if patch:
+                    db.table("bangle_products").update(patch) \
+                        .eq("id", item.product_id).eq("vendor_id", vendor_id).execute()
+
+                updated += 1
+
+            elif item.action == "create" and item.name.strip():
+                # Create a new bangle product
+                product_row = db.table("bangle_products").insert({
+                    "vendor_id":   vendor_id,
+                    "name":        item.name.strip(),
+                    "category":    item.category or "Other",
+                    "mrp":         float(item.mrp or item.unit_price or 0),
+                    "cost_price":  float(item.unit_price or 0),
+                    "gst_percent": int(float(item.gst_percent or 3)),
+                    "is_active":   True,
+                }).execute().data[0]
+
+                # Create a default variant with the invoice qty as opening stock
+                db.table("bangle_variants").insert({
+                    "vendor_id":  vendor_id,
+                    "product_id": product_row["id"],
+                    "stock":      max(1, round(float(item.qty))),
+                    "min_stock":  6,
+                    "mrp":        float(item.mrp or item.unit_price or 0),
+                    "cost_price": float(item.unit_price or 0),
+                }).execute()
+
+                added += 1
+
+        except Exception as e:
+            logger.warning("apply-bangle item=%s err=%s", item.name, e)
+            errors.append(item.name or item.product_id or "?")
+
+    return {"added": added, "updated": updated, "errors": errors}

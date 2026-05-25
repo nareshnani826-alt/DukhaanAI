@@ -483,16 +483,79 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
 
 // ── Quick Item Modal ──────────────────────────────────────────
 const QUICK_CATS = [
-  "Bangles","Earrings","Necklace","Maang Tikka",
-  "Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring","Other",
+  "Bangles","Earrings","Necklace","Maang Tikka","Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring",
+  "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care",
+  "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color","Other",
 ]
 
-function QuickItemModal({ onAdd, onClose }) {
-  const [desc,  setDesc]  = useState("")
-  const [cat,   setCat]   = useState("Bangles")
-  const [price, setPrice] = useState("")
-  const [qty,   setQty]   = useState(1)
-  const [unit,  setUnit]  = useState("piece")
+function QuickItemModal({ onAdd, onClose, products = [] }) {
+  const [desc,           setDesc]           = useState("")
+  const [cat,            setCat]            = useState("Bangles")
+  const [price,          setPrice]          = useState("")
+  const [qty,            setQty]            = useState(1)
+  const [unit,           setUnit]           = useState("piece")
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [matchedProduct,  setMatchedProduct]  = useState(null)
+
+  // Filter suggestions from catalog
+  const suggestions = desc.trim().length >= 2
+    ? products.filter(p =>
+        p.name?.toLowerCase().includes(desc.trim().toLowerCase())
+      ).slice(0, 8)
+    : []
+
+  function handleDescChange(val) {
+    setDesc(val)
+    setShowSuggestions(val.trim().length >= 2)
+    // Re-evaluate exact match
+    const exact = products.find(p => p.name?.toLowerCase() === val.trim().toLowerCase())
+    setMatchedProduct(exact || null)
+  }
+
+  function pickSuggestion(prod) {
+    setDesc(prod.name)
+    if (prod.category) setCat(prod.category)
+    if (prod.selling_price > 0) setPrice(String(prod.selling_price))
+    setMatchedProduct(prod)
+    setShowSuggestions(false)
+  }
+
+  // Availability status badge
+  function AvailabilityBadge() {
+    if (!desc.trim()) return null
+    if (matchedProduct) {
+      const stock = matchedProduct.total_stock ?? 0
+      if (stock <= 0) return (
+        <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:5,
+          background:"#fff0f0", border:"1px solid #fca5a5", borderRadius:20,
+          padding:"3px 10px", fontSize:11, fontWeight:600, color:"#dc2626" }}>
+          ⚠ Out of Stock — in catalog
+        </div>
+      )
+      if (stock <= 5) return (
+        <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:5,
+          background:"#fffbeb", border:"1px solid #fcd34d", borderRadius:20,
+          padding:"3px 10px", fontSize:11, fontWeight:600, color:"#b45309" }}>
+          ⚠ Low Stock ({stock} pcs) — in catalog
+        </div>
+      )
+      return (
+        <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:5,
+          background:"#f0fdf4", border:"1px solid #86efac", borderRadius:20,
+          padding:"3px 10px", fontSize:11, fontWeight:600, color:"#166534" }}>
+          ✓ In Stock ({stock} pcs) — in catalog
+        </div>
+      )
+    }
+    if (desc.trim().length >= 2 && suggestions.length === 0) return (
+      <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:5,
+        background:"#f0f9ff", border:"1px solid #93c5fd", borderRadius:20,
+        padding:"3px 10px", fontSize:11, fontWeight:600, color:"#1d4ed8" }}>
+        📝 New Quick Item — not in catalog
+      </div>
+    )
+    return null
+  }
 
   const amount = +(qty * (+price || 0)).toFixed(2)
   const canAdd = desc.trim() && +price > 0 && qty > 0
@@ -503,7 +566,7 @@ function QuickItemModal({ onAdd, onClose }) {
     const pieces  = qty * (unitDef?.pcs || 1)
     onAdd({
       variant_id:          null,
-      product_id:          null,
+      product_id:          matchedProduct?.id || null,
       product_name:        desc.trim(),
       custom_description:  desc.trim(),
       category:            cat,
@@ -538,18 +601,51 @@ function QuickItemModal({ onAdd, onClose }) {
               color:"var(--ink-faint)", lineHeight:1 }}>×</button>
         </div>
 
-        {/* Description */}
+        {/* Description with autocomplete */}
         <div style={{ marginBottom:14 }}>
           <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:5,
             textTransform:"uppercase", letterSpacing:"0.8px" }}>Item Description</div>
-          <input value={desc} onChange={e => setDesc(e.target.value)}
-            placeholder="e.g. Glass Bangles Red, Kundan Earrings…"
-            autoFocus
-            style={{ width:"100%", border:"1.5px solid var(--rule)", borderRadius:10,
-              padding:"9px 12px", fontSize:13, background:"var(--bg2)", color:"var(--ink)",
-              outline:"none", boxSizing:"border-box" }}
-            onFocus={e => e.target.style.borderColor = "var(--saffron)"}
-            onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
+          <div style={{ position:"relative" }}>
+            <input value={desc} onChange={e => handleDescChange(e.target.value)}
+              placeholder="e.g. Glass Bangles Red, Kundan Earrings…"
+              autoFocus
+              style={{ width:"100%", border:"1.5px solid var(--rule)", borderRadius:10,
+                padding:"9px 12px", fontSize:13, background:"var(--bg2)", color:"var(--ink)",
+                outline:"none", boxSizing:"border-box" }}
+              onFocus={e => { e.target.style.borderColor = "var(--saffron)"; if (desc.trim().length >= 2) setShowSuggestions(true) }}
+              onBlur={e  => { e.target.style.borderColor = "var(--rule)"; setTimeout(() => setShowSuggestions(false), 150) }} />
+            {showSuggestions && suggestions.length > 0 && (
+              <div style={{ position:"absolute", top:"100%", left:0, right:0, zIndex:80,
+                background:"#fff", border:"1.5px solid var(--saffron)", borderRadius:10,
+                boxShadow:"0 8px 24px rgba(0,0,0,0.15)", marginTop:3, overflow:"hidden" }}>
+                {suggestions.map(prod => {
+                  const stock = prod.total_stock ?? 0
+                  const stockColor = stock <= 0 ? "#dc2626" : stock <= 5 ? "#b45309" : "#166534"
+                  const stockLabel = stock <= 0 ? "Out of stock" : `${stock} pcs`
+                  return (
+                    <div key={prod.id} onMouseDown={() => pickSuggestion(prod)}
+                      style={{ padding:"9px 12px", cursor:"pointer", borderBottom:"1px solid var(--rule)",
+                        display:"flex", alignItems:"center", justifyContent:"space-between",
+                        transition:"background 0.1s" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#fff7ed"}
+                      onMouseLeave={e => e.currentTarget.style.background = ""}>
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)" }}>{prod.name}</div>
+                        <div style={{ fontSize:10, color:"var(--ink-faint)" }}>{prod.category}</div>
+                      </div>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:"var(--saffron)" }}>
+                          {prod.selling_price > 0 ? `₹${prod.selling_price}` : "—"}
+                        </div>
+                        <div style={{ fontSize:10, fontWeight:600, color:stockColor }}>{stockLabel}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          <AvailabilityBadge />
         </div>
 
         {/* Category chips */}
@@ -1516,6 +1612,7 @@ export default function BangleBilling() {
       )}
       {showQuick && (
         <QuickItemModal
+          products={products}
           onAdd={item => { addToCart(item); setTab("cart") }}
           onClose={() => setShowQuick(false)}
         />

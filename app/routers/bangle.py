@@ -1120,6 +1120,127 @@ async def community_trends(
     }
 
 
+# ── Smart Reorder Analysis ────────────────────────────────────
+
+@router.get("/reorder-analysis")
+async def reorder_analysis(
+    days:           int = Query(30, ge=7, le=90),
+    threshold_days: int = Query(7, ge=1, le=30),
+    vendor=Depends(get_current_vendor),
+):
+    """
+    Velocity-based reorder analysis for bangle / beauty / personal care products.
+    Returns products likely to stock out within `threshold_days` days, sorted by urgency.
+    """
+    db    = get_db()
+    since = (date_type.today() - timedelta(days=days)).isoformat()
+
+    # ── 1. Aggregate sales by product_id from bangle_sales.items ──
+    sales = (
+        db.table("bangle_sales").select("items")
+        .eq("vendor_id", vendor["id"]).gte("sale_date", since).execute()
+    ).data or []
+
+    sold_map: dict = defaultdict(int)   # product_id → total pieces sold
+    for sale in sales:
+        for item in (sale.get("items") or []):
+            pid = item.get("product_id")
+            if pid:
+                sold_map[pid] += int(item.get("pieces") or 0)
+
+    # ── 2. Fetch all active products ──────────────────────────────
+    products = (
+        db.table("bangle_products").select("id,name,category,cost_price,mrp,supplier_id")
+        .eq("vendor_id", vendor["id"]).eq("is_active", True).execute()
+    ).data or []
+
+    # ── 3. Fetch variant totals per product ───────────────────────
+    all_variants = (
+        db.table("bangle_variants").select("product_id,stock,min_stock")
+        .eq("vendor_id", vendor["id"]).eq("is_active", True).execute()
+    ).data or []
+
+    stock_map:    dict = defaultdict(int)    # product_id → total stock
+    min_map:      dict = defaultdict(int)    # product_id → sum of min_stock
+    for v in all_variants:
+        pid = v["product_id"]
+        stock_map[pid] += int(v.get("stock") or 0)
+        min_map[pid]   += int(v.get("min_stock") or 0)
+
+    # ── 4. Fetch suppliers (for WhatsApp draft) ───────────────────
+    suppliers_raw = (
+        db.table("bangle_suppliers").select("id,name,phone,city")
+        .eq("vendor_id", vendor["id"]).eq("is_active", True).execute()
+    ).data or []
+    supplier_map = {s["id"]: s for s in suppliers_raw}
+
+    # ── 5. Calculate velocity and flag products ───────────────────
+    results = []
+    for p in products:
+        pid        = p["id"]
+        total_sold = sold_map.get(pid, 0)
+        daily_avg  = total_sold / days
+        stock      = stock_map.get(pid, 0)
+        min_s      = min_map.get(pid, 0)
+
+        days_left = round(stock / daily_avg, 1) if daily_avg > 0 else None
+
+        # Include if: stockout predicted ≤ threshold OR stock below minimum
+        is_critical = stock <= 0 or (days_left is not None and days_left <= 2)
+        is_high     = not is_critical and (days_left is not None and days_left <= threshold_days)
+        is_medium   = not is_critical and not is_high and stock < min_s
+
+        if not (is_critical or is_high or is_medium):
+            continue
+
+        urgency = "critical" if is_critical else "high" if is_high else "medium"
+
+        # Recommended qty: enough to last 30 days
+        if daily_avg > 0:
+            recommended_qty = max(0, round(daily_avg * 30 - stock))
+        else:
+            # No sales data — use min_stock as fallback
+            recommended_qty = max(0, min_s - stock)
+
+        supplier = supplier_map.get(p.get("supplier_id") or "")
+
+        results.append({
+            "id":              pid,
+            "name":            p["name"],
+            "category":        p.get("category", ""),
+            "current_stock":   stock,
+            "min_stock":       min_s,
+            "total_sold":      total_sold,
+            "daily_avg":       round(daily_avg, 2),
+            "days_left":       days_left,
+            "urgency":         urgency,
+            "recommended_qty": recommended_qty,
+            "cost_price":      p.get("cost_price") or 0,
+            "mrp":             p.get("mrp") or 0,
+            "supplier_id":     p.get("supplier_id"),
+            "supplier_name":   supplier["name"]  if supplier else None,
+            "supplier_phone":  supplier["phone"] if supplier else None,
+            "supplier_city":   supplier["city"]  if supplier else None,
+        })
+
+    # Sort: critical first, then by days_left ascending (None = no sales, sort last)
+    def _sort_key(r):
+        order = {"critical": 0, "high": 1, "medium": 2}
+        return (order[r["urgency"]], r["days_left"] if r["days_left"] is not None else 9999)
+
+    results.sort(key=_sort_key)
+
+    return {
+        "period_days":     days,
+        "threshold_days":  threshold_days,
+        "total_flagged":   len(results),
+        "critical_count":  sum(1 for r in results if r["urgency"] == "critical"),
+        "high_count":      sum(1 for r in results if r["urgency"] == "high"),
+        "medium_count":    sum(1 for r in results if r["urgency"] == "medium"),
+        "items":           results,
+    }
+
+
 # ── Gemini Vision: scan product image → fields ───────────────
 
 _VISION_PROMPT = """You are reading a price tag, product label, or product photo from an Indian jewellery and accessories shop.

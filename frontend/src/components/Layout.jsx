@@ -32,7 +32,7 @@ const BANGLE_NAV = [
     sub:null },
   { label:"Inventory", to:"/bangle-inventory",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>,
-    sub:[{to:"/bangle-inventory",label:"💍 Stock"},{to:"/bangle-bulk-import",label:"📦 Bulk Import"},{to:"/bangle-billing",label:"🧾 Billing"},{to:"/bangle-festivals",label:"🗓️ Festival Calendar"},{to:"/bangle-insights",label:"📊 Insights"}] },
+    sub:[{to:"/bangle-inventory",label:"💍 Stock"},{to:"/bangle-bulk-import",label:"📦 Bulk Import"},{to:"/bangle-billing",label:"🧾 Billing"},{to:"/bangle-festivals",label:"🗓️ Festival Calendar"},{to:"/bangle-insights",label:"📊 Insights"},{to:"/reorder",label:"🤖 Reorder Agent"}] },
   { label:"Assistant", to:"/voice",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
     sub:null },
@@ -539,7 +539,7 @@ export default function Layout({ children }) {
 
     const SHARED_ROUTES = ["/voice", "/more", "/settings", "/help", "/install"]
     const BANGLE_ONLY   = ["/bangle-dashboard", "/bangle-inventory", "/bangle-billing",
-                           "/bangle-festivals", "/bangle-insights", "/bangle-bulk-import"]
+                           "/bangle-festivals", "/bangle-insights", "/bangle-bulk-import", "/reorder"]
     const onShared      = SHARED_ROUTES.some(r => location.pathname.startsWith(r))
     const onBangleOnly  = BANGLE_ONLY.some(r => location.pathname.startsWith(r))
 
@@ -739,6 +739,30 @@ export default function Layout({ children }) {
               </div>
             </div>
           </div>
+
+          {/* Store switcher — only visible when vendor has both modules */}
+          {multiStore && (
+            <div style={{ display:"flex", gap:5, flex:1, justifyContent:"center" }}>
+              {[
+                { id:"kirana",       label:"🛒 Kirana" },
+                { id:"bangle_fancy", label:"💍 Bangle" },
+              ].map(({ id, label }) => {
+                const active = storeMode === id
+                return (
+                  <button key={id} onClick={() => switchMode(id)}
+                    style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid",
+                      fontSize:11, fontWeight:700, cursor:"pointer", transition:"all 0.15s",
+                      background: active ? "var(--saffron)" : "var(--bg2)",
+                      color:       active ? "#fff"          : "var(--ink-dim)",
+                      borderColor: active ? "var(--saffron)": "var(--rule)",
+                      boxShadow:   active ? "0 2px 8px rgba(232,119,34,0.35)" : "none" }}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
             <button onClick={toggleTheme}
               style={{ background:"var(--bg2)", border:"1px solid var(--rule)",

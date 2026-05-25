@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import * as XLSX from "xlsx"
 import { getToken } from "../sync/db.js"
 import { BANGLE_CATALOG as CATALOG, BANGLE_CATALOG_CATS } from "../data/bangleCatalog.js"
+import BangleInvoiceScanTab from "./BangleInvoiceScanTab.jsx"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -166,7 +167,7 @@ function Chip({ label, active, onClick, colour }) {
 
 export default function BangleBulkImport() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState("catalog") // catalog | csv | restock
+  const [tab, setTab] = useState("catalog") // catalog | csv | restock | scan
 
   // ── Catalog tab state ─────────────────────────────────────
   const [catFilter,  setCatFilter]  = useState("All")
@@ -466,6 +467,7 @@ export default function BangleBulkImport() {
         display:"flex", padding:"0 12px", flexShrink:0, overflowX:"auto"}}>
         {[
           {id:"restock", label:"♻️ Restock Variants",   sub:"Update stock after delivery"},
+          {id:"scan",    label:"📸 AI Invoice Scan",    sub:"Photo / PDF → auto stock update"},
           {id:"catalog", label:"💍 Product Catalog",    sub:`${CATALOG.length}+ market products`},
           {id:"csv",     label:"📊 CSV / Excel Import", sub:"Upload your stock file"},
         ].map(t => (
@@ -481,6 +483,13 @@ export default function BangleBulkImport() {
           </button>
         ))}
       </div>
+
+      {/* ── AI INVOICE SCAN TAB ─────────────────────────────── */}
+      {tab === "scan" && (
+        <div style={{flex:1, overflowY:"auto"}}>
+          <BangleInvoiceScanTab />
+        </div>
+      )}
 
       {/* ── RESTOCK TAB ──────────────────────────────────────── */}
       {tab === "restock" && (
