@@ -30,15 +30,31 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         const ZXing = await loadZXing()
         if (!mounted) return
 
-        const reader = new ZXing.BrowserMultiFormatReader()
+        // TRY_HARDER + explicit format list dramatically improves reliability
+        // on physical product barcodes (EAN-13, UPC-A, Code-128 are the
+        // formats printed on grocery/retail packaging).
+        const hints = new Map([
+          [ZXing.DecodeHintType.TRY_HARDER, true],
+          [ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+            ZXing.BarcodeFormat.EAN_13,
+            ZXing.BarcodeFormat.EAN_8,
+            ZXing.BarcodeFormat.UPC_A,
+            ZXing.BarcodeFormat.UPC_E,
+            ZXing.BarcodeFormat.CODE_128,
+            ZXing.BarcodeFormat.CODE_39,
+            ZXing.BarcodeFormat.QR_CODE,
+          ]],
+        ])
+        const reader = new ZXing.BrowserMultiFormatReader(hints)
         readerRef.current = reader
 
         setStatus("scanning")
 
         // decodeFromConstraints with facingMode avoids the iOS label-enumeration
         // bug where camera labels are empty before permission is granted.
+        // Higher resolution gives ZXing cleaner barcode bar images to decode.
         await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: "environment" } } },
+          { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
           videoRef.current,
           (result, err) => {
             if (!mounted || detectedRef.current) return
