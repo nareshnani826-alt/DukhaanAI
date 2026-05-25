@@ -53,7 +53,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
       name:        p.name,
       mrp:         p.mrp,
       unit:        "piece",
-      stock:       9999,
+      stock:       typeof p.total_stock === "number" ? p.total_stock : 9999,
       gst_percent: p.gst_percent || 3,
       _isBangle:   true,
     }))
@@ -90,7 +90,8 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
       const kiranaList = Array.isArray(res) ? res : (res?.data || [])
       const bangleFlat = extraProducts.map(ep => ({
         id: ep.id, name: ep.name, mrp: ep.mrp, unit: "piece",
-        stock: 9999, gst_percent: ep.gst_percent || 3, _isBangle: true,
+        stock: typeof ep.total_stock === "number" ? ep.total_stock : 9999,
+        gst_percent: ep.gst_percent || 3, _isBangle: true,
       }))
       const merged = [...kiranaList, ...bangleFlat]
       setProducts(merged)

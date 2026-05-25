@@ -133,6 +133,10 @@ export default function Voice() {
       })
       setInvoice(inv)
       showNotif(`✓ Invoice ${inv.invoice_no} generated!`)
+      // Refresh bangle products so stock counts are accurate on the next voice sale
+      BangleProducts.list().then(res => {
+        setBangleProducts(Array.isArray(res) ? res : (res?.data || []))
+      }).catch(() => {})
     } catch(e) {
       // Network/CORS errors mean the server may have saved the invoice anyway.
       // Try to recover the most recent invoice and match by total.
