@@ -23,6 +23,13 @@ const CATS = [
   "Other",
 ]
 
+const CAT_GROUPS = {
+  "Jewellery": ["Bangles","Earrings","Necklace","Maang Tikka","Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring"],
+  "Beauty": ["Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care"],
+  "Personal Care": ["Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color"],
+}
+const CAT_GROUP_ICONS = { "Jewellery": "💍", "Beauty": "💄", "Personal Care": "🧴" }
+
 const CATEGORY_SIZES = {
   "Bangles":     ["2.2","2.4","2.6","2.8","2.10","2.12","2.14","Free Size"],
   "Earrings":    ["Studs","Drops","Hoops / Bali","Jhumka","Chandbali","Dangler","Ear Cuff","Tassel"],
@@ -1868,6 +1875,8 @@ export default function BangleInventory() {
   const [loading,    setLoading]    = useState(true)
   const [category,   setCategory]   = useState("All")
   const [search,     setSearch]     = useState("")
+  const [openGroup,  setOpenGroup]  = useState(null)
+  const filterRef = useRef(null)
   const [showAdd,    setShowAdd]    = useState(false)
   const [addVariFor, setAddVariFor] = useState(null)
   const [summary,    setSummary]    = useState(null)
@@ -1877,6 +1886,15 @@ export default function BangleInventory() {
     loadProducts()
     BangleSuppliers.list().then(setSuppliers).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!openGroup) return
+    function handleClick(e) {
+      if (filterRef.current && !filterRef.current.contains(e.target)) setOpenGroup(null)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [openGroup])
 
   async function loadProducts() {
     setLoading(true)
@@ -1976,19 +1994,71 @@ export default function BangleInventory() {
       )}
 
       {/* Filters */}
-      <div style={{background:"var(--bg1)",padding:"10px 16px",borderBottom:"1px solid var(--rule)",flexShrink:0}}>
+      <div ref={filterRef} style={{background:"var(--bg1)",padding:"10px 16px",borderBottom:"1px solid var(--rule)",flexShrink:0}}>
         <input value={search} onChange={e=>setSearch(e.target.value)}
           placeholder="Search products..."
           style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:10,padding:"7px 12px",fontSize:12,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
-        <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:2}}>
-          {["All",...CATS].map(c=>(
-            <button key={c} onClick={()=>setCategory(c)}
-              style={{padding:"4px 12px",borderRadius:20,border:"none",fontSize:11,fontWeight:500,whiteSpace:"nowrap",cursor:"pointer",flexShrink:0,
-                background:category===c?"var(--saffron)":"var(--bg2)",
-                color:category===c?"#fff":"var(--ink-dim)"}}>
-              {c}
-            </button>
-          ))}
+
+        {/* Grouped category filter */}
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          {/* All chip */}
+          <button onClick={()=>{setCategory("All");setOpenGroup(null)}}
+            style={{padding:"5px 14px",borderRadius:20,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+              background:category==="All"?"var(--saffron)":"var(--bg2)",
+              color:category==="All"?"#fff":"var(--ink-dim)"}}>
+            All
+          </button>
+
+          {/* Group dropdown buttons */}
+          {Object.entries(CAT_GROUPS).map(([group, cats]) => {
+            const activeInGroup = cats.includes(category)
+            const isOpen = openGroup === group
+            return (
+              <div key={group} style={{position:"relative"}}>
+                <button
+                  onClick={() => setOpenGroup(isOpen ? null : group)}
+                  style={{
+                    display:"flex",alignItems:"center",gap:4,
+                    padding:"5px 12px",borderRadius:20,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+                    background: activeInGroup ? "var(--saffron)" : isOpen ? "var(--bg3,#e5e7eb)" : "var(--bg2)",
+                    color: activeInGroup ? "#fff" : "var(--ink-dim)",
+                    boxShadow: isOpen ? "0 0 0 2px var(--saffron)" : "none",
+                  }}>
+                  <span>{CAT_GROUP_ICONS[group]}</span>
+                  <span>{activeInGroup ? category : group}</span>
+                  <span style={{fontSize:9,opacity:0.7,marginLeft:1}}>▾</span>
+                </button>
+                {isOpen && (
+                  <div style={{
+                    position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:200,
+                    background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.15)",
+                    border:"1px solid var(--rule)",padding:"6px",minWidth:160,
+                  }}>
+                    {cats.map(c => (
+                      <button key={c} onClick={()=>{setCategory(c);setOpenGroup(null)}}
+                        style={{
+                          display:"block",width:"100%",textAlign:"left",
+                          padding:"7px 12px",borderRadius:8,border:"none",
+                          fontSize:12,fontWeight: category===c ? 700 : 400,cursor:"pointer",
+                          background:category===c?"#fff8f0":"transparent",
+                          color:category===c?"var(--saffron)":"var(--ink)",
+                        }}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Other chip */}
+          <button onClick={()=>{setCategory("Other");setOpenGroup(null)}}
+            style={{padding:"5px 14px",borderRadius:20,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+              background:category==="Other"?"var(--saffron)":"var(--bg2)",
+              color:category==="Other"?"#fff":"var(--ink-dim)"}}>
+            Other
+          </button>
         </div>
       </div>
 
