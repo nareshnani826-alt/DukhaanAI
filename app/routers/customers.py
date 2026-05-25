@@ -132,25 +132,9 @@ async def customer_invoices(customer_id: str, vendor=Depends(get_current_vendor)
         .order("created_at", desc=True)
     )
 
-    if customer.get("phone"):
-        # Use or_ to match by name OR phone
-        result = q.or_(
-            f"customer_name.eq.{customer['name']},"
-            f"customer_gstin.eq.{customer.get('phone','')}"
-        ).execute()
-        # Filter locally for phone match since it's stored in customer table not invoice
-        all_invs = (
-            db.table("invoices")
-            .select("*")
-            .eq("vendor_id", vendor["id"])
-            .eq("customer_name", customer["name"])
-            .order("created_at", desc=True)
-            .execute()
-        )
-        return all_invs.data
-    else:
-        result = q.eq("customer_name", customer["name"]).execute()
-        return result.data
+    # Invoices store customer_name only — match by name
+    result = q.eq("customer_name", customer["name"]).execute()
+    return result.data
 
 
 @router.delete("/{customer_id}")

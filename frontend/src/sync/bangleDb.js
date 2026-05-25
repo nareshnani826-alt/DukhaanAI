@@ -230,6 +230,31 @@ export const BangleSync = {
   },
 }
 
+// ── Suppliers ──────────────────────────────────────────────────
+export const BangleSuppliers = {
+  async list() {
+    return apiFetch("/bangle/suppliers")
+  },
+
+  async create(payload) {
+    return apiFetch("/bangle/suppliers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async update(id, payload) {
+    return apiFetch(`/bangle/suppliers/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async delete(id) {
+    return apiFetch(`/bangle/suppliers/${id}`, { method: "DELETE" })
+  },
+}
+
 // ── Auto-sync on network restore ───────────────────────────────
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => BangleSync.maybeSync())

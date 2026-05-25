@@ -12,7 +12,24 @@ const UNITS = [
   { id: "dozen", label: "Dozen", pcs: 12 },
   { id: "set",   label: "Set",   pcs: 6  },
 ]
-const COLOURS = ["Red","Pink","Maroon","Green","Blue","Navy","Gold","Rose Gold","Silver","White","Black","Orange","Yellow","Purple","Peach","Multi"]
+const COLOURS = [
+  // Reds & Pinks
+  "Red","Dark Red","Crimson","Hot Pink","Pink","Baby Pink","Rose Pink","Magenta",
+  // Maroons & Browns
+  "Maroon","Burgundy","Wine","Brown","Chocolate","Beige","Cream",
+  // Greens
+  "Green","Dark Green","Mehandi","Parrot Green","Light Green","Mint","Teal","Turquoise",
+  // Blues
+  "Blue","Navy","Sky Blue","Royal Blue","Cobalt Blue","Ice Blue",
+  // Purples
+  "Purple","Lavender","Violet","Lilac","Indigo",
+  // Yellows & Oranges
+  "Yellow","Mustard","Saffron","Orange","Peach","Coral",
+  // Metallics & Neutrals
+  "Gold","Rose Gold","Silver","White","Off-White","Ivory","Black","Charcoal","Gunmetal",
+  // Multicolour
+  "Multi","Dual Tone","Ombre","Rainbow",
+]
 
 // ── Voice cart parser ─────────────────────────────────────────
 function parseVoiceCart(text, products) {
@@ -464,6 +481,166 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
   )
 }
 
+// ── Quick Item Modal ──────────────────────────────────────────
+const QUICK_CATS = [
+  "Bangles","Earrings","Necklace","Maang Tikka",
+  "Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring","Other",
+]
+
+function QuickItemModal({ onAdd, onClose }) {
+  const [desc,  setDesc]  = useState("")
+  const [cat,   setCat]   = useState("Bangles")
+  const [price, setPrice] = useState("")
+  const [qty,   setQty]   = useState(1)
+  const [unit,  setUnit]  = useState("piece")
+
+  const amount = +(qty * (+price || 0)).toFixed(2)
+  const canAdd = desc.trim() && +price > 0 && qty > 0
+
+  function handleAdd() {
+    if (!canAdd) return
+    const unitDef = UNITS.find(u => u.id === unit)
+    const pieces  = qty * (unitDef?.pcs || 1)
+    onAdd({
+      variant_id:          null,
+      product_id:          null,
+      product_name:        desc.trim(),
+      custom_description:  desc.trim(),
+      category:            cat,
+      is_quick_item:       true,
+      colour:              null,
+      size:                null,
+      design:              null,
+      unit,
+      unit_qty:            qty,
+      unit_price:          +price,
+      pieces,
+      amount,
+      cost_price:          0,
+      gst_percent:         3,
+      _id:                 Date.now(),
+    })
+    onClose()
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
+      display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background:"#fff", borderRadius:20, width:"100%",
+        maxWidth:420, maxHeight:"90vh", overflowY:"auto",
+        padding:"20px 20px 24px", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}>
+
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"var(--ink)" }}>⚡ Quick Item</div>
+          <button onClick={onClose}
+            style={{ background:"none", border:"none", fontSize:22, cursor:"pointer",
+              color:"var(--ink-faint)", lineHeight:1 }}>×</button>
+        </div>
+
+        {/* Description */}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:5,
+            textTransform:"uppercase", letterSpacing:"0.8px" }}>Item Description</div>
+          <input value={desc} onChange={e => setDesc(e.target.value)}
+            placeholder="e.g. Glass Bangles Red, Kundan Earrings…"
+            autoFocus
+            style={{ width:"100%", border:"1.5px solid var(--rule)", borderRadius:10,
+              padding:"9px 12px", fontSize:13, background:"var(--bg2)", color:"var(--ink)",
+              outline:"none", boxSizing:"border-box" }}
+            onFocus={e => e.target.style.borderColor = "var(--saffron)"}
+            onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
+        </div>
+
+        {/* Category chips */}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:5,
+            textTransform:"uppercase", letterSpacing:"0.8px" }}>Category</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+            {QUICK_CATS.map(c => (
+              <button key={c} onClick={() => setCat(c)}
+                style={{ padding:"4px 10px", borderRadius:20, border:"1.5px solid",
+                  fontSize:11, fontWeight:600, cursor:"pointer",
+                  background:  cat === c ? "var(--saffron)" : "var(--bg2)",
+                  color:       cat === c ? "#fff"           : "var(--ink-dim)",
+                  borderColor: cat === c ? "var(--saffron)" : "var(--rule)" }}>
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Unit */}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:5,
+            textTransform:"uppercase", letterSpacing:"0.8px" }}>Billing Unit</div>
+          <div style={{ display:"flex", gap:6 }}>
+            {UNITS.map(u => (
+              <button key={u.id} onClick={() => setUnit(u.id)}
+                style={{ flex:1, padding:"6px 4px", borderRadius:8, border:"1.5px solid",
+                  fontSize:11, fontWeight:700, cursor:"pointer",
+                  background:  unit === u.id ? "var(--saffron)" : "var(--bg2)",
+                  color:       unit === u.id ? "#fff"           : "var(--ink-dim)",
+                  borderColor: unit === u.id ? "var(--saffron)" : "var(--rule)" }}>
+                {u.label}<br/>
+                <span style={{ fontSize:9, opacity:0.75 }}>{u.pcs} pc{u.pcs > 1 ? "s" : ""}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Price + Qty */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:5,
+              textTransform:"uppercase", letterSpacing:"0.8px" }}>Price / {unit}</div>
+            <div style={{ position:"relative" }}>
+              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)",
+                fontSize:13, color:"var(--ink-dim)", pointerEvents:"none" }}>₹</span>
+              <input type="number" min="0" value={price}
+                onChange={e => setPrice(e.target.value)}
+                placeholder="0"
+                style={{ width:"100%", border:"1.5px solid var(--rule)",
+                  borderRadius:8, padding:"8px 8px 8px 26px", fontSize:14, fontWeight:700,
+                  color:"var(--ink)", background:"var(--bg2)", outline:"none",
+                  boxSizing:"border-box" }}
+                onFocus={e => e.target.style.borderColor = "var(--saffron)"}
+                onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:5,
+              textTransform:"uppercase", letterSpacing:"0.8px" }}>Qty</div>
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <button className="qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))}
+                style={{ borderRadius:8, border:"1.5px solid var(--rule)",
+                  background:"var(--bg2)", cursor:"pointer", fontSize:16, color:"var(--ink-dim)" }}>−</button>
+              <input type="number" min="1" value={qty}
+                onChange={e => setQty(Math.max(1, +e.target.value || 1))}
+                style={{ flex:1, textAlign:"center", border:"1.5px solid var(--rule)",
+                  borderRadius:8, padding:"6px 0", fontSize:14, fontWeight:700,
+                  color:"var(--ink)", background:"var(--bg2)", outline:"none" }} />
+              <button className="qty-btn" onClick={() => setQty(q => q + 1)}
+                style={{ borderRadius:8, border:"1.5px solid var(--rule)",
+                  background:"var(--bg2)", cursor:"pointer", fontSize:16, color:"var(--ink-dim)" }}>+</button>
+            </div>
+          </div>
+        </div>
+
+        <button onClick={handleAdd} disabled={!canAdd}
+          style={{ width:"100%", padding:"13px", borderRadius:12, border:"none",
+            fontSize:15, fontWeight:800, cursor: canAdd ? "pointer" : "default",
+            background: canAdd
+              ? "linear-gradient(135deg,var(--saffron),var(--saffron-hot))"
+              : "var(--bg2)",
+            color: canAdd ? "#fff" : "var(--ink-faint)" }}>
+          {canAdd ? `+ Add to Cart · ${INR(amount)}` : "Enter description and price"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Chip selector ─────────────────────────────────────────────
 function Chips({ label, options, value, onChange }) {
   if (!options.length) return null
@@ -488,7 +665,7 @@ function Chips({ label, options, value, onChange }) {
 }
 
 // ── Product Picker ────────────────────────────────────────────
-function ProductPicker({ products, onAdd, t, onScanRequest }) {
+function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem }) {
   const [search,  setSearch]  = useState("")
   const [product, setProduct] = useState(null)
   const [colour,  setColour]  = useState(null)
@@ -624,6 +801,13 @@ function ProductPicker({ products, onAdd, t, onScanRequest }) {
               color: "var(--ink)", boxSizing: "border-box" }}
             onFocus={e => e.target.style.borderColor = "var(--saffron)"}
             onBlur={e  => e.target.style.borderColor = "var(--rule)"} />
+          {/* Quick Item */}
+          <button onClick={onQuickItem} title="Quick item — bill without catalog"
+            style={{ padding:"8px 10px", borderRadius:10, border:"1.5px solid var(--saffron)",
+              background:"rgba(232,119,34,0.08)", cursor:"pointer", flexShrink:0,
+              fontSize:13, fontWeight:700, color:"var(--saffron)", whiteSpace:"nowrap" }}>
+            ⚡
+          </button>
           {/* Barcode Scanner */}
           <button onClick={onScanRequest} title="Scan barcode"
             style={{ padding:"8px 10px", borderRadius:10, border:"1.5px solid var(--rule)",
@@ -947,13 +1131,15 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
 }
 
 // ── Cart Panel ────────────────────────────────────────────────
-function CartPanel({ items, onRemove, onBill, t }) {
+function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
   const [customer,    setCustomer]    = useState({ name: "", phone: "" })
   const [payment,     setPayment]     = useState("cash")
   const [applyGst,    setApplyGst]    = useState(false)
   const [discountPct, setDiscountPct] = useState(0)
   const [loading,     setLoading]     = useState(false)
   const [err,         setErr]         = useState("")
+  const [editingId,   setEditingId]   = useState(null)
+  const [editPrice,   setEditPrice]   = useState("")
 
   const subtotal    = items.reduce((s, i) => s + i.amount, 0)
   const discountAmt = +(subtotal * discountPct / 100).toFixed(2)
@@ -1007,27 +1193,95 @@ function CartPanel({ items, onRemove, onBill, t }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px" }}>
-        {items.map(item => (
-          <div key={item._id} style={{ display: "flex", alignItems: "flex-start", gap: 8,
-            padding: "10px", borderRadius: 10, marginBottom: 6,
-            background: "var(--bg1)", border: "1px solid var(--rule)" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{item.product_name}</div>
-              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>
-                {[item.colour, item.size, item.design].filter(Boolean).join(" · ")}
+        {items.map(item => {
+          const isEditing = editingId === item._id
+          const originalAmt = item._originalAmount ?? item.amount
+          const priceChanged = item.amount !== originalAmt
+          return (
+            <div key={item._id} style={{ display: "flex", alignItems: "flex-start", gap: 8,
+              padding: "10px", borderRadius: 10, marginBottom: 6,
+              background: "var(--bg1)", border: "1px solid var(--rule)" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                  {item.is_quick_item && (
+                    <span style={{ fontSize: 9, fontWeight: 800, background: "rgba(232,119,34,0.15)",
+                      color: "var(--saffron)", borderRadius: 4, padding: "1px 5px",
+                      marginRight: 5, verticalAlign: "middle" }}>QUICK</span>
+                  )}
+                  {item.product_name}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>
+                  {item.category || [item.colour, item.size, item.design].filter(Boolean).join(" · ") || "—"}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-dim)", marginTop: 2 }}>
+                  {item.unit_qty} {item.unit} ({item.pieces} pcs) × {INR(item.unit_price)}
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: "var(--ink-dim)", marginTop: 2 }}>
-                {item.unit_qty} {item.unit} ({item.pieces} pcs) × {INR(item.unit_price)}
+              <div style={{ textAlign: "right", flexShrink: 0, minWidth: 70 }}>
+                {isEditing ? (
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                    <div style={{ position:"relative" }}>
+                      <span style={{ position:"absolute", left:6, top:"50%", transform:"translateY(-50%)",
+                        fontSize:11, color:"var(--ink-dim)" }}>₹</span>
+                      <input type="number" min="0" autoFocus
+                        value={editPrice}
+                        onChange={e => setEditPrice(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            const newAmt = Math.max(0, +editPrice || 0)
+                            onUpdatePrice(item._id, newAmt, item.amount)
+                            setEditingId(null)
+                          }
+                          if (e.key === "Escape") setEditingId(null)
+                        }}
+                        style={{ width:72, paddingLeft:18, border:"1.5px solid var(--saffron)",
+                          borderRadius:6, padding:"4px 4px 4px 18px", fontSize:13, fontWeight:700,
+                          color:"var(--ink)", background:"var(--bg2)", outline:"none",
+                          boxSizing:"border-box" }} />
+                    </div>
+                    <div style={{ display:"flex", gap:4 }}>
+                      <button onClick={() => {
+                          const newAmt = Math.max(0, +editPrice || 0)
+                          onUpdatePrice(item._id, newAmt, item.amount)
+                          setEditingId(null)
+                        }}
+                        style={{ fontSize:10, fontWeight:700, background:"var(--saffron)",
+                          color:"#fff", border:"none", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
+                        ✓
+                      </button>
+                      <button onClick={() => setEditingId(null)}
+                        style={{ fontSize:10, background:"var(--bg2)", color:"var(--ink-faint)",
+                          border:"1px solid var(--rule)", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={() => { setEditingId(item._id); setEditPrice(item.amount) }}
+                      title="Tap to edit price"
+                      style={{ fontSize:13, fontWeight:700, background:"none", border:"none",
+                        cursor:"pointer", padding:0, color:"var(--ink)", textAlign:"right" }}>
+                      {priceChanged && (
+                        <span style={{ fontSize:10, color:"var(--ink-faint)",
+                          textDecoration:"line-through", display:"block" }}>
+                          {INR(originalAmt)}
+                        </span>
+                      )}
+                      {INR(item.amount)}
+                      <span style={{ fontSize:9, color:"var(--ink-faint)", display:"block", marginTop:1 }}>
+                        tap to edit
+                      </span>
+                    </button>
+                    <button onClick={() => onRemove(item._id)}
+                      style={{ fontSize: 10, color: "var(--ember)", background: "none", border: "none",
+                        cursor: "pointer", padding: 0, marginTop: 4 }}>Remove</button>
+                  </>
+                )}
               </div>
             </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{INR(item.amount)}</div>
-              <button onClick={() => onRemove(item._id)}
-                style={{ fontSize: 10, color: "var(--ember)", background: "none", border: "none",
-                  cursor: "pointer", padding: 0, marginTop: 4 }}>Remove</button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <div style={{ borderTop: "1px solid var(--rule)", padding: "12px 14px",
@@ -1181,6 +1435,7 @@ export default function BangleBilling() {
   const [pending,      setPending]      = useState(BangleSync.pendingCount())
   const [syncing,      setSyncing]      = useState(false)
   const [showScanner,  setShowScanner]  = useState(false)
+  const [showQuick,    setShowQuick]    = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -1218,6 +1473,18 @@ export default function BangleBilling() {
 
   function addToCart(item) { setCart(prev => [...prev, item]); setTab("cart") }
   function removeFromCart(id) { setCart(prev => prev.filter(i => i._id !== id)) }
+  function updateCartPrice(id, newAmount, oldAmount) {
+    setCart(prev => prev.map(i => {
+      if (i._id !== id) return i
+      const newUnitPrice = i.unit_qty > 0 ? +(newAmount / i.unit_qty).toFixed(2) : i.unit_price
+      return {
+        ...i,
+        amount:          newAmount,
+        unit_price:      newUnitPrice,
+        _originalAmount: i._originalAmount ?? oldAmount,
+      }
+    }))
+  }
 
   function onBill(sale) {
     setReceipt(sale)
@@ -1245,6 +1512,12 @@ export default function BangleBilling() {
           onBill={sale => { onBill(sale); setShowScanner(false) }}
           onAddToCart={item => { addToCart(item); setTab("cart") }}
           onClose={() => setShowScanner(false)}
+        />
+      )}
+      {showQuick && (
+        <QuickItemModal
+          onAdd={item => { addToCart(item); setTab("cart") }}
+          onClose={() => setShowQuick(false)}
         />
       )}
 
@@ -1322,11 +1595,13 @@ export default function BangleBilling() {
             style={{ flex: 1, borderRight: "1px solid var(--rule)", overflow: "hidden",
               display: "flex", flexDirection: "column" }}>
             <ProductPicker products={products} onAdd={addToCart} t={t}
-              onScanRequest={() => setShowScanner(true)} />
+              onScanRequest={() => setShowScanner(true)}
+              onQuickItem={() => setShowQuick(true)} />
           </div>
           <div className={`billing-right${tab === "items" ? " billing-hidden-mobile" : ""}`}
             style={{ width: 340, minWidth: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <CartPanel items={cart} onRemove={removeFromCart} onBill={onBill} t={t} />
+            <CartPanel items={cart} onRemove={removeFromCart}
+              onUpdatePrice={updateCartPrice} onBill={onBill} t={t} />
           </div>
         </div>
       )}

@@ -537,17 +537,26 @@ export default function Layout({ children }) {
     }
     setStoreMode(newMode)
 
-    // Redirect kirana routes → bangle home when vendor has no kirana access
-    if (vendor && newMode === "bangle_fancy") {
-      const BANGLE_ROUTES = ["/bangle", "/voice", "/more", "/settings", "/help", "/install"]
-      const onBangleRoute = BANGLE_ROUTES.some(r => location.pathname.startsWith(r))
-      if (!onBangleRoute) navigate("/bangle-dashboard")
+    const SHARED_ROUTES = ["/voice", "/more", "/settings", "/help", "/install"]
+    const BANGLE_ONLY   = ["/bangle-dashboard", "/bangle-inventory", "/bangle-billing",
+                           "/bangle-festivals", "/bangle-insights", "/bangle-bulk-import"]
+    const onShared      = SHARED_ROUTES.some(r => location.pathname.startsWith(r))
+    const onBangleOnly  = BANGLE_ONLY.some(r => location.pathname.startsWith(r))
+
+    if (vendor && newMode === "bangle_fancy" && !onBangleOnly && !onShared) {
+      // On a kirana-only route while in bangle mode → go to bangle home
+      navigate("/bangle-dashboard")
+    } else if (vendor && newMode === "kirana" && onBangleOnly) {
+      // On a bangle-only route while in kirana mode → go to kirana home
+      navigate("/dashboard")
     }
   }, [vendor, hasBangle, hasKirana])
 
   function switchMode(mode) {
     setStoreMode(mode)
     localStorage.setItem("storeMode", mode)
+    // Navigate to the home screen of the selected store
+    navigate(mode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard")
   }
 
   const NAV      = storeMode === "bangle_fancy" ? BANGLE_NAV : KIRANA_NAV

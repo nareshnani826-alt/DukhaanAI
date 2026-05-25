@@ -318,10 +318,32 @@ const DESIGN_WIKI = {
 }
 
 const COLOUR_HEX = {
-  Red:"#ef4444", Pink:"#ec4899", Green:"#16a34a", Blue:"#3b82f6",
-  Gold:"#f59e0b", Silver:"#94a3b8", White:"#d1d5db", Black:"#1e293b",
-  Orange:"#f97316", Purple:"#a855f7", Yellow:"#eab308", Maroon:"#9f1239",
-  Multi:"#ec4899", "Sky Blue":"#38bdf8", "Dark Green":"#15803d",
+  // Reds & Pinks
+  "Red":"#ef4444", "Dark Red":"#b91c1c", "Crimson":"#dc143c",
+  "Hot Pink":"#f72585", "Pink":"#ec4899", "Baby Pink":"#fbcfe8",
+  "Rose Pink":"#fb7185", "Magenta":"#d946ef",
+  // Maroons & Browns
+  "Maroon":"#9f1239", "Burgundy":"#7f1d1d", "Wine":"#6b1c2e",
+  "Brown":"#92400e", "Chocolate":"#78350f", "Beige":"#d4b896", "Cream":"#fef3c7",
+  // Greens
+  "Green":"#16a34a", "Dark Green":"#15803d", "Mehandi":"#4d7c0f",
+  "Parrot Green":"#65a30d", "Light Green":"#86efac", "Mint":"#6ee7b7",
+  "Teal":"#0d9488", "Turquoise":"#06b6d4",
+  // Blues
+  "Blue":"#3b82f6", "Navy":"#1e3a8a", "Sky Blue":"#38bdf8",
+  "Royal Blue":"#3730a3", "Cobalt Blue":"#2563eb", "Ice Blue":"#bae6fd",
+  // Purples
+  "Purple":"#a855f7", "Lavender":"#c084fc", "Violet":"#7c3aed",
+  "Lilac":"#d8b4fe", "Indigo":"#4338ca",
+  // Yellows & Oranges
+  "Yellow":"#eab308", "Mustard":"#ca8a04", "Saffron":"#f97316",
+  "Orange":"#f97316", "Peach":"#fdba74", "Coral":"#fb7185",
+  // Metallics & Neutrals
+  "Gold":"#f59e0b", "Rose Gold":"#f9a8d4", "Silver":"#94a3b8",
+  "White":"#f8fafc", "Off-White":"#f1f5f9", "Ivory":"#fffff0",
+  "Black":"#1e293b", "Charcoal":"#374151", "Gunmetal":"#4b5563",
+  // Multicolour
+  "Multi":"#e879f9", "Dual Tone":"#818cf8", "Ombre":"#f472b6", "Rainbow":"#a78bfa",
 }
 
 const INDIA_MARKET_BASE = [
@@ -751,8 +773,174 @@ function TrendsTab() {
   )
 }
 
+// ── Category Breakdown tab ─────────────────────────────────────
+function CategoryTab() {
+  const [data,    setData]    = useState(null)
+  const [period,  setPeriod]  = useState("month")
+  const [loading, setLoading] = useState(true)
+  const [err,     setErr]     = useState("")
+
+  useEffect(() => {
+    setLoading(true); setErr("")
+    apiFetch(`/bangle/insights/category-breakdown?period=${period}`)
+      .then(setData).catch(e => setErr(e.message)).finally(() => setLoading(false))
+  }, [period])
+
+  const maxRevenue = data?.categories?.[0]?.revenue || 1
+
+  const PERIOD_LABEL = { today: "Today", week: "This Week", month: "This Month" }
+
+  return (
+    <div>
+      {/* Period picker */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {["today", "week", "month"].map(p => (
+          <button key={p} onClick={() => setPeriod(p)}
+            style={{ padding: "5px 14px", borderRadius: 20, border: "1px solid",
+              fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.15s",
+              background: period === p ? "var(--saffron)" : "var(--bg2)",
+              color:       period === p ? "#fff"          : "var(--ink-dim)",
+              borderColor: period === p ? "var(--saffron)": "var(--rule)" }}>
+            {PERIOD_LABEL[p]}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div style={{ color: "var(--ink-faint)", fontSize: 13 }}>Loading…</div>}
+      {err     && <div style={{ color: "#e55", fontSize: 13 }}>{err}</div>}
+
+      {data && !loading && (
+        <>
+          {/* Summary strip */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+            {[
+              { label: "Total Revenue", value: INR(data.total_revenue), color: "var(--saffron)" },
+              { label: "Total Profit",  value: INR(data.total_profit),  color: data.total_profit >= 0 ? "#2b9e6e" : "#c0392b" },
+              { label: "Categories",   value: data.categories?.length ?? 0, color: "var(--ink)" },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{ flex: 1, background: "var(--bg0)", border: "1px solid var(--rule)",
+                borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color }}>{value}</div>
+                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Category bars */}
+          {(!data.categories || data.categories.length === 0) ? (
+            <div style={{ background: "var(--bg0)", border: "1px solid var(--rule)", borderRadius: 14,
+              padding: 20, textAlign: "center", fontSize: 13, color: "var(--ink-faint)" }}>
+              No sales data for this period yet
+            </div>
+          ) : (
+            <div style={{ background: "var(--bg0)", border: "1px solid var(--rule)",
+              borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 14 }}>
+                📊 Revenue by Category
+              </div>
+              {data.categories.map((cat, i) => {
+                const pct = maxRevenue > 0 ? Math.round((cat.revenue / maxRevenue) * 100) : 0
+                const marginColor = cat.margin_pct >= 30 ? "#2b9e6e"
+                  : cat.margin_pct >= 15 ? "var(--saffron)" : "#c0392b"
+                return (
+                  <div key={cat.category} style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "center", marginBottom: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {i < 3 && (
+                          <span style={{ fontSize: 10, fontWeight: 800, width: 18, height: 18,
+                            borderRadius: "50%", background: ["#f59e0b","#94a3b8","#b45309"][i],
+                            color: "#fff", display: "inline-flex", alignItems: "center",
+                            justifyContent: "center", flexShrink: 0 }}>
+                            {i + 1}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                          {cat.category}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#fff",
+                          background: marginColor, padding: "1px 6px", borderRadius: 4 }}>
+                          {cat.margin_pct}%
+                        </span>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                          {INR(cat.revenue)}
+                        </div>
+                        <div style={{ fontSize: 10, color: "#2b9e6e", fontWeight: 600 }}>
+                          +{INR(cat.profit)} profit
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ height: 7, background: "var(--bg2)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", width: pct + "%",
+                        background: i === 0 ? "var(--saffron)"
+                          : i === 1 ? "#7c5cbf"
+                          : i === 2 ? "#2b9e6e"
+                          : "var(--brass-deep)",
+                        borderRadius: 4, transition: "width 0.5s ease",
+                      }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 12, marginTop: 3, fontSize: 10,
+                      color: "var(--ink-faint)" }}>
+                      <span>{cat.pieces} pcs</span>
+                      <span>Cost {INR(cat.cost)}</span>
+                      <span>{cat.bills} bill{cat.bills !== 1 ? "s" : ""}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Top vs Needs Attention */}
+          {data.categories && data.categories.length > 1 && (
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
+              <div style={{ background: "rgba(43,158,110,0.07)",
+                border: "1.5px solid rgba(43,158,110,0.25)", borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#2b9e6e", marginBottom: 8 }}>
+                  🏆 Top Performer
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>
+                  {data.categories[0].category}
+                </div>
+                <div style={{ fontSize: 11, color: "#2b9e6e", marginTop: 3, fontWeight: 600 }}>
+                  {INR(data.categories[0].revenue)} · {data.categories[0].margin_pct}% margin
+                </div>
+              </div>
+              {data.categories.find(c => c.margin_pct < 15) && (
+                <div style={{ background: "rgba(192,57,43,0.07)",
+                  border: "1.5px solid rgba(192,57,43,0.25)", borderRadius: 12, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#c0392b", marginBottom: 8 }}>
+                    ⚠️ Needs Attention
+                  </div>
+                  {(() => {
+                    const weak = [...data.categories].filter(c => c.margin_pct < 15)
+                      .sort((a, b) => a.margin_pct - b.margin_pct)[0]
+                    return (
+                      <>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>
+                          {weak.category}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#c0392b", marginTop: 3, fontWeight: 600 }}>
+                          {weak.margin_pct}% margin · review pricing
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────
-const TABS = ["Velocity", "Dead Stock", "Profit", "Trends"]
+const TABS = ["Velocity", "Dead Stock", "Profit", "Category", "Trends"]
 
 export default function BangleInsights() {
   const [briefing, setBriefing]     = useState(null)
@@ -793,7 +981,8 @@ export default function BangleInsights() {
       {tab === 0 && <VelocityTab />}
       {tab === 1 && <DeadStockTab />}
       {tab === 2 && <ProfitTab />}
-      {tab === 3 && <TrendsTab />}
+      {tab === 3 && <CategoryTab />}
+      {tab === 4 && <TrendsTab />}
     </div>
   )
 }

@@ -108,10 +108,8 @@ async def expiry_alerts(vendor=Depends(get_current_vendor)):
         .data
     )
 
-    alerts = [
-        _enrich(p) for p in rows
-        if _enrich(p)["risk_level"] in ("high_risk", "likely_expired", "attention")
-    ]
+    enriched = [_enrich(p) for p in rows]
+    alerts = [e for e in enriched if e["risk_level"] in ("high_risk", "likely_expired", "attention")]
     # Sort: likely_expired first, then high_risk, then attention; within each by days_remaining asc
     order = {"likely_expired": 0, "high_risk": 1, "attention": 2}
     alerts.sort(key=lambda p: (order.get(p["risk_level"], 3), p["days_remaining"]))

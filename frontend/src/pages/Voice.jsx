@@ -26,7 +26,16 @@ function normalizeUnit(spokenUnit) {
 }
 
 export default function Voice() {
-  const { vendor } = useAuth()
+  const { vendor, hasModule } = useAuth()
+  // Determine which store mode is active (mirrors Layout.jsx logic)
+  const hasBangle = hasModule("bangle_fancy")
+  const hasKirana = hasModule("kirana")
+  const storeMode = hasBangle && !hasKirana
+    ? "bangle_fancy"
+    : !hasBangle
+    ? "kirana"
+    : (localStorage.getItem("storeMode") || "kirana")
+
   const [bangleProducts, setBangleProducts] = useState([])
   const [billItems, setBillItems] = useState(() => {
     try {
@@ -310,7 +319,7 @@ Thank you! 🙏`
             flex:1, overflowY:"auto", padding:16,
             paddingBottom: isMobile ? 88 : 16,
           }}>
-            <VoiceAgent onAddToBill={handleAddToBill} onLangChange={setLang} extraProducts={bangleProducts} />
+            <VoiceAgent onAddToBill={handleAddToBill} onLangChange={setLang} extraProducts={bangleProducts} storeMode={storeMode} />
 
             {/* Floating pill — mobile only, when items are in the bill */}
             {isMobile && billItems.length > 0 && (

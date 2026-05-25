@@ -20,7 +20,6 @@ export default defineConfig({
       "/customers":         { target: "http://localhost:8000", changeOrigin: true },
       "/chat":              { target: "http://localhost:8000", changeOrigin: true },
       "/insights":          { target: "http://localhost:8000", changeOrigin: true },
-      "/voice":             { target: "http://localhost:8000", changeOrigin: true },
       "/api":               { target: "http://localhost:8000", changeOrigin: true },
       "/admin":             { target: "http://localhost:8000", changeOrigin: true },
       "/aai":               { target: "http://localhost:8000", changeOrigin: true },

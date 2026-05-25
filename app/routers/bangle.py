@@ -14,13 +14,31 @@ router = APIRouter(prefix="/bangle", tags=["bangle"])
 
 # ── Schemas ───────────────────────────────────────────────────
 
+class SupplierCreate(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    city:  Optional[str] = None
+    notes: Optional[str] = None
+
+class SupplierUpdate(BaseModel):
+    name:  Optional[str] = None
+    phone: Optional[str] = None
+    city:  Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
 class ProductCreate(BaseModel):
     name: str
     category: str = "Bangles"
+    brand: Optional[str] = None
     description: Optional[str] = None
+    barcode: Optional[str] = None
     mrp: float = 0
     cost_price: float = 0
     gst_percent: int = 3
+    supplier_id:   Optional[str] = None
+    tray_location: Optional[str] = None
 
     @field_validator("name")
     @classmethod
@@ -33,11 +51,16 @@ class ProductCreate(BaseModel):
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
+    brand: Optional[str] = None
     description: Optional[str] = None
+    barcode: Optional[str] = None
     mrp: Optional[float] = None
     cost_price: Optional[float] = None
     gst_percent: Optional[int] = None
     is_active: Optional[bool] = None
+    supplier_id:    Optional[str] = None
+    tray_location:  Optional[str] = None
+    stock_fullness: Optional[int] = None
 
 
 class VariantCreate(BaseModel):
@@ -71,6 +94,54 @@ class BulkVariantCreate(BaseModel):
 class ScanImageRequest(BaseModel):
     image_base64: str
     mime_type: str = "image/jpeg"
+
+
+# ── Suppliers ─────────────────────────────────────────────────
+
+@router.get("/suppliers")
+async def list_suppliers(vendor=Depends(get_current_vendor)):
+    db = get_db()
+    return (
+        db.table("bangle_suppliers")
+        .select("*")
+        .eq("vendor_id", vendor["id"])
+        .eq("is_active", True)
+        .order("name")
+        .execute()
+    ).data or []
+
+
+@router.post("/suppliers", status_code=201)
+async def create_supplier(body: SupplierCreate, vendor=Depends(get_current_vendor)):
+    db = get_db()
+    return db.table("bangle_suppliers").insert({
+        "vendor_id": vendor["id"],
+        "name":  body.name,
+        "phone": body.phone,
+        "city":  body.city,
+        "notes": body.notes,
+    }).execute().data[0]
+
+
+@router.patch("/suppliers/{supplier_id}")
+async def update_supplier(supplier_id: str, body: SupplierUpdate, vendor=Depends(get_current_vendor)):
+    db = get_db()
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(400, "Nothing to update")
+    result = db.table("bangle_suppliers").update(updates) \
+        .eq("id", supplier_id).eq("vendor_id", vendor["id"]).execute()
+    if not result.data:
+        raise HTTPException(404, "Supplier not found")
+    return result.data[0]
+
+
+@router.delete("/suppliers/{supplier_id}")
+async def delete_supplier(supplier_id: str, vendor=Depends(get_current_vendor)):
+    db = get_db()
+    db.table("bangle_suppliers").update({"is_active": False}) \
+        .eq("id", supplier_id).eq("vendor_id", vendor["id"]).execute()
+    return {"message": "Supplier deleted"}
 
 
 # ── Products ──────────────────────────────────────────────────
@@ -107,7 +178,7 @@ async def list_products(vendor=Depends(get_current_vendor)):
 @router.post("/products", status_code=201)
 async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
-    row = db.table("bangle_products").insert({
+    insert_data = {
         "vendor_id":   vendor["id"],
         "name":        body.name,
         "category":    body.category,
@@ -115,7 +186,16 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
         "mrp":         body.mrp,
         "cost_price":  body.cost_price,
         "gst_percent": body.gst_percent,
-    }).execute().data[0]
+    }
+    # These columns are added by add_bangle_suppliers.sql migration.
+    # Only include them if the caller provided a value, so the endpoint
+    # still works on databases where the migration hasn't been applied yet.
+    if body.supplier_id:
+        insert_data["supplier_id"] = body.supplier_id
+    if body.tray_location:
+        insert_data["tray_location"] = body.tray_location
+
+    row = db.table("bangle_products").insert(insert_data).execute().data[0]
 
     # Auto-fetch image from the web — failure is silent, product still created
     query = f"{body.name} {body.category} Indian jewelry"
@@ -165,12 +245,26 @@ async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
     return {"message": "Product deleted"}
 
 
-# ── Auto image fetch (Bing Image Search → Supabase Storage) ──────
+# ── Auto image fetch (Bing → Wikimedia Commons fallback) ──────
 
-async def _auto_fetch_image(product_id: str, vendor_id: str, query: str) -> str | None:
-    """Search Bing Images, download first usable result, store in Supabase, return public URL."""
-    if not settings.bing_search_key:
-        return None
+async def _download_first_usable(client: httpx.AsyncClient, urls: list[str]) -> tuple[bytes | None, str]:
+    """Try each URL; return (content, mime) for first image ≤ 8 MB."""
+    for url in urls:
+        try:
+            r = await client.get(url, follow_redirects=True, timeout=10)
+            r.raise_for_status()
+            ct = r.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+            if not ct.startswith("image/"):
+                continue
+            if len(r.content) > 8 * 1024 * 1024:
+                continue
+            return r.content, ct
+        except Exception:
+            continue
+    return None, "image/jpeg"
+
+
+async def _search_bing(query: str) -> tuple[bytes | None, str]:
     try:
         async with httpx.AsyncClient(timeout=12) as client:
             r = await client.get(
@@ -179,47 +273,85 @@ async def _auto_fetch_image(product_id: str, vendor_id: str, query: str) -> str 
                 headers={"Ocp-Apim-Subscription-Key": settings.bing_search_key},
             )
             r.raise_for_status()
-            hits = r.json().get("value", [])
-            if not hits:
-                return None
+            urls = [h["contentUrl"] for h in r.json().get("value", [])]
+            return await _download_first_usable(client, urls)
+    except Exception:
+        return None, "image/jpeg"
 
-            content, ctype = None, "image/jpeg"
-            for hit in hits:
-                try:
-                    img_r = await client.get(hit["contentUrl"], follow_redirects=True)
-                    img_r.raise_for_status()
-                    ct = img_r.headers.get("content-type", "image/jpeg").split(";")[0].strip()
-                    if not ct.startswith("image/"):
-                        continue
-                    if len(img_r.content) > 8 * 1024 * 1024:
-                        continue
-                    content, ctype = img_r.content, ct
-                    break
-                except Exception:
-                    continue
 
-            if not content:
-                return None
+async def _search_wikimedia(query: str) -> tuple[bytes | None, str]:
+    """Free fallback: search Wikimedia Commons (no API key required)."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Find matching file pages in Wikimedia Commons
+            sr = await client.get(
+                "https://commons.wikimedia.org/w/api.php",
+                params={
+                    "action": "query", "list": "search",
+                    "srsearch": query, "srnamespace": "6",
+                    "format": "json", "srlimit": "10",
+                },
+            )
+            sr.raise_for_status()
+            titles = [r["title"] for r in sr.json().get("query", {}).get("search", [])]
+            if not titles:
+                return None, "image/jpeg"
 
-            db = get_db()
-            path = f"{vendor_id}/{product_id}"
-            try:
-                db.storage.from_("bangle-images").remove([path])
-            except Exception:
-                pass
-            db.storage.from_("bangle-images").upload(path, content, {"content-type": ctype})
-            public_url = db.storage.from_("bangle-images").get_public_url(path)
-            db.table("bangle_products").update({"image_url": public_url}) \
-                .eq("id", product_id).eq("vendor_id", vendor_id).execute()
-            return public_url
+            # Batch-fetch image info for those titles
+            ir = await client.get(
+                "https://commons.wikimedia.org/w/api.php",
+                params={
+                    "action": "query", "titles": "|".join(titles[:5]),
+                    "prop": "imageinfo", "iiprop": "url|mime|size",
+                    "format": "json",
+                },
+            )
+            ir.raise_for_status()
+            pages = ir.json().get("query", {}).get("pages", {}).values()
+            urls = []
+            for page in pages:
+                for info in page.get("imageinfo", []):
+                    mime = info.get("mime", "")
+                    size = info.get("size", 0)
+                    if mime.startswith("image/") and size < 8 * 1024 * 1024:
+                        urls.append(info["url"])
 
+            return await _download_first_usable(client, urls)
+    except Exception:
+        return None, "image/jpeg"
+
+
+async def _auto_fetch_image(product_id: str, vendor_id: str, query: str) -> str | None:
+    """Fetch product image (Bing if key set, else Wikimedia Commons), upload to Supabase storage."""
+    if settings.bing_search_key:
+        content, ctype = await _search_bing(query)
+    else:
+        # Free fallback — use just the first two words (product name) for better Wikimedia hits
+        simple_query = " ".join(query.split()[:2])  # e.g. "Plain bangles"
+        content, ctype = await _search_wikimedia(simple_query)
+
+    if not content:
+        return None
+
+    try:
+        db = get_db()
+        path = f"{vendor_id}/{product_id}"
+        try:
+            db.storage.from_("bangle-images").remove([path])
+        except Exception:
+            pass
+        db.storage.from_("bangle-images").upload(path, content, {"content-type": ctype})
+        public_url = db.storage.from_("bangle-images").get_public_url(path)
+        db.table("bangle_products").update({"image_url": public_url}) \
+            .eq("id", product_id).eq("vendor_id", vendor_id).execute()
+        return public_url
     except Exception:
         return None
 
 
 @router.post("/products/{product_id}/auto-image")
 async def auto_image_product(product_id: str, vendor=Depends(get_current_vendor)):
-    """Re-fetch product image from Bing (e.g. when staff wants a different image)."""
+    """Re-fetch product image (Bing if key configured, else Wikimedia Commons)."""
     db = get_db()
     existing = (
         db.table("bangle_products")
@@ -236,7 +368,7 @@ async def auto_image_product(product_id: str, vendor=Depends(get_current_vendor)
     if not url:
         raise HTTPException(
             status_code=503,
-            detail="Could not fetch image — add BING_SEARCH_KEY to .env or try again",
+            detail="Could not find a suitable image — try again or upload manually",
         )
     return {"image_url": url}
 
@@ -524,39 +656,62 @@ async def stock_summary(vendor=Depends(get_current_vendor)):
     db = get_db()
     variants = (
         db.table("bangle_variants")
-        .select("colour,size,stock,min_stock,product_id")
+        .select("colour,size,stock,min_stock,product_id,cost_price")
         .eq("vendor_id", vendor["id"])
         .eq("is_active", True)
         .execute()
     ).data or []
 
+    # Fetch product-level cost_price fallbacks
+    product_ids = list({v["product_id"] for v in variants if v.get("product_id")})
+    prod_cost = {}
+    if product_ids:
+        prods = (
+            db.table("bangle_products")
+            .select("id,cost_price")
+            .in_("id", product_ids)
+            .execute()
+        ).data or []
+        prod_cost = {p["id"]: p.get("cost_price") or 0 for p in prods}
+
     low_stock  = [v for v in variants if v["stock"] < v["min_stock"]]
     out_stock  = [v for v in variants if v["stock"] == 0]
     total_pcs  = sum(v["stock"] for v in variants)
 
+    # Investment = stock × cost_price_per_dozen / 12  (per piece cost)
+    total_investment = sum(
+        v["stock"] * (v.get("cost_price") or prod_cost.get(v["product_id"], 0) or 0) / 12
+        for v in variants
+    )
+
     return {
-        "total_variants": len(variants),
-        "total_pieces":   total_pcs,
-        "low_stock":      len(low_stock),
-        "out_of_stock":   len(out_stock),
+        "total_variants":    len(variants),
+        "total_pieces":      total_pcs,
+        "low_stock":         len(low_stock),
+        "out_of_stock":      len(out_stock),
+        "total_investment":  round(total_investment, 2),
     }
 
 
 # ── Sales schemas ─────────────────────────────────────────────
 
 class SaleItem(BaseModel):
-    variant_id:   str
-    product_id:   str
-    product_name: str
-    colour:       Optional[str] = None
-    size:         Optional[str] = None
-    design:       Optional[str] = None
-    unit:         str            # piece / dozen / set
-    unit_qty:     int
-    unit_price:   float
-    pieces:       int
-    amount:       float
-    gst_percent:  int = 3
+    # Catalog items fill all fields; Quick Items leave variant_id/product_id null
+    variant_id:          Optional[str] = None
+    product_id:          Optional[str] = None
+    product_name:        str
+    custom_description:  Optional[str] = None   # for Quick Items
+    category:            Optional[str] = None   # tag for analytics
+    colour:              Optional[str] = None
+    size:                Optional[str] = None
+    design:              Optional[str] = None
+    unit:                str = "piece"
+    unit_qty:            int = 1
+    unit_price:          float
+    pieces:              int = 1
+    amount:              float
+    gst_percent:         int = 3
+    is_quick_item:       bool = False
 
 
 class SaleCreate(BaseModel):
@@ -592,8 +747,10 @@ async def create_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
         "notes":          body.notes,
     }).execute().data[0]
 
-    # Deduct stock from each variant
+    # Deduct stock — skip Quick Items (no variant to deduct from)
     for item in body.items:
+        if item.is_quick_item or not item.variant_id:
+            continue
         row = db.table("bangle_variants").select("stock") \
             .eq("id", item.variant_id).eq("vendor_id", vendor["id"]).execute()
         if row.data:
@@ -783,6 +940,60 @@ async def bangle_profit(vendor=Depends(get_current_vendor)):
     today_sales = [s for s in sales if s.get("sale_date", "")[:10] == today_str]
 
     return {"today": calc(today_sales), "month": calc(sales)}
+
+
+@router.get("/insights/category-breakdown")
+async def category_breakdown(
+    period: str = Query("month", pattern="^(today|week|month)$"),
+    vendor=Depends(get_current_vendor),
+):
+    """Revenue, cost, margin breakdown by category for the chosen period."""
+    from datetime import timedelta
+    db    = get_db()
+    today = date_type.today()
+    if period == "today":
+        since = today.isoformat()
+    elif period == "week":
+        since = (today - timedelta(days=7)).isoformat()
+    else:
+        since = today.replace(day=1).isoformat()
+
+    sales = (
+        db.table("bangle_sales")
+        .select("items, total")
+        .eq("vendor_id", vendor["id"])
+        .gte("sale_date", since)
+        .execute()
+    ).data or []
+
+    buckets: dict = {}
+    for sale in sales:
+        for item in (sale.get("items") or []):
+            cat = item.get("category") or item.get("design") or "Other"
+            if not cat:
+                cat = "Other"
+            if cat not in buckets:
+                buckets[cat] = {"category": cat, "revenue": 0.0, "cost": 0.0, "qty": 0}
+            buckets[cat]["revenue"] += float(item.get("amount", 0))
+            # cost_price is per-dozen; pieces / 12 × cost
+            cp = float(item.get("cost_price") or 0)
+            pieces = int(item.get("pieces") or item.get("unit_qty") or 1)
+            buckets[cat]["cost"] += (pieces / 12) * cp
+            buckets[cat]["qty"]  += pieces
+
+    result = []
+    for b in buckets.values():
+        profit = b["revenue"] - b["cost"]
+        margin = (profit / b["revenue"] * 100) if b["revenue"] > 0 else 0
+        result.append({**b,
+            "profit":     round(profit, 2),
+            "margin_pct": round(margin, 1),
+            "revenue":    round(b["revenue"], 2),
+            "cost":       round(b["cost"], 2),
+        })
+
+    result.sort(key=lambda x: x["revenue"], reverse=True)
+    return result
 
 
 @router.get("/insights/briefing")

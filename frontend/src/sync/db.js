@@ -39,8 +39,7 @@ export async function call(method, path, body = null, retry = true) {
   if (res.status === 401 && retry) {
     const ok = await tryRefresh()
     if (ok) return call(method, path, body, false)
-    clearAuth(); window.dispatchEvent(new Event("dk:logout"))
-    throw new Error("Session expired")
+    clearAuth(); window.location.href = "/"
   }
   if (!res.ok) {
     const e = await res.json().catch(() => ({ detail: "Unknown error" }))

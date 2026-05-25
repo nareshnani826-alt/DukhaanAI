@@ -137,10 +137,11 @@ export default function BangleDashboard() {
   const navigate = useNavigate()
   const { t } = useLang()
 
-  const [briefing, setBriefing] = useState(null)
-  const [profit,   setProfit]   = useState(null)
-  const [sales,    setSales]    = useState([])
-  const [loading,  setLoading]  = useState(true)
+  const [briefing,     setBriefing]     = useState(null)
+  const [profit,       setProfit]       = useState(null)
+  const [sales,        setSales]        = useState([])
+  const [stockSummary, setStockSummary] = useState(null)
+  const [loading,      setLoading]      = useState(true)
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -148,10 +149,12 @@ export default function BangleDashboard() {
       apiFetch("/bangle/insights/briefing"),
       apiFetch("/bangle/insights/profit"),
       apiFetch(`/bangle/sales?sale_date=${today}`),
-    ]).then(([b, p, s]) => {
+      apiFetch("/bangle/stock-summary"),
+    ]).then(([b, p, s, ss]) => {
       setBriefing(b)
       setProfit(p)
       setSales(s)
+      setStockSummary(ss)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [vendor?.id])
 
@@ -283,6 +286,16 @@ export default function BangleDashboard() {
               value: loading ? "—" : INR(avgBill),
               sub:   t("Today"),
               color: "var(--brass)", bar: "var(--brass-deep)",
+            },
+            {
+              label: t("Stock Value"),
+              value: loading ? "—" : stockSummary?.total_investment > 0
+                ? `₹${(stockSummary.total_investment / 1000).toFixed(1)}k`
+                : "—",
+              sub: stockSummary
+                ? `${stockSummary.total_pieces} pcs`
+                : t("invested"),
+              color: "#7c5cbf", bar: "#7c5cbf",
             },
             {
               label: t("Low Stock"),

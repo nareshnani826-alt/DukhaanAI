@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
     try {
       const d = await api.post("/auth/verify-otp", { phone, otp })
       setTokens(d.access_token, d.refresh_token, remember)
-      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan }
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
       setVendor(v); setVendorState(v)
       return d
     } catch(e) { setError(e.message); throw e }
@@ -71,7 +71,8 @@ export function AuthProvider({ children }) {
   async function logout() {
     const r = getRefresh()
     if (r) await api.post("/auth/logout", { refresh_token: r }).catch(() => {})
-    clearAuth(); setVendorState(null)
+    clearAuth()
+    window.location.href = "/"
   }
 
   return (

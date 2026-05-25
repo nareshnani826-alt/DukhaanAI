@@ -407,8 +407,7 @@ export default function Inventory() {
     setLoading(true)
     try {
       const list = await Products.list({ search, category: cat||undefined })
-      setProducts(list)                // render immediately — display uses resolveUnit(name)
-      silentFixUnits(list)             // fire-and-forget: only updates DB for consistency
+      setProducts(list)
     } finally { setLoading(false) }
   }
 
@@ -457,8 +456,6 @@ export default function Inventory() {
 
   async function handleSave(id, data) {
     try {
-      // Auto-set unit from product name on every save
-      data.unit = resolveUnit(data.name)
       if (id) {
         await Products.update(id, {
           name:        data.name,
@@ -640,8 +637,7 @@ export default function Inventory() {
             ) : displayProducts.map(p => {
               const [sc, sl] = status(p)
               const ready    = hasBarcode(p)
-              const displayUnit = resolveUnit(p.name)
-              const unitInfo    = UNIT_TYPES[displayUnit] || UNIT_TYPES.piece
+              const unitInfo = UNIT_TYPES[(p.unit && p.unit !== "piece") ? p.unit : resolveUnit(p.name)] || UNIT_TYPES.piece
               return (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="td pl-4">

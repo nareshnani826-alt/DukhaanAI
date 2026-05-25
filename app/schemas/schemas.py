@@ -160,6 +160,7 @@ class ProductOut(BaseModel):
     name: str
     sku: Optional[str]
     category: Optional[str]
+    unit: Optional[str] = "piece"
     stock: float
     min_stock: float
     mrp: float

@@ -29,7 +29,7 @@ const pulseStyle = `
   .wave-bar:nth-child(4){animation-delay:.3s} .wave-bar:nth-child(5){animation-delay:.15s}
 `
 
-export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = [], storeMode = "kirana" }) {
+export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = [] }) {
   const [lang,       setLang]       = useState(() => getSavedLang())
   const [listening,  setListening]  = useState(false)
   const [transcript, setTranscript] = useState("")
@@ -48,56 +48,31 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
   const matcherRef = useRef(null)
 
   useEffect(() => {
-    const bangleFlat = extraProducts.map(p => ({
-      id:          p.id,
-      name:        p.name,
-      mrp:         p.mrp,
-      unit:        "piece",
-      stock:       9999,
-      gst_percent: p.gst_percent || 3,
-      _isBangle:   true,
-    }))
-
-    if (storeMode === "bangle_fancy") {
-      // Bangle store: only match against bangle products — exclude kirana items entirely
-      setProducts(bangleFlat)
-      matcherRef.current = createAdaptiveMatcher(bangleFlat)
-      voiceEngine.setGrammarHints(bangleFlat.map(pr => pr.name))
-    } else {
-      // Kirana store: load kirana products and optionally merge any bangle extras
-      Products.list().then((res) => {
-        const kiranaList = Array.isArray(res) ? res : (res?.data || [])
-        const merged = [...kiranaList, ...bangleFlat]
-        setProducts(merged)
-        matcherRef.current = createAdaptiveMatcher(merged)
-        voiceEngine.setGrammarHints(merged.map(pr => pr.name))
-      }).catch(e => console.error("Products load failed:", e))
-    }
-
+    Products.list().then((res) => {
+      const kiranaList = Array.isArray(res) ? res : (res?.data || [])
+      // Merge bangle products (flatten variants → product-level shape)
+      const bangleFlat = extraProducts.map(p => ({
+        id:          p.id,
+        name:        p.name,
+        mrp:         p.mrp,
+        unit:        "piece",
+        stock:       9999,
+        gst_percent: p.gst_percent || 3,
+        _isBangle:   true,
+      }))
+      const merged = [...kiranaList, ...bangleFlat]
+      setProducts(merged)
+      matcherRef.current = createAdaptiveMatcher(merged)
+      voiceEngine.setGrammarHints(merged.map(pr => pr.name))
+    }).catch(e => console.error("Products load failed:", e))
     initContextPredictor()
     startSession()
     setPlatform(detectPlatform())
 
     // Load learned patterns from server so they work on any device
     if (getToken()) loadFromServer().catch(() => {})
-  }, [extraProducts, storeMode])
+  }, [extraProducts])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }) }, [history])
-
-  // Reload the product list after mutations — respects current store mode
-  function refreshProducts() {
-    if (storeMode === "bangle_fancy") return // bangle products are static (stock managed separately)
-    Products.list().then((res) => {
-      const kiranaList = Array.isArray(res) ? res : (res?.data || [])
-      const bangleFlat = extraProducts.map(ep => ({
-        id: ep.id, name: ep.name, mrp: ep.mrp, unit: "piece",
-        stock: 9999, gst_percent: ep.gst_percent || 3, _isBangle: true,
-      }))
-      const merged = [...kiranaList, ...bangleFlat]
-      setProducts(merged)
-      matcherRef.current = createAdaptiveMatcher(merged)
-      voiceEngine.setGrammarHints(merged.map(pr => pr.name))
-    }).catch(() => {})
-  }
 
   useEffect(() => {
     setSupported(voiceEngine.supported)
@@ -333,10 +308,8 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
       try {
         if (action === "ADD_BILL") {
           if (invMatch) {
-            if (!invMatch._isBangle) {
-              const newStock = Math.max(0, invMatch.stock - qty)
-              await Products.update(invMatch.id, { stock: newStock })
-            }
+            const newStock = Math.max(0, invMatch.stock - qty)
+            await Products.update(invMatch.id, { stock: newStock })
             onAddToBill?.({ product: invMatch, qty, unit })
           } else {
             onAddToBill?.({ product: null, productName: stdName, qty, unit, price: 0 })
@@ -350,7 +323,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
     const msg = `${added} item${added > 1 ? "s" : ""} added to bill!`
     speak(msg, lang)
     setStatus("done"); setStatusMsg(msg)
-    refreshProducts()
+    Products.list().then(setProducts)
   }
 
   // ── Confirm action ────────────────────────────────────────
@@ -363,7 +336,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
     try {
       if (action === "ADD_BILL") {
         if (invMatch) {
-          // Bangle products have _isBangle flag — don't touch kirana stock
+          // Deduct stock + add to bill (skip stock update for bangle products)
           if (!invMatch._isBangle) {
             const newStock = Math.max(0, invMatch.stock - qty)
             await Products.update(invMatch.id, { stock: newStock })
@@ -381,7 +354,12 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
           speak(msg, lang)
           addHistory({ type:"bill", original, result: msg })
           setStatus("done"); setStatusMsg(msg)
-          if (!invMatch._isBangle) refreshProducts()
+          Products.list().then(p => {
+            const list = Array.isArray(p) ? p : (p?.data || [])
+            setProducts(list)
+            matcherRef.current = createAdaptiveMatcher(list)
+            voiceEngine.setGrammarHints(list.map(pr => pr.name))
+          })
         } else {
           onAddToBill?.({ product: null, productName: stdName, qty, unit, price: 0 })
           const msg = `"${stdName}" added to bill — set price manually`
@@ -399,7 +377,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
           speak(msg, lang)
           addHistory({ type:"stock", original, result: msg })
           setStatus("done"); setStatusMsg(msg)
-          refreshProducts()
+          Products.list().then(setProducts)
 
         } else if (validation.found) {
           // ── CREATE NEW PRODUCT FROM DATABASE ──────────
@@ -418,7 +396,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
           speak(msg, lang)
           addHistory({ type:"stock", original, result: msg })
           setStatus("done"); setStatusMsg(msg)
-          refreshProducts()
+          Products.list().then(setProducts)
 
         } else {
           // Unknown product — don't add
@@ -692,17 +670,12 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
       <div className="card mb-3">
         <div className="text-[10px] font-medium text-gray-500 mb-2">Try saying:</div>
         <div className="grid grid-cols-2 gap-1.5">
-          {(storeMode === "bangle_fancy" ? [
-            { lang:"Telugu",  ex:'"Rendu red kundan bangle size 2.4"' },
-            { lang:"Hindi",   ex:'"Teen gold jhumka aur ek pink bangle"' },
-            { lang:"Stock",   ex:'"Red bangle kitna bacha?"' },
-            { lang:"Bill",    ex:'"Ek green earring bill mein daalo"' },
-          ] : [
-            { lang:"Telugu",  ex:'"Amul Milk 2 litres, Tata Salt 1 kilo"' },
-            { lang:"Hindi",   ex:'"Do doodh aur ek namak aur paanch biscuit"' },
-            { lang:"Stock",   ex:'"Maggi kitna bacha?"' },
-            { lang:"Bill",    ex:'"Parle-G 5 packet bill mein daalo"' },
-          ]).map(e => (
+          {[
+            { lang:"Telugu", ex:'"Amul Milk 2 litres, Tata Salt 1 kilo"' },
+            { lang:"Hindi",  ex:'"Do doodh aur ek namak aur paanch biscuit"' },
+            { lang:"Stock",  ex:'"Maggi kitna bacha?"' },
+            { lang:"Bill",   ex:'"Parle-G 5 packet bill mein daalo"' },
+          ].map(e => (
             <div key={e.lang} className="bg-gray-50 rounded-lg p-2">
               <div className="text-[10px] text-primary font-medium mb-0.5">{e.lang}</div>
               <div className="text-[10px] text-gray-500 italic">{e.ex}</div>

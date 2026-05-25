@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react"
 import JsBarcode from "jsbarcode"
 import { useNavigate } from "react-router-dom"
 import { getToken } from "../sync/db"
-import { BangleProducts } from "../sync/bangleDb"
+import { BangleProducts, BangleSuppliers } from "../sync/bangleDb"
 import { VOICE_LANGS } from "../voice/useProductVoice.js"
 import { getSavedLang } from "../voice/i18n.js"
 import { parseProductDescription } from "../voice/parseProductDescription.js"
@@ -13,8 +13,14 @@ import { learnProduct, suggestMRP } from "../voice/productLearner.js"
 const API    = import.meta.env.VITE_API_URL ?? ""
 const INR    = n => "₹" + Number(n || 0).toLocaleString("en-IN")
 const CATS = [
+  // Jewellery
   "Bangles","Earrings","Necklace","Maang Tikka",
-  "Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring","Other",
+  "Anklet","Hair Clip","Bindi","Rings","Bracelet","Nose Ring",
+  // Beauty & Makeup
+  "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care",
+  // Personal Care
+  "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color",
+  "Other",
 ]
 
 const CATEGORY_SIZES = {
@@ -28,6 +34,21 @@ const CATEGORY_SIZES = {
   "Rings":       ["5","6","7","8","9","10","11","12","Adjustable"],
   "Bracelet":    ["XS","Small","Medium","Large","Free Size"],
   "Nose Ring":   ["Nath","Phool / Stud","Nose Ring","L-Shape Pin","Septum","Hoop","Screw"],
+  // Beauty
+  "Nail Polish": ["Regular","Matte","Glitter","Shimmer","Metallic","Gel","French Tip","Holographic"],
+  "Kajal":       ["Pencil","Liquid","Gel Pot","Soft Kohl","Smudge Proof","Waterproof"],
+  "Lipstick":    ["Matte","Glossy","Satin","Liquid Matte","Crayon","Tinted Balm","Gloss"],
+  "Mehendi":     ["Regular Cone","Designer Cone","Herbal","Bridal","Rajasthani","Gel"],
+  "Perfume":     ["30ml","50ml","100ml","150ml","200ml","Roll-on","Pocket"],
+  "Compact":     ["Pressed Powder","Loose Powder","Foundation","BB Cream","Blush","Bronzer","Highlighter"],
+  "Skin Care":   ["Face Wash","Moisturizer","Sunscreen","Serum","Toner","Face Pack","Scrub","Eye Cream"],
+  // Personal Care
+  "Shampoo":     ["50ml","100ml","200ml","400ml","1L","Sachet","Conditioner","Hair Mask"],
+  "Hair Oil":    ["50ml","100ml","200ml","500ml","1L","Pouch","Roll-on","Serum"],
+  "Body Lotion": ["50ml","100ml","200ml","400ml","Body Butter","Body Cream","Travel Size"],
+  "Soap":        ["Bar 75g","Bar 100g","Bar 125g","Bar 150g","Body Wash 200ml","Body Wash 400ml","Hand Wash","Shower Gel"],
+  "Talcum Powder":["50g","100g","150g","200g","300g","Prickly Heat","Baby Powder"],
+  "Hair Color":  ["Natural Black","Dark Brown","Light Brown","Burgundy","Dark Red","Blonde","Wine Red","Grey Coverage"],
   "Other":       ["Small","Medium","Large","Free Size","Adjustable"],
 }
 const SIZES = CATEGORY_SIZES["Bangles"]
@@ -43,14 +64,90 @@ const SIZE_LABEL = {
   "Rings":       "RING SIZE",
   "Bracelet":    "BRACELET SIZE",
   "Nose Ring":   "NOSE RING TYPE",
-  "Other":       "SIZE / TYPE",
+  "Nail Polish": "FINISH TYPE",
+  "Kajal":       "KAJAL TYPE",
+  "Lipstick":    "LIP FINISH",
+  "Mehendi":     "MEHENDI TYPE",
+  "Perfume":     "SIZE / FORM",
+  "Compact":       "PRODUCT TYPE",
+  "Skin Care":     "PRODUCT TYPE",
+  "Shampoo":       "SIZE / TYPE",
+  "Hair Oil":      "SIZE",
+  "Body Lotion":   "SIZE / TYPE",
+  "Soap":          "TYPE / SIZE",
+  "Talcum Powder": "SIZE / TYPE",
+  "Hair Color":    "SHADE",
+  "Other":         "SIZE / TYPE",
 }
 
 const COLOURS = [
-  "Red","Pink","Maroon","Green","Blue","Navy",
-  "Gold","Rose Gold","Silver","White","Black",
-  "Orange","Yellow","Purple","Peach","Multi",
+  // Reds & Pinks
+  "Red","Dark Red","Crimson","Hot Pink","Pink","Baby Pink","Rose Pink","Magenta",
+  // Maroons & Browns
+  "Maroon","Burgundy","Wine","Brown","Chocolate","Beige","Cream",
+  // Greens
+  "Green","Sea Green","Dark Green","Mehandi","Parrot Green","Light Green","Mint","Teal","Turquoise",
+  // Blues
+  "Blue","Navy","Sky Blue","Royal Blue","Cobalt Blue","Ice Blue",
+  // Purples & Lavenders
+  "Purple","Lavender","Violet","Lilac","Indigo",
+  // Yellows & Oranges
+  "Yellow","Mustard","Saffron","Orange","Peach","Coral",
+  // Metallics & Neutrals
+  "Gold","Rose Gold","Silver","White","Off-White","Ivory","Black","Charcoal","Gunmetal",
+  // Multicolour
+  "Multi","Dual Tone","Ombre","Rainbow",
 ]
+
+// Maps each colour to its family so we can filter related shades
+const COLOUR_FAMILY = {
+  "Red":1,"Dark Red":1,"Crimson":1,"Hot Pink":1,"Pink":1,"Baby Pink":1,"Rose Pink":1,"Magenta":1,
+  "Maroon":2,"Burgundy":2,"Wine":2,"Brown":2,"Chocolate":2,"Beige":2,"Cream":2,
+  "Green":3,"Sea Green":3,"Dark Green":3,"Mehandi":3,"Parrot Green":3,"Light Green":3,"Mint":3,"Teal":3,"Turquoise":3,
+  "Blue":4,"Navy":4,"Sky Blue":4,"Royal Blue":4,"Cobalt Blue":4,"Ice Blue":4,
+  "Purple":5,"Lavender":5,"Violet":5,"Lilac":5,"Indigo":5,
+  "Yellow":6,"Mustard":6,"Saffron":6,"Orange":6,"Peach":6,"Coral":6,
+  "Gold":7,"Rose Gold":7,"Silver":7,"White":7,"Off-White":7,"Ivory":7,"Black":7,"Charcoal":7,"Gunmetal":7,
+  "Multi":8,"Dual Tone":8,"Ombre":8,"Rainbow":8,
+}
+
+// Popular colours per category — shown when no colour detected from voice
+const CATEGORY_COLOURS = {
+  "Bangles":     COLOURS, // bangles come in every shade
+  "Earrings":    ["Red","Pink","Gold","Silver","White","Black","Blue","Green","Purple","Multi","Rose Gold","Maroon","Navy","Coral","Turquoise","Magenta","Ivory","Dual Tone"],
+  "Necklace":    ["Gold","Silver","Red","White","Black","Maroon","Green","Blue","Multi","Rose Gold","Coral","Purple","Ivory","Cream","Mehandi"],
+  "Maang Tikka": ["Gold","Silver","Red","Maroon","White","Pink","Green","Blue","Multi","Rose Gold","Coral","Ivory"],
+  "Anklet":      ["Gold","Silver","White","Red","Blue","Green","Multi","Rose Gold","Black","Ivory","Pink","Maroon"],
+  "Hair Clip":   ["Black","White","Brown","Gold","Silver","Pink","Red","Blue","Green","Multi","Maroon","Navy"],
+  "Bindi":       ["Red","Maroon","Gold","Silver","Black","White","Multi","Pink","Green","Blue","Coral"],
+  "Rings":       ["Gold","Silver","Rose Gold","White","Black","Red","Blue","Green","Multi","Purple","Maroon","Coral"],
+  "Bracelet":    ["Gold","Silver","Rose Gold","Red","Blue","Green","Multi","Black","White","Pink","Purple","Turquoise","Coral"],
+  "Nose Ring":   ["Gold","Silver","Rose Gold","White","Red","Maroon","Multi"],
+  "Nail Polish": ["Red","Pink","Maroon","Coral","Nude","Peach","Hot Pink","Magenta","Purple","Lavender","Gold","Silver","White","Black","Rose Pink","Burgundy","Wine","Ombre","Multi"],
+  "Kajal":       ["Black","Brown","Navy","Maroon","Dark Green","Gold"],
+  "Lipstick":    ["Red","Pink","Maroon","Coral","Nude","Peach","Hot Pink","Magenta","Purple","Rose Pink","Brown","Burgundy","Wine","Ivory"],
+  "Mehendi":     ["Brown","Chocolate","Dark Red","Maroon","Black"],
+  "Perfume":     ["Gold","Rose Gold","Silver","White","Black","Multi"],
+  "Compact":     ["Ivory","Beige","Cream","Gold","Rose Gold","Brown"],
+  "Skin Care":     ["White","Ivory","Cream","Beige"],
+  "Shampoo":       ["White","Gold","Blue","Green","Pink","Purple","Black"],
+  "Hair Oil":      ["Gold","Yellow","Brown","White","Ivory","Clear"],
+  "Body Lotion":   ["White","Ivory","Cream","Pink","Gold","Rose Gold"],
+  "Soap":          ["White","Pink","Red","Yellow","Green","Blue","Ivory","Multi"],
+  "Talcum Powder": ["White","Pink","Blue","Ivory"],
+  "Hair Color":    ["Black","Brown","Chocolate","Burgundy","Dark Red","Wine","Blonde","Auburn"],
+  "Other":         COLOURS,
+}
+
+function suggestedColours(selected, category) {
+  // If a colour was detected → show only that colour family
+  if (selected.length) {
+    const families = new Set(selected.map(c => COLOUR_FAMILY[c]).filter(Boolean))
+    return COLOURS.filter(c => families.has(COLOUR_FAMILY[c]))
+  }
+  // No colour detected → show category-popular colours
+  return CATEGORY_COLOURS[category] || COLOURS
+}
 
 const CATEGORY_DESIGNS = {
   "Bangles":     ["Plain","Kundan","Meenakari","Stone Work","Mirror Work","Lac","Metal","Glass","Pearl","Crystal","Thread","Oxidized","Zari","Antique"],
@@ -63,7 +160,44 @@ const CATEGORY_DESIGNS = {
   "Rings":       ["Plain","Kundan","Stone Work","Pearl","Crystal","Oxidized","Antique","Band","Adjustable"],
   "Bracelet":    ["Plain","Kundan","Stone Work","Pearl","Crystal","Charm","Beaded","Tennis","Oxidized","Antique","Evil Eye"],
   "Nose Ring":   ["Plain","Stone Work","Kundan","Pearl","Oxidized","Antique","Traditional","Bridal"],
-  "Other":       ["Plain","Kundan","Stone Work","Metal","Crystal","Oxidized","Antique","Beaded"],
+  "Nail Polish": ["Regular","Matte","Glitter","Metallic","Holographic","Crackle","French Tip"],
+  "Kajal":       ["Regular","Waterproof","Smudge Proof","Kajal Pot","Soft Formula"],
+  "Lipstick":    ["Matte","Glossy","Satin","Liquid","Tinted","Long Lasting","Moisturizing"],
+  "Mehendi":     ["Regular","Designer","Herbal","Arabic Style","Rajasthani","Bridal"],
+  "Perfume":     ["Floral","Fruity","Woody","Musky","Spicy","Fresh","Oriental","Aquatic"],
+  "Compact":     ["Matte Finish","Dewy Finish","SPF","Natural","Full Coverage","Light Coverage"],
+  "Skin Care":     ["Moisturizing","Brightening","Anti-Acne","SPF","Natural","Herbal","Organic","Nourishing"],
+  "Shampoo":       ["Anti-Dandruff","Moisturizing","Volumizing","Strengthening","Keratin","Herbal","Organic","Color Protect","Onion","Argan Oil"],
+  "Hair Oil":      ["Coconut","Almond","Amla","Jasmine","Argan","Bhringraj","Onion","Castor","Herbal","Ayurvedic"],
+  "Body Lotion":   ["Moisturizing","Whitening","Brightening","SPF","Vitamin C","Aloe Vera","Cocoa Butter","Herbal","Nourishing"],
+  "Soap":          ["Regular","Moisturizing","Herbal","Antibacterial","Glycerin","Charcoal","Kojic","Exfoliating","Ayurvedic"],
+  "Talcum Powder": ["Regular","Prickly Heat","Cooling","Baby Soft","Deodorant","Herbal","Sandalwood","Rose"],
+  "Hair Color":    ["Permanent","Semi-Permanent","Natural/Herbal","Ammonia Free","Henna Based","Quick"],
+  "Other":         ["Plain","Kundan","Stone Work","Metal","Crystal","Oxidized","Antique","Beaded"],
+}
+
+const BEAUTY_CATS = new Set([
+  "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care",
+  "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color",
+])
+
+const CATEGORY_BRANDS = {
+  // Beauty & Makeup
+  "Nail Polish":   ["Lakme","Maybelline","OPI","Revlon","Elle 18","Nykaa","Colorbar","Faces Canada","Sugar","Wet n Wild"],
+  "Kajal":         ["Lakme","Maybelline","Himalaya","Mamaearth","Biotique","Colorbar","Faces Canada","MARS"],
+  "Lipstick":      ["Lakme","Maybelline","MAC","NYX","Colorbar","Revlon","Elle 18","Nykaa","Sugar","Faces Canada"],
+  "Mehendi":       ["Nupur","Zenia","Bio Dark","Reshma","Vcc Art","Natural Henna","HennaHub"],
+  "Perfume":       ["Fogg","Engage","Wild Stone","Axe","Park Avenue","Denver","Davidoff","Titan Skinn","Yardley","Nike","Adidas"],
+  "Compact":       ["Lakme","Maybelline","MAC","Colorbar","Revlon","Faces Canada","MARS","Nykaa"],
+  "Skin Care":     ["Lakme","Pond's","Nivea","Himalaya","Mamaearth","Biotique","Cetaphil","Neutrogena","Vaseline","Dove","Simple"],
+  // Personal Care
+  "Shampoo":       ["Dove","Pantene","Head & Shoulders","TRESemmé","Sunsilk","L'Oreal","Clinic Plus","Himalaya","Mamaearth","WOW","Biotique"],
+  "Hair Oil":      ["Parachute","Dabur Vatika","Bajaj Almond","Nihar","Dabur Amla","Indulekha","WOW","Himalaya","Biotique"],
+  "Body Lotion":   ["Vaseline","Nivea","Dove","Himalaya","Mamaearth","Biotique","Neutrogena","Pond's","Jergens"],
+  "Soap":          ["Dove","Lux","Lifebuoy","Dettol","Pears","Santoor","Margo","Hamam","Himalaya","Mamaearth"],
+  "Talcum Powder": ["Pond's","Johnson's","Shower to Shower","Nycil","Santoor","Boroplus","Himalaya"],
+  "Hair Color":    ["Garnier","L'Oreal","Godrej Expert","Revlon","Bigen","Indus Valley","Streax","Naturtint"],
+  "Other":         [],
 }
 
 function authHeaders() {
@@ -113,7 +247,7 @@ function toggleArr(arr, setArr, val) {
 // ── Add Product Modal — 2-step wizard ─────────────────────
 function AddProductModal({ onClose, onSaved }) {
   const [step, setStep]           = useState(1)
-  const [form, setForm]           = useState({ name:"", category:"Bangles", mrp:"", cost_price:"", gst_percent:3 })
+  const [form, setForm]           = useState({ name:"", category:"Bangles", brand:"", mrp:"", cost_price:"", gst_percent:3 })
   const [loading, setLoading]     = useState(false)
   const [err, setErr]             = useState("")
   const [voiceLang, setVoiceLang] = useState(() => getSavedLang() || "hi-IN")
@@ -129,20 +263,27 @@ function AddProductModal({ onClose, onSaved }) {
   const [smartResult,  setSmartResult]  = useState(null)
   const [smartErr,     setSmartErr]     = useState("")
   const [smartListening, setSmartListening] = useState(false)
-  const [cameraScanning, setCameraScanning] = useState(false)
-  const [cameraPreview,  setCameraPreview]  = useState(null)
-  const smartRecRef  = useRef(null)
+  const [cameraScanning,  setCameraScanning]  = useState(false)
+  const [cameraPreview,   setCameraPreview]   = useState(null)
+  const [barcodeScanning, setBarcodeScanning] = useState(false)
+  const [barcodeErr,      setBarcodeErr]      = useState("")
+  const smartRecRef    = useRef(null)
   const cameraInputRef = useRef(null)
+  const barcodeInputRef = useRef(null)
 
   // Scan Builder — full inline variant matrix after scan/parse
   const [scanBuilder,    setScanBuilder]    = useState(null)  // result from scan/parse
-  const [scanForm,       setScanForm]       = useState({ name:"", category:"Bangles", mrp:"", cost_price:"", gst_percent:3 })
+  const [scanForm,       setScanForm]       = useState({ name:"", category:"Bangles", brand:"", barcode:"", mrp:"", cost_price:"", gst_percent:3 })
   const [scanSelC,       setScanSelC]       = useState([])
   const [scanSelS,       setScanSelS]       = useState([])
   const [scanSelD,       setScanSelD]       = useState([])
   const [scanStock,      setScanStock]      = useState("12")
   const [scanSaving,     setScanSaving]     = useState(false)
   const [scanErr,        setScanErr]        = useState("")
+  const [scanShowAllC,   setScanShowAllC]   = useState(false)
+  const [step2ShowAllC,  setStep2ShowAllC]  = useState(false)
+  const [scanColourQ,    setScanColourQ]    = useState("")
+  const [step2ColourQ,   setStep2ColourQ]   = useState("")
 
   const set = (k,v) => setForm(f => ({...f,[k]:v}))
 
@@ -196,6 +337,8 @@ function AddProductModal({ onClose, onSaved }) {
     setScanForm({
       name:        result.name        || "",
       category:    result.category    || "Bangles",
+      brand:       result.brand       || "",
+      barcode:     result.barcode     || "",
       mrp:         result.mrp         ? String(result.mrp)        : "",
       cost_price:  result.cost_price  ? String(result.cost_price) : "",
       gst_percent: result.gst_percent ?? 3,
@@ -205,11 +348,11 @@ function AddProductModal({ onClose, onSaved }) {
     setScanSelD(result.designs || [])
     setScanStock("12")
     setScanErr("")
-    setSmartResult(null); setSmartText(""); setCameraPreview(null)
+    setSmartResult(null); setSmartText(""); setCameraPreview(null); setBarcodeErr("")
   }
 
   function closeScanBuilder() {
-    setScanBuilder(null); setScanErr("")
+    setScanBuilder(null); setScanErr(""); setBarcodeErr("")
   }
 
   async function saveScanBuilder() {
@@ -221,6 +364,8 @@ function AddProductModal({ onClose, onSaved }) {
         body: JSON.stringify({
           name:        scanForm.name.trim(),
           category:    scanForm.category,
+          brand:       scanForm.brand.trim() || null,
+          barcode:     scanForm.barcode.trim() || null,
           mrp:         Number(scanForm.mrp)        || 0,
           cost_price:  Number(scanForm.cost_price) || 0,
           gst_percent: Number(scanForm.gst_percent) || 3,
@@ -288,6 +433,79 @@ function AddProductModal({ onClose, onSaved }) {
       setCameraPreview(null)
     } finally {
       setCameraScanning(false)
+    }
+  }
+
+  function mapOffCategory(tags) {
+    if (!tags || !tags.length) return "Other"
+    const t = tags.join(" ").toLowerCase()
+    if (t.includes("nail polish") || t.includes("nail varnish")) return "Nail Polish"
+    if (t.includes("kajal") || t.includes("kohl") || t.includes("eyeliner")) return "Kajal"
+    if (t.includes("lipstick") || t.includes("lip color") || t.includes("lip colour")) return "Lipstick"
+    if (t.includes("mehendi") || t.includes("henna")) return "Mehendi"
+    if (t.includes("perfume") || t.includes("fragrance") || t.includes("eau de") || t.includes("deodorant")) return "Perfume"
+    if (t.includes("compact") || t.includes("foundation") || t.includes("pressed powder")) return "Compact"
+    if (t.includes("cream") || t.includes("moisturizer") || t.includes("serum") || t.includes("face wash") || t.includes("skin care")) return "Skin Care"
+    if (t.includes("shampoo") || t.includes("conditioner")) return "Shampoo"
+    if (t.includes("hair oil") || t.includes("hair serum")) return "Hair Oil"
+    if (t.includes("body lotion") || t.includes("body cream") || t.includes("body butter")) return "Body Lotion"
+    if (t.includes("soap") || t.includes("body wash") || t.includes("hand wash")) return "Soap"
+    if (t.includes("talc") || t.includes("talcum") || t.includes("body powder")) return "Talcum Powder"
+    if (t.includes("hair color") || t.includes("hair dye") || t.includes("hair colour")) return "Hair Color"
+    if (t.includes("bangle") || t.includes("kada")) return "Bangles"
+    if (t.includes("earring") || t.includes("jhumka")) return "Earrings"
+    if (t.includes("necklace")) return "Necklace"
+    if (t.includes("ring")) return "Rings"
+    if (t.includes("bracelet")) return "Bracelet"
+    if (t.includes("anklet")) return "Anklet"
+    if (t.includes("hair clip") || t.includes("hair pin")) return "Hair Clip"
+    if (t.includes("bindi")) return "Bindi"
+    if (t.includes("tikka") || t.includes("maang")) return "Maang Tikka"
+    if (t.includes("nose ring") || t.includes("nath")) return "Nose Ring"
+    return "Other"
+  }
+
+  async function handleBarcodeCapture(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ""
+    setBarcodeScanning(true); setBarcodeErr(""); setSmartErr("")
+    try {
+      if (!("BarcodeDetector" in window)) {
+        setBarcodeErr("Barcode scanner needs Chrome on Android. Type barcode manually in the form.")
+        setBarcodeScanning(false)
+        return
+      }
+      const detector = new window.BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","qr_code"] })
+      const bitmap = await createImageBitmap(file)
+      const barcodes = await detector.detect(bitmap)
+      if (!barcodes.length) {
+        setBarcodeErr("No barcode detected. Hold camera steady in good lighting and try again.")
+        setBarcodeScanning(false)
+        return
+      }
+      const barcode = barcodes[0].rawValue
+      let productData = { name:"", category:"Other", brand:"", barcode, source:"barcode-scan" }
+      try {
+        const res = await fetch(`https://world.openfoodfacts.org/api/v3/product/${barcode}.json`)
+        const data = await res.json()
+        if (data.status === "success" && data.product) {
+          const p = data.product
+          const name = p.product_name_en || p.product_name || p.generic_name || ""
+          const brand = p.brands?.split(",")[0]?.trim() || ""
+          const catTags = [...(p.categories_tags || []), ...(p.labels_tags || []), p.product_name || ""]
+          productData = { name, brand, barcode, category: mapOffCategory(catTags), source:"barcode-scan" }
+        } else {
+          setBarcodeErr(`Barcode ${barcode} scanned — fill product details manually.`)
+        }
+      } catch {
+        setBarcodeErr(`Barcode ${barcode} scanned — couldn't fetch product info.`)
+      }
+      openScanBuilder(productData)
+    } catch (err) {
+      setBarcodeErr(`Scan failed: ${err.message}`)
+    } finally {
+      setBarcodeScanning(false)
     }
   }
 
@@ -447,6 +665,15 @@ function AddProductModal({ onClose, onSaved }) {
                   style={{display:"none"}}
                   onChange={handleCameraCapture}
                 />
+                {/* Hidden barcode camera input */}
+                <input
+                  ref={barcodeInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{display:"none"}}
+                  onChange={handleBarcodeCapture}
+                />
 
                 <div style={{display:"flex", gap:6, marginTop:8}}>
                   <button
@@ -476,7 +703,7 @@ function AddProductModal({ onClose, onSaved }) {
                   </button>
                   <button
                     onClick={() => cameraInputRef.current?.click()}
-                    disabled={cameraScanning || smartParsing}
+                    disabled={cameraScanning || smartParsing || barcodeScanning}
                     style={{
                       padding:"6px 12px", borderRadius:8, border:"none", cursor:"pointer",
                       background: cameraScanning
@@ -487,6 +714,19 @@ function AddProductModal({ onClose, onSaved }) {
                     title="Take photo of price tag or product">
                     {cameraScanning ? "⏳" : "📷"}
                   </button>
+                  <button
+                    onClick={() => barcodeInputRef.current?.click()}
+                    disabled={barcodeScanning || cameraScanning || smartParsing}
+                    style={{
+                      padding:"6px 12px", borderRadius:8, border:"none", cursor:"pointer",
+                      background: barcodeScanning
+                        ? "#ccc"
+                        : "linear-gradient(135deg,#0891b2,#0e7490)",
+                      color:"#fff", fontSize:15,
+                    }}
+                    title="Scan product barcode">
+                    {barcodeScanning ? "⏳" : "🏷️"}
+                  </button>
                 </div>
                 {smartListening && (
                   <div style={{fontSize:11, color:"#ef4444", textAlign:"center", marginTop:6, fontWeight:600}}>
@@ -495,6 +735,9 @@ function AddProductModal({ onClose, onSaved }) {
                 )}
                 {smartErr && (
                   <div style={{fontSize:11, color:"#ef4444", marginTop:6, lineHeight:1.4}}>{smartErr}</div>
+                )}
+                {barcodeErr && (
+                  <div style={{fontSize:11, color:"#0891b2", marginTop:6, lineHeight:1.4}}>{barcodeErr}</div>
                 )}
                 {/* Camera scanning indicator */}
                 {cameraScanning && (
@@ -505,6 +748,16 @@ function AddProductModal({ onClose, onSaved }) {
                     <div style={{fontSize:22, marginBottom:4}}>📷</div>
                     <div style={{fontSize:12, fontWeight:700, color:"#6366f1"}}>Reading image…</div>
                     <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:2}}>Gemini Vision is scanning</div>
+                  </div>
+                )}
+                {barcodeScanning && (
+                  <div style={{
+                    marginTop:10, textAlign:"center", padding:"14px 0",
+                    background:"#f0f9ff", borderRadius:10, border:"1.5px solid #0891b2",
+                  }}>
+                    <div style={{fontSize:22, marginBottom:4}}>🏷️</div>
+                    <div style={{fontSize:12, fontWeight:700, color:"#0891b2"}}>Reading barcode…</div>
+                    <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:2}}>Looking up product details</div>
                   </div>
                 )}
 
@@ -527,10 +780,13 @@ function AddProductModal({ onClose, onSaved }) {
                         )}
                         <div style={{flex:1}}>
                           <div style={{fontSize:12, fontWeight:700, color:"#0F6E56"}}>
-                            {scanBuilder.source==="gemini-vision" ? "📷 Image Scanned" : "⚡ Smart Parsed"} — configure all variants
+                            {scanBuilder.source==="gemini-vision" ? "📷 Image Scanned" : scanBuilder.source==="barcode-scan" ? "🏷️ Barcode Scanned" : "⚡ Smart Parsed"} — configure all variants
                           </div>
                           <div style={{fontSize:10, color:"var(--ink-faint)", marginTop:1}}>
-                            Select colours, sizes & designs → save everything in one tap
+                            {scanForm.barcode
+                              ? <span>Barcode: <span style={{fontFamily:"monospace"}}>{scanForm.barcode}</span></span>
+                              : "Select colours, sizes & designs → save everything in one tap"
+                            }
                           </div>
                         </div>
                         <button onClick={closeScanBuilder}
@@ -576,13 +832,41 @@ function AddProductModal({ onClose, onSaved }) {
                             placeholder="0"
                             style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 10px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
                         </div>
+                        {BEAUTY_CATS.has(scanForm.category) && (
+                          <div style={{gridColumn:"1/-1"}}>
+                            <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>BRAND <span style={{fontWeight:400}}>(optional)</span></div>
+                            <input value={scanForm.brand}
+                              onChange={e => setScanForm(f=>({...f,brand:e.target.value}))}
+                              list={`scan-brands-${scanForm.category}`}
+                              placeholder={`e.g. ${(CATEGORY_BRANDS[scanForm.category]||[])[0]||"Lakme, Parachute…"}`}
+                              style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 10px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                            <datalist id={`scan-brands-${scanForm.category}`}>
+                              {(CATEGORY_BRANDS[scanForm.category]||[]).map(b=><option key={b} value={b}/>)}
+                            </datalist>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Colour chips */}
+                      {/* Colour chips — searchable; filtered to detected family when colours are auto-detected */}
                       <div style={{marginBottom:10}}>
-                        <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:6, letterSpacing:"0.5px"}}>COLOURS</div>
+                        <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5}}>
+                          <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", letterSpacing:"0.5px"}}>COLOURS</div>
+                          {scanSelC.length > 0 && !scanColourQ && (
+                            <button onClick={()=>setScanShowAllC(v=>!v)}
+                              style={{background:"none",border:"none",fontSize:10,color:"var(--jade)",cursor:"pointer",padding:0,fontWeight:600}}>
+                              {scanShowAllC ? "Show related only" : `Show all ${COLOURS.length}`}
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          value={scanColourQ} onChange={e=>setScanColourQ(e.target.value)}
+                          placeholder="Search colour…"
+                          style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"5px 10px",fontSize:11,outline:"none",boxSizing:"border-box",marginBottom:6}}/>
                         <div style={{display:"flex", flexWrap:"wrap", gap:5}}>
-                          {COLOURS.map(c=><Chip key={c} label={c} active={scanSelC.includes(c)} onClick={()=>toggleC(c)}/>)}
+                          {(scanColourQ
+                            ? COLOURS.filter(c=>c.toLowerCase().includes(scanColourQ.toLowerCase()))
+                            : (scanShowAllC ? COLOURS : suggestedColours(scanSelC, scanForm.category))
+                          ).map(c=><Chip key={c} label={c} active={scanSelC.includes(c)} onClick={()=>toggleC(c)}/>)}
                         </div>
                       </div>
 
@@ -689,6 +973,19 @@ function AddProductModal({ onClose, onSaved }) {
                 </select>
               </div>
 
+              {BEAUTY_CATS.has(form.category) && (
+                <div>
+                  <label className="label">Brand <span style={{fontWeight:400,color:"var(--ink-faint)"}}>optional</span></label>
+                  <input className="input" list="manual-brands"
+                    placeholder={`e.g. ${(CATEGORY_BRANDS[form.category]||[])[0]||"Lakme, Parachute…"}`}
+                    value={form.brand} onChange={e=>set("brand",e.target.value)}
+                    style={flash("brand")} />
+                  <datalist id="manual-brands">
+                    {(CATEGORY_BRANDS[form.category]||[]).map(b=><option key={b} value={b}/>)}
+                  </datalist>
+                </div>
+              )}
+
               {err && <p className="text-red-500 text-xs">{err}</p>}
 
               {/* Step 1 actions */}
@@ -717,11 +1014,26 @@ function AddProductModal({ onClose, onSaved }) {
           {/* ── STEP 2: Variants ── */}
           {step===2 && (
             <>
-              {/* Colours */}
+              {/* Colours — searchable; filtered to detected family when colours are pre-selected */}
               <div style={{borderRadius:8, padding:"2px 0", ...flash("colours")}}>
-                <div className="text-[10px] font-bold mb-1.5" style={{color:"var(--ink-faint)"}}>COLOURS</div>
+                <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5}}>
+                  <div className="text-[10px] font-bold" style={{color:"var(--ink-faint)"}}>COLOURS</div>
+                  {selColours.length > 0 && !step2ColourQ && (
+                    <button onClick={()=>setStep2ShowAllC(v=>!v)}
+                      style={{background:"none",border:"none",fontSize:10,color:"var(--jade)",cursor:"pointer",padding:0,fontWeight:600}}>
+                      {step2ShowAllC ? "Show related only" : `Show all ${COLOURS.length}`}
+                    </button>
+                  )}
+                </div>
+                <input
+                  value={step2ColourQ} onChange={e=>setStep2ColourQ(e.target.value)}
+                  placeholder="Search colour…"
+                  style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"5px 10px",fontSize:11,outline:"none",boxSizing:"border-box",marginBottom:6}}/>
                 <div className="flex flex-wrap gap-1.5">
-                  {COLOURS.map(c=>(
+                  {(step2ColourQ
+                    ? COLOURS.filter(c=>c.toLowerCase().includes(step2ColourQ.toLowerCase()))
+                    : (step2ShowAllC ? COLOURS : suggestedColours(selColours, form.category))
+                  ).map(c=>(
                     <Chip key={c} label={c}
                       active={selColours.includes(c)}
                       onClick={()=>toggleArr(selColours,setSelColours,c)} />
@@ -1120,18 +1432,30 @@ function BarcodeLabelsModal({ product, onClose }) {
 }
 
 // ── Edit Product Modal ─────────────────────────────────────
-function EditProductModal({ product, onClose, onSaved }) {
+function EditProductModal({ product, onClose, onSaved, suppliers }) {
   const [form, setForm] = useState({
-    name:        product.name        || "",
-    category:    product.category    || "Bangles",
-    mrp:         product.mrp         != null ? String(product.mrp)        : "",
-    cost_price:  product.cost_price  != null ? String(product.cost_price) : "",
-    gst_percent: product.gst_percent != null ? product.gst_percent        : 3,
+    name:          product.name          || "",
+    category:      product.category      || "Bangles",
+    brand:         product.brand         || "",
+    mrp:           product.mrp           != null ? String(product.mrp)        : "",
+    cost_price:    product.cost_price    != null ? String(product.cost_price) : "",
+    gst_percent:   product.gst_percent   != null ? product.gst_percent        : 3,
+    supplier_id:   product.supplier_id   || "",
+    tray_location: product.tray_location || "",
+    stock_fullness: product.stock_fullness ?? null,
   })
   const [loading, setLoading] = useState(false)
   const [err,     setErr]     = useState("")
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}))
+
+  const FULLNESS_LEVELS = [
+    { value: 0,   label: "Empty",  color: "#dc2626" },
+    { value: 25,  label: "25%",    color: "#f97316" },
+    { value: 50,  label: "50%",    color: "#eab308" },
+    { value: 75,  label: "75%",    color: "#22c55e" },
+    { value: 100, label: "Full",   color: "#16a34a" },
+  ]
 
   async function save() {
     if (!form.name.trim()) { setErr("Product name is required"); return }
@@ -1140,11 +1464,15 @@ function EditProductModal({ product, onClose, onSaved }) {
       const updated = await apiFetch(`/bangle/products/${product.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name:        form.name.trim(),
-          category:    form.category,
-          mrp:         Number(form.mrp)        || 0,
-          cost_price:  Number(form.cost_price) || 0,
-          gst_percent: Number(form.gst_percent),
+          name:          form.name.trim(),
+          category:      form.category,
+          brand:         form.brand.trim() || null,
+          mrp:           Number(form.mrp)        || 0,
+          cost_price:    Number(form.cost_price) || 0,
+          gst_percent:   Number(form.gst_percent),
+          supplier_id:   form.supplier_id   || null,
+          tray_location: form.tray_location || null,
+          stock_fullness: form.stock_fullness,
         })
       })
       onSaved(updated)
@@ -1155,7 +1483,7 @@ function EditProductModal({ product, onClose, onSaved }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-y-auto max-h-[92vh]">
         <div className="px-5 pt-5 pb-4 border-b flex justify-between items-center" style={{borderColor:"var(--rule)"}}>
           <div>
             <div className="text-sm font-bold" style={{color:"var(--ink)"}}>Edit Product</div>
@@ -1196,12 +1524,63 @@ function EditProductModal({ product, onClose, onSaved }) {
               {[0,3,5,12,18].map(g => <option key={g} value={g}>{g}%</option>)}
             </select>
           </div>
+          {BEAUTY_CATS.has(form.category) && (
+            <div>
+              <label className="label">Brand <span style={{fontWeight:400,color:"var(--ink-faint)"}}>optional</span></label>
+              <input className="input" list="edit-brands"
+                placeholder={`e.g. ${(CATEGORY_BRANDS[form.category]||[])[0]||"Lakme, Parachute…"}`}
+                value={form.brand} onChange={e => set("brand", e.target.value)} />
+              <datalist id="edit-brands">
+                {(CATEGORY_BRANDS[form.category]||[]).map(b => <option key={b} value={b}/>)}
+              </datalist>
+            </div>
+          )}
+
+          {/* Supplier + Tray */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label">Supplier</label>
+              <select className="input" value={form.supplier_id}
+                onChange={e => set("supplier_id", e.target.value)}>
+                <option value="">— None —</option>
+                {(suppliers || []).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Tray / Location</label>
+              <input className="input" placeholder="e.g. A2, Shelf 3"
+                value={form.tray_location}
+                onChange={e => set("tray_location", e.target.value)} />
+            </div>
+          </div>
+
+          {/* Stock Fullness */}
+          <div>
+            <label className="label">Tray Fullness</label>
+            <div style={{display:"flex", gap:5}}>
+              {FULLNESS_LEVELS.map(lvl => (
+                <button key={lvl.value}
+                  onClick={() => set("stock_fullness", form.stock_fullness === lvl.value ? null : lvl.value)}
+                  style={{
+                    flex:1, padding:"5px 2px", borderRadius:8, border:"1.5px solid",
+                    fontSize:10, fontWeight:700, cursor:"pointer",
+                    background:  form.stock_fullness === lvl.value ? lvl.color      : "var(--bg2)",
+                    color:       form.stock_fullness === lvl.value ? "#fff"         : "var(--ink-dim)",
+                    borderColor: form.stock_fullness === lvl.value ? lvl.color      : "var(--rule)",
+                  }}>
+                  {lvl.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Profit preview */}
           {form.mrp && form.cost_price && Number(form.mrp) > 0 && Number(form.cost_price) > 0 && (
             <div style={{background:"#f0faf6", borderRadius:10, padding:"8px 12px", fontSize:11}}>
               <div style={{display:"flex", justifyContent:"space-between"}}>
-                <span style={{color:"var(--ink-faint)"}}>Margin per piece</span>
+                <span style={{color:"var(--ink-faint)"}}>Margin per dozen</span>
                 <span style={{fontWeight:700, color:"var(--jade)"}}>
                   {INR(Number(form.mrp) - Number(form.cost_price))}
                   &nbsp;({Math.round((Number(form.mrp) - Number(form.cost_price)) / Number(form.mrp) * 100)}%)
@@ -1250,8 +1629,10 @@ function compressImage(file, maxPx = 900, quality = 0.78) {
   })
 }
 
+const FULLNESS_COLORS = { 0:"#dc2626", 25:"#f97316", 50:"#eab308", 75:"#22c55e", 100:"#16a34a" }
+
 // ── Product Card ───────────────────────────────────────────
-function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }) {
+function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated, suppliers }) {
   const [expanded,      setExpanded]      = useState(false)
   const [showEdit,      setShowEdit]      = useState(false)
   const [showLabels,    setShowLabels]    = useState(false)
@@ -1261,6 +1642,14 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
 
   const isLow = product.low_stock_count > 0
   const isOut = product.total_stock === 0 && product.variant_count > 0
+
+  // Investment = sum(variant.stock × cost_price_per_dozen / 12)
+  const investment = (product.variants || []).reduce((s, v) => {
+    const cost = v.cost_price || product.cost_price || 0
+    return s + v.stock * cost / 12
+  }, 0)
+
+  const supplierName = suppliers?.find(s => s.id === product.supplier_id)?.name
 
   async function handleImageChange(e) {
     const file = e.target.files?.[0]
@@ -1299,7 +1688,7 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
       const url = await BangleProducts.autoImage(product.id)
       onProductUpdated({ ...product, image_url: url })
     } catch(err) {
-      setImgErr("Auto-image failed — check BING_SEARCH_KEY in .env")
+      setImgErr(err?.message || "Could not find image — try again or upload manually")
     } finally {
       setImgUploading(false)
     }
@@ -1310,6 +1699,7 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
       {showEdit && (
         <EditProductModal
           product={product}
+          suppliers={suppliers}
           onClose={() => setShowEdit(false)}
           onSaved={updated => { onProductUpdated(updated); setShowEdit(false) }}
         />
@@ -1351,8 +1741,23 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
             style={{ display: "none" }} onChange={handleImageChange} />
         </div>
         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-          <div className="font-semibold text-sm truncate" style={{color:"var(--ink)"}}>{product.name}</div>
-          <div className="text-[11px] flex gap-2 mt-0.5" style={{color:"var(--ink-faint)"}}>
+          <div style={{display:"flex", alignItems:"center", gap:6}}>
+            <div className="font-semibold text-sm truncate" style={{color:"var(--ink)"}}>{product.name}</div>
+            {/* Fullness pill */}
+            {product.stock_fullness != null && (
+              <div style={{
+                flexShrink:0, fontSize:9, fontWeight:800, borderRadius:20, padding:"1px 6px",
+                background: FULLNESS_COLORS[product.stock_fullness] + "22",
+                color: FULLNESS_COLORS[product.stock_fullness],
+                border: `1px solid ${FULLNESS_COLORS[product.stock_fullness]}44`,
+              }}>
+                {product.stock_fullness === 0 ? "Empty"
+                  : product.stock_fullness === 100 ? "Full"
+                  : `${product.stock_fullness}%`}
+              </div>
+            )}
+          </div>
+          <div className="text-[11px] flex flex-wrap gap-x-2 mt-0.5" style={{color:"var(--ink-faint)"}}>
             <span>{product.category}</span>
             <span>·</span>
             <span>{product.variant_count} variants</span>
@@ -1360,16 +1765,22 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated }
             <span style={{color: isOut?"#dc2626":isLow?"#d97706":"var(--jade)"}}>
               {product.total_stock} pcs
             </span>
-            {product.mrp > 0 && (
+            {investment > 0 && (
               <>
                 <span>·</span>
-                <span>MRP {INR(product.mrp)}</span>
+                <span style={{color:"#7c5cbf",fontWeight:600}}>₹{Math.round(investment)} invested</span>
               </>
             )}
-            {product.cost_price > 0 && (
+            {product.tray_location && (
               <>
                 <span>·</span>
-                <span>Cost {INR(product.cost_price)}</span>
+                <span style={{color:"var(--ink-dim)"}}>📍{product.tray_location}</span>
+              </>
+            )}
+            {supplierName && (
+              <>
+                <span>·</span>
+                <span style={{color:"var(--ink-dim)"}}>{supplierName}</span>
               </>
             )}
           </div>
@@ -1460,8 +1871,12 @@ export default function BangleInventory() {
   const [showAdd,    setShowAdd]    = useState(false)
   const [addVariFor, setAddVariFor] = useState(null)
   const [summary,    setSummary]    = useState(null)
+  const [suppliers,  setSuppliers]  = useState([])
 
-  useEffect(() => { loadProducts() }, [])
+  useEffect(() => {
+    loadProducts()
+    BangleSuppliers.list().then(setSuppliers).catch(() => {})
+  }, [])
 
   async function loadProducts() {
     setLoading(true)
@@ -1545,14 +1960,15 @@ export default function BangleInventory() {
       {summary && (
         <div className="bangle-summary-strip" style={{display:"flex",gap:1,background:"var(--rule)",flexShrink:0}}>
           {[
-            {label:"Products",  value:products.length,         color:"var(--jade)"},
-            {label:"Variants",  value:summary.total_variants,  color:"var(--jade)"},
-            {label:"Pieces",    value:summary.total_pieces,    color:"var(--ink)"},
-            {label:"Low Stock", value:summary.low_stock,       color:"#d97706"},
-            {label:"Out",       value:summary.out_of_stock,    color:"#dc2626"},
+            {label:"Products",  value:products.length,                           color:"var(--jade)"},
+            {label:"Variants",  value:summary.total_variants,                    color:"var(--jade)"},
+            {label:"Pieces",    value:summary.total_pieces,                      color:"var(--ink)"},
+            {label:"Invested",  value:summary.total_investment > 0 ? `₹${Math.round(summary.total_investment/1000)}k` : "—", color:"#7c5cbf"},
+            {label:"Low Stock", value:summary.low_stock,                         color:"#d97706"},
+            {label:"Out",       value:summary.out_of_stock,                      color:"#dc2626"},
           ].map(s => (
-            <div key={s.label} style={{flex:1,padding:"10px 8px",textAlign:"center",background:"var(--bg1)"}}>
-              <div style={{fontSize:16,fontWeight:800,color:s.color}}>{s.value}</div>
+            <div key={s.label} style={{flex:1,padding:"10px 6px",textAlign:"center",background:"var(--bg1)"}}>
+              <div style={{fontSize:14,fontWeight:800,color:s.color}}>{s.value}</div>
               <div style={{fontSize:9,color:"var(--ink-faint)",marginTop:1}}>{s.label}</div>
             </div>
           ))}
@@ -1597,7 +2013,8 @@ export default function BangleInventory() {
             )}
           </div>
         ) : filtered.map(p => (
-          <ProductCard key={p.id} product={p} onAddVariants={setAddVariFor} onStockChange={onStockChange} onProductUpdated={onProductUpdated} />
+          <ProductCard key={p.id} product={p} suppliers={suppliers}
+            onAddVariants={setAddVariFor} onStockChange={onStockChange} onProductUpdated={onProductUpdated} />
         ))}
       </div>
     </div>
