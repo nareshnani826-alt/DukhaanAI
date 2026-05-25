@@ -83,12 +83,48 @@ const BARCODE_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE,
 ]
 
+// Mirrors variantShortCode in BangleInventory — must stay in sync
+function variantShortCode(variantId) {
+  const hash = Math.abs(
+    (variantId || "").split("").reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) | 0, 0)
+  ).toString().padStart(9, "0").slice(0, 9)
+  return "200" + hash
+}
+
 function findVariantMatch(products, decoded) {
+  if (!decoded) return null
+  const q = decoded.trim()
+
+  // 1. Exact barcode field match on the product
   for (const p of products) {
-    for (const v of (p.variants || [])) {
-      if (v.id === decoded) return { product: p, variant: v }
+    if (p.barcode && p.barcode === q) {
+      const variant = (p.variants || []).find(v => v.stock > 0) || (p.variants || [])[0]
+      if (variant) return { product: p, variant }
     }
   }
+
+  // 2. SKU match
+  for (const p of products) {
+    if (p.sku && (p.sku === q || p.sku.replace(/[-\s]/g, "") === q.replace(/[-\s]/g, ""))) {
+      const variant = (p.variants || []).find(v => v.stock > 0) || (p.variants || [])[0]
+      if (variant) return { product: p, variant }
+    }
+  }
+
+  // 3. Variant ID match (for QR codes)
+  for (const p of products) {
+    for (const v of (p.variants || [])) {
+      if (v.id === q) return { product: p, variant: v }
+    }
+  }
+
+  // 4. Short code match — labels printed from the app encode variantShortCode(v.id)
+  for (const p of products) {
+    for (const v of (p.variants || [])) {
+      if (variantShortCode(v.id) === q) return { product: p, variant: v }
+    }
+  }
+
   return null
 }
 

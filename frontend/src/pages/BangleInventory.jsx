@@ -1374,25 +1374,39 @@ function VariantRow({ variant, productMrp, onStockChange }) {
 }
 
 // ── Barcode Labels Modal ────────────────────────────────────
+
+// Converts a variant UUID into a short 12-digit numeric code.
+// 12 digits → ~52 bars in CODE128 → fits cleanly in a 180px label at width:2.
+function variantShortCode(variantId) {
+  const hash = Math.abs(
+    (variantId || "").split("").reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) | 0, 0)
+  ).toString().padStart(9, "0").slice(0, 9)
+  return "200" + hash
+}
+
 // Single barcode label — needs its own ref so JsBarcode can target the SVG
 function BarcodeLabel({ product, variant }) {
   const svgRef = useRef(null)
   const mrp = variant.mrp || product.mrp || 0
+  // Prefer the product's saved barcode; fall back to a short hash of the variant id
+  const barcodeValue = product.barcode || variantShortCode(variant.id)
 
   useEffect(() => {
-    if (!svgRef.current || !variant.id) return
+    if (!svgRef.current || !barcodeValue) return
     try {
-      JsBarcode(svgRef.current, variant.id, {
+      JsBarcode(svgRef.current, barcodeValue, {
         format:       "CODE128",
-        width:        1.4,
-        height:       38,
-        displayValue: false,
-        margin:       4,
+        width:        2.2,
+        height:       52,
+        displayValue: true,
+        fontSize:     10,
+        textMargin:   3,
+        margin:       6,
         background:   "#ffffff",
         lineColor:    "#000000",
       })
     } catch(e) { console.error("JsBarcode error:", e) }
-  }, [variant.id])
+  }, [barcodeValue])
 
   const variantLabel = [variant.colour, variant.size, variant.design].filter(Boolean).join(" · ") || "Default"
 
@@ -1412,8 +1426,8 @@ function BarcodeLabel({ product, variant }) {
       <div style={{ fontWeight:700, color:"#111", fontSize:11, lineHeight:1.3, marginBottom:2 }}>
         {product.name}
       </div>
-      <div style={{ color:"#6b7280", fontSize:9, marginBottom:6 }}>{variantLabel}</div>
-      <svg ref={svgRef} style={{ maxWidth:"100%", height:50 }} />
+      <div style={{ color:"#6b7280", fontSize:9, marginBottom:4 }}>{variantLabel}</div>
+      <svg ref={svgRef} style={{ maxWidth:"100%", height:"auto" }} />
       <div style={{ fontWeight:800, color:"var(--saffron,#e87722)", fontSize:13, marginTop:4 }}>
         {INR(mrp)}<span style={{ fontSize:8, fontWeight:500, color:"#9ca3af", marginLeft:2 }}>/dz</span>
       </div>
@@ -1471,7 +1485,7 @@ function BarcodeLabelsModal({ product, onClose }) {
 
           {/* Labels grid */}
           <div id="barcode-print-area" style={{ overflowY:"auto", flex:1, padding:14,
-            display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))", gap:10 }}>
+            display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(190px, 1fr))", gap:12 }}>
             {variants.length === 0 ? (
               <div style={{ gridColumn:"1/-1", textAlign:"center", padding:32, color:"var(--ink-faint)", fontSize:13 }}>
                 No active variants — add variants first to generate labels

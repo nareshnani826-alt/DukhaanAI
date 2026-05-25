@@ -267,12 +267,21 @@ def _format_local(intent_id: str, data: dict) -> str:
         )
 
     if intent_id == "sales_today":
-        by_mode = data.get("by_payment_mode", {})
+        by_mode  = data.get("by_payment_mode", {})
         mode_str = " | ".join(f"{k}: {INR(v)}" for k, v in by_mode.items()) if by_mode else ""
+        top      = data.get("top_products", [])
+        top_str  = ""
+        if top:
+            label = "pieces" if data.get("total_pieces") else "units"
+            top_str = "\n🏆 Top products:\n" + "\n".join(
+                f"• {p['name']} — {p.get('pieces', p.get('qty', 0))} {label} sold" for p in top
+            )
+        pieces_str = f" · {data['total_pieces']} pcs" if data.get("total_pieces") else ""
         return (
-            f"🧾 Today: {data.get('invoice_count', 0)} invoices, "
-            f"revenue {INR(data.get('total_revenue', 0))}"
+            f"🧾 Today: {data.get('invoice_count', 0)} bills, "
+            f"revenue {INR(data.get('total_revenue', 0))}{pieces_str}"
             + (f"\n{mode_str}" if mode_str else "")
+            + top_str
         )
 
     if intent_id == "monthly_sales":
@@ -362,14 +371,21 @@ def _format_local(intent_id: str, data: dict) -> str:
 #  TIER 2 — GROQ  (existing tool-calling flow, unchanged)
 # ══════════════════════════════════════════════════════════════
 
-async def _call_groq(messages: list, vendor_id: Optional[str], use_tools: bool) -> str:
+async def _call_groq_with_tools(
+    messages: list,
+    vendor_id: Optional[str],
+    tools: Optional[list],
+    store: str = "kirana",
+    run_tool_vendor_id: Optional[str] = None,
+) -> str:
     """Call Groq with a 25-second timeout to avoid indefinite hangs."""
     client = AsyncGroq(api_key=settings.groq_api_key, timeout=25.0)
+    _vid = run_tool_vendor_id or vendor_id
 
-    if use_tools and vendor_id:
+    if tools and vendor_id:
         response = await client.chat.completions.create(
             model=_GROQ_MODEL, messages=messages,
-            tools=_STORE_TOOLS, tool_choice="auto", max_tokens=1024,
+            tools=tools, tool_choice="auto", max_tokens=1024,
         )
         seen_tool_calls: set = set()
         for _ in range(5):
@@ -392,8 +408,8 @@ async def _call_groq(messages: list, vendor_id: Optional[str], use_tools: bool) 
             })
             for tc in msg.tool_calls:
                 try:
-                    result = _run_tool(tc.function.name, json.loads(tc.function.arguments), vendor_id)
-                    logger.info("tool=%s vendor=%s", tc.function.name, vendor_id)
+                    result = _run_tool(tc.function.name, json.loads(tc.function.arguments), _vid, store)
+                    logger.info("tool=%s vendor=%s store=%s", tc.function.name, _vid, store)
                 except Exception as te:
                     logger.warning("tool=%s failed: %s", tc.function.name, te)
                     result = {"error": f"Tool {tc.function.name} failed: {te}"}
@@ -403,7 +419,7 @@ async def _call_groq(messages: list, vendor_id: Optional[str], use_tools: bool) 
                 })
             response = await client.chat.completions.create(
                 model=_GROQ_MODEL, messages=messages,
-                tools=_STORE_TOOLS, tool_choice="auto", max_tokens=1024,
+                tools=tools, tool_choice="auto", max_tokens=1024,
             )
         return response.choices[0].message.content
 
@@ -411,6 +427,12 @@ async def _call_groq(messages: list, vendor_id: Optional[str], use_tools: bool) 
         model=_GROQ_MODEL, messages=messages, max_tokens=1024,
     )
     return response.choices[0].message.content
+
+
+# backward-compat alias used by nothing now but keep for safety
+async def _call_groq(messages: list, vendor_id: Optional[str], use_tools: bool) -> str:
+    tools = _KIRANA_TOOLS if use_tools else None
+    return await _call_groq_with_tools(messages, vendor_id, tools, "kirana", vendor_id)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -489,55 +511,111 @@ class ChatRequest(BaseModel):
     language: Optional[str] = "en-IN"
     store_context: Optional[dict] = {}
     history: Optional[list[HistoryMessage]] = []
+    store: Optional[str] = "kirana"  # "kirana" or "bangle"
 
     @property
     def clean_message(self) -> str:
         return self.message.strip()[:1000]  # cap at 1000 chars
 
 
-def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
+def _run_tool(name: str, args: dict, vendor_id: str, store: str = "kirana") -> dict:
     db = get_db()
 
     if name == "search_products":
-        query   = args.get("query", "").strip()
-        result  = (
-            db.table("products")
-            .select("name,stock,unit,mrp,cost_price,min_stock,category")
-            .eq("vendor_id", vendor_id).eq("is_active", True)
-            .ilike("name", f"%{query}%").limit(10).execute()
-        )
-        products = result.data or []
-        if not products:
-            return {"found": False, "message": f"No product found matching '{query}'"}
-        for p in products:
-            mrp  = p.get("mrp") or 0
-            cost = p.get("cost_price") or 0
-            p["margin_pct"]   = round((mrp - cost) / mrp * 100, 1) if mrp > 0 else 0
-            p["is_low_stock"] = p.get("stock", 0) < p.get("min_stock", 10)
-        return {"found": True, "products": products}
+        query = args.get("query", "").strip()
+        if store == "bangle":
+            result = (
+                db.table("bangle_products")
+                .select("name,category,selling_price,cost_price,total_stock,min_stock")
+                .eq("vendor_id", vendor_id).eq("is_active", True)
+                .ilike("name", f"%{query}%").limit(10).execute()
+            )
+            products = result.data or []
+            if not products:
+                return {"found": False, "message": f"No bangle product found matching '{query}'"}
+            for p in products:
+                sp   = p.get("selling_price") or 0
+                cost = p.get("cost_price") or 0
+                p["mrp"]          = sp
+                p["stock"]        = p.get("total_stock", 0)
+                p["margin_pct"]   = round((sp - cost) / sp * 100, 1) if sp > 0 else 0
+                p["is_low_stock"] = p.get("total_stock", 0) < p.get("min_stock", 0)
+            return {"found": True, "products": products}
+        else:
+            result = (
+                db.table("products")
+                .select("name,stock,unit,mrp,cost_price,min_stock,category")
+                .eq("vendor_id", vendor_id).eq("is_active", True)
+                .ilike("name", f"%{query}%").limit(10).execute()
+            )
+            products = result.data or []
+            if not products:
+                return {"found": False, "message": f"No product found matching '{query}'"}
+            for p in products:
+                mrp  = p.get("mrp") or 0
+                cost = p.get("cost_price") or 0
+                p["margin_pct"]   = round((mrp - cost) / mrp * 100, 1) if mrp > 0 else 0
+                p["is_low_stock"] = p.get("stock", 0) < p.get("min_stock", 10)
+            return {"found": True, "products": products}
 
     if name == "get_low_stock_items":
-        all_p = db.table("products").select("name,stock,min_stock,unit,mrp,category").eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
-        out   = [p for p in all_p if (p.get("stock") or 0) <= 0]
-        low   = [p for p in all_p if 0 < (p.get("stock") or 0) < p.get("min_stock", 10)]
-        return {"out_of_stock": out, "low_stock": low, "out_count": len(out), "low_count": len(low)}
+        if store == "bangle":
+            variants = db.table("bangle_variants").select("colour,size,stock,min_stock,product_id") \
+                .eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
+            out = [v for v in variants if (v.get("stock") or 0) <= 0]
+            low = [v for v in variants if 0 < (v.get("stock") or 0) < (v.get("min_stock") or 0)]
+            def _vlabel(v):
+                return f"{v.get('colour', '')} {v.get('size', '')}".strip() or "variant"
+            out_named = [{"name": _vlabel(v)} for v in out[:10]]
+            low_named = [{"name": _vlabel(v), "stock": v.get("stock")} for v in low[:10]]
+            return {"out_of_stock": out_named, "low_stock": low_named, "out_count": len(out), "low_count": len(low)}
+        else:
+            all_p = db.table("products").select("name,stock,min_stock,unit,mrp,category").eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
+            out   = [p for p in all_p if (p.get("stock") or 0) <= 0]
+            low   = [p for p in all_p if 0 < (p.get("stock") or 0) < p.get("min_stock", 10)]
+            return {"out_of_stock": out, "low_stock": low, "out_count": len(out), "low_count": len(low)}
 
     if name == "get_sales_today":
-        today    = date.today().isoformat()
-        invoices = db.table("invoices").select("total,payment_mode,customer_name").eq("vendor_id", vendor_id).gte("created_at", f"{today}T00:00:00").execute().data or []
-        total_rev = sum((inv.get("total") or 0) for inv in invoices)
-        by_mode: dict = {}
-        for inv in invoices:
-            mode = inv.get("payment_mode", "Cash")
-            by_mode[mode] = round(by_mode.get(mode, 0) + (inv.get("total") or 0), 2)
-        return {"date": today, "invoice_count": len(invoices), "total_revenue": round(total_rev, 2), "by_payment_mode": by_mode}
+        today = date.today().isoformat()
+        if store == "bangle":
+            sales = db.table("bangle_sales").select("total,items") \
+                .eq("vendor_id", vendor_id).eq("sale_date", today).execute().data or []
+            total_rev    = round(sum(float(s.get("total") or 0) for s in sales), 2)
+            total_pieces = 0
+            product_map: dict = {}
+            for s in sales:
+                for item in (s.get("items") or []):
+                    pcs  = int(item.get("pieces") or 0)
+                    pname = item.get("product_name") or "Unknown"
+                    total_pieces += pcs
+                    product_map[pname] = product_map.get(pname, 0) + pcs
+            top_products = sorted(product_map.items(), key=lambda x: -x[1])[:5]
+            return {
+                "date": today, "invoice_count": len(sales),
+                "total_revenue": total_rev, "total_pieces": total_pieces,
+                "top_products": [{"name": n, "pieces": p} for n, p in top_products],
+            }
+        else:
+            invoices = db.table("invoices").select("total,payment_mode,customer_name").eq("vendor_id", vendor_id).gte("created_at", f"{today}T00:00:00").execute().data or []
+            total_rev = sum((inv.get("total") or 0) for inv in invoices)
+            by_mode: dict = {}
+            for inv in invoices:
+                mode = inv.get("payment_mode", "Cash")
+                by_mode[mode] = round(by_mode.get(mode, 0) + (inv.get("total") or 0), 2)
+            return {"date": today, "invoice_count": len(invoices), "total_revenue": round(total_rev, 2), "by_payment_mode": by_mode}
 
     if name == "get_monthly_sales":
-        today       = date.today()
+        today = date.today()
         month_start = today.replace(day=1).isoformat()
-        invoices    = db.table("invoices").select("total").eq("vendor_id", vendor_id).gte("created_at", f"{month_start}T00:00:00").execute().data or []
-        total_rev   = sum((inv.get("total") or 0) for inv in invoices)
-        return {"month": today.strftime("%B %Y"), "invoice_count": len(invoices), "total_revenue": round(total_rev, 2)}
+        if store == "bangle":
+            sales = db.table("bangle_sales").select("total") \
+                .eq("vendor_id", vendor_id).gte("sale_date", month_start).execute().data or []
+            total_rev = sum(float(s.get("total") or 0) for s in sales)
+            return {"month": today.strftime("%B %Y"), "invoice_count": len(sales), "total_revenue": round(total_rev, 2)}
+        else:
+            invoices = db.table("invoices").select("total").eq("vendor_id", vendor_id).gte("created_at", f"{month_start}T00:00:00").execute().data or []
+            total_rev = sum((inv.get("total") or 0) for inv in invoices)
+            return {"month": today.strftime("%B %Y"), "invoice_count": len(invoices), "total_revenue": round(total_rev, 2)}
 
     if name == "get_udhar_summary":
         customers = db.table("udhar_customers").select("name,phone,total_due,last_txn_at").eq("vendor_id", vendor_id).gt("total_due", 0).order("total_due", desc=True).limit(20).execute().data or []
@@ -545,60 +623,115 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
         return {"total_due": round(total, 2), "customer_count": len(customers), "customers": customers}
 
     if name == "get_best_margin_products":
-        products = db.table("products").select("name,mrp,cost_price,stock,unit,category").eq("vendor_id", vendor_id).eq("is_active", True).gt("mrp", 0).gt("cost_price", 0).execute().data or []
-        for p in products:
-            mrp  = p.get("mrp") or 0; cost = p.get("cost_price") or 0
-            p["margin_pct"] = round((mrp - cost) / mrp * 100, 1) if mrp > 0 else 0
+        if store == "bangle":
+            products = db.table("bangle_products").select("name,selling_price,cost_price,total_stock,category") \
+                .eq("vendor_id", vendor_id).eq("is_active", True).gt("selling_price", 0).gt("cost_price", 0).execute().data or []
+            for p in products:
+                sp   = p.get("selling_price") or 0
+                cost = p.get("cost_price") or 0
+                p["mrp"] = sp; p["stock"] = p.get("total_stock", 0)
+                p["margin_pct"] = round((sp - cost) / sp * 100, 1) if sp > 0 else 0
+        else:
+            products = db.table("products").select("name,mrp,cost_price,stock,unit,category").eq("vendor_id", vendor_id).eq("is_active", True).gt("mrp", 0).gt("cost_price", 0).execute().data or []
+            for p in products:
+                mrp  = p.get("mrp") or 0; cost = p.get("cost_price") or 0
+                p["margin_pct"] = round((mrp - cost) / mrp * 100, 1) if mrp > 0 else 0
         products.sort(key=lambda x: x["margin_pct"], reverse=True)
         return {"products": products[:15]}
 
     if name == "get_profit_summary":
         today_str = date.today().isoformat(); month_str = date.today().replace(day=1).isoformat()
-        prods     = db.table("products").select("id,cost_price").eq("vendor_id", vendor_id).execute().data or []
-        cmap      = {p["id"]: float(p.get("cost_price") or 0) for p in prods}
-        t_sales   = db.table("sales").select("product_id,qty,unit_price").eq("vendor_id", vendor_id).gte("sold_at", f"{today_str}T00:00:00").execute().data or []
-        m_sales   = db.table("sales").select("product_id,qty,unit_price").eq("vendor_id", vendor_id).gte("sold_at", f"{month_str}T00:00:00").execute().data or []
-        def _prof(sales):
-            rev  = sum(float(s.get("unit_price") or 0) * float(s.get("qty") or 0) for s in sales)
-            cost = sum(cmap.get(s.get("product_id", ""), 0) * float(s.get("qty") or 0) for s in sales)
-            prof = round(rev - cost, 2)
-            return round(rev, 2), prof, round(prof / rev * 100, 1) if rev > 0 else 0
-        t_rev, t_prof, t_mar = _prof(t_sales); m_rev, m_prof, m_mar = _prof(m_sales)
-        return {"today": {"revenue": t_rev, "profit": t_prof, "margin_pct": t_mar},
-                "month": {"revenue": m_rev, "profit": m_prof, "margin_pct": m_mar}}
+        if store == "bangle":
+            t_sales = db.table("bangle_sales").select("total") \
+                .eq("vendor_id", vendor_id).eq("sale_date", today_str).execute().data or []
+            m_sales = db.table("bangle_sales").select("total") \
+                .eq("vendor_id", vendor_id).gte("sale_date", month_str).execute().data or []
+            t_rev = round(sum(float(s.get("total") or 0) for s in t_sales), 2)
+            m_rev = round(sum(float(s.get("total") or 0) for s in m_sales), 2)
+            return {"today": {"revenue": t_rev, "profit": None, "margin_pct": None},
+                    "month": {"revenue": m_rev, "profit": None, "margin_pct": None}}
+        else:
+            prods   = db.table("products").select("id,cost_price").eq("vendor_id", vendor_id).execute().data or []
+            cmap    = {p["id"]: float(p.get("cost_price") or 0) for p in prods}
+            t_sales = db.table("sales").select("product_id,qty,unit_price").eq("vendor_id", vendor_id).gte("sold_at", f"{today_str}T00:00:00").execute().data or []
+            m_sales = db.table("sales").select("product_id,qty,unit_price").eq("vendor_id", vendor_id).gte("sold_at", f"{month_str}T00:00:00").execute().data or []
+            def _prof(sales):
+                rev  = sum(float(s.get("unit_price") or 0) * float(s.get("qty") or 0) for s in sales)
+                cost = sum(cmap.get(s.get("product_id", ""), 0) * float(s.get("qty") or 0) for s in sales)
+                prof = round(rev - cost, 2)
+                return round(rev, 2), prof, round(prof / rev * 100, 1) if rev > 0 else 0
+            t_rev, t_prof, t_mar = _prof(t_sales); m_rev, m_prof, m_mar = _prof(m_sales)
+            return {"today": {"revenue": t_rev, "profit": t_prof, "margin_pct": t_mar},
+                    "month": {"revenue": m_rev, "profit": m_prof, "margin_pct": m_mar}}
 
     if name == "get_dead_stock":
         from datetime import timedelta
-        since    = (date.today() - timedelta(days=30)).isoformat()
-        prods    = db.table("products").select("id,name,stock,unit,cost_price").eq("vendor_id", vendor_id).eq("is_active", True).gt("stock", 0).execute().data or []
-        recent   = db.table("sales").select("product_id").eq("vendor_id", vendor_id).gte("sold_at", f"{since}T00:00:00").execute().data or []
-        sold_ids = {s["product_id"] for s in recent}
-        dead     = [p for p in prods if p["id"] not in sold_ids]
-        for p in dead:
-            p["blocked_value"] = round(float(p.get("stock") or 0) * float(p.get("cost_price") or 0), 2)
-        dead.sort(key=lambda x: x["blocked_value"], reverse=True)
-        return {"dead_stock_count": len(dead), "total_blocked_value": round(sum(p["blocked_value"] for p in dead), 2), "items": dead[:15]}
+        since = (date.today() - timedelta(days=30)).isoformat()
+        if store == "bangle":
+            all_v = db.table("bangle_variants").select("id,stock,product_id") \
+                .eq("vendor_id", vendor_id).eq("is_active", True).gt("stock", 0).execute().data or []
+            recent = db.table("bangle_sales").select("items") \
+                .eq("vendor_id", vendor_id).gte("sale_date", since).execute().data or []
+            sold_variant_ids: set = set()
+            for s in recent:
+                for item in (s.get("items") or []):
+                    if item.get("variant_id"):
+                        sold_variant_ids.add(item["variant_id"])
+            dead_count = sum(1 for v in all_v if v["id"] not in sold_variant_ids)
+            return {"dead_stock_count": dead_count, "total_blocked_value": 0, "items": []}
+        else:
+            prods    = db.table("products").select("id,name,stock,unit,cost_price").eq("vendor_id", vendor_id).eq("is_active", True).gt("stock", 0).execute().data or []
+            recent   = db.table("sales").select("product_id").eq("vendor_id", vendor_id).gte("sold_at", f"{since}T00:00:00").execute().data or []
+            sold_ids = {s["product_id"] for s in recent}
+            dead     = [p for p in prods if p["id"] not in sold_ids]
+            for p in dead:
+                p["blocked_value"] = round(float(p.get("stock") or 0) * float(p.get("cost_price") or 0), 2)
+            dead.sort(key=lambda x: x["blocked_value"], reverse=True)
+            return {"dead_stock_count": len(dead), "total_blocked_value": round(sum(p["blocked_value"] for p in dead), 2), "items": dead[:15]}
 
     if name == "get_reorder_suggestions":
         from datetime import timedelta
-        since   = (date.today() - timedelta(days=30)).isoformat()
-        sales   = db.table("sales").select("product_id,qty").eq("vendor_id", vendor_id).gte("sold_at", f"{since}T00:00:00").execute().data or []
-        qty_map: dict = {}
-        for s in sales:
-            pid = s["product_id"]; qty_map[pid] = qty_map.get(pid, 0.0) + float(s.get("qty") or 0)
-        prods = db.table("products").select("id,name,stock,unit,min_stock,cost_price").eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
-        suggestions = []
-        for p in prods:
-            pid = p["id"]; daily = qty_map.get(pid, 0.0) / 30
-            stock = float(p.get("stock") or 0); min_s = float(p.get("min_stock") or 0)
-            if stock < min_s or (daily > 0 and stock / daily < 7):
-                order_qty = max(0.0, round(daily * 7 - stock, 1))
-                suggestions.append({"name": p["name"], "unit": p.get("unit", ""), "current_stock": stock,
-                    "daily_rate": round(daily, 2), "days_left": round(stock / daily, 1) if daily > 0 else None,
-                    "suggested_order_qty": order_qty,
-                    "urgency": "critical" if stock <= 0 or (daily > 0 and stock / daily < 2) else "soon"})
-        suggestions.sort(key=lambda x: (0 if x["urgency"] == "critical" else 1, x.get("days_left") or 9999))
-        return {"suggestions": suggestions[:15], "count": len(suggestions)}
+        since = (date.today() - timedelta(days=30)).isoformat()
+        if store == "bangle":
+            sales = db.table("bangle_sales").select("items") \
+                .eq("vendor_id", vendor_id).gte("sale_date", since).execute().data or []
+            pid_map: dict = {}
+            for s in sales:
+                for item in (s.get("items") or []):
+                    pid = item.get("product_id")
+                    if pid:
+                        pid_map[pid] = pid_map.get(pid, 0) + int(item.get("pieces") or 0)
+            prods = db.table("bangle_products").select("id,name,total_stock,min_stock,category") \
+                .eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
+            suggestions = []
+            for p in prods:
+                pid   = p["id"]; daily = pid_map.get(pid, 0) / 30
+                stock = float(p.get("total_stock") or 0); min_s = float(p.get("min_stock") or 0)
+                if stock < min_s or (daily > 0 and stock / daily < 7):
+                    suggestions.append({"name": p["name"], "unit": "pcs", "current_stock": stock,
+                        "daily_rate": round(daily, 2), "days_left": round(stock / daily, 1) if daily > 0 else None,
+                        "suggested_order_qty": max(0.0, round(daily * 7 - stock, 1)),
+                        "urgency": "critical" if stock <= 0 or (daily > 0 and stock / daily < 2) else "soon"})
+            suggestions.sort(key=lambda x: (0 if x["urgency"] == "critical" else 1, x.get("days_left") or 9999))
+            return {"suggestions": suggestions[:15], "count": len(suggestions)}
+        else:
+            sales   = db.table("sales").select("product_id,qty").eq("vendor_id", vendor_id).gte("sold_at", f"{since}T00:00:00").execute().data or []
+            qty_map: dict = {}
+            for s in sales:
+                pid = s["product_id"]; qty_map[pid] = qty_map.get(pid, 0.0) + float(s.get("qty") or 0)
+            prods = db.table("products").select("id,name,stock,unit,min_stock,cost_price").eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
+            suggestions = []
+            for p in prods:
+                pid = p["id"]; daily = qty_map.get(pid, 0.0) / 30
+                stock = float(p.get("stock") or 0); min_s = float(p.get("min_stock") or 0)
+                if stock < min_s or (daily > 0 and stock / daily < 7):
+                    order_qty = max(0.0, round(daily * 7 - stock, 1))
+                    suggestions.append({"name": p["name"], "unit": p.get("unit", ""), "current_stock": stock,
+                        "daily_rate": round(daily, 2), "days_left": round(stock / daily, 1) if daily > 0 else None,
+                        "suggested_order_qty": order_qty,
+                        "urgency": "critical" if stock <= 0 or (daily > 0 and stock / daily < 2) else "soon"})
+            suggestions.sort(key=lambda x: (0 if x["urgency"] == "critical" else 1, x.get("days_left") or 9999))
+            return {"suggestions": suggestions[:15], "count": len(suggestions)}
 
     if name == "get_leakage_alerts":
         from datetime import timedelta
@@ -650,7 +783,7 @@ def _run_tool(name: str, args: dict, vendor_id: str) -> dict:
     return {"error": f"Unknown tool: {name}"}
 
 
-_STORE_TOOLS = [
+_KIRANA_TOOLS = [
     {"type":"function","function":{"name":"search_products","description":"Search for a product by name — returns stock, MRP, cost, margin.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}},
     {"type":"function","function":{"name":"get_low_stock_items","description":"Products out of stock or below minimum stock level.","parameters":{"type":"object","properties":{}}}},
     {"type":"function","function":{"name":"get_sales_today","description":"Today's sales: revenue, invoice count, by payment mode.","parameters":{"type":"object","properties":{}}}},
@@ -663,10 +796,27 @@ _STORE_TOOLS = [
     {"type":"function","function":{"name":"get_leakage_alerts","description":"Theft records and high-loss products in last 30 days.","parameters":{"type":"object","properties":{}}}},
 ]
 
+_BANGLE_TOOLS = [
+    {"type":"function","function":{"name":"search_products","description":"Search bangle/jewellery products by name — returns stock, price, margin.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}},
+    {"type":"function","function":{"name":"get_low_stock_items","description":"Bangle variants out of stock or below minimum stock level.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_sales_today","description":"Today's bangle sales: revenue, bill count, top-selling products.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_monthly_sales","description":"This month's bangle sales summary.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_best_margin_products","description":"Top bangle products ranked by profit margin %.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_profit_summary","description":"Today's and this month's bangle store revenue.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_dead_stock","description":"Bangle variants with stock but zero sales in last 30 days.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_reorder_suggestions","description":"Smart reorder list for bangle products based on 30-day sales velocity.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_bangle_velocity","description":"Top-selling colours, sizes, designs in last 30 days.","parameters":{"type":"object","properties":{}}}},
+    {"type":"function","function":{"name":"get_bangle_stock","description":"Bangle stock summary — out of stock and low stock variant counts.","parameters":{"type":"object","properties":{}}}},
+]
 
-def _cloud_prompt(lang_name: str, store_hint: str = "") -> str:
+# backward-compat alias
+_STORE_TOOLS = _KIRANA_TOOLS
+
+
+def _cloud_prompt(lang_name: str, store_hint: str = "", store: str = "kirana") -> str:
+    store_type = "bangle/jewellery and beauty accessories store" if store == "bangle" else "kirana/grocery retail store"
     hint = f"\nSTORE SNAPSHOT: {store_hint}" if store_hint else ""
-    return f"""You are DukaanAI's smart shop assistant for an Indian kirana/retail store owner.
+    return f"""You are DukaanAI's smart shop assistant for an Indian {store_type} owner.
 LANGUAGE RULE: Reply ONLY in {lang_name}. Every word must be in {lang_name}.
 Use the available tools to fetch LIVE store data before answering. Use ₹ for prices, bullet points for lists. Keep answers short and helpful.{hint}"""
 
@@ -716,14 +866,18 @@ async def chat(
 
     safe_msg = req.message.strip()[:1000]
 
+    store = (req.store or "kirana").strip().lower()
+    store = "bangle" if store == "bangle" else "kirana"
+    active_tools = _BANGLE_TOOLS if store == "bangle" else _KIRANA_TOOLS
+
     # ── TIER 1: Local intent classifier ──────────────────────
     if vendor:
         intent, score = _detect_intent(safe_msg)
         if intent:
             try:
-                data  = _run_tool(intent["tool"], intent["args"], vendor["id"])
+                data  = _run_tool(intent["tool"], intent["args"], vendor["id"], store)
                 reply = _format_local(intent["id"], data)
-                logger.info("local_intent=%s score=%d vendor=%s", intent["id"], score, vendor["id"])
+                logger.info("local_intent=%s score=%d vendor=%s store=%s", intent["id"], score, vendor["id"], store)
                 return {"response": reply, "source": "local"}
             except Exception as e:
                 logger.warning("Local intent failed, falling through to Groq: %s", e)
@@ -735,17 +889,18 @@ async def chat(
     if vendor:
         # Build a lightweight store hint so Groq has context before any tool call
         try:
-            _s = _run_tool("get_sales_today", {}, vendor["id"])
-            _l = _run_tool("get_low_stock_items", {}, vendor["id"])
+            _s = _run_tool("get_sales_today", {}, vendor["id"], store)
+            _l = _run_tool("get_low_stock_items", {}, vendor["id"], store)
+            pieces_note = f" · {_s.get('total_pieces', 0)} pcs" if store == "bangle" else ""
             store_hint = (
-                f"Today revenue ₹{_s.get('total_revenue',0)}, "
-                f"{_s.get('invoice_count',0)} invoices | "
-                f"Out of stock: {len(_l.get('out_of_stock',[]))} items, "
-                f"Low stock: {len(_l.get('low_stock',[]))} items"
+                f"Today revenue ₹{_s.get('total_revenue', 0)}, "
+                f"{_s.get('invoice_count', 0)} bills{pieces_note} | "
+                f"Out of stock: {_l.get('out_count', len(_l.get('out_of_stock', [])))} variants/items, "
+                f"Low stock: {_l.get('low_count', len(_l.get('low_stock', [])))} variants/items"
             )
         except Exception:
             store_hint = ""
-        system_prompt = _cloud_prompt(lang_name, store_hint)
+        system_prompt = _cloud_prompt(lang_name, store_hint, store)
     else:
         system_prompt = _local_prompt(lang_name, req.store_context or {})
     messages = [{"role": "system", "content": system_prompt}]
@@ -755,8 +910,9 @@ async def chat(
     messages.append({"role": "user", "content": safe_msg})
 
     try:
-        reply = await _call_groq(messages, vendor["id"] if vendor else None, use_tools=bool(vendor))
-        logger.info("groq_response vendor=%s", vendor["id"] if vendor else "anonymous")
+        # Pass active_tools so Groq calls the right set for this store
+        reply = await _call_groq_with_tools(messages, vendor["id"] if vendor else None, active_tools if vendor else None, store, vendor["id"] if vendor else None)
+        logger.info("groq_response vendor=%s store=%s", vendor["id"] if vendor else "anonymous", store)
         return {"response": reply, "source": "groq"}
 
     except Exception as groq_err:
@@ -781,18 +937,19 @@ async def chat(
         # For Gemini fallback: fetch store context inline so it can answer without tool calls
         if vendor:
             try:
-                profit_data = _run_tool("get_profit_summary", {}, vendor["id"])
-                stock_data  = _run_tool("get_low_stock_items", {}, vendor["id"])
+                profit_data = _run_tool("get_profit_summary", {}, vendor["id"], store)
+                stock_data  = _run_tool("get_low_stock_items", {}, vendor["id"], store)
+                out_names   = [p["name"] for p in stock_data.get("out_of_stock", [])[:5]]
+                low_names   = [p["name"] for p in stock_data.get("low_stock", [])[:5]]
                 context_inject = (
                     f"\n\nLIVE STORE DATA:\n"
-                    f"Today profit: ₹{profit_data.get('today', {}).get('profit', 0)} | "
-                    f"Revenue: ₹{profit_data.get('today', {}).get('revenue', 0)}\n"
-                    f"Out of stock: {', '.join(p['name'] for p in stock_data.get('out_of_stock', [])[:5]) or 'none'}\n"
-                    f"Low stock: {', '.join(p['name'] for p in stock_data.get('low_stock', [])[:5]) or 'none'}"
+                    f"Today revenue: ₹{profit_data.get('today', {}).get('revenue', 0)}\n"
+                    f"Out of stock: {', '.join(out_names) or 'none'}\n"
+                    f"Low stock: {', '.join(low_names) or 'none'}"
                 )
-                gemini_system = _cloud_prompt(lang_name) + context_inject
+                gemini_system = _cloud_prompt(lang_name, store=store) + context_inject
             except Exception:
-                gemini_system = _cloud_prompt(lang_name)
+                gemini_system = _cloud_prompt(lang_name, store=store)
         else:
             gemini_system = _local_prompt(lang_name, req.store_context or {})
 

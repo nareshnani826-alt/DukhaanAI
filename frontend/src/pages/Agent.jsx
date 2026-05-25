@@ -277,6 +277,7 @@ async function askAI(messages, storeContext, lang = "en-IN") {
       language:      lang,
       store_context: storeContext,
       history,
+      store: localStorage.getItem("storeMode") === "bangle_fancy" ? "bangle" : "kirana",
     }),
     signal: AbortSignal.timeout(30000),
   })

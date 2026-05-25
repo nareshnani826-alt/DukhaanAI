@@ -44,6 +44,7 @@ export default function Billing() {
     const q = (code || barcodeInput).trim()
     if (!q) return
     const matched = products.find(p =>
+      p.barcode === q ||
       p.sku === q ||
       p.sku?.replace(/[-\s]/g, "") === q.replace(/[-\s]/g, "") ||
       p.name.toLowerCase().includes(q.toLowerCase())

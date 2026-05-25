@@ -1,56 +1,60 @@
 import { useEffect, useRef, useState } from "react"
 
-// Use jsQR — works on iOS Safari, Android Chrome, Desktop
-const JSQR_CDN = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"
+// ZXing supports EAN-13, UPC-A, Code-128, Code-39, QR and 20+ other formats
+const ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"
 
-function loadJsQR() {
+function loadZXing() {
   return new Promise((resolve, reject) => {
-    if (window.jsQR) return resolve(window.jsQR)
+    if (window.ZXing) return resolve(window.ZXing)
     const s = document.createElement("script")
-    s.src = JSQR_CDN
-    s.onload  = () => resolve(window.jsQR)
-    s.onerror = () => reject(new Error("Failed to load scanner"))
+    s.src = ZXING_CDN
+    s.onload  = () => resolve(window.ZXing)
+    s.onerror = () => reject(new Error("Failed to load barcode scanner"))
     document.head.appendChild(s)
   })
 }
 
 export default function BarcodeScanner({ onDetected, onClose }) {
-  const videoRef   = useRef(null)
-  const canvasRef  = useRef(null)
-  const streamRef  = useRef(null)
-  const rafRef     = useRef(null)
-  const [status,   setStatus]  = useState("loading")
-  const [error,    setError]   = useState("")
-  const [lastCode, setLastCode]= useState("")
-  const lastCodeRef = useRef("")
+  const videoRef  = useRef(null)
+  const readerRef = useRef(null)
+  const [status,   setStatus]   = useState("loading")
+  const [error,    setError]    = useState("")
+  const [lastCode, setLastCode] = useState("")
+  const detectedRef = useRef(false)
 
   useEffect(() => {
     let mounted = true
 
     async function start() {
       try {
-        await loadJsQR()
+        const ZXing = await loadZXing()
         if (!mounted) return
 
-        // Request camera — prefer back camera
-        const constraints = {
-          video: {
-            facingMode: { ideal: "environment" },
-            width:  { ideal: 1280 },
-            height: { ideal: 720 },
-          }
-        }
+        const reader = new ZXing.BrowserMultiFormatReader()
+        readerRef.current = reader
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints)
-        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
+        // List cameras and pick the back-facing one if available
+        const devices = await ZXing.BrowserCodeReader.listVideoInputDevices()
+        const backCamera = devices.find(d =>
+          /back|rear|environment/i.test(d.label)
+        ) || devices[devices.length - 1] || null
 
-        streamRef.current = stream
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        const deviceId = backCamera?.deviceId || undefined
 
         setStatus("scanning")
-        scanFrame(mounted)
-      } catch(e) {
+
+        await reader.decodeFromVideoDevice(deviceId, videoRef.current, (result, err) => {
+          if (!mounted || detectedRef.current) return
+          if (result) {
+            const code = result.getText()
+            detectedRef.current = true
+            setLastCode(code)
+            onDetected(code)
+          }
+          // NotFoundException fires every frame when no barcode is visible — ignore it
+        })
+
+      } catch (e) {
         if (!mounted) return
         setStatus("error")
         if (e.name === "NotAllowedError")
@@ -62,46 +66,16 @@ export default function BarcodeScanner({ onDetected, onClose }) {
       }
     }
 
-    function scanFrame(mounted) {
-      if (!mounted || !videoRef.current || !canvasRef.current) return
-
-      const video  = videoRef.current
-      const canvas = canvasRef.current
-      const ctx    = canvas.getContext("2d")
-
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width  = video.videoWidth
-        canvas.height = video.videoHeight
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "dontInvert"
-        })
-
-        if (code && code.data && code.data !== lastCodeRef.current) {
-          lastCodeRef.current = code.data
-          setLastCode(code.data)
-          onDetected(code.data)
-          return // stop scanning after detection
-        }
-      }
-
-      rafRef.current = requestAnimationFrame(() => scanFrame(mounted))
-    }
-
     start()
 
     return () => {
       mounted = false
-      cancelAnimationFrame(rafRef.current)
-      streamRef.current?.getTracks().forEach(t => t.stop())
+      try { readerRef.current?.reset() } catch (_) {}
     }
   }, [])
 
   function handleClose() {
-    cancelAnimationFrame(rafRef.current)
-    streamRef.current?.getTracks().forEach(t => t.stop())
+    try { readerRef.current?.reset() } catch (_) {}
     onClose()
   }
 
@@ -112,9 +86,6 @@ export default function BarcodeScanner({ onDetected, onClose }) {
       alignItems:"center", justifyContent:"center",
     }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
-      {/* Hidden canvas for processing */}
-      <canvas ref={canvasRef} style={{ display:"none" }} />
 
       {/* Top bar */}
       <div style={{
@@ -171,7 +142,7 @@ export default function BarcodeScanner({ onDetected, onClose }) {
           }}
         />
 
-        {/* Scanning overlay */}
+        {/* Scanning overlay — wide rectangle for 1D barcodes */}
         {status === "scanning" && (
           <div style={{
             position:"absolute", inset:0,
@@ -179,7 +150,7 @@ export default function BarcodeScanner({ onDetected, onClose }) {
             pointerEvents:"none",
           }}>
             <div style={{
-              width:220, height:100,
+              width:"80%", height:80,
               border:"2.5px solid #1D9E75",
               borderRadius:8,
               boxShadow:"0 0 0 2000px rgba(0,0,0,0.45)",
@@ -190,10 +161,10 @@ export default function BarcodeScanner({ onDetected, onClose }) {
 
       <div style={{
         marginTop:16, color:"rgba(255,255,255,0.6)",
-        fontSize:12, textAlign:"center",
+        fontSize:12, textAlign:"center", padding:"0 20px",
       }}>
         {status === "scanning"
-          ? "Point barcode inside the green box"
+          ? "Hold barcode steady inside the green box"
           : status === "loading" ? "Requesting camera..." : ""}
       </div>
 
