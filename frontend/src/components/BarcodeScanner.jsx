@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
-// ZXing supports EAN-13, UPC-A, Code-128, Code-39, QR and 20+ other formats
+// ZXing supports EAN-13, UPC-A, Code-128, Code-39, QR and 20+ formats
 const ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"
 
 function loadZXing() {
@@ -15,12 +15,15 @@ function loadZXing() {
 }
 
 export default function BarcodeScanner({ onDetected, onClose }) {
-  const videoRef  = useRef(null)
-  const readerRef = useRef(null)
+  const videoRef    = useRef(null)
+  const canvasRef   = useRef(null)
+  const streamRef   = useRef(null)
+  const timerRef    = useRef(null)
+  const readerRef   = useRef(null)
+  const detectedRef = useRef(false)
   const [status,   setStatus]   = useState("loading")
   const [error,    setError]    = useState("")
   const [lastCode, setLastCode] = useState("")
-  const detectedRef = useRef(false)
 
   useEffect(() => {
     let mounted = true
@@ -30,30 +33,49 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         const ZXing = await loadZXing()
         if (!mounted) return
 
+        // Use getUserMedia directly — avoids ZXing's internal stream wrapper
+        // which has known issues on iOS WebKit (Safari/Chrome)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        })
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
+
+        streamRef.current = stream
+        const video = videoRef.current
+        video.srcObject = stream
+        await video.play()
+
         const reader = new ZXing.BrowserMultiFormatReader()
         readerRef.current = reader
 
+        const canvas = canvasRef.current
+        const ctx    = canvas.getContext("2d", { willReadFrequently: true })
+
         setStatus("scanning")
 
-        // Use facingMode constraint — avoids iOS label-enumeration bug where
-        // camera labels are empty before permission is granted, causing the
-        // back-camera regex to fail and ZXing to open the front camera instead.
-        await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-          videoRef.current,
-          (result, err) => {
-            if (!mounted || detectedRef.current) return
+        // Poll at 10 fps — draw each frame to canvas, then decode
+        timerRef.current = setInterval(() => {
+          if (!mounted || detectedRef.current) return
+          if (video.readyState < video.HAVE_ENOUGH_DATA) return
+
+          canvas.width  = video.videoWidth
+          canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0)
+
+          try {
+            const result = reader.decodeFromCanvas(canvas)
             if (result) {
               const code = result.getText()
               detectedRef.current = true
               setLastCode(code)
               onDetected(code)
-              // Reset after 1.5 s so the next product can be scanned
               setTimeout(() => { detectedRef.current = false }, 1500)
             }
-            // NotFoundException fires every frame when no barcode is visible — ignore it
+          } catch (_) {
+            // NotFoundException on every empty frame — ignore
           }
-        )
+        }, 100)
 
       } catch (e) {
         if (!mounted) return
@@ -71,12 +93,14 @@ export default function BarcodeScanner({ onDetected, onClose }) {
 
     return () => {
       mounted = false
-      try { readerRef.current?.reset() } catch (_) {}
+      clearInterval(timerRef.current)
+      streamRef.current?.getTracks().forEach(t => t.stop())
     }
   }, [])
 
   function handleClose() {
-    try { readerRef.current?.reset() } catch (_) {}
+    clearInterval(timerRef.current)
+    streamRef.current?.getTracks().forEach(t => t.stop())
     onClose()
   }
 
@@ -103,7 +127,7 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         }}>✕ Close</button>
       </div>
 
-      {/* Video */}
+      {/* Video + hidden canvas for frame decoding */}
       <div style={{ position:"relative", width:"min(400px,95vw)" }}>
         {status === "loading" && (
           <div style={{
@@ -142,8 +166,10 @@ export default function BarcodeScanner({ onDetected, onClose }) {
             maxHeight:"60vh",
           }}
         />
+        {/* Canvas is off-screen — used only for frame decoding */}
+        <canvas ref={canvasRef} style={{ display:"none" }} />
 
-        {/* Scanning overlay — wide rectangle for 1D barcodes */}
+        {/* Scanning overlay */}
         {status === "scanning" && (
           <div style={{
             position:"absolute", inset:0,
