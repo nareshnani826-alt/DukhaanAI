@@ -136,22 +136,63 @@ function ScanCamera({ products, onScanned, feedback }) {
   const elId            = "scan-bill-cam"
 
   useEffect(() => {
-    const qr = new Html5Qrcode(elId, { formatsToSupport: BARCODE_FORMATS, verbose: false })
-    scannerRef.current = qr
-    qr.start(
-      { facingMode: "environment" },
-      { fps: 30, qrbox: { width: 260, height: 100 }, aspectRatio: 2.6 },
-      (decoded) => {
-        const now = Date.now()
-        // Debounce: ignore same code within 0.5 s
-        if (decoded === lastRef.current.id && now - lastRef.current.ts < 500) return
-        lastRef.current = { id: decoded, ts: now }
-        const match = findVariantMatch(products, decoded)
-        onScanned(decoded, match)
-      },
-      () => {}
-    ).catch(e => setErr(e?.message || "Camera access denied — allow in browser settings"))
-    return () => { qr.stop().catch(() => {}) }
+    let stopCamera = null;
+    let running = true;
+    async function startNativeScanner() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        const video = document.createElement("video");
+        video.setAttribute("playsinline", "true");
+        video.srcObject = stream;
+        await video.play();
+        document.getElementById(elId).appendChild(video);
+        const detector = new window.BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","qr_code"] });
+        async function scanFrame() {
+          if (!running) return;
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes.length > 0) {
+              const decoded = barcodes[0].rawValue;
+              const now = Date.now();
+              if (decoded === lastRef.current.id && now - lastRef.current.ts < 500) return requestAnimationFrame(scanFrame);
+              lastRef.current = { id: decoded, ts: now };
+              const match = findVariantMatch(products, decoded);
+              onScanned(decoded, match);
+            }
+          } catch {}
+          requestAnimationFrame(scanFrame);
+        }
+        scanFrame();
+        stopCamera = () => {
+          running = false;
+          video.pause();
+          stream.getTracks().forEach(t => t.stop());
+          if (video.parentNode) video.parentNode.removeChild(video);
+        };
+      } catch (e) {
+        setErr("Camera or BarcodeDetector not available. Try a different browser or device.");
+      }
+    }
+    if ("BarcodeDetector" in window) {
+      startNativeScanner();
+      return () => { if (stopCamera) stopCamera(); running = false; };
+    } else {
+      const qr = new Html5Qrcode(elId, { formatsToSupport: BARCODE_FORMATS, verbose: false });
+      scannerRef.current = qr;
+      qr.start(
+        { facingMode: "environment" },
+        { fps: 30, qrbox: { width: 260, height: 100 }, aspectRatio: 2.6 },
+        (decoded) => {
+          const now = Date.now();
+          if (decoded === lastRef.current.id && now - lastRef.current.ts < 500) return;
+          lastRef.current = { id: decoded, ts: now };
+          const match = findVariantMatch(products, decoded);
+          onScanned(decoded, match);
+        },
+        () => {}
+      ).catch(e => setErr(e?.message || "Camera access denied — allow in browser settings"));
+      return () => { qr.stop().catch(() => {}) };
+    }
   }, [])
 
   return (
