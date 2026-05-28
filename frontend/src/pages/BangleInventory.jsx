@@ -473,35 +473,6 @@ function AddProductModal({ onClose, onSaved }) {
     }
   }
 
-  function mapOffCategory(tags) {
-    if (!tags || !tags.length) return "Other"
-    const t = tags.join(" ").toLowerCase()
-    if (t.includes("nail polish") || t.includes("nail varnish")) return "Nail Polish"
-    if (t.includes("kajal") || t.includes("kohl") || t.includes("eyeliner")) return "Kajal"
-    if (t.includes("lipstick") || t.includes("lip color") || t.includes("lip colour")) return "Lipstick"
-    if (t.includes("mehendi") || t.includes("henna")) return "Mehendi"
-    if (t.includes("perfume") || t.includes("fragrance") || t.includes("eau de") || t.includes("deodorant")) return "Perfume"
-    if (t.includes("compact") || t.includes("foundation") || t.includes("pressed powder")) return "Compact"
-    if (t.includes("cream") || t.includes("moisturizer") || t.includes("serum") || t.includes("face wash") || t.includes("skin care")) return "Skin Care"
-    if (t.includes("shampoo") || t.includes("conditioner")) return "Shampoo"
-    if (t.includes("hair oil") || t.includes("hair serum")) return "Hair Oil"
-    if (t.includes("body lotion") || t.includes("body cream") || t.includes("body butter")) return "Body Lotion"
-    if (t.includes("soap") || t.includes("body wash") || t.includes("hand wash")) return "Soap"
-    if (t.includes("talc") || t.includes("talcum") || t.includes("body powder")) return "Talcum Powder"
-    if (t.includes("hair color") || t.includes("hair dye") || t.includes("hair colour")) return "Hair Color"
-    if (t.includes("bangle") || t.includes("kada")) return "Bangles"
-    if (t.includes("earring") || t.includes("jhumka")) return "Earrings"
-    if (t.includes("necklace")) return "Necklace"
-    if (t.includes("ring")) return "Rings"
-    if (t.includes("bracelet")) return "Bracelet"
-    if (t.includes("anklet")) return "Anklet"
-    if (t.includes("hair clip") || t.includes("hair pin")) return "Hair Clip"
-    if (t.includes("bindi")) return "Bindi"
-    if (t.includes("tikka") || t.includes("maang")) return "Maang Tikka"
-    if (t.includes("nose ring") || t.includes("nath")) return "Nose Ring"
-    return "Other"
-  }
-
   async function lookupBarcode(barcode) {
     const res = await lookupBarcodeAPI(barcode, "bangle")
     const productData = {
@@ -572,23 +543,7 @@ function AddProductModal({ onClose, onSaved }) {
         return
       }
       const barcode = barcodes[0].rawValue
-      let productData = { name:"", category:"Other", brand:"", barcode, source:"barcode-scan" }
-      try {
-        const res = await fetch(`https://world.openfoodfacts.org/api/v3/product/${barcode}.json`)
-        const data = await res.json()
-        if (data.status === "success" && data.product) {
-          const p = data.product
-          const name = p.product_name_en || p.product_name || p.generic_name || ""
-          const brand = p.brands?.split(",")[0]?.trim() || ""
-          const catTags = [...(p.categories_tags || []), ...(p.labels_tags || []), p.product_name || ""]
-          productData = { name, brand, barcode, category: mapOffCategory(catTags), source:"barcode-scan" }
-        } else {
-          setBarcodeErr(`Barcode ${barcode} scanned — fill product details manually.`)
-        }
-      } catch {
-        setBarcodeErr(`Barcode ${barcode} scanned — couldn't fetch product info.`)
-      }
-      openScanBuilder(productData)
+      await lookupBarcode(barcode)
     } catch (err) {
       setBarcodeErr(`Scan failed: ${err.message}`)
     } finally {

@@ -49,6 +49,11 @@ export const UNIT_ALIASES = {
   "pack":    "pkt","packs":  "pkt","bottle":"btl","bottles":"btl",
   "box":     "box","boxes":  "box","bag":   "bag","bags":   "bag",
   "number":  "pc","numbers":"pc","item":   "pc","items":  "pc",
+  // dozen variants (bangle billing)
+  "dozen":   "dozen","doz":  "dozen","darjan":"dozen","దజను":"dozen",
+  "டஜன்":   "dozen","ಡಜನ್":"dozen","ডজন":  "dozen","ਦਰਜਨ":"dozen",
+  // set variants (bangle billing — set = 6 pcs)
+  "set":     "set","sets":   "set",
   // Hindi
   "पैकेट":   "pkt","बोतल":  "btl","डिब्बा": "box","किलो":  "kg",
   // Telugu

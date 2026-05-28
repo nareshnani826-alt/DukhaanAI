@@ -817,9 +817,21 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
   const [qty,     setQty]     = useState(1)
   const [sellingPrice, setSellingPrice] = useState(0)
   const [voiceListening, setVoiceListening] = useState(false)
-  const [voiceMsg, setVoiceMsg] = useState("")
-  const [voiceLang, setVoiceLang] = useState(() => getSavedLang() || "te-IN")
-  const voiceRecRef = useRef(null)
+  const [voiceMsg,       setVoiceMsg]       = useState("")
+  const [voiceInterim,   setVoiceInterim]   = useState("")
+  const [voiceLang,      setVoiceLang]      = useState(() => getSavedLang() || "te-IN")
+  const voiceRecRef    = useRef(null)
+  const voiceAddedRef  = useRef(0)
+  const voiceActiveRef = useRef(false)  // true = keep restarting, false = user stopped
+
+  // Auto-start voice when picker opens; stop cleanly on unmount
+  useEffect(() => {
+    startVoice()
+    return () => {
+      voiceActiveRef.current = false
+      try { voiceRecRef.current?.stop() } catch {}
+    }
+  }, [])
 
   const filtered = products.filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase())
@@ -868,40 +880,100 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
   function startVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) { setVoiceMsg("Voice not supported — use Chrome"); return }
-    setVoiceListening(true); setVoiceMsg("")
-    const rec = new SR()
-    rec.lang = voiceLang; rec.continuous = false; rec.interimResults = false
-    rec.onend  = () => setVoiceListening(false)
-    rec.onerror = () => { setVoiceListening(false); setVoiceMsg("Mic error — try again") }
-    rec.onresult = (e) => {
-      const text = e.results[0][0].transcript.trim()
-      const result = parseVoiceCart(text, products)
-      if (!result) { setVoiceMsg(`Could not match: "${text}"`); return }
-      const unitDef  = UNITS.find(u => u.id === result.unit) || UNITS[0]
-      const pieces   = result.qty * unitDef.pcs
-      const dozenMrp = result.variant.mrp || result.product.mrp || 0
-      const vPrice   = result.unit === "dozen" ? dozenMrp
-                     : result.unit === "set"   ? +(dozenMrp / 2).toFixed(2)
-                     :                           +(dozenMrp / 12).toFixed(2)
-      onAdd({
-        variant_id:   result.variant.id,
-        product_id:   result.product.id,
-        product_name: result.product.name,
-        colour:       result.variant.colour,
-        size:         result.variant.size,
-        design:       result.variant.design,
-        unit:         result.unit,
-        unit_qty:     result.qty,
-        unit_price:   vPrice,
-        pieces,
-        amount:       result.qty * vPrice,
-        gst_percent:  result.product.gst_percent || 3,
-        _id:          Date.now(),
-      })
-      setVoiceMsg(`✓ Added: ${result.product.name}${result.variant.colour ? " · " + result.variant.colour : ""} × ${result.qty} ${result.unit}`)
+    voiceAddedRef.current  = 0
+    voiceActiveRef.current = true
+    setVoiceListening(true); setVoiceMsg(""); setVoiceInterim("")
+
+    // Capture lang once — won't change during the session
+    const lang = voiceLang
+
+    // Auto-restart loop: browser kills recognition after each pause (especially
+    // on mobile Chrome). We re-create and re-start a fresh instance every time
+    // onend fires, as long as voiceActiveRef is still true.
+    function spawnRec() {
+      if (!voiceActiveRef.current) return
+      const rec = new SR()
+      rec.lang = lang; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1
+
+      rec.onend = () => {
+        // Guard: if a newer session already replaced this one, ignore stale event
+        if (voiceRecRef.current !== rec) return
+        setVoiceInterim("")
+        if (voiceActiveRef.current) setTimeout(spawnRec, 100)
+        else setVoiceListening(false)
+      }
+
+      rec.onerror = (e) => {
+        // Guard: stale event from a session that was already replaced
+        if (voiceRecRef.current !== rec) return
+        setVoiceInterim("")
+        // Treat transient errors as benign — restart the session
+        const benign = ["no-speech", "aborted", "network", "audio-capture"]
+        if (benign.includes(e.error)) {
+          if (voiceActiveRef.current) setTimeout(spawnRec, e.error === "audio-capture" ? 400 : 150)
+          return
+        }
+        // Only truly fatal errors (not-allowed, service-not-allowed) stop the session
+        voiceActiveRef.current = false
+        setVoiceListening(false)
+        setVoiceMsg("Mic error — try again")
+      }
+
+      rec.onresult = (e) => {
+        const res = e.results[e.resultIndex]
+        if (!res.isFinal) { setVoiceInterim(res[0].transcript); return }
+        setVoiceInterim("")
+        const text = res[0].transcript.trim()
+
+        // Stop words — end the session
+        if (/\b(done|stop|finish|that'?s? ?all|bas|complete|ok done|okay done|end|cancel)\b/i.test(text) ||
+            /बस|हो गया|ठीक है/.test(text)) {
+          voiceActiveRef.current = false
+          const n = voiceAddedRef.current
+          setVoiceMsg(`✓ Done — ${n} item${n !== 1 ? "s" : ""} added to cart`)
+          return
+        }
+
+        const result = parseVoiceCart(text, products)
+        if (!result) { setVoiceMsg(`✗ No match: "${text}" — say next item`); return }
+
+        const unitDef  = UNITS.find(u => u.id === result.unit) || UNITS[0]
+        const pieces   = result.qty * unitDef.pcs
+        const dozenMrp = result.variant.mrp || result.product.mrp || 0
+        const vPrice   = result.unit === "dozen" ? dozenMrp
+                       : result.unit === "set"   ? +(dozenMrp / 2).toFixed(2)
+                       :                           +(dozenMrp / 12).toFixed(2)
+        onAdd({
+          variant_id:   result.variant.id,
+          product_id:   result.product.id,
+          product_name: result.product.name,
+          colour:       result.variant.colour,
+          size:         result.variant.size,
+          design:       result.variant.design,
+          unit:         result.unit,
+          unit_qty:     result.qty,
+          unit_price:   vPrice,
+          pieces,
+          amount:       result.qty * vPrice,
+          gst_percent:  result.product.gst_percent || 3,
+          _id:          Date.now(),
+        }, true) // stay on items tab so voice session remains visible
+        voiceAddedRef.current += 1
+        const label = `${result.product.name}${result.variant.colour ? " · " + result.variant.colour : ""} × ${result.qty} ${result.unit}`
+        setVoiceMsg(`✓ #${voiceAddedRef.current}: ${label}`)
+      }
+
+      voiceRecRef.current = rec
+      try { rec.start() } catch { if (voiceActiveRef.current) setTimeout(spawnRec, 300) }
     }
-    voiceRecRef.current = rec
-    rec.start()
+
+    spawnRec()
+  }
+
+  function stopVoice() {
+    voiceActiveRef.current = false
+    try { voiceRecRef.current?.stop() } catch {}
+    setVoiceListening(false); setVoiceInterim("")
   }
 
   function handleAdd() {
@@ -935,7 +1007,7 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
       <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--rule)", flexShrink: 0 }}>
         {/* Search + scan + voice row */}
-        <div style={{ display:"flex", gap:6, marginBottom: voiceMsg ? 6 : 0 }}>
+        <div style={{ display:"flex", gap:6 }}>
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder={t("Search products...")}
             style={{ flex:1, border: "1.5px solid var(--rule)", borderRadius: 10,
@@ -963,9 +1035,9 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
               <rect x="21" y="4" width="1" height="16"/>
             </svg>
           </button>
-          {/* Voice */}
-          <button onClick={voiceListening ? () => { voiceRecRef.current?.stop(); setVoiceListening(false) } : startVoice}
-            title={voiceListening ? "Stop listening" : "Voice command"}
+          {/* Voice — tap to start continuous session, tap again to stop */}
+          <button onClick={voiceListening ? stopVoice : startVoice}
+            title={voiceListening ? "Stop listening (or say 'done')" : "Start voice — add multiple items at once"}
             style={{ padding:"8px 11px", borderRadius:10, border:"1.5px solid",
               borderColor: voiceListening ? "#ef4444" : "var(--rule)",
               background: voiceListening ? "rgba(239,68,68,0.1)" : "var(--bg2)",
@@ -974,7 +1046,8 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
             🎤
           </button>
         </div>
-        {/* Language selector — shown when voice is active or on tap */}
+
+        {/* Language selector */}
         <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginTop:6 }}>
           {VOICE_LANGS.map(l => (
             <button key={l.code} onClick={() => setVoiceLang(l.code)}
@@ -989,16 +1062,45 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
             </button>
           ))}
         </div>
+
+        {/* Active voice session panel */}
+        {voiceListening && (
+          <div style={{ marginTop:8, borderRadius:10, border:"1.5px solid #ef4444",
+            background:"rgba(239,68,68,0.06)", overflow:"hidden" }}>
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+              padding:"7px 10px", background:"rgba(239,68,68,0.1)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:14, animation:"voice-ring 1.2s ease-in-out infinite" }}>🎙</span>
+                <span style={{ fontSize:11, fontWeight:700, color:"#dc2626" }}>
+                  Listening… {voiceAddedRef.current > 0 && `${voiceAddedRef.current} item${voiceAddedRef.current !== 1 ? "s" : ""} added`}
+                </span>
+              </div>
+              <button onClick={stopVoice}
+                style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20,
+                  background:"#dc2626", color:"#fff", border:"none", cursor:"pointer" }}>
+                Stop ■
+              </button>
+            </div>
+            {/* Interim text — real-time recognition */}
+            <div style={{ padding:"6px 10px", minHeight:28 }}>
+              {voiceInterim ? (
+                <span style={{ fontSize:12, color:"#6b7280", fontStyle:"italic" }}>"{voiceInterim}…"</span>
+              ) : (
+                <span style={{ fontSize:11, color:"#9ca3af" }}>
+                  Say product name, colour &amp; qty &nbsp;·&nbsp; say <b>"done"</b> when finished
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Last result message */}
         {voiceMsg && (
           <div style={{ fontSize:11, marginTop:4, fontWeight:600, padding:"4px 8px", borderRadius:7,
             background: voiceMsg.startsWith("✓") ? "rgba(29,158,117,0.12)" : "rgba(220,38,38,0.08)",
             color: voiceMsg.startsWith("✓") ? "var(--jade)" : "#dc2626" }}>
             {voiceMsg}
-          </div>
-        )}
-        {voiceListening && (
-          <div style={{ fontSize:11, color:"#ef4444", fontWeight:600, textAlign:"center", marginTop:4 }}>
-            🎙 Listening… say product name, colour, size &amp; quantity
           </div>
         )}
       </div>
@@ -1697,7 +1799,7 @@ export default function BangleBilling() {
     setSyncing(false)
   }
 
-  function addToCart(item) { setCart(prev => [...prev, item]); setTab("cart") }
+  function addToCart(item, stayOnItems = false) { setCart(prev => [...prev, item]); if (!stayOnItems) setTab("cart") }
   function removeFromCart(id) { setCart(prev => prev.filter(i => i._id !== id)) }
   function updateCartPrice(id, newAmount, oldAmount) {
     setCart(prev => prev.map(i => {

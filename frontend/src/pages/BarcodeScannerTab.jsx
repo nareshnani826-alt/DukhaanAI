@@ -1,36 +1,8 @@
 import { useState, useEffect, useRef } from "react"
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { getToken, Products } from "../sync/db"
-import { BangleProducts } from "../sync/bangleDb"
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import { Capacitor } from '@capacitor/core'
-
-// Copy of findVariantMatch from BangleBilling
-function findVariantMatch(products, decoded) {
-  if (!decoded) return null
-  const q = decoded.trim()
-  // 1. Exact barcode field match on the product
-  for (const p of products) {
-    if (p.barcode && p.barcode === q) {
-      const variant = (p.variants || []).find(v => v.stock > 0) || (p.variants || [])[0]
-      if (variant) return { product: p, variant }
-    }
-  }
-  // 2. SKU match
-  for (const p of products) {
-    if (p.sku && (p.sku === q || p.sku.replace(/[-\s]/g, "") === q.replace(/[-\s]/g, ""))) {
-      const variant = (p.variants || []).find(v => v.stock > 0) || (p.variants || [])[0]
-      if (variant) return { product: p, variant }
-    }
-  }
-  // 3. Variant ID match (for QR codes)
-  for (const p of products) {
-    for (const v of (p.variants || [])) {
-      if (v.id === q) return { product: p, variant: v }
-    }
-  }
-  return null
-}
 
 const FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13,
@@ -71,9 +43,9 @@ export default function BarcodeScannerTab() {
   const detectedRef = useRef(false)
   const READER_ID   = "barcode-reader"
 
-  // Load products on mount
+  // Load kirana products on mount for local-first barcode matching
   useEffect(() => {
-    BangleProducts.list()
+    Products.list()
       .then(prods => setProducts(prods || []))
       .catch(() => setProducts([]))
   }, [])
@@ -81,9 +53,14 @@ export default function BarcodeScannerTab() {
   // ── Async barcode handler used by all scan sources ─────────────
   async function handleBarcode(code) {
     setScanning(false)
-    const match = findVariantMatch(products, code)
-    if (match) {
-      setResult({ source: "inventory", product: match.product, variant: match.variant })
+    const q = code.trim()
+    const local = products.find(p =>
+      p.barcode === q ||
+      p.sku === q ||
+      p.sku?.replace(/[-\s]/g, "") === q.replace(/[-\s]/g, "")
+    )
+    if (local) {
+      setResult({ source: "inventory", product: local })
       setQty(1)
       return
     }

@@ -581,35 +581,64 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
               🎤 Heard {multiPending.length} items — confirm all?
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:14 }}>
-              {multiPending.map((item, i) => (
-                <div key={i} style={{ background:"var(--bg1,#fff)", borderRadius:10,
-                  padding:"10px 12px", border:"1px solid var(--rule,rgba(0,0,0,0.08))",
-                  display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:600, color:"var(--ink,#1a0c04)" }}>
-                      {item.invMatch?.name || item.stdName}
-                      {!item.invMatch && (
-                        <span style={{ fontSize:10, color:"var(--ember,#c0392b)", marginLeft:6 }}>
-                          (not in inventory)
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize:11, color:"var(--ink-faint,#888)", marginTop:2 }}>
-                      {item.qty} {item.unit}
-                      {item.invMatch?.mrp ? ` · ₹${Math.round(item.invMatch.mrp * item.qty)}` : ""}
+              {multiPending.map((item, i) => {
+                const pcs = item.unit === "dozen" ? item.qty * 12
+                          : item.unit === "set"   ? item.qty * 6
+                          : item.qty
+                const lineAmt = item.invMatch?.mrp ? Math.round(item.invMatch.mrp * pcs) : 0
+                return (
+                  <div key={i} style={{ background:"var(--bg1,#fff)", borderRadius:10,
+                    padding:"10px 12px", border:"1px solid var(--rule,rgba(0,0,0,0.08))" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:"var(--ink,#1a0c04)", marginBottom:4 }}>
+                          {item.invMatch?.name || item.stdName}
+                          {!item.invMatch && (
+                            <span style={{ fontSize:10, color:"var(--ember,#c0392b)", marginLeft:6 }}>
+                              (not found)
+                            </span>
+                          )}
+                        </div>
+                        {/* Qty stepper */}
+                        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                          <button
+                            onClick={() => setMultiPending(mp => mp.map((x,j) =>
+                              j===i ? {...x, qty: Math.max(1, x.qty-1)} : x))}
+                            style={{ width:24,height:24,borderRadius:6,border:"1px solid var(--rule,#e0e0e0)",
+                              background:"var(--bg2,#f5f5f5)",fontSize:14,fontWeight:700,
+                              color:"var(--ink,#1a0c04)",cursor:"pointer",lineHeight:1 }}>−</button>
+                          <span style={{ minWidth:52,textAlign:"center",fontSize:12,fontWeight:600,
+                            color:"var(--ink,#1a0c04)" }}>{item.qty} {item.unit}</span>
+                          <button
+                            onClick={() => setMultiPending(mp => mp.map((x,j) =>
+                              j===i ? {...x, qty: x.qty+1} : x))}
+                            style={{ width:24,height:24,borderRadius:6,border:"1px solid var(--rule,#e0e0e0)",
+                              background:"var(--bg2,#f5f5f5)",fontSize:14,fontWeight:700,
+                              color:"var(--ink,#1a0c04)",cursor:"pointer",lineHeight:1 }}>+</button>
+                          {lineAmt > 0 && (
+                            <span style={{ marginLeft:6,fontSize:11,color:"var(--ink-faint,#888)" }}>
+                              ₹{lineAmt}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button onClick={() => setMultiPending(mp => mp.filter((_,j) => j !== i))}
+                        style={{ background:"none", border:"none", color:"var(--ink-faint,#aaa)",
+                          fontSize:18, cursor:"pointer", lineHeight:1, marginLeft:8 }}>×</button>
                     </div>
                   </div>
-                  <button onClick={() => setMultiPending(mp => mp.filter((_,j) => j !== i))}
-                    style={{ background:"none", border:"none", color:"var(--ink-faint,#aaa)",
-                      fontSize:18, cursor:"pointer", lineHeight:1 }}>×</button>
-                </div>
-              ))}
+                )
+              })}
             </div>
             {multiPending.length > 0 && (
-              <div style={{ fontSize:11, color:"var(--ink-faint,#888)",
+              <div style={{ fontSize:12, fontWeight:600, color:"var(--ink-dim,#555)",
                 textAlign:"center", marginBottom:10 }}>
-                Total: ₹{multiPending.reduce((sum, item) =>
-                  sum + Math.round((item.invMatch?.mrp || 0) * item.qty), 0).toLocaleString("en-IN")}
+                Total: ₹{multiPending.reduce((sum, item) => {
+                  const pcs = item.unit === "dozen" ? item.qty * 12
+                            : item.unit === "set"   ? item.qty * 6
+                            : item.qty
+                  return sum + Math.round((item.invMatch?.mrp || 0) * pcs)
+                }, 0).toLocaleString("en-IN")}
               </div>
             )}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -655,9 +684,24 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
                   {!pending.invMatch && <span style={{fontSize:10,color:"var(--ember,#c0392b)",marginLeft:6}}>(not in inventory)</span>}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-400">Quantity</span>
-                <span className="font-medium text-gray-800">{pending.qty} {pending.unit}</span>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <button
+                    onClick={() => setPending(p => ({ ...p, qty: Math.max(1, p.qty - 1) }))}
+                    style={{width:26,height:26,borderRadius:6,border:"1px solid var(--rule,#e0e0e0)",
+                      background:"var(--bg2,#f5f5f5)",fontSize:15,fontWeight:700,
+                      color:"var(--ink,#1a0c04)",cursor:"pointer",lineHeight:1}}>−</button>
+                  <span style={{minWidth:48,textAlign:"center",fontWeight:600,fontSize:13,
+                    color:"var(--ink,#1a0c04)"}}>
+                    {pending.qty} {pending.unit}
+                  </span>
+                  <button
+                    onClick={() => setPending(p => ({ ...p, qty: p.qty + 1 }))}
+                    style={{width:26,height:26,borderRadius:6,border:"1px solid var(--rule,#e0e0e0)",
+                      background:"var(--bg2,#f5f5f5)",fontSize:15,fontWeight:700,
+                      color:"var(--ink,#1a0c04)",cursor:"pointer",lineHeight:1}}>+</button>
+                </div>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Action</span>
@@ -674,9 +718,17 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
               {pending.invMatch && pending.action === "ADD_BILL" && (
                 <div className="flex justify-between border-t border-gray-100 pt-1.5">
                   <span className="text-gray-400">Stock after sale</span>
-                  <span className={`font-medium ${pending.invMatch.stock - pending.qty < pending.invMatch.min_stock ? "text-red-500" : "text-primary"}`}>
-                    {pending.invMatch.stock} → {Math.max(0, pending.invMatch.stock - pending.qty)}
-                  </span>
+                  {(() => {
+                    const pcs = pending.unit === "dozen" ? pending.qty * 12
+                              : pending.unit === "set"   ? pending.qty * 6
+                              : pending.qty
+                    const after = Math.max(0, pending.invMatch.stock - pcs)
+                    return (
+                      <span className={`font-medium ${after < pending.invMatch.min_stock ? "text-red-500" : "text-primary"}`}>
+                        {pending.invMatch.stock} → {after}
+                      </span>
+                    )
+                  })()}
                 </div>
               )}
             </div>
@@ -799,6 +851,7 @@ function extractQtyUnit(text) {
     { r:/(\d+\.?\d*)\s*pack/i,    unit:"pack"  },
     { r:/(\d+\.?\d*)\s*bottle/i,  unit:"btl"   },
     { r:/(\d+\.?\d*)\s*piece/i,   unit:"pc"    },
+    { r:/(\d+\.?\d*)\s*(dozen|doz|darjan|దజను|டஜன்|ಡಜನ್|ডজন|ਦਰਜਨ)/i, unit:"dozen" },
     { r:/(\d+\.?\d*)/,            unit:"pc"    },
   ]
   const WORD_NUMS = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
@@ -809,6 +862,8 @@ function extractQtyUnit(text) {
     const m = t.match(p.r)
     if (m) return { qty: parseFloat(m[1]), unit: p.unit }
   }
+  // "dozen" / "darjan" with no leading number → 1 dozen
+  if (/\b(dozen|doz|darjan|దజను|டஜன்|ಡಜನ್|ডজন|ਦਰਜਨ)\b/i.test(t)) return { qty: 1, unit: "dozen" }
   for (const [word, num] of Object.entries(WORD_NUMS)) {
     if (t.includes(word)) return { qty: num, unit: "pc" }
   }

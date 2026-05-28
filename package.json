@@ -1,8 +1,13 @@
 {
   "dependencies": {
+    "@alloc/quick-lru": "^5.2.0",
     "@capacitor-community/barcode-scanner": "^4.0.1",
+    "@capacitor-community/speech-recognition": "^7.0.1",
     "@capacitor/cli": "^8.3.4",
     "@capacitor/core": "^8.3.4",
     "fuse.js": "^7.3.0"
+  },
+  "devDependencies": {
+    "vite": "^8.0.14"
   }
 }

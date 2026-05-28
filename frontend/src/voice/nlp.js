@@ -23,7 +23,7 @@ export function parseQuantity(text) {
   const t = text.toLowerCase()
 
   // Digit numbers first — most reliable
-  const digitMatch = t.match(/(\d+\.?\d*)\s*(kg|g|l|ml|ltr|litre|liter|piece|pcs|pc|packet|pack|bottle|box|bag|kilo|gram)?/i)
+  const digitMatch = t.match(/(\d+\.?\d*)\s*(kg|g|l|ml|ltr|litre|liter|piece|pcs|pc|packet|pack|bottle|box|bag|kilo|gram|dozen|doz|darjan|set|sets)?/i)
   if (digitMatch && digitMatch[1]) {
     return { qty: parseFloat(digitMatch[1]), unit: resolveUnit(digitMatch[2] || "") }
   }
