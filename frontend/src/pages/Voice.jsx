@@ -1,11 +1,198 @@
 import { useState, useEffect } from "react"
 import VoiceAgent from "../voice/VoiceAgent.jsx"
+import InvoiceView from "../components/InvoiceView.jsx"
 import { Invoices, Products } from "../sync/db.js"
 import { BangleProducts } from "../sync/bangleDb.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { t, getSavedLang } from "../voice/i18n.js"
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
+
+// ── Pre-invoice review modal (voice bill) ─────────────────
+function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
+  const [items, setItems] = useState(() =>
+    initItems.map(i => ({ ...i, unit_price: i.mrp }))
+  )
+  const [discountVal,  setDiscountVal]  = useState("")
+  const [discountType, setDiscountType] = useState("flat")
+
+  function setItem(idx, k, v) {
+    setItems(it => it.map((row, ri) => ri === idx ? { ...row, [k]: v } : row))
+  }
+
+  const subtotal    = items.reduce((s, i) => s + Math.round(i.unit_price * i.qty * 100) / 100, 0)
+  const discountAmt = discountType === "percent"
+    ? Math.round(subtotal * (+discountVal || 0) / 100 * 100) / 100
+    : Math.min(+discountVal || 0, subtotal)
+  const afterDiscount = Math.round((subtotal - discountAmt) * 100) / 100
+
+  const gstTotal = items.reduce((s, i) => {
+    const itemSub    = Math.round(i.unit_price * i.qty * 100) / 100
+    const proportion = subtotal > 0 ? itemSub / subtotal : 0
+    const taxable    = Math.round(afterDiscount * proportion * 100) / 100
+    return s + Math.round(taxable * i.gst / 100 * 100) / 100
+  }, 0)
+  const grandTotal = Math.round((afterDiscount + gstTotal) * 100) / 100
+
+  function handleConfirm() {
+    const finalItems = items.map(i => {
+      const itemSub    = Math.round(i.unit_price * i.qty * 100) / 100
+      const proportion = subtotal > 0 ? itemSub / subtotal : 0
+      const itemDisc   = Math.round(discountAmt * proportion * 100) / 100
+      const taxable    = Math.round((itemSub - itemDisc) * 100) / 100
+      const effPrice   = i.qty > 0 ? Math.round(taxable / i.qty * 100) / 100 : i.unit_price
+      return { ...i, mrp: effPrice, unit_price: effPrice }
+    })
+    onConfirm(finalItems)
+  }
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:"rgba(0,0,0,0.55)",
+      zIndex:300, display:"flex", alignItems:"flex-start", justifyContent:"center",
+      padding:16, overflowY:"auto",
+    }}>
+      <div style={{
+        background:"var(--bg1)", borderRadius:20, width:"100%", maxWidth:520,
+        marginTop:16, marginBottom:16, overflow:"hidden",
+        boxShadow:"0 20px 60px rgba(0,0,0,0.3)",
+        border:"1px solid var(--rule)",
+      }}>
+        <div style={{
+          background:"linear-gradient(135deg, var(--jade,#1a7a4a), var(--jade-lite,#27ae60))",
+          padding:"16px 20px",
+          display:"flex", justifyContent:"space-between", alignItems:"center",
+        }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:700, color:"#fff" }}>Review Voice Bill</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginTop:2 }}>Edit prices · Apply discount · Confirm GST</div>
+          </div>
+          <button onClick={onClose} style={{
+            background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8,
+            padding:"6px 12px", fontSize:12, cursor:"pointer", color:"#fff",
+          }}>✕ Back</button>
+        </div>
+
+        <div style={{ padding:"16px 20px" }}>
+          <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-faint)", marginBottom:8 }}>Items</div>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr style={{ background:"var(--bg2)" }}>
+                  <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)" }}>Product</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:60 }}>Qty</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:80 }}>Rate ₹</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:60 }}>GST %</th>
+                  <th style={{ textAlign:"right", padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)" }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, i) => {
+                  const total = Math.round(item.unit_price * item.qty * (1 + item.gst / 100) * 100) / 100
+                  return (
+                    <tr key={i} style={{ borderTop:"1px solid var(--rule-soft)" }}>
+                      <td style={{ padding:"8px 8px" }}>
+                        <div style={{ fontWeight:500, color:"var(--ink)", fontSize:12 }}>{item.name}</div>
+                        <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>{item.unit}</div>
+                      </td>
+                      <td style={{ padding:"8px 4px" }}>
+                        <input type="number" min="0.01" step="0.01" value={item.qty}
+                          onChange={e => setItem(i, "qty", +e.target.value || 1)}
+                          style={{ width:52, textAlign:"center", border:"1px solid var(--rule)",
+                            borderRadius:6, padding:"4px 2px", fontSize:12,
+                            background:"var(--bg1)", color:"var(--ink)" }} />
+                      </td>
+                      <td style={{ padding:"8px 4px" }}>
+                        <input type="number" min="0" step="0.01" value={item.unit_price}
+                          onChange={e => setItem(i, "unit_price", +e.target.value || 0)}
+                          style={{ width:72, border:"1px solid var(--rule)", borderRadius:6,
+                            padding:"4px 6px", fontSize:12,
+                            background:"var(--bg1)", color:"var(--ink)" }} />
+                      </td>
+                      <td style={{ padding:"8px 4px" }}>
+                        <select value={item.gst}
+                          onChange={e => setItem(i, "gst", +e.target.value)}
+                          style={{ width:56, border:"1px solid var(--rule)", borderRadius:6,
+                            padding:"4px 2px", fontSize:11,
+                            background:"var(--bg1)", color:"var(--ink)" }}>
+                          {[0,3,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding:"8px 8px", textAlign:"right", fontWeight:600, color:"var(--jade)" }}>
+                        ₹{total}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop:16, padding:"12px", background:"var(--bg2)", borderRadius:10 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-faint)", marginBottom:8 }}>Discount</div>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <select value={discountType} onChange={e => setDiscountType(e.target.value)}
+                style={{ border:"1px solid var(--rule)", borderRadius:8, padding:"7px 8px",
+                  fontSize:12, background:"var(--bg1)", color:"var(--ink)" }}>
+                <option value="flat">₹ Flat</option>
+                <option value="percent">% Percent</option>
+              </select>
+              <input type="number" min="0" placeholder="0"
+                value={discountVal} onChange={e => setDiscountVal(e.target.value)}
+                style={{ flex:1, border:"1px solid var(--rule)", borderRadius:8, padding:"7px 10px",
+                  fontSize:13, background:"var(--bg1)", color:"var(--ink)" }} />
+              {discountAmt > 0 && (
+                <span style={{ fontSize:12, color:"#dc2626", fontWeight:600, whiteSpace:"nowrap" }}>
+                  − ₹{discountAmt}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop:14, padding:"12px", border:"1px solid var(--rule)", borderRadius:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+              <span style={{ color:"var(--ink-faint)" }}>Subtotal</span>
+              <span style={{ color:"var(--ink)" }}>₹{Math.round(subtotal * 100) / 100}</span>
+            </div>
+            {discountAmt > 0 && (
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+                <span style={{ color:"#dc2626" }}>Discount</span>
+                <span style={{ color:"#dc2626" }}>− ₹{discountAmt}</span>
+              </div>
+            )}
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+              <span style={{ color:"var(--ink-faint)" }}>CGST</span>
+              <span style={{ color:"var(--ink)" }}>₹{Math.round(gstTotal / 2 * 100) / 100}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:10,
+              paddingBottom:10, borderBottom:"1px solid var(--rule-soft)" }}>
+              <span style={{ color:"var(--ink-faint)" }}>SGST</span>
+              <span style={{ color:"var(--ink)" }}>₹{Math.round((gstTotal - gstTotal / 2) * 100) / 100}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700 }}>
+              <span style={{ color:"var(--ink)" }}>Grand Total</span>
+              <span style={{ color:"var(--jade)" }}>₹{grandTotal}</span>
+            </div>
+          </div>
+
+          <div style={{ display:"flex", gap:10, marginTop:16 }}>
+            <button onClick={onClose}
+              style={{ flex:1, padding:"11px", borderRadius:10, border:"1px solid var(--rule)",
+                background:"var(--bg2)", fontSize:13, cursor:"pointer", color:"var(--ink-dim)" }}>
+              ← Edit Bill
+            </button>
+            <button onClick={handleConfirm}
+              style={{ flex:2, padding:"11px", borderRadius:10, border:"none",
+                background:"linear-gradient(135deg, var(--jade,#1a7a4a), var(--jade-lite,#27ae60))",
+                color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+              Confirm & Generate Invoice
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function toBaseUnit(qty, spokenUnit, productUnit) {
   const su = (spokenUnit || "").toLowerCase()
@@ -51,6 +238,7 @@ export default function Voice() {
   const [customer, setCustomer] = useState("")
   const [payment,  setPayment]  = useState("Cash")
   const [generating, setGenerating] = useState(false)
+  const [showReview, setShowReview] = useState(false)
   const [mobileTab,  setMobileTab]  = useState("voice")
 
   const isSafari    = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
@@ -106,13 +294,18 @@ export default function Voice() {
     } catch(e) { showNotif("Error: " + e.message) }
   }
 
-  async function generateVoiceBill() {
-    if (!billItems.length) return showNotif("No items in bill yet")
+  function handleVoiceReviewConfirm(reviewedItems) {
+    setShowReview(false)
+    generateVoiceBill(reviewedItems)
+  }
+
+  async function generateVoiceBill(overrideItems) {
+    if (!billItems.length && !overrideItems?.length) return showNotif("No items in bill yet")
     setGenerating(true)
 
     // Snapshot bill before clearing — if generation fails we still have it
-    const billSnapshot = [...billItems]
-    const expectedTotal = billSnapshot.reduce((s,i) => s + i.lineTotal, 0)
+    const billSnapshot = overrideItems || [...billItems]
+    const expectedTotal = billSnapshot.reduce((s,i) => s + (i.lineTotal || i.unit_price * i.qty || 0), 0)
 
     // Clear bill immediately so the user cannot re-tap and create a duplicate
     setBillItems([])
@@ -123,7 +316,7 @@ export default function Voice() {
         ...(!i.id?.startsWith?.("voice-") && i.id ? { product_id: i.id } : {}),
         name:        i.name,
         qty:         i.qty,
-        unit_price:  i.mrp,
+        unit_price:  i.unit_price ?? i.mrp,
         gst_percent: i.gst,
       }))
       const inv = await Invoices.generate({
@@ -460,14 +653,14 @@ Thank you! 🙏`
                     <span>Total</span><span>{INR(grandTotal)}</span>
                   </div>
                 </div>
-                <button onClick={generateVoiceBill} disabled={generating} style={{
+                <button onClick={() => setShowReview(true)} disabled={generating} style={{
                   width:"100%", padding:"11px",
                   background:"linear-gradient(135deg, #0F6E56, #1D9E75)",
                   color:"var(--bg1)", border:"none", borderRadius:10,
                   fontSize:12, fontWeight:600, cursor:"pointer",
                   marginBottom:6, opacity: generating ? 0.7 : 1,
                 }}>
-                  {generating ? "Generating..." : `🧾 ${t("generate_invoice", lang)}`}
+                  {generating ? "Generating..." : `🧾 Review & Generate Invoice`}
                 </button>
                 <button onClick={async () => {
                     try {
@@ -498,128 +691,68 @@ Thank you! 🙏`
         )}
       </div>
 
+      {/* ── Review Modal ───────────────────────────────────── */}
+      {showReview && (
+        <VoiceReviewModal
+          items={billItems}
+          onConfirm={handleVoiceReviewConfirm}
+          onClose={() => setShowReview(false)}
+        />
+      )}
+
       {/* ── Invoice Modal ──────────────────────────────────── */}
       {invoice && (
         <div style={{
           position:"fixed", inset:0, zIndex:200,
-          background:"rgba(0,0,0,0.55)", backdropFilter:"blur(4px)",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          padding:20,
+          background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)",
+          display:"flex", alignItems:"flex-start", justifyContent:"center",
+          padding:16, overflowY:"auto",
         }}>
           <div style={{
-            background:"var(--bg1)", borderRadius:20, width:"100%",
-            maxWidth:480, maxHeight:"90vh", overflowY:"auto",
+            width:"100%", maxWidth:520,
+            marginTop:16, marginBottom:16,
+            borderRadius:16, overflow:"hidden",
             boxShadow:"0 24px 60px rgba(0,0,0,0.4)",
-            border:"1px solid var(--rule)",
           }}>
-            {/* Modal header */}
-            <div style={{
-              background:"linear-gradient(135deg, var(--jade,#1a7a4a), var(--jade-lite,#27ae60))",
-              borderRadius:"20px 20px 0 0", padding:"20px 20px 16px",
-              textAlign:"center",
-            }}>
-              <div style={{ fontSize:36, marginBottom:8 }}>✅</div>
-              <div style={{ fontSize:18, fontWeight:800, color:"#fff" }}>Invoice Generated!</div>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,0.85)", marginTop:4 }}>
-                {invoice.invoice_no}
-              </div>
-            </div>
-
-            {/* Invoice details */}
-            <div style={{ padding:"20px 20px 0" }}>
-              {/* Customer + payment */}
-              <div style={{
-                background:"var(--bg2)", borderRadius:12, padding:"12px 14px",
-                marginBottom:14,
-              }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                  <span style={{ fontSize:11, color:"var(--ink-faint)", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.5px" }}>Customer</span>
-                  <span style={{ fontSize:13, fontWeight:600, color:"var(--ink)" }}>{invoice.customer_name}</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                  <span style={{ fontSize:11, color:"var(--ink-faint)", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.5px" }}>Date</span>
-                  <span style={{ fontSize:13, color:"var(--ink)" }}>{new Date().toLocaleDateString("en-IN", {day:"numeric", month:"short", year:"numeric"})}</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between" }}>
-                  <span style={{ fontSize:11, color:"var(--ink-faint)", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.5px" }}>Payment</span>
-                  <span style={{ fontSize:13, color:"var(--ink)" }}>{invoice.payment_mode}</span>
-                </div>
-              </div>
-
-              {/* Items */}
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:11, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Items</div>
-                {(invoice.items||[]).map((item, i) => (
-                  <div key={i} style={{
-                    display:"flex", justifyContent:"space-between", alignItems:"baseline",
-                    padding:"8px 0", borderBottom: i < invoice.items.length-1 ? "1px solid var(--rule-soft)" : "none",
-                  }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)" }}>{item.name}</div>
-                      <div style={{ fontSize:11, color:"var(--ink-faint)" }}>×{item.qty} @ {INR(item.unit_price || item.total/item.qty)}</div>
-                    </div>
-                    <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)" }}>{INR(item.total)}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Totals */}
-              <div style={{
-                borderTop:"2px dashed var(--rule)", paddingTop:12, marginBottom:20,
-              }}>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"var(--ink-faint)", marginBottom:6 }}>
-                  <span>Subtotal</span><span>{INR(invoice.subtotal)}</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"var(--ink-faint)", marginBottom:10 }}>
-                  <span>GST</span><span>{INR((invoice.cgst || 0) + (invoice.sgst || 0))}</span>
-                </div>
-                <div style={{
-                  display:"flex", justifyContent:"space-between", alignItems:"baseline",
-                  background:"var(--bg2)", borderRadius:10, padding:"12px 14px",
-                }}>
-                  <span style={{ fontSize:14, fontWeight:700, color:"var(--ink)" }}>Total</span>
-                  <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:28, fontWeight:800, color:"var(--jade,#1a7a4a)" }}>{INR(invoice.total)}</span>
-                </div>
-              </div>
-            </div>
+            {/* Invoice content */}
+            <InvoiceView invoice={invoice} />
 
             {/* Action buttons */}
-            <div style={{ padding:"0 20px 20px", display:"flex", flexDirection:"column", gap:10 }}>
-              {/* WhatsApp */}
+            <div style={{
+              background:"#fff", padding:"14px 16px",
+              display:"flex", flexDirection:"column", gap:10,
+              borderTop:"1px solid #e5e7eb",
+            }}>
               <button onClick={sendWhatsApp} style={{
-                width:"100%", padding:"14px",
+                width:"100%", padding:"13px",
                 background:"#25D366", color:"#fff", border:"none",
-                borderRadius:12, fontSize:14, fontWeight:700,
+                borderRadius:12, fontSize:13, fontWeight:700,
                 cursor:"pointer", display:"flex", alignItems:"center",
                 justifyContent:"center", gap:10,
-                boxShadow:"0 4px 16px rgba(37,211,102,0.4)",
+                boxShadow:"0 4px 14px rgba(37,211,102,0.35)",
               }}>
-                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M20.5 3.5A11 11 0 003.6 17.4L2 22l4.7-1.5A11 11 0 1020.5 3.5zm-8.5 17a8.5 8.5 0 01-4.3-1.2l-.3-.2-2.8.9.9-2.7-.2-.3a8.5 8.5 0 1112.7-3.5 8.5 8.5 0 01-6 7zm4.7-6.4c-.3-.1-1.6-.8-1.8-.9-.2-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.1.2-.3.2-.6.1a7 7 0 01-3.4-3c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.5l-.8-2c-.2-.4-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3a3 3 0 00-1 2.2c0 1.3 1 2.6 1.1 2.8.1.2 2 3 4.8 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.1-1.4-.1-.1-.3-.2-.5-.3z"/>
                 </svg>
                 Send on WhatsApp
               </button>
-
-              {/* Print */}
               <button onClick={() => window.print()} style={{
-                width:"100%", padding:"12px",
-                background:"var(--bg2)", color:"var(--ink)", border:"1px solid var(--rule)",
-                borderRadius:12, fontSize:13, fontWeight:600,
+                width:"100%", padding:"11px",
+                background:"#f9fafb", color:"#374151", border:"1px solid #e5e7eb",
+                borderRadius:12, fontSize:12, fontWeight:600,
                 cursor:"pointer", display:"flex", alignItems:"center",
                 justifyContent:"center", gap:8,
               }}>
-                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                   <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
                   <rect x="6" y="14" width="12" height="8"/>
                 </svg>
                 Print Invoice
               </button>
-
-              {/* New bill */}
               <button onClick={() => setInvoice(null)} style={{
-                width:"100%", padding:"10px",
-                background:"transparent", color:"var(--ink-faint)",
-                border:"1px dashed var(--rule)", borderRadius:12,
+                width:"100%", padding:"9px",
+                background:"transparent", color:"#9ca3af",
+                border:"1px dashed #e5e7eb", borderRadius:12,
                 fontSize:12, cursor:"pointer",
               }}>
                 + Start New Bill

@@ -32,6 +32,7 @@ from app.routers import (
     invoice_scan,
     expiry,
     bangle,
+    vocab,
 )
 
 _is_dev = settings.app_env != "production"
@@ -125,6 +126,7 @@ app.include_router(learning.router)
 app.include_router(invoice_scan.router)
 app.include_router(expiry.router)
 app.include_router(bangle.router)
+app.include_router(vocab.router)
 app.include_router(
     voice.router,
     prefix="/api/voice",

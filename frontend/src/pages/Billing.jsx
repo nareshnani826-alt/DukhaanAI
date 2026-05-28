@@ -3,9 +3,232 @@ import { Products, Invoices, Customers } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
+import InvoiceView from "../components/InvoiceView.jsx"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+
+// ── Pre-invoice review modal ──────────────────────────────
+function ReviewModal({ rows, products, onConfirm, onClose }) {
+  const [items, setItems] = useState(() =>
+    rows.map(r => {
+      const p = products.find(x => x.id === r.prodId)
+      if (!p) return null
+      return {
+        prodId:      p.id,
+        name:        p.name,
+        qty:         +r.qty || 1,
+        unit_price:  p.mrp,
+        gst_percent: p.gst_percent || 0,
+        cost_price:  p.cost_price  || 0,
+      }
+    }).filter(Boolean)
+  )
+  const [discountVal,  setDiscountVal]  = useState("")
+  const [discountType, setDiscountType] = useState("flat") // "flat" | "percent"
+
+  function setItem(i, k, v) {
+    setItems(it => it.map((row, ri) => ri === i ? { ...row, [k]: v } : row))
+  }
+
+  const subtotal    = items.reduce((s, i) => s + Math.round(i.unit_price * i.qty * 100) / 100, 0)
+  const discountAmt = discountType === "percent"
+    ? Math.round(subtotal * (+discountVal || 0) / 100 * 100) / 100
+    : Math.min(+discountVal || 0, subtotal)
+  const afterDiscount = Math.round((subtotal - discountAmt) * 100) / 100
+
+  // Distribute discount proportionally across items for GST calc
+  const gstTotal = items.reduce((s, i) => {
+    const itemSub    = Math.round(i.unit_price * i.qty * 100) / 100
+    const proportion = subtotal > 0 ? itemSub / subtotal : 0
+    const taxable    = Math.round(afterDiscount * proportion * 100) / 100
+    return s + Math.round(taxable * i.gst_percent / 100 * 100) / 100
+  }, 0)
+  const grandTotal = Math.round((afterDiscount + gstTotal) * 100) / 100
+
+  const totalCost = items.reduce((s, i) => s + Math.round(i.cost_price * i.qty * 100) / 100, 0)
+  const profit    = Math.round((afterDiscount - totalCost) * 100) / 100
+  const profitPct = totalCost > 0 ? Math.round(profit / totalCost * 100) : null
+
+  function handleConfirm() {
+    // Build final items — discount distributed proportionally into unit_price
+    const finalItems = items.map(i => {
+      const itemSub    = Math.round(i.unit_price * i.qty * 100) / 100
+      const proportion = subtotal > 0 ? itemSub / subtotal : 0
+      const itemDisc   = Math.round(discountAmt * proportion * 100) / 100
+      const taxable    = Math.round((itemSub - itemDisc) * 100) / 100
+      const effPrice   = i.qty > 0 ? Math.round(taxable / i.qty * 100) / 100 : i.unit_price
+      return { product_id: i.prodId, name: i.name, qty: i.qty, unit_price: effPrice, gst_percent: i.gst_percent }
+    })
+    onConfirm(finalItems, discountAmt)
+  }
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
+      zIndex:100, display:"flex", alignItems:"flex-start", justifyContent:"center",
+      padding:"16px", overflowY:"auto",
+    }}>
+      <div style={{
+        background:"#fff", borderRadius:16, width:"100%", maxWidth:520,
+        marginTop:16, marginBottom:16, overflow:"hidden",
+        boxShadow:"0 20px 60px rgba(0,0,0,0.2)",
+      }}>
+        {/* Header */}
+        <div style={{ padding:"16px 20px", borderBottom:"1px solid #f0f0f0",
+          display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:700 }}>Review Invoice</div>
+            <div style={{ fontSize:11, color:"#888", marginTop:2 }}>Edit prices, apply discount, confirm GST</div>
+          </div>
+          <button onClick={onClose} style={{
+            background:"#f5f5f5", border:"none", borderRadius:8,
+            padding:"6px 12px", fontSize:12, cursor:"pointer", color:"#666",
+          }}>✕ Back</button>
+        </div>
+
+        <div style={{ padding:"16px 20px" }}>
+          {/* Items table */}
+          <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Items</div>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr style={{ background:"#f9fafb" }}>
+                  <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"#555" }}>Product</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:50 }}>Qty</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:80 }}>Rate ₹</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:60 }}>GST %</th>
+                  <th style={{ textAlign:"right", padding:"6px 8px", fontWeight:600, color:"#555" }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, i) => {
+                  const total = Math.round(item.unit_price * item.qty * (1 + item.gst_percent / 100) * 100) / 100
+                  const itemProfit = Math.round((item.unit_price - item.cost_price) * item.qty * 100) / 100
+                  return (
+                    <tr key={i} style={{ borderTop:"1px solid #f0f0f0" }}>
+                      <td style={{ padding:"8px 8px" }}>
+                        <div style={{ fontWeight:500 }}>{item.name}</div>
+                        {item.cost_price > 0 && (
+                          <div style={{ fontSize:10, color: itemProfit >= 0 ? "#16a34a" : "#dc2626", marginTop:2 }}>
+                            {itemProfit >= 0 ? "+" : ""}₹{itemProfit} profit
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding:"8px 4px" }}>
+                        <input type="number" min="0.01" step="0.01" value={item.qty}
+                          onChange={e => setItem(i, "qty", +e.target.value || 1)}
+                          style={{ width:46, textAlign:"center", border:"1px solid #e5e7eb",
+                            borderRadius:6, padding:"4px 2px", fontSize:12 }} />
+                      </td>
+                      <td style={{ padding:"8px 4px" }}>
+                        <input type="number" min="0" step="0.01" value={item.unit_price}
+                          onChange={e => setItem(i, "unit_price", +e.target.value || 0)}
+                          style={{ width:72, border:"1px solid #e5e7eb", borderRadius:6,
+                            padding:"4px 6px", fontSize:12 }} />
+                      </td>
+                      <td style={{ padding:"8px 4px" }}>
+                        <select value={item.gst_percent}
+                          onChange={e => setItem(i, "gst_percent", +e.target.value)}
+                          style={{ width:56, border:"1px solid #e5e7eb", borderRadius:6,
+                            padding:"4px 2px", fontSize:11 }}>
+                          {[0,3,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding:"8px 8px", textAlign:"right", fontWeight:600, color:"#1D9E75" }}>
+                        ₹{total}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Discount */}
+          <div style={{ marginTop:16, padding:"12px", background:"#f9fafb", borderRadius:10 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Discount</div>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <select value={discountType} onChange={e => setDiscountType(e.target.value)}
+                style={{ border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 8px",
+                  fontSize:12, background:"#fff" }}>
+                <option value="flat">₹ Flat</option>
+                <option value="percent">% Percent</option>
+              </select>
+              <input type="number" min="0" placeholder="0"
+                value={discountVal} onChange={e => setDiscountVal(e.target.value)}
+                style={{ flex:1, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }} />
+              {discountAmt > 0 && (
+                <span style={{ fontSize:12, color:"#dc2626", fontWeight:600, whiteSpace:"nowrap" }}>
+                  − ₹{discountAmt}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Totals */}
+          <div style={{ marginTop:14, padding:"12px", border:"1px solid #e5e7eb", borderRadius:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+              <span style={{ color:"#888" }}>Subtotal</span>
+              <span>₹{Math.round(subtotal * 100) / 100}</span>
+            </div>
+            {discountAmt > 0 && (
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+                <span style={{ color:"#dc2626" }}>Discount</span>
+                <span style={{ color:"#dc2626" }}>− ₹{discountAmt}</span>
+              </div>
+            )}
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+              <span style={{ color:"#888" }}>CGST</span>
+              <span>₹{Math.round(gstTotal / 2 * 100) / 100}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:10,
+              paddingBottom:10, borderBottom:"1px solid #f0f0f0" }}>
+              <span style={{ color:"#888" }}>SGST</span>
+              <span>₹{Math.round((gstTotal - gstTotal / 2) * 100) / 100}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700 }}>
+              <span>Grand Total</span>
+              <span style={{ color:"#1D9E75" }}>₹{grandTotal}</span>
+            </div>
+          </div>
+
+          {/* Profit */}
+          {totalCost > 0 && (
+            <div style={{
+              marginTop:10, padding:"10px 12px", borderRadius:10,
+              background: profit >= 0 ? "#f0fdf4" : "#fff1f2",
+              border: `1px solid ${profit >= 0 ? "#bbf7d0" : "#fecdd3"}`,
+              display:"flex", justifyContent:"space-between", alignItems:"center",
+            }}>
+              <span style={{ fontSize:12, color:"#555" }}>Estimated Profit</span>
+              <span style={{ fontSize:13, fontWeight:700, color: profit >= 0 ? "#16a34a" : "#dc2626" }}>
+                {profit >= 0 ? "+" : ""}₹{profit}
+                {profitPct !== null && (
+                  <span style={{ fontSize:11, fontWeight:400, marginLeft:6 }}>({profitPct}%)</span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display:"flex", gap:10, marginTop:16 }}>
+            <button onClick={onClose}
+              style={{ flex:1, padding:"11px", borderRadius:10, border:"1px solid #e5e7eb",
+                background:"#fff", fontSize:13, cursor:"pointer", color:"#666" }}>
+              ← Edit Bill
+            </button>
+            <button onClick={handleConfirm}
+              style={{ flex:2, padding:"11px", borderRadius:10, border:"none",
+                background:"#1D9E75", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+              Confirm & Generate Invoice
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Billing() {
   const { vendor }  = useAuth()
@@ -20,6 +243,7 @@ export default function Billing() {
   const [saving,    setSaving]    = useState(false)
   const [notif,     setNotif]     = useState("")
   const [scanner,   setScanner]   = useState(false)
+  const [showReview, setShowReview] = useState(false)
   const [barcodeInput, setBarcodeInput] = useState("")
   const [barcodeResult, setBarcodeResult] = useState(null)
   const [quickAdd, setQuickAdd] = useState(null)  // { code, name, mrp, gst }
@@ -121,16 +345,15 @@ export default function Billing() {
   const grandTotal = Math.round((totals.sub + totals.tax) * 100) / 100
 
   // ── Generate invoice ──────────────────────────────────────
-  async function generate() {
+  function openReview() {
     if (!cust.trim()) return showNotif("Customer name is required")
-    const items = rows.map(r => {
-      const p = getProduct(r.prodId)
-      if (!p) return null
-      const qty = +r.qty
-      if (!qty || qty <= 0) return null
-      return { product_id: p.id, name: p.name, qty, unit_price: p.mrp, gst_percent: p.gst_percent }
-    }).filter(Boolean)
-    if (!items.length) return showNotif("Add at least one item with valid quantity")
+    const valid = rows.filter(r => getProduct(r.prodId) && +r.qty > 0)
+    if (!valid.length) return showNotif("Add at least one item with valid quantity")
+    setShowReview(true)
+  }
+
+  async function handleReviewConfirm(finalItems) {
+    setShowReview(false)
     setSaving(true)
     try {
       const inv = await Invoices.generate({
@@ -138,7 +361,7 @@ export default function Billing() {
         customer_phone: phone || null,
         customer_gstin: gstin || null,
         payment_mode:   pay,
-        items,
+        items:          finalItems,
       })
       setInvoice({ ...inv, customer_phone: phone })
       if (cust.trim()) await Customers.upsert({ name: cust, phone: phone||null, gstin: gstin||null, amount: inv.total })
@@ -188,6 +411,15 @@ Thank you for shopping! 🙏`
 
       {scanner && hasFeature("barcode_scanner") && (
         <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />
+      )}
+
+      {showReview && (
+        <ReviewModal
+          rows={rows}
+          products={products}
+          onConfirm={handleReviewConfirm}
+          onClose={() => setShowReview(false)}
+        />
       )}
 
       <div className="page-sticky-header flex items-center justify-between mb-4">
@@ -438,8 +670,8 @@ Thank you for shopping! 🙏`
           </div>
 
           <div className="flex gap-2">
-            <button onClick={generate} disabled={saving} className="btn btn-primary flex-1">
-              {saving ? "Generating..." : "Generate Invoice"}
+            <button onClick={openReview} disabled={saving} className="btn btn-primary flex-1">
+              {saving ? "Generating..." : "Review & Generate Invoice"}
             </button>
             <button onClick={clearBill} className="btn">Clear</button>
           </div>
@@ -457,43 +689,9 @@ Thank you for shopping! 🙏`
             </div>
           ) : (
             <>
-              <div className="border border-dashed border-gray-200 rounded-lg p-4 text-xs mb-3">
-                <div className="text-center mb-3">
-                  <div className="font-semibold text-sm">{vendor?.store_name || "DukaanAI"}</div>
-                  <div className="text-[10px] text-gray-400">GSTIN: {vendor?.gstin || "—"}</div>
-                </div>
-                <div className="flex justify-between text-[10px] text-gray-500 mb-2 pb-2 border-b border-gray-100">
-                  <span className="font-medium">{invoice.invoice_no}</span>
-                  <span>{new Date(invoice.created_at).toLocaleDateString("en-IN")}</span>
-                </div>
-                <div className="text-[10px] mb-2">
-                  Customer: <span className="font-medium">{invoice.customer_name}</span>
-                  {phone && <span className="text-gray-400"> · {phone}</span>}
-                </div>
-                <table className="w-full text-[10px] mb-2">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="text-left p-1">Item</th>
-                      <th className="p-1 text-center">Qty</th>
-                      <th className="p-1 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice.items.map((it, i) => (
-                      <tr key={i}>
-                        <td className="p-1">{it.name}</td>
-                        <td className="p-1 text-center">{it.qty}</td>
-                        <td className="p-1 text-right">₹{it.total}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="text-right text-[10px] text-gray-500 border-t border-gray-100 pt-2">
-                  CGST: ₹{invoice.cgst} &nbsp;|&nbsp; SGST: ₹{invoice.sgst}<br/>
-                  <span className="text-sm font-semibold text-primary">Total: ₹{invoice.total}</span>
-                </div>
+              <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 shadow-sm">
+                <InvoiceView invoice={invoice} customerPhone={phone} />
               </div>
-
               <div className="flex flex-col gap-2">
                 <button onClick={shareWhatsApp}
                   className="w-full py-2 rounded-lg text-xs font-semibold cursor-pointer"

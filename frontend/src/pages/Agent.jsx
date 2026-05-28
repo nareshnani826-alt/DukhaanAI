@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Products, Sales, Invoices, Udhar, Wastage, Customers, getToken } from "../sync/db"
+import { BangleProducts } from "../sync/bangleDb.js"
+import { useAuth } from "../context/AuthContext.jsx"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
 import { LANGUAGES } from "../voice/languages.js"
 import { AssemblyVoiceEngine } from "../voice/assemblyEngine.js"
@@ -109,21 +111,109 @@ const QUICK_BY_LANG = {
   ],
 }
 
+// ── Bangle-store quick suggestions ───────────────────────
+const QUICK_BANGLE = {
+  "te-IN": [
+    { icon:"📦", text:"ఏ బంగారు బంగిళ్ళు తక్కువ స్టాక్‌లో ఉన్నాయి?" },
+    { icon:"💰", text:"అత్యధిక మార్జిన్ ఉన్న ఆభరణాలు ఏవి?" },
+    { icon:"💵", text:"ఈరోజు అమ్మకాలు ఎంత?" },
+    { icon:"🔄", text:"ఏ ఉత్పత్తులు రీఆర్డర్ చేయాలి?" },
+    { icon:"🏆", text:"అత్యధికంగా అమ్ముడైన ఆభరణాలు?" },
+    { icon:"📊", text:"కేటగిరీ వారీగా స్టాక్ చూపించు" },
+  ],
+  "hi-IN": [
+    { icon:"📦", text:"कौन से बंगल का स्टॉक कम है?" },
+    { icon:"💰", text:"सबसे ज़्यादा मार्जिन किसमें है?" },
+    { icon:"💵", text:"आज का कुल कमाई?" },
+    { icon:"🔄", text:"आज क्या मँगवाना है?" },
+    { icon:"🏆", text:"सबसे ज़्यादा बिकने वाले ज़ेवर?" },
+    { icon:"📊", text:"कैटेगरी के हिसाब से स्टॉक?" },
+  ],
+  "en-IN": [
+    { icon:"📦", text:"Which bangles are low on stock?" },
+    { icon:"💰", text:"What's my best margin product?" },
+    { icon:"💵", text:"Total sales today?" },
+    { icon:"🔄", text:"What needs restocking?" },
+    { icon:"🏆", text:"Top selling jewellery this month?" },
+    { icon:"📊", text:"Show stock by category" },
+  ],
+}
+
 const INR = n => "₹" + (n||0).toLocaleString("en-IN")
 
 // ── Context cache: avoid re-fetching on every message ────
-let _ctxCache     = null
-let _ctxCacheTime = 0
-const CTX_TTL_MS  = 30_000   // 30 seconds
+let _ctxCache      = null
+let _ctxCacheTime  = 0
+let _ctxStoreMode  = null
+const CTX_TTL_MS   = 30_000   // 30 seconds
 
 // ── Build comprehensive store context ────────────────────
-async function buildStoreContext(userQuestion = "") {
-  // Return cached context unless it's stale or question implies fresh data is needed
-  const now           = Date.now()
-  const forceRefresh  = /reorder|stock|profit|sales|udhar|today|fresh|update/i.test(userQuestion)
-  if (_ctxCache && !forceRefresh && (now - _ctxCacheTime) < CTX_TTL_MS) {
+async function buildStoreContext(userQuestion = "", storeMode = "kirana") {
+  const now          = Date.now()
+  const forceRefresh = /reorder|stock|profit|sales|udhar|today|fresh|update/i.test(userQuestion)
+  // Invalidate cache on store mode switch
+  if (_ctxCache && !forceRefresh && _ctxStoreMode === storeMode && (now - _ctxCacheTime) < CTX_TTL_MS) {
     return _ctxCache
   }
+
+  // ── Bangle store context ─────────────────────────────
+  if (storeMode === "bangle_fancy") {
+    const [bangleProds, todaySales] = await Promise.all([
+      BangleProducts.list().then(r => Array.isArray(r) ? r : (r?.data || [])).catch(() => []),
+      Sales.today().catch(() => ({ total:0, count:0, sales:[] })),
+    ])
+
+    const allProducts = bangleProds.map(p => {
+      const stock  = typeof p.total_stock === "number" ? p.total_stock : 0
+      const margin = p.mrp > 0 && p.cost_price > 0
+        ? Math.round((p.mrp - p.cost_price) / p.mrp * 100) : null
+      return {
+        name:       p.name,
+        category:   p.category || "Bangle",
+        stock,
+        unit:       "piece",
+        mrp:        p.mrp || 0,
+        cost:       p.cost_price || 0,
+        min_stock:  p.min_stock || 0,
+        gst_pct:    p.gst_percent || 3,
+        margin_pct: margin,
+        status:     stock <= 0 ? "OUT_OF_STOCK"
+                  : stock <= (p.min_stock || 0) ? "LOW_STOCK"
+                  : "IN_STOCK",
+      }
+    })
+
+    const lowStock   = allProducts.filter(p => p.status === "LOW_STOCK")
+    const outOfStock = allProducts.filter(p => p.status === "OUT_OF_STOCK")
+    const withMargin = allProducts.filter(p => p.margin_pct !== null)
+      .sort((a,b) => b.margin_pct - a.margin_pct)
+
+    const ctx = {
+      store_type:  "bangle_fancy",
+      store_summary: {
+        total_products:     allProducts.length,
+        in_stock_count:     allProducts.filter(p => p.status === "IN_STOCK").length,
+        low_stock_count:    lowStock.length,
+        out_of_stock_count: outOfStock.length,
+        today_revenue:      todaySales.total || 0,
+        today_invoices:     todaySales.count || 0,
+        today_sales_list:   todaySales.sales?.slice(0,10).map(s => ({
+          product: s.product_name || s.customer, qty: s.qty, total: s.total, customer: s.customer
+        })),
+      },
+      all_products: allProducts,
+      low_stock:    lowStock.map(p => ({ name:p.name, stock:p.stock, min:p.min_stock, unit:p.unit })),
+      out_of_stock: outOfStock.map(p => ({ name:p.name, mrp:p.mrp })),
+      best_margins: withMargin.slice(0,15).map(p => ({ name:p.name, margin:p.margin_pct, mrp:p.mrp, cost:p.cost })),
+    }
+    Object.keys(ctx).forEach(k => { if (ctx[k] == null) delete ctx[k] })
+    _ctxCache     = ctx
+    _ctxCacheTime = Date.now()
+    _ctxStoreMode = storeMode
+    return ctx
+  }
+
+  // ── Kirana store context ─────────────────────────────
   const ql = userQuestion.toLowerCase()
 
   // Always fetch: products + today + monthly
@@ -248,9 +338,9 @@ async function buildStoreContext(userQuestion = "") {
 
   // Remove null/undefined keys to save tokens
   Object.keys(ctx).forEach(k => { if (ctx[k] == null) delete ctx[k] })
-  // Store in cache
   _ctxCache     = ctx
   _ctxCacheTime = Date.now()
+  _ctxStoreMode = storeMode
   return ctx
 }
 
@@ -369,6 +459,15 @@ function TypingDots() {
 
 // ── Main component ───────────────────────────────────────
 export default function Agent() {
+  const { hasModule } = useAuth()
+  const hasBangle  = hasModule("bangle_fancy")
+  const hasKirana  = hasModule("kirana")
+  const storeMode  = hasBangle && !hasKirana
+    ? "bangle_fancy"
+    : !hasBangle ? "kirana"
+    : (localStorage.getItem("storeMode") || "kirana")
+  const isBangle = storeMode === "bangle_fancy"
+
   const [lang,     setLang]         = useState(() => getSavedLang())
   const [messages, setMessages]     = useState([])
   const [input,    setInput]        = useState("")
@@ -404,12 +503,23 @@ export default function Agent() {
   }
 
   const langInfo = LANGUAGES.find(l => l.code === lang) || LANGUAGES[9]
-  const QUICK    = QUICK_BY_LANG[lang] || QUICK_BY_LANG["en-IN"]
+  const QUICK    = isBangle
+    ? (QUICK_BANGLE[lang] || QUICK_BANGLE["en-IN"])
+    : (QUICK_BY_LANG[lang] || QUICK_BY_LANG["en-IN"])
 
   // Reload when language changes
   useEffect(() => {
     if (!ctxLoading && context) {
       const s = context.store_summary
+      if (isBangle) {
+        const bangleWelcomes = {
+          "te-IN": `నమస్కారం! 🙏 నేను మీ బంగిళ్ళ దుకాణ సహాయకుడిని.\n\nమీ దుకాణం ఇప్పుడు:\n• ${s.total_products} ఉత్పత్తులు\n• ${s.low_stock_count} తక్కువ స్టాక్\n• ఈరోజు అమ్మకాలు: ₹${s.today_revenue?.toLocaleString("en-IN")}\n\nఏదైనా అడగండి!`,
+          "hi-IN": `नमस्ते! 🙏 मैं आपका बंगल स्टोर सहायक हूँ।\n\nआपकी दुकान अभी:\n• ${s.total_products} उत्पाद\n• ${s.low_stock_count} कम स्टॉक\n• आज की बिक्री: ₹${s.today_revenue?.toLocaleString("en-IN")}\n\nकुछ भी पूछें!`,
+          "en-IN": `Namaste! 🙏 I'm your Bangle Store assistant.\n\nYour store right now:\n• ${s.total_products} products\n• ${s.low_stock_count} low stock${s.out_of_stock_count > 0 ? ` · ${s.out_of_stock_count} out of stock` : ""}\n• Today's sales: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} invoices)\n\nAsk me about stock, margins, sales — anything!`,
+        }
+        setMessages([{ role:"ai", text: bangleWelcomes[lang] || bangleWelcomes["en-IN"] }])
+        return
+      }
       const welcomes = {
         "te-IN": `నమస్కారం! 🙏 నేను మీ DukaanAI దుకాణ సహాయకుడిని.
 
@@ -498,19 +608,17 @@ Ask me anything!`,
 
   // Load store context on mount
   useEffect(() => {
-    buildStoreContext("")
+    buildStoreContext("", storeMode)
       .then(ctx => {
         setContext(ctx)
         setCtxLoading(false)
-        // Welcome message with live data
         const s = ctx.store_summary
         const currentLang = getSavedLang()
         setLang(currentLang)
-        // Welcome message is handled by lang useEffect above
-        // But set a default here for first load
+        const storeLabel = isBangle ? "Bangle Store" : "DukaanAI shop"
         setMessages([{
           role:"ai",
-          text: `Namaste! 🙏 I'm your DukaanAI shop assistant.
+          text: `Namaste! 🙏 I'm your ${storeLabel} assistant.
 
 Your store right now:
 • ${s.total_products} products
@@ -524,7 +632,7 @@ Ask me anything!`,
         setCtxLoading(false)
         setMessages([{ role:"ai", text:"Namaste! 🙏 Ask me about your products, stock, prices, or sales." }])
       })
-  }, [])
+  }, [storeMode])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -545,7 +653,7 @@ Ask me anything!`,
 
     try {
       // Refresh context on each message so data is always fresh
-      const freshCtx = await buildStoreContext(question)
+      const freshCtx = await buildStoreContext(question, storeMode)
       setContext(freshCtx)
 
       const allMsgs = [...messages, { role:"user", text:question }]

@@ -7,6 +7,8 @@ import { useState, useEffect, useRef } from "react"
 import AuthModal from "./AuthModal"
 import { LANG_KEY, getSavedLang } from "../voice/i18n"
 import { getToken, Products, Sales, Invoices, Udhar } from "../sync/db"
+import { BangleProducts } from "../sync/bangleDb.js"
+import { VocabDB, preloadVocab } from "../sync/vocabDb.js"
 
 const KIRANA_NAV = [
   { label:"Home", to:"/dashboard",
@@ -68,16 +70,22 @@ const MOB_TABS = [
 const API = import.meta.env.VITE_API_URL
 
 const CHIPS_BY_LANG = {
-  "en-IN": ["Check stock", "Today's sales", "Low stock", "Udhaar dues"],
-  "te-IN": ["స్టాక్ చెక్", "ఈరోజు అమ్మకాలు", "తక్కువ స్టాక్", "ఉధార్ బాకీలు"],
-  "hi-IN": ["स्टॉक चेक", "आज की बिक्री", "कम स्टॉक", "उधार बकाया"],
-  "ta-IN": ["ஸ்டாக் பார்", "இன்றைய விற்பனை", "குறைந்த ஸ்டாக்", "கடன் நிலுவை"],
-  "kn-IN": ["ಸ್ಟಾಕ್ ಚೆಕ್", "ಇಂದಿನ ಮಾರಾಟ", "ಕಡಿಮೆ ಸ್ಟಾಕ್", "ಉಧಾರ್ ಬಾಕಿ"],
-  "ml-IN": ["സ്റ്റോക്ക്", "ഇന്നത്തെ വിൽപ്പന", "കുറഞ്ഞ സ്റ്റോക്ക്", "കടം ബാക്കി"],
-  "mr-IN": ["स्टॉक तपासा", "आजची विक्री", "कमी स्टॉक", "उधार थकबाकी"],
-  "bn-IN": ["স্টক চেক", "আজকের বিক্রয়", "কম স্টক", "উধার বকেয়া"],
-  "gu-IN": ["સ્ટોક ચેક", "આજનું વેચાણ", "ઓછો સ્ટોક", "ઉધાર બાકી"],
-  "pa-IN": ["ਸਟਾਕ ਚੈੱਕ", "ਅੱਜ ਦੀ ਵਿਕਰੀ", "ਘੱਟ ਸਟਾਕ", "ਉਧਾਰ ਬਕਾਇਆ"],
+  "en-IN": ["Do you have milk?", "Low stock", "Today's sales", "Udhaar dues"],
+  "te-IN": ["పాలు ఉందా?", "తక్కువ స్టాక్", "ఈరోజు అమ్మకాలు", "ఉధార్ బాకీలు"],
+  "hi-IN": ["क्या दूध है?", "कम स्टॉक", "आज की बिक्री", "उधार बकाया"],
+  "ta-IN": ["பால் இருக்கா?", "குறைந்த ஸ்டாக்", "இன்றைய விற்பனை", "கடன் நிலுவை"],
+  "kn-IN": ["ಹಾಲು ಇದೆಯಾ?", "ಕಡಿಮೆ ಸ್ಟಾಕ್", "ಇಂದಿನ ಮಾರಾಟ", "ಉಧಾರ್ ಬಾಕಿ"],
+  "ml-IN": ["പാൽ ഉണ്ടോ?", "കുറഞ്ഞ സ്റ്റോക്ക്", "ഇന്നത്തെ വിൽപ്പന", "കടം ബാക്കി"],
+  "mr-IN": ["दूध आहे का?", "कमी स्टॉक", "आजची विक्री", "उधार थकबाकी"],
+  "bn-IN": ["দুধ আছে?", "কম স্টক", "আজকের বিক্রয়", "উধার বকেয়া"],
+  "gu-IN": ["દૂધ છે?", "ઓછો સ્ટોક", "આજનું વેચાણ", "ઉધાર બાકી"],
+  "pa-IN": ["ਦੁੱਧ ਹੈ?", "ਘੱਟ ਸਟਾਕ", "ਅੱਜ ਦੀ ਵਿਕਰੀ", "ਉਧਾਰ ਬਕਾਇਆ"],
+}
+
+const BANGLE_CHIPS_BY_LANG = {
+  "en-IN": ["Low stock bangles", "Today's sales", "Best margin", "Out of stock"],
+  "te-IN": ["తక్కువ స్టాక్ బంగిళ్ళు", "ఈరోజు అమ్మకాలు", "అత్యధిక మార్జిన్", "స్టాక్ లేనివి"],
+  "hi-IN": ["कम स्टॉक बंगल", "आज की बिक्री", "सबसे ज़्यादा मार्जिन", "स्टॉक खत्म"],
 }
 
 function timestamp() {
@@ -86,7 +94,7 @@ function timestamp() {
 
 // ── Detect store-related questions ────────────────────────────
 function isStoreQuestion(q) {
-  return /stock|inventory|price|mrp|cost|margin|profit|sale|revenue|invoice|bill|udh|khata|due|baki|wastage|expire|damage|product|item|low|reorder|categ|brand|sku|unit|స్టాక్|అమ్మకాలు|బాకీ|ధర|ఉధార్|తక్కువ|వస్తువు|లాభ|स्टॉक|बिक्री|उधार|कीमत|लाभ|ஸ்டாக்|விற்பனை|கடன்|ಸ್ಟಾಕ್|ಮಾರಾಟ|ಬಾಕಿ/i.test(q)
+  return /stock|inventory|price|mrp|cost|margin|profit|sale|revenue|invoice|bill|udh|khata|due|baki|wastage|expire|damage|product|item|low|reorder|categ|brand|sku|unit|available|do you have|have you|is there|do we have|kya hai|milega|milta|undi|vundi|unnaya|ఉందా|కావాలి|ఉన్నాయా|వస్తువు|స్టాక్|అమ్మకాలు|బాకీ|ధర|ఉధార్|తక్కువ|లాభ|स्टॉक|बिक्री|उधार|कीमत|लाभ|मिलेगा|ஸ்டாக்|விற்பனை|கடன்|கிடைக்கும்|ಸ್ಟಾಕ್|ಮಾರಾಟ|ಬಾಕಿ/i.test(q)
 }
 
 // ── Helper: margin % ──────────────────────────────────────────
@@ -97,31 +105,174 @@ function calcMargin(p) {
   return Math.round((mrp - cost) / mrp * 100)
 }
 
+// ── Indic script → approximate Roman phonetics ────────────────
+function transliterateIndic(text) {
+  const MAP = {
+    // ── Telugu ──────────────────────────────────────────────
+    'అ':'a','ఆ':'aa','ఇ':'i','ఈ':'ee','ఉ':'u','ఊ':'oo','ఎ':'e','ఏ':'ae','ఒ':'o','ఓ':'oo','ఔ':'au',
+    'ా':'a','ి':'i','ీ':'ee','ు':'u','ూ':'oo','ె':'e','ే':'ae','ొ':'o','ో':'oo','ై':'ai','ౌ':'au',
+    'క':'k','ఖ':'kh','గ':'g','ఘ':'gh','ఙ':'ng','చ':'ch','ఛ':'chh','జ':'j','ఝ':'jh','ఞ':'ny',
+    'ట':'t','ఠ':'th','డ':'d','ఢ':'dh','ణ':'n','త':'t','థ':'th','ద':'d','ధ':'dh','న':'n',
+    'ప':'p','ఫ':'ph','బ':'b','భ':'bh','మ':'m','య':'y','ర':'r','ల':'l','వ':'v',
+    'శ':'sh','ష':'sh','స':'s','హ':'h','ళ':'l','ఱ':'r','ం':'n','ః':'h','్':'','ఁ':'n',
+    // ── Devanagari (Hindi/Marathi) ───────────────────────────
+    'अ':'a','आ':'aa','इ':'i','ई':'ee','उ':'u','ऊ':'oo','ए':'e','ऐ':'ai','ओ':'o','औ':'au',
+    'ा':'a','ि':'i','ी':'ee','ु':'u','ू':'oo','े':'e','ै':'ai','ो':'o','ौ':'au',
+    'क':'k','ख':'kh','ग':'g','घ':'gh','ङ':'ng','च':'ch','छ':'chh','ज':'j','झ':'jh','ञ':'ny',
+    'ट':'t','ठ':'th','ड':'d','ढ':'dh','ण':'n','त':'t','थ':'th','द':'d','ध':'dh','न':'n',
+    'प':'p','फ':'f','ब':'b','भ':'bh','म':'m','य':'y','र':'r','ल':'l','व':'v',
+    'श':'sh','ष':'sh','स':'s','ह':'h','ं':'n','ः':'h','्':'','़':'',
+    // ── Tamil ────────────────────────────────────────────────
+    'அ':'a','ஆ':'aa','இ':'i','ஈ':'ee','உ':'u','ஊ':'oo','எ':'e','ஏ':'ae','ஒ':'o','ஓ':'oo',
+    'ா':'a','ி':'i','ீ':'ee','ு':'u','ூ':'oo','ெ':'e','ே':'ae','ொ':'o','ோ':'oo','ை':'ai','ௌ':'au',
+    'க':'k','ங':'ng','ச':'ch','ஞ':'ny','ட':'t','ண':'n','த':'t','ந':'n','ப':'p','ம':'m',
+    'ய':'y','ர':'r','ல':'l','வ':'v','ழ':'l','ள':'l','ற':'r','ன':'n',
+    'ஜ':'j','ஷ':'sh','ஸ':'s','ஹ':'h','ஃ':'',
+    // ── Kannada ──────────────────────────────────────────────
+    'ಅ':'a','ಆ':'aa','ಇ':'i','ಈ':'ee','ಉ':'u','ಊ':'oo','ಎ':'e','ಏ':'ae','ಒ':'o','ಓ':'oo',
+    'ಾ':'a','ಿ':'i','ೀ':'ee','ು':'u','ೂ':'oo','ೆ':'e','ೇ':'ae','ೊ':'o','ೋ':'oo','ೈ':'ai','ೌ':'au',
+    'ಕ':'k','ಖ':'kh','ಗ':'g','ಘ':'gh','ಙ':'ng','ಚ':'ch','ಛ':'chh','ಜ':'j','ಝ':'jh','ಞ':'ny',
+    'ಟ':'t','ಠ':'th','ಡ':'d','ಢ':'dh','ಣ':'n','ತ':'t','ಥ':'th','ದ':'d','ಧ':'dh','ನ':'n',
+    'ಪ':'p','ಫ':'ph','ಬ':'b','ಭ':'bh','ಮ':'m','ಯ':'y','ರ':'r','ಲ':'l','ವ':'v',
+    'ಶ':'sh','ಷ':'sh','ಸ':'s','ಹ':'h','ಳ':'l','ಂ':'n','ಃ':'h','್':'',
+    // ── Malayalam ────────────────────────────────────────────
+    'അ':'a','ആ':'aa','ഇ':'i','ഈ':'ee','ഉ':'u','ഊ':'oo','എ':'e','ഏ':'ae','ഒ':'o','ഓ':'oo',
+    'ാ':'a','ി':'i','ീ':'ee','ു':'u','ൂ':'oo','െ':'e','േ':'ae','ൊ':'o','ോ':'oo','ൈ':'ai','ൌ':'au',
+    'ക':'k','ഖ':'kh','ഗ':'g','ഘ':'gh','ങ':'ng','ച':'ch','ഛ':'chh','ജ':'j','ഝ':'jh','ഞ':'ny',
+    'ട':'t','ഠ':'th','ഡ':'d','ഢ':'dh','ണ':'n','ത':'t','ഥ':'th','ദ':'d','ധ':'dh','ന':'n',
+    'പ':'p','ഫ':'ph','ബ':'b','ഭ':'bh','മ':'m','യ':'y','ര':'r','ല':'l','വ':'v',
+    'ശ':'sh','ഷ':'sh','സ':'s','ഹ':'h','ള':'l','ഴ':'l','റ':'r','ം':'n','ഃ':'h','്':'',
+  }
+  return text.split('').map(c => MAP[c] ?? c).join('')
+}
+
+// Reduce a word to its consonant skeleton for phonetic matching
+// e.g. "laakee" → "lk", "lucky" → "lk", "neyil" → "nl", "nail" → "nl"
+function phoneticKey(s) {
+  return s.toLowerCase()
+    .replace(/sh/g,'x').replace(/ch/g,'c').replace(/th/g,'t').replace(/ph/g,'f')
+    .replace(/kh/g,'k').replace(/gh/g,'g').replace(/dh/g,'d').replace(/bh/g,'b')
+    .replace(/ck/g,'k').replace(/c(?=[^h]|$)/g,'k')  // c (not before h) = k
+    .replace(/[aeiouhy]/g,'')   // strip vowels + y/h (vary heavily across languages)
+    .replace(/(.)\1+/g,'$1')    // dedup consecutive identical
+}
+
 // ── Answer using db.js APIs (auth handled internally, no raw fetch) ──
-async function localReply(q) {
+async function localReply(q, storeMode = "kirana") {
   const query = q.toLowerCase()
 
-  // Always fetch products via db.js
-  const products = await Products.list({ limit: 1000 }).catch(() => [])
+  // Fetch products from the active store
+  const products = storeMode === "bangle_fancy"
+    ? await BangleProducts.list().then(r => {
+        const list = Array.isArray(r) ? r : (r?.data || [])
+        // Normalise bangle product fields to match kirana shape
+        return list.map(p => ({
+          ...p,
+          stock:      typeof p.total_stock === "number" ? p.total_stock : 0,
+          min_stock:  p.min_stock || 0,
+          cost_price: p.cost_price || 0,
+          unit:       "piece",
+        }))
+      }).catch(() => [])
+    : await Products.list({ limit: 1000 }).catch(() => [])
 
-  // ── Specific product search ──────────────────────────────
-  const stopWords = new Set(["stock","price","mrp","cost","margin","the","and","is","in","of","what","how","many","much","about","tell","me","give","show","do","we","have","any","for","check"])
-  const words   = query.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
-  const matched = words.length > 0
-    ? products.filter(p => words.some(w => p.name?.toLowerCase().includes(w)))
+  // ── Availability / product search ───────────────────────
+  const isAvailQuery = /do you have|do we have|have you|is there|available|milega|milta|undi|vundi|unnaya|ఉందా|కావాలి|ఉన్నాయా|मिलेगा|किधर|கிடைக்கும்|ಸಿಗುತ್ತಾ/i.test(query)
+
+  const stopWords = new Set(["stock","price","mrp","cost","margin","the","and","is","in","of","what","how","many","much","about","tell","me","give","show","do","we","have","any","for","check","available","you","your","store","kya","hai","yahan","idhar","please","pls"])
+  const indicStops = new Set(["unda","undaa","undi","vundi","unnai","unnaya","kavali","kaval","ikkade","milega","milta","hain","chahiye","chupandu","ahe","aahe","ide","idhe","unna","iruka"])
+
+  const hasIndic = /[^\x00-\x7F]/.test(query)
+  const words     = query.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+  const romanWords = hasIndic
+    ? transliterateIndic(query).toLowerCase().split(/\s+/)
+        .filter(w => w.length > 1 && !stopWords.has(w) && !indicStops.has(w))
+    : []
+  const allWords = hasIndic ? [...new Set([...words, ...romanWords])] : words
+
+  const isAnalyticsQuery = /sale|revenue|udh|baki|wastage|low stock|reorder|categ|margin|profit|top|best|most/.test(query)
+
+  // ── 0. Learned vocabulary — fastest path (central repo) ──────
+  const vocabHits = await VocabDB.lookup(allWords, storeMode).catch(() => [])
+  const vocabProducts = vocabHits.length > 0
+    ? products.filter(p => vocabHits.some(h =>
+        h.product_name?.toLowerCase() === p.name?.toLowerCase()
+      ))
     : []
 
-  if (matched.length > 0 && !/sale|revenue|udh|baki|wastage|low|reorder|categ|margin|profit|top|best/.test(query)) {
-    const lines = matched.slice(0,6).map(p => {
-      const isOut = parseFloat(p.stock||0) === 0
-      const isLow = !isOut && parseFloat(p.stock||0) < parseFloat(p.min_stock||0)
-      const status = isOut ? "❌ Out of stock" : isLow ? "⚠️ Low stock" : "✅ In stock"
-      const m = calcMargin(p)
-      return `• ${p.name}${p.category ? ` (${p.category})` : ""}
-  Stock: ${p.stock} ${p.unit||""} ${status}
-  MRP: ₹${p.mrp||0} | Cost: ₹${p.cost_price||0} | Margin: ${m}%`
+  // ── 1. Phonetic / substring match ─────────────────────────────
+  const phoneticMatched = allWords.length > 0 && vocabProducts.length === 0
+    ? products.filter(p => allWords.some(w => {
+        if (p.name?.toLowerCase().includes(w) || p.category?.toLowerCase().includes(w)) return true
+        if (hasIndic && w.length > 1) {
+          const wKey = phoneticKey(w)
+          if (wKey.length < 2) return false
+          return (p.name || '').toLowerCase().split(/\s+/).some(nw => {
+            const nk = phoneticKey(nw)
+            return nk.length >= 2 && (nk === wKey || nk.startsWith(wKey) || wKey.startsWith(nk))
+          })
+        }
+        return false
+      }))
+    : []
+
+  const matched = vocabProducts.length > 0 ? vocabProducts : phoneticMatched
+
+  // ── Auto-learn: when phonetic match finds exactly 1 confident product ──
+  if (phoneticMatched.length === 1 && !isAnalyticsQuery) {
+    const p = phoneticMatched[0]
+    const saveOpts = [true, storeMode]  // autoLearned=true, storeMode
+    romanWords.filter(w => w.length > 3 && !indicStops.has(w))
+      .forEach(w => VocabDB.save(w, null, p.name, ...saveOpts).catch(() => {}))
+    words.filter(w => /[^\x00-\x7F]/.test(w))
+      .forEach(w => VocabDB.save(w, null, p.name, ...saveOpts).catch(() => {}))
+  }
+
+  if (matched.length > 0 && !isAnalyticsQuery) {
+    const fromVocab = vocabProducts.length > 0
+    const lines = matched.slice(0, 5).map(p => {
+      const stock    = parseFloat(p.stock || 0)
+      const minStock = parseFloat(p.min_stock || 0)
+      const isOut    = stock === 0
+      const isLow    = !isOut && minStock > 0 && stock < minStock
+      const m        = calcMargin(p)
+      const mrpLine  = p.mrp > 0 ? ` · MRP ₹${p.mrp}` : ""
+
+      if (isOut) {
+        return `❌ ${p.name}${p.category ? ` (${p.category})` : ""}
+   Status: OUT OF STOCK — 0 units remaining
+   👉 You need to purchase this product to fulfill the request.${mrpLine}`
+      }
+      if (isLow) {
+        return `⚠️ ${p.name}${p.category ? ` (${p.category})` : ""}
+   Status: RUNNING LOW — only ${stock} ${p.unit||"units"} left (min: ${minStock})
+   👉 Stock is low — consider restocking soon.${mrpLine}${m > 0 ? ` · Margin ${m}%` : ""}`
+      }
+      return `✅ ${p.name}${p.category ? ` (${p.category})` : ""}
+   Status: IN STOCK — ${stock} ${p.unit||"units"} available${mrpLine}${m > 0 ? ` · Margin ${m}%` : ""}`
     })
-    return `🔍 Found ${matched.length} product(s):\n\n${lines.join("\n\n")}`
+
+    const header = matched.length === 1
+      ? (fromVocab ? "🧠 (from learned vocab)\n" : "")
+      : `Found ${matched.length} matching product(s):\n\n`
+    return `${header}${lines.join("\n\n")}`
+  }
+
+  // ── Not found → return teach data so chat can prompt user ─────
+  if (allWords.length > 0 && matched.length === 0 && (isAvailQuery || allWords.some(w => w.length > 3))) {
+    const displayWords = romanWords.length > 0 ? romanWords : words
+    const searchTerm   = displayWords.filter(w => w.length > 3).slice(0, 3).join(" ") || displayWords.join(" ")
+    const topProducts  = [...products]
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+      .slice(0, 8)
+    return {
+      _teach:        true,
+      text:          `❓ "${searchTerm}" is not found in your inventory.\n\nThis product hasn't been added yet, or I might not recognize the name you used.`,
+      teachTerm:     searchTerm,
+      indicTerms:    words.filter(w => /[^\x00-\x7F]/.test(w)),
+      romanTerms:    romanWords.filter(w => w.length > 2 && !indicStops.has(w)),
+      products:      topProducts,
+    }
   }
 
   // ── Sales ────────────────────────────────────────────────
@@ -220,29 +371,161 @@ ${lines.join("\n")}`
   return null // not handled locally
 }
 
+// ── Widget UI strings by language ─────────────────────────────
+const WIDGET_STRINGS = {
+  "en-IN": {
+    title:       "Shop Assistant",
+    subtitle:    "Live data · Groq + Gemini AI",
+    welcome:     "Hello! 👋 I'm your Shop Assistant.\nAsk me about stock, sales, margins, udhaar — or anything else!",
+    placeholder: "Ask about your store...",
+    listening:   "🎙 Listening…",
+    footer:      "Store data: Free · AI: Groq → Gemini",
+    connError:   "⚠️ Connection error. Please try again.",
+    limitErr:    "😢 Sorry, AI has hit its daily limit. It refreshes every day — please try again later!",
+    fallback:    "😢 Sorry, I don't have information on that. Ask me about stock, sales, udhaar or margins!",
+  },
+  "te-IN": {
+    title:       "షాప్ అసిస్టెంట్",
+    subtitle:    "లైవ్ డేటా · Groq + Gemini AI",
+    welcome:     "నమస్కారం! 👋 నేను మీ షాప్ అసిస్టెంట్.\nస్టాక్, అమ్మకాలు, మార్జిన్, ఉధార్ గురించి అడగండి!",
+    placeholder: "మీ స్టోర్ గురించి అడగండి...",
+    listening:   "🎙 వింటున్నాను…",
+    footer:      "స్టోర్ డేటా: ఉచితం · AI: Groq → Gemini",
+    connError:   "⚠️ కనెక్షన్ లోపం. మళ్ళీ ప్రయత్నించండి.",
+    limitErr:    "😢 క్షమించండి, AI దైనందిన పరిమితిని చేరుకుంది. తర్వాత ప్రయత్నించండి!",
+    fallback:    "😢 క్షమించండి, ఇప్పుడు ఆ సమాచారం లేదు. స్టాక్, అమ్మకాలు లేదా ఉధార్ గురించి అడగండి!",
+  },
+  "hi-IN": {
+    title:       "शॉप असिस्टेंट",
+    subtitle:    "लाइव डेटा · Groq + Gemini AI",
+    welcome:     "नमस्ते! 👋 मैं आपका शॉप असिस्टेंट हूँ।\nस्टॉक, बिक्री, मार्जिन, उधार — कुछ भी पूछें!",
+    placeholder: "अपनी दुकान के बारे में पूछें...",
+    listening:   "🎙 सुन रहा हूँ…",
+    footer:      "स्टोर डेटा: मुफ़्त · AI: Groq → Gemini",
+    connError:   "⚠️ कनेक्शन त्रुटि। कृपया पुनः प्रयास करें।",
+    limitErr:    "😢 माफ़ करें, AI की दैनिक सीमा समाप्त हो गई। कल फिर प्रयास करें!",
+    fallback:    "😢 माफ़ करें, अभी वह जानकारी उपलब्ध नहीं है। स्टॉक, बिक्री या उधार के बारे में पूछें!",
+  },
+  "ta-IN": {
+    title:       "கடை உதவியாளர்",
+    subtitle:    "நேரடி தரவு · Groq + Gemini AI",
+    welcome:     "வணக்கம்! 👋 நான் உங்கள் கடை உதவியாளர்.\nஸ்டாக், விற்பனை, மார்ஜின், கடன் — எதுவும் கேளுங்கள்!",
+    placeholder: "உங்கள் கடை பற்றி கேளுங்கள்...",
+    listening:   "🎙 கேட்கிறேன்…",
+    footer:      "ஸ்டோர் டேட்டா: இலவசம் · AI: Groq → Gemini",
+    connError:   "⚠️ இணைப்பு பிழை. மீண்டும் முயற்சிக்கவும்.",
+    limitErr:    "😢 மன்னிக்கவும், AI தினசரி வரம்பை எட்டிவிட்டது. பின்னர் முயற்சிக்கவும்!",
+    fallback:    "😢 மன்னிக்கவும், தகவல் இல்லை. ஸ்டாக், விற்பனை அல்லது கடன் பற்றி கேளுங்கள்!",
+  },
+  "kn-IN": {
+    title:       "ಅಂಗಡಿ ಸಹಾಯಕ",
+    subtitle:    "ನೇರ ಡೇಟಾ · Groq + Gemini AI",
+    welcome:     "ನಮಸ್ಕಾರ! 👋 ನಾನು ನಿಮ್ಮ ಅಂಗಡಿ ಸಹಾಯಕ.\nಸ್ಟಾಕ್, ಮಾರಾಟ, ಮಾರ್ಜಿನ್, ಉಧಾರ್ — ಏನಾದರೂ ಕೇಳಿ!",
+    placeholder: "ನಿಮ್ಮ ಅಂಗಡಿ ಬಗ್ಗೆ ಕೇಳಿ...",
+    listening:   "🎙 ಕೇಳುತ್ತಿದ್ದೇನೆ…",
+    footer:      "ಸ್ಟೋರ್ ಡೇಟಾ: ಉಚಿತ · AI: Groq → Gemini",
+    connError:   "⚠️ ಸಂಪರ್ಕ ದೋಷ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    limitErr:    "😢 ಕ್ಷಮಿಸಿ, AI ದೈನಂದಿನ ಮಿತಿ ತಲುಪಿದೆ. ನಂತರ ಪ್ರಯತ್ನಿಸಿ!",
+    fallback:    "😢 ಕ್ಷಮಿಸಿ, ಮಾಹಿತಿ ಇಲ್ಲ. ಸ್ಟಾಕ್, ಮಾರಾಟ ಅಥವಾ ಉಧಾರ್ ಬಗ್ಗೆ ಕೇಳಿ!",
+  },
+  "ml-IN": {
+    title:       "ഷോപ്പ് അസിസ്റ്റന്റ്",
+    subtitle:    "തത്സമയ ഡേറ്റ · Groq + Gemini AI",
+    welcome:     "നമസ്കാരം! 👋 ഞാൻ നിങ്ങളുടെ ഷോപ്പ് അസിസ്റ്റന്റ് ആണ്.\nസ്റ്റോക്ക്, വിൽപ്പന, മാർജിൻ, കടം — എന്തും ചോദിക്കൂ!",
+    placeholder: "നിങ്ങളുടെ കടയെക്കുറിച്ച് ചോദിക്കൂ...",
+    listening:   "🎙 കേൾക്കുന്നു…",
+    footer:      "സ്റ്റോർ ഡേറ്റ: സൗജന്യം · AI: Groq → Gemini",
+    connError:   "⚠️ കണക്ഷൻ പിശക്. വീണ്ടും ശ്രമിക്കൂ.",
+    limitErr:    "😢 ക്ഷമിക്കണം, AI ദൈനംദിന പരിധി കഴിഞ്ഞു. പിന്നീട് ശ്രമിക്കൂ!",
+    fallback:    "😢 ക്ഷമിക്കണം, ആ വിവരം ഇല്ല. സ്റ്റോക്ക്, വിൽപ്പന അല്ലെങ്കിൽ കടം ചോദിക്കൂ!",
+  },
+  "mr-IN": {
+    title:       "शॉप असिस्टंट",
+    subtitle:    "थेट डेटा · Groq + Gemini AI",
+    welcome:     "नमस्कार! 👋 मी तुमचा शॉप असिस्टंट आहे.\nस्टॉक, विक्री, मार्जिन, उधार — काहीही विचारा!",
+    placeholder: "तुमच्या दुकानाबद्दल विचारा...",
+    listening:   "🎙 ऐकत आहे…",
+    footer:      "स्टोर डेटा: मोफत · AI: Groq → Gemini",
+    connError:   "⚠️ कनेक्शन त्रुटी. पुन्हा प्रयत्न करा.",
+    limitErr:    "😢 माफ करा, AI ची दैनंदिन मर्यादा संपली. नंतर प्रयत्न करा!",
+    fallback:    "😢 माफ करा, ती माहिती उपलब्ध नाही. स्टॉक, विक्री किंवा उधार विचारा!",
+  },
+  "bn-IN": {
+    title:       "শপ অ্যাসিস্ট্যান্ট",
+    subtitle:    "লাইভ ডেটা · Groq + Gemini AI",
+    welcome:     "নমস্কার! 👋 আমি আপনার শপ অ্যাসিস্ট্যান্ট।\nস্টক, বিক্রয়, মার্জিন, উধার — যেকোনো কিছু জিজ্ঞেস করুন!",
+    placeholder: "আপনার দোকান সম্পর্কে জিজ্ঞেস করুন...",
+    listening:   "🎙 শুনছি…",
+    footer:      "স্টোর ডেটা: বিনামূল্যে · AI: Groq → Gemini",
+    connError:   "⚠️ সংযোগ ত্রুটি। আবার চেষ্টা করুন।",
+    limitErr:    "😢 দুঃখিত, AI এর দৈনিক সীমা শেষ হয়েছে। পরে চেষ্টা করুন!",
+    fallback:    "😢 দুঃখিত, ঐ তথ্য নেই। স্টক, বিক্রয় বা উধার সম্পর্কে জিজ্ঞেস করুন!",
+  },
+  "gu-IN": {
+    title:       "શૉપ આસિસ્ટન્ટ",
+    subtitle:    "લાઇવ ડેટા · Groq + Gemini AI",
+    welcome:     "નમસ્તે! 👋 હું તમારો શૉપ આસિસ્ટન્ટ છું.\nસ્ટૉક, વેચાણ, માર્જિન, ઉધાર — ગમે તે પૂછો!",
+    placeholder: "તમારી દુકાન વિશે પૂછો...",
+    listening:   "🎙 સાંભળી રહ્યો છું…",
+    footer:      "સ્ટોર ડેટા: મફત · AI: Groq → Gemini",
+    connError:   "⚠️ કનેક્શન ભૂલ. ફરી પ્રયાસ કરો.",
+    limitErr:    "😢 માફ કરજો, AI ની દૈનિક મર્યાદા પૂર્ણ થઈ. બાદમાં પ્રયાસ કરો!",
+    fallback:    "😢 માફ કરજો, ત્યાં જાણ નથી. સ્ટૉક, વેચાણ અથવા ઉધાર પૂછો!",
+  },
+  "pa-IN": {
+    title:       "ਸ਼ਾਪ ਅਸਿਸਟੈਂਟ",
+    subtitle:    "ਲਾਈਵ ਡੇਟਾ · Groq + Gemini AI",
+    welcome:     "ਸਤ ਸ੍ਰੀ ਅਕਾਲ! 👋 ਮੈਂ ਤੁਹਾਡਾ ਸ਼ਾਪ ਅਸਿਸਟੈਂਟ ਹਾਂ।\nਸਟਾਕ, ਵਿਕਰੀ, ਮਾਰਜਿਨ, ਉਧਾਰ — ਕੁਝ ਵੀ ਪੁੱਛੋ!",
+    placeholder: "ਆਪਣੀ ਦੁਕਾਨ ਬਾਰੇ ਪੁੱਛੋ...",
+    listening:   "🎙 ਸੁਣ ਰਿਹਾ ਹਾਂ…",
+    footer:      "ਸਟੋਰ ਡੇਟਾ: ਮੁਫ਼ਤ · AI: Groq → Gemini",
+    connError:   "⚠️ ਕਨੈਕਸ਼ਨ ਗਲਤੀ। ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+    limitErr:    "😢 ਮਾਫ਼ ਕਰਨਾ, AI ਦੀ ਰੋਜ਼ਾਨਾ ਸੀਮਾ ਖਤਮ ਹੋ ਗਈ। ਬਾਅਦ ਵਿੱਚ ਕੋਸ਼ਿਸ਼ ਕਰੋ!",
+    fallback:    "😢 ਮਾਫ਼ ਕਰਨਾ, ਉਹ ਜਾਣਕਾਰੀ ਨਹੀਂ ਹੈ। ਸਟਾਕ, ਵਿਕਰੀ ਜਾਂ ਉਧਾਰ ਬਾਰੇ ਪੁੱਛੋ!",
+  },
+}
+
 // ── AIChatWidget ──────────────────────────────────────────────
 function AIChatWidget() {
-  const { vendor } = useAuth()
+  const { vendor, hasModule } = useAuth()
+  const hasBangle = hasModule("bangle_fancy")
+  const hasKirana = hasModule("kirana")
+  const storeMode = hasBangle && !hasKirana
+    ? "bangle_fancy"
+    : !hasBangle ? "kirana"
+    : (localStorage.getItem("storeMode") || "kirana")
+  const isBangle = storeMode === "bangle_fancy"
 
   const [open, setOpen]           = useState(false)
   const [lang, setLang]           = useState(getSavedLang)
-  const [messages, setMessages]   = useState([
-    { id:1, role:"assistant",
-      text:"నమస్కారం! 👋 I'm your Shop Assistant.\nAsk me about stock, sales, margins, udhaar — or anything else!",
-      time:timestamp() }
-  ])
+  const t = WIDGET_STRINGS[lang] || WIDGET_STRINGS["en-IN"]
+  const [messages, setMessages]   = useState(() => {
+    const initT = WIDGET_STRINGS[getSavedLang()] || WIDGET_STRINGS["en-IN"]
+    return [{ id:1, role:"assistant", text:initT.welcome, time:timestamp() }]
+  })
   const [input, setInput]         = useState("")
   const [loading, setLoading]     = useState(false)
   const [chipsUsed, setChipsUsed] = useState(false)
-  const msgsRef  = useRef(null)
-  const inputRef = useRef(null)
+  const [micActive, setMicActive] = useState(false)
+  const msgsRef    = useRef(null)
+  const inputRef   = useRef(null)
+  const langInitRef = useRef(true)
+
+  useEffect(() => {
+    if (langInitRef.current) { langInitRef.current = false; return }
+    setMessages([{ id:1, role:"assistant", text:t.welcome, time:timestamp() }])
+    setChipsUsed(false)
+  }, [lang])
 
   useEffect(() => {
     if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight
   }, [messages, loading, open])
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100)
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 100)
+      preloadVocab(storeMode)  // warm the central vocab cache in background
+    }
   }, [open])
 
   async function send(text) {
@@ -256,11 +539,25 @@ function AIChatWidget() {
 
     try {
       const token = getToken()
-      let reply   = null
+      let reply     = null
+      let teachData = null
 
       // 1. Store question → local db.js APIs (zero latency, always free)
       if (token && isStoreQuestion(q)) {
-        try { reply = await localReply(q) } catch(e) { console.error(e) }
+        try {
+          const localResult = await localReply(q, storeMode)
+          if (localResult && localResult._teach) {
+            reply     = localResult.text
+            teachData = {
+              term:        localResult.teachTerm,
+              indicTerms:  localResult.indicTerms,
+              romanTerms:  localResult.romanTerms,
+              products:    localResult.products,
+            }
+          } else if (typeof localResult === "string") {
+            reply = localResult
+          }
+        } catch(e) { console.error(e) }
       }
 
       // 2. No local answer → backend cascade: Groq → Gemini → sorry
@@ -272,13 +569,13 @@ function AIChatWidget() {
               "Content-Type": "application/json",
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            body: JSON.stringify({ message: q, language: lang, history: [], store_context: {} }),
+            body: JSON.stringify({ message: q, language: lang, history: [], store_context: {}, store: isBangle ? "bangle" : "kirana" }),
           })
           if (res.ok) {
             const data = await res.json()
             reply = data?.response || null
           } else if (res.status === 429 || res.status === 503) {
-            reply = "😢 Sorry, I don't have information right now — our AI has hit its daily limit. It refreshes every day, so please try again later!"
+            reply = t.limitErr
           } else {
             reply = null
           }
@@ -288,19 +585,43 @@ function AIChatWidget() {
       }
 
       // 3. Both local + AI failed
-      if (!reply) {
-        reply = "😢 Sorry, I don't have information on that right now. You can ask me about your stock, sales, udhaar, margins, or low-stock alerts!"
-      }
+      if (!reply) reply = t.fallback
 
-      setMessages(p => [...p, { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }])
+      const botMsg = { id:Date.now()+1, role:"assistant", text:reply, time:timestamp() }
+      if (teachData) botMsg.teach = teachData
+      setMessages(p => [...p, botMsg])
     } catch(e) {
       console.error("Chat error:", e)
       setMessages(p => [...p, { id:Date.now()+1, role:"assistant",
-        text:"⚠️ Connection error. Please try again.", time:timestamp() }])
+        text:t.connError, time:timestamp() }])
     } finally {
       setLoading(false)
       inputRef.current?.focus()
     }
+  }
+
+  async function handleTeach(msgId, teachData, product) {
+    const allTerms = [
+      teachData.term,
+      ...(teachData.indicTerms || []),
+      ...(teachData.romanTerms || []),
+    ].filter(Boolean)
+    // Save all term forms to central repo (autoLearned=false = high confidence = 10)
+    await Promise.all(allTerms.map(tt =>
+      VocabDB.save(tt, null, product.name, false, storeMode, lang).catch(() => {})
+    ))
+
+    // Mark this message as taught (hides the teach UI)
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, taught: true } : m))
+
+    // Show confirmation + availability
+    const stock = parseFloat(product.stock || 0)
+    const avail = stock === 0 ? `❌ OUT OF STOCK` : `✅ ${stock} ${product.unit || "units"} in stock`
+    setMessages(prev => [...prev, {
+      id: Date.now(), role: "assistant",
+      text: `🎓 Learned! "${teachData.term}" = ${product.name}\n\nI'll recognize this instantly next time!\n\n${avail}${product.mrp > 0 ? ` · MRP ₹${product.mrp}` : ""}`,
+      time: timestamp(),
+    }])
   }
 
   function startMic() {
@@ -308,11 +629,16 @@ function AIChatWidget() {
     if (!SR) return
     const rec    = new SR()
     rec.lang     = lang
-    rec.onresult = (e) => setInput(e.results[0][0].transcript)
+    rec.onstart  = () => setMicActive(true)
+    rec.onresult = (e) => { const t = e.results[0][0].transcript; setMicActive(false); send(t) }
+    rec.onerror  = () => setMicActive(false)
+    rec.onend    = () => setMicActive(false)
     rec.start()
   }
 
-  const chips = CHIPS_BY_LANG[lang] || CHIPS_BY_LANG["en-IN"]
+  const chips = isBangle
+    ? (BANGLE_CHIPS_BY_LANG[lang] || BANGLE_CHIPS_BY_LANG["en-IN"])
+    : (CHIPS_BY_LANG[lang] || CHIPS_BY_LANG["en-IN"])
 
   return (
     <>
@@ -333,12 +659,12 @@ function AIChatWidget() {
               background:"rgba(255,255,255,0.2)", border:"2px solid rgba(255,255,255,0.35)",
               display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>🤖</div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ color:"white", fontWeight:700, fontSize:13 }}>Shop Assistant</div>
+              <div style={{ color:"white", fontWeight:700, fontSize:13 }}>{t.title}</div>
               <div style={{ color:"rgba(255,255,255,0.85)", fontSize:10,
                 display:"flex", alignItems:"center", gap:4 }}>
                 <span style={{ width:6, height:6, borderRadius:"50%",
                   background:"#a3f0c4", display:"inline-block" }}/>
-                Live data · Groq + Gemini AI
+                {t.subtitle}
               </div>
             </div>
             <select value={lang} onChange={e => setLang(e.target.value)}
@@ -375,7 +701,7 @@ function AIChatWidget() {
                     background:"var(--saffron, #e87722)", display:"flex",
                     alignItems:"center", justifyContent:"center", fontSize:12 }}>🤖</div>
                 )}
-                <div style={{ maxWidth:"80%" }}>
+                <div style={{ maxWidth:"86%" }}>
                   <div style={{
                     padding:"8px 11px", fontSize:12, lineHeight:1.55, whiteSpace:"pre-wrap",
                     borderRadius: msg.role === "user" ? "13px 13px 4px 13px" : "13px 13px 13px 4px",
@@ -384,6 +710,38 @@ function AIChatWidget() {
                     border: msg.role === "assistant" ? "0.5px solid var(--rule, #eee)" : "none",
                     boxShadow:"0 1px 3px rgba(0,0,0,0.06)",
                   }}>{msg.text}</div>
+
+                  {/* ── Teach Me UI ── */}
+                  {msg.teach && !msg.taught && msg.teach.products?.length > 0 && (
+                    <div style={{
+                      marginTop:5, padding:"8px 10px",
+                      background:"linear-gradient(135deg,#fefce8,#fef9c3)",
+                      border:"1px solid #fde047", borderRadius:"0 10px 10px 10px",
+                    }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:"#92400e", marginBottom:6 }}>
+                        🎓 Teach me — which product is "{msg.teach.term}"?
+                      </div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                        {msg.teach.products.map(p => (
+                          <button key={p.id || p.name}
+                            onClick={() => handleTeach(msg.id, msg.teach, p)}
+                            style={{
+                              fontSize:10, padding:"3px 9px", borderRadius:12, cursor:"pointer",
+                              border:"1.5px solid #d97706", background:"#fff",
+                              color:"#92400e", fontWeight:600, transition:"all 0.15s",
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background="#d97706"; e.currentTarget.style.color="#fff" }}
+                            onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#92400e" }}>
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize:9, color:"#a16207", marginTop:5, fontStyle:"italic" }}>
+                        Tap the correct product — I'll remember it forever 🧠
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ fontSize:9, color:"var(--ink-faint, #bbb)", marginTop:2,
                     textAlign: msg.role === "user" ? "right" : "left" }}>{msg.time}</div>
                 </div>
@@ -432,18 +790,40 @@ function AIChatWidget() {
           <div style={{ background:"var(--bg0, #fff)", borderTop:"0.5px solid var(--rule, #eee)",
             padding:"8px 10px", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
             <div style={{ flex:1, display:"flex", alignItems:"center", gap:6,
-              background:"var(--bg1, #f7f4f2)", borderRadius:20,
-              border:"0.5px solid var(--rule, #eee)", padding:"0 10px", minHeight:34 }}>
-              <input ref={inputRef} type="text" value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
-                placeholder="Ask about your store..."
-                disabled={loading}
-                style={{ flex:1, border:"none", outline:"none", background:"transparent",
-                  fontSize:12, color:"var(--ink, #1a1a1a)", fontFamily:"inherit", padding:"6px 0" }}/>
-              <button onClick={startMic} aria-label="Voice input"
-                style={{ background:"none", border:"none", cursor:"pointer", padding:"2px 0",
-                  color:"var(--saffron, #e87722)", display:"flex", alignItems:"center", flexShrink:0 }}>
+              background: micActive ? "rgba(220,38,38,0.05)" : "var(--bg1, #f7f4f2)", borderRadius:20,
+              border: micActive ? "1.5px solid rgba(220,38,38,0.45)" : "0.5px solid var(--rule, #eee)",
+              padding:"0 10px", minHeight:34, transition:"all 0.2s" }}>
+              {micActive ? (
+                <div style={{ flex:1, display:"flex", alignItems:"center", gap:6, padding:"6px 0" }}>
+                  <span style={{ fontSize:11, color:"#dc2626", fontWeight:600,
+                    animation:"micListenPulse 1.2s ease-in-out infinite" }}>{t.listening}</span>
+                  <div style={{ display:"flex", gap:2, alignItems:"flex-end" }}>
+                    {[0,1,2,3].map(i => (
+                      <span key={i} style={{
+                        width:3, borderRadius:2, background:"#dc2626",
+                        animation:`micWave 0.8s ease-in-out infinite`,
+                        animationDelay:`${i*0.1}s`,
+                        height:`${8 + i % 2 * 5}px`, display:"inline-block",
+                      }}/>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <input ref={inputRef} type="text" value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
+                  placeholder={t.placeholder}
+                  disabled={loading}
+                  style={{ flex:1, border:"none", outline:"none", background:"transparent",
+                    fontSize:12, color:"var(--ink, #1a1a1a)", fontFamily:"inherit", padding:"6px 0" }}/>
+              )}
+              <button onClick={startMic} aria-label="Voice input" disabled={micActive}
+                style={{ background: micActive ? "rgba(220,38,38,0.1)" : "none",
+                  border:"none", cursor: micActive ? "default" : "pointer", padding:"2px",
+                  borderRadius:"50%", width:22, height:22,
+                  color: micActive ? "#dc2626" : "var(--saffron, #e87722)",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                  animation: micActive ? "micRing 1.4s ease-in-out infinite" : "none" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
                   fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="9" y="2" width="6" height="11" rx="3"/>
@@ -468,7 +848,7 @@ function AIChatWidget() {
           </div>
           <div style={{ textAlign:"center", fontSize:9, color:"var(--ink-faint, #ccc)",
             padding:"3px", background:"var(--bg0, white)" }}>
-            Store data: Free · AI: Groq → Gemini (daily limit refreshes)
+            {t.footer}
           </div>
         </div>
       )}
@@ -507,6 +887,18 @@ function AIChatWidget() {
         @keyframes dukaanTyping {
           0%,80%,100% { transform:translateY(0); opacity:0.3; }
           40% { transform:translateY(-4px); opacity:1; }
+        }
+        @keyframes micListenPulse {
+          0%,100% { opacity:1; }
+          50%     { opacity:0.5; }
+        }
+        @keyframes micWave {
+          0%,100% { transform:scaleY(1); }
+          50%     { transform:scaleY(2.2); }
+        }
+        @keyframes micRing {
+          0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,0.4); }
+          50%     { box-shadow:0 0 0 5px rgba(220,38,38,0); }
         }
       `}</style>
     </>
