@@ -155,6 +155,102 @@ async def close_day(vendor=Depends(get_current_vendor)):
     }
 
 
+@router.get("/pending")
+async def get_pending(vendor=Depends(get_current_vendor)):
+    """
+    Returns today's session + any unclosed session from a previous day.
+    Used by the startup gate to prompt the user to open/close at app load.
+    """
+    db = get_db()
+    vendor_id = vendor["id"]
+    today = date.today().isoformat()
+
+    today_result = (
+        db.table("day_sessions")
+        .select("id,date,opened_at,status")
+        .eq("vendor_id", vendor_id)
+        .eq("date", today)
+        .execute()
+    )
+    today_session = today_result.data[0] if today_result.data else None
+
+    prev_result = (
+        db.table("day_sessions")
+        .select("id,date,opened_at,status")
+        .eq("vendor_id", vendor_id)
+        .eq("status", "open")
+        .neq("date", today)
+        .order("date", desc=True)
+        .limit(1)
+        .execute()
+    )
+    prev_session = prev_result.data[0] if prev_result.data else None
+
+    return {"today": today_session, "unclosed_prev": prev_session}
+
+
+@router.post("/close-prev/{session_id}")
+async def close_prev_session(session_id: str, vendor=Depends(get_current_vendor)):
+    """
+    Close a previous day's unclosed session by ID.
+    Calculates that day's sales and takes a current stock snapshot as closing snapshot.
+    """
+    db = get_db()
+    vendor_id = vendor["id"]
+
+    result = (
+        db.table("day_sessions")
+        .select("*")
+        .eq("id", session_id)
+        .eq("vendor_id", vendor_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = result.data[0]
+    if session["status"] == "closed":
+        return session
+
+    sess_date = session["date"]
+    day_start = f"{sess_date}T00:00:00+00:00"
+    day_end   = f"{sess_date}T23:59:59+00:00"
+
+    sales_result = (
+        db.table("sales")
+        .select("*")
+        .eq("vendor_id", vendor_id)
+        .gte("sold_at", day_start)
+        .lte("sold_at", day_end)
+        .execute()
+    )
+    sales_data   = sales_result.data or []
+    total_sales  = round(sum(s["total"] for s in sales_data), 2)
+
+    closing_snapshot = _stock_snapshot(db, vendor_id)
+    cost_map = {p["id"]: p.get("cost_price", 0) for p in (session.get("opening_stock") or [])}
+    cogs     = sum(s["qty"] * cost_map.get(s["product_id"], 0) for s in sales_data)
+    profit   = round(total_sales - cogs, 2)
+    low_stock = [p for p in closing_snapshot if p["stock"] < p["min_stock"]]
+
+    updated = (
+        db.table("day_sessions")
+        .update({
+            "closed_at":      datetime.now(timezone.utc).isoformat(),
+            "closing_stock":  closing_snapshot,
+            "total_sales":    total_sales,
+            "total_invoices": len(sales_data),
+            "gross_profit":   profit,
+            "low_stock_items": low_stock,
+            "status":         "closed",
+        })
+        .eq("id", session_id)
+        .execute()
+    ).data[0]
+
+    return updated
+
+
 @router.get("/history")
 async def session_history(
     limit: int = Query(30, le=90),

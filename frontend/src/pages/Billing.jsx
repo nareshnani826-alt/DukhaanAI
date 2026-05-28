@@ -230,9 +230,18 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
   )
 }
 
+// Category → emoji mapping for cart item icons
+const CAT_EMOJI = {
+  Dairy:'🥛', Staples:'🌾', Oils:'🛢', Beverages:'🥤', Snacks:'🍪',
+  'Personal Care':'🧴', Bakery:'🍞', Eggs:'🥚', Tea:'🫖', Spices:'🧂',
+  Fruits:'🍎', Vegetables:'🥦', Other:'📦',
+}
+
 export default function Billing() {
   const { vendor }  = useAuth()
   const { hasFeature } = usePlan()
+
+  // ── core state ────────────────────────────────────────────
   const [products,  setProducts]  = useState([])
   const [rows,      setRows]      = useState([])
   const [cust,      setCust]      = useState("")
@@ -244,10 +253,19 @@ export default function Billing() {
   const [notif,     setNotif]     = useState("")
   const [scanner,   setScanner]   = useState(false)
   const [showReview, setShowReview] = useState(false)
-  const [barcodeInput, setBarcodeInput] = useState("")
-  const [barcodeResult, setBarcodeResult] = useState(null)
-  const [quickAdd, setQuickAdd] = useState(null)  // { code, name, mrp, gst }
-  const barcodeRef = useRef(null)
+  const [quickAdd,  setQuickAdd]  = useState(null)
+
+  // ── billing-first new state ───────────────────────────────
+  const [searchQ,      setSearchQ]      = useState("")
+  const [barcodeResult,setBarcodeResult]= useState(null)
+  const [custExpanded, setCustExpanded] = useState(false)
+  const [heldBills,    setHeldBills]    = useState(() => {
+    try { return JSON.parse(localStorage.getItem("dk_held_bills") || "[]") } catch { return [] }
+  })
+  const [showHeld, setShowHeld] = useState(false)
+
+  const searchRef = useRef(null)
+  const barcodeRef = useRef(null)   // kept for compat with lookupBarcode
 
   useEffect(() => {
     Products.list().then(p => {
@@ -355,16 +373,17 @@ export default function Billing() {
   async function handleReviewConfirm(finalItems) {
     setShowReview(false)
     setSaving(true)
+    const custName = cust.trim() || "Walk-in"
     try {
       const inv = await Invoices.generate({
-        customer_name:  cust,
+        customer_name:  custName,
         customer_phone: phone || null,
         customer_gstin: gstin || null,
         payment_mode:   pay,
         items:          finalItems,
       })
       setInvoice({ ...inv, customer_phone: phone })
-      if (cust.trim()) await Customers.upsert({ name: cust, phone: phone||null, gstin: gstin||null, amount: inv.total })
+      if (custName !== "Walk-in") await Customers.upsert({ name: custName, phone: phone||null, gstin: gstin||null, amount: inv.total })
       showNotif(`Invoice ${inv.invoice_no} generated!`)
     } catch(e) { showNotif("Error: " + e.message) }
     finally { setSaving(false) }
@@ -398,317 +417,700 @@ Thank you for shopping! 🙏`
   function clearBill() {
     setRows([])
     setCust(""); setPhone(""); setGstin("")
-    setInvoice(null); setBarcodeInput(""); setBarcodeResult(null)
+    setInvoice(null); setSearchQ(""); setBarcodeResult(null)
   }
 
+  // ── billing-first helpers ────────────────────────────────
+
+  const [catFilter,    setCatFilter]    = useState("Frequent")
+  const [voiceActive,  setVoiceActive]  = useState(false)
+
+  // Instant product search results as user types
+  const searchResults = searchQ.trim().length >= 1
+    ? products.filter(p =>
+        p.name.toLowerCase().includes(searchQ.toLowerCase()) ||
+        p.sku?.toLowerCase().includes(searchQ.toLowerCase()) ||
+        (p.barcode && p.barcode.includes(searchQ))
+      ).slice(0, 7)
+    : []
+
+  function startVoiceSearch() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { showNotif("Voice not supported — use Chrome or Edge"); return }
+    setVoiceActive(true)
+    const rec = new SR()
+    rec.lang          = localStorage.getItem("dk_voice_lang") || "en-IN"
+    rec.interimResults = false
+    rec.maxAlternatives = 1
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript.trim()
+      setVoiceActive(false)
+      setBarcodeResult(null)
+      // check if it matches exactly one product
+      const matches = products.filter(p =>
+        p.name.toLowerCase().includes(text.toLowerCase()) ||
+        text.toLowerCase().includes(p.name.toLowerCase().split(" ")[0])
+      )
+      if (matches.length === 1) {
+        addToCart(matches[0])          // auto-add directly
+        showNotif(`🎤 "${text}" → ${matches[0].name}`)
+      } else {
+        setSearchQ(text)               // show results in dropdown
+        setTimeout(() => searchRef.current?.focus(), 50)
+      }
+    }
+    rec.onerror = () => { setVoiceActive(false); showNotif("Mic error — check permissions") }
+    rec.onend   = () => setVoiceActive(false)
+    rec.start()
+  }
+
+  function addToCart(product) {
+    setRows(prev => {
+      const idx = prev.findIndex(r => r.prodId === product.id)
+      if (idx >= 0) return prev.map((r, i) => i === idx ? { ...r, qty: r.qty + 1 } : r)
+      return [...prev, { prodId: product.id, qty: 1 }]
+    })
+    setSearchQ("")
+    setBarcodeResult(null)
+    showNotif(`✓ ${product.name}`)
+    setTimeout(() => searchRef.current?.focus(), 50)
+  }
+
+  function holdBill() {
+    if (!rows.length) { showNotif("Nothing to hold"); return }
+    const held = [
+      { id: Date.now(), rows, cust: cust || "Walk-in", phone, pay, heldAt: Date.now() },
+      ...heldBills,
+    ].slice(0, 10)
+    setHeldBills(held)
+    localStorage.setItem("dk_held_bills", JSON.stringify(held))
+    clearBill()
+    showNotif("Bill held — tap Held to resume")
+  }
+
+  function resumeBill(held) {
+    setRows(held.rows)
+    setCust(held.cust === "Walk-in" ? "" : held.cust)
+    setPhone(held.phone || "")
+    setPay(held.pay || "Cash")
+    const remaining = heldBills.filter(b => b.id !== held.id)
+    setHeldBills(remaining)
+    localStorage.setItem("dk_held_bills", JSON.stringify(remaining))
+    setShowHeld(false)
+  }
+
+  // Listen for held-bills trigger from the nav tab
+  useEffect(() => {
+    const h = () => setShowHeld(true)
+    window.addEventListener("dk:show-held", h)
+    return () => window.removeEventListener("dk:show-held", h)
+  }, [])
+
+  function openPay() {
+    const valid = rows.filter(r => getProduct(r.prodId) && +r.qty > 0)
+    if (!valid.length) return showNotif("Add at least one item")
+    if (!cust.trim()) setCust("Walk-in")
+    setShowReview(true)
+  }
+
+  // ── JSX ───────────────────────────────────────────────────
+  const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
+
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>
+
+      {/* ── Toast notification ───────────────────── */}
       {notif && (
-        <div className="fixed top-4 right-4 bg-primary text-white px-4 py-2 rounded-lg text-xs z-50 max-w-xs shadow-lg">
+        <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)",
+          zIndex:300, background:"var(--jade)", color:"#fff",
+          padding:"8px 18px", borderRadius:999, fontSize:12, fontWeight:700,
+          whiteSpace:"nowrap", boxShadow:"0 4px 20px rgba(0,0,0,0.2)", pointerEvents:"none" }}>
           {notif}
         </div>
       )}
 
-      {scanner && hasFeature("barcode_scanner") && (
+      {scanner && (
         <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />
       )}
 
       {showReview && (
-        <ReviewModal
-          rows={rows}
-          products={products}
-          onConfirm={handleReviewConfirm}
-          onClose={() => setShowReview(false)}
-        />
+        <ReviewModal rows={rows} products={products}
+          onConfirm={handleReviewConfirm} onClose={() => setShowReview(false)} />
       )}
 
-      <div className="page-sticky-header flex items-center justify-between mb-4">
-        <h1 className="text-sm font-semibold">GST Billing</h1>
-        <span className="badge badge-green">Auto CGST + SGST</span>
+      {/* ── Held-bills bottom sheet ───────────────── */}
+      {showHeld && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"flex-end" }}
+          onClick={() => setShowHeld(false)}>
+          <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+            padding:"20px 16px 32px", maxHeight:"70vh", overflowY:"auto" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>
+                Held Bills {heldBills.length > 0 && `(${heldBills.length})`}
+              </div>
+              <button onClick={() => setShowHeld(false)}
+                style={{ background:"none", border:"none", color:"var(--ink-faint)", fontSize:20, cursor:"pointer" }}>✕</button>
+            </div>
+            {heldBills.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"28px 0", color:"var(--ink-faint)", fontSize:13 }}>
+                No held bills
+              </div>
+            ) : heldBills.map(b => {
+              const t = b.rows.reduce((s, r) => {
+                const p = products.find(x => x.id === r.prodId)
+                return s + (p ? p.mrp * r.qty : 0)
+              }, 0)
+              return (
+                <button key={b.id} onClick={() => resumeBill(b)}
+                  style={{ width:"100%", background:"var(--bg2)", border:"1px solid var(--rule)",
+                    borderRadius:14, padding:"14px", marginBottom:10, textAlign:"left",
+                    display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
+                  <div style={{ width:40, height:40, borderRadius:10, background:"var(--saffron-bg)",
+                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>🛒</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>
+                      {b.cust || "Walk-in"} · {b.rows.reduce((s,r)=>s+r.qty,0)} items
+                    </div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>
+                      {INR(t)} · {new Date(b.heldAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:12, color:"var(--saffron)", fontWeight:700 }}>Resume →</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Invoice bottom-sheet (after generation) ── */}
+      {invoice && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
+          display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+          {/* Bottom sheet — fixed height, 3-section flex column */}
+          <div style={{
+            width:"100%", maxWidth:520,
+            height:"92dvh",           /* fixed height — no overflow surprises */
+            background:"var(--bg1)",
+            borderRadius:"20px 20px 0 0",
+            display:"flex", flexDirection:"column",
+            boxShadow:"0 -8px 40px rgba(0,0,0,0.25)",
+          }}>
+
+            {/* ① Header — fixed, never scrolls */}
+            <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--rule)",
+              display:"flex", justifyContent:"space-between", alignItems:"center",
+              flexShrink:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:18 }}>✅</span>
+                <div style={{ fontSize:15, fontWeight:800, color:"var(--jade)" }}>Invoice Generated</div>
+              </div>
+              <button onClick={clearBill}
+                style={{ width:32, height:32, borderRadius:8, background:"var(--bg2)",
+                  border:"1px solid var(--rule)", color:"var(--ink-faint)",
+                  fontSize:16, cursor:"pointer", display:"flex",
+                  alignItems:"center", justifyContent:"center" }}>✕</button>
+            </div>
+
+            {/* ② Invoice content — scrollable, flex:1 */}
+            <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 8px",
+              WebkitOverflowScrolling:"touch" }}>
+              <InvoiceView invoice={invoice} customerPhone={phone} />
+            </div>
+
+            {/* ③ Action buttons — fixed at bottom, never hidden */}
+            <div style={{ flexShrink:0, padding:"12px 16px",
+              borderTop:"1px solid var(--rule)", background:"var(--bg1)",
+              paddingBottom:"max(16px, env(safe-area-inset-bottom))",
+              display:"flex", flexDirection:"column", gap:10 }}>
+              <button onClick={shareWhatsApp}
+                style={{ width:"100%", padding:"14px", borderRadius:13, border:"none",
+                  background:"#25D366", color:"#fff", fontSize:15, fontWeight:800,
+                  cursor:"pointer", display:"flex", alignItems:"center",
+                  justifyContent:"center", gap:8 }}>
+                📱 Send on WhatsApp
+              </button>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <button onClick={() => window.print()}
+                  style={{ padding:"12px", borderRadius:12,
+                    border:"1px solid var(--rule)", background:"transparent",
+                    color:"var(--ink)", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                  🖨 Print
+                </button>
+                <button onClick={clearBill}
+                  style={{ padding:"12px", borderRadius:12,
+                    border:"1px solid var(--rule)", background:"var(--bg2)",
+                    color:"var(--ink-dim)", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                  + New Bill
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── COMPACT TOPBAR ───────────────────────── */}
+      <div style={{ padding:"10px 14px", background:"var(--bg0)",
+        borderBottom:"1px solid var(--rule)", display:"flex", alignItems:"center",
+        gap:10, flexShrink:0 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:11, color:"var(--ink-faint)", letterSpacing:"1px", fontWeight:700 }}>GST BILLING</div>
+          <div style={{ fontSize:14, color:"var(--ink)", fontWeight:800 }}>New Sale</div>
+        </div>
+        <button onClick={holdBill}
+          style={{ background:"var(--bg2)", border:"1px solid var(--rule)", color:"var(--ink)",
+            borderRadius:9, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
+          Hold
+        </button>
+        {rows.length > 0 && (
+          <button onClick={clearBill}
+            style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
+              color:"var(--ember)", borderRadius:9, padding:"6px 14px",
+              fontSize:11, fontWeight:700, cursor:"pointer" }}>
+            Clear
+          </button>
+        )}
       </div>
 
-      {/* ── Barcode search bar ─────────────────────────────── */}
-      <div className="card mb-3">
-        <div className="text-xs font-medium text-gray-600 mb-2">
-          Barcode / Product search
-        </div>
-        <div className="flex gap-2">
-          <input
-            ref={barcodeRef}
-            className="input flex-1"
-            value={barcodeInput}
-            onChange={e => { setBarcodeInput(e.target.value); setBarcodeResult(null) }}
-            onKeyDown={e => e.key === "Enter" && lookupBarcode()}
-            placeholder="Type barcode number or product name → press Enter"
-          />
-          <button onClick={() => lookupBarcode()} className="btn btn-primary btn-sm px-4">
-            Search
+      {/* ── SEARCH + SCAN ────────────────────────── */}
+      <style>{`@keyframes micPulse{0%,100%{box-shadow:0 0 0 4px rgba(220,38,38,.25)}50%{box-shadow:0 0 0 8px rgba(220,38,38,.08)}}`}</style>
+      <div style={{ padding:"10px 14px 8px", background:"var(--bg0)", flexShrink:0, position:"relative", zIndex:50 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {/* Search input */}
+          <div style={{
+            flex:1, minWidth:0, background:"var(--bg2)",
+            border:`2px solid ${searchQ ? "var(--saffron)" : "var(--rule)"}`,
+            boxShadow: searchQ ? "0 4px 14px rgba(232,119,34,0.18)" : "none",
+            borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
+            transition:"all 0.15s",
+          }}>
+            <span style={{ fontSize:18, color: searchQ ? "var(--saffron)" : "var(--ink-faint)", flexShrink:0 }}>🔍</span>
+            <input
+              ref={searchRef}
+              value={searchQ}
+              onChange={e => { setSearchQ(e.target.value); setBarcodeResult(null) }}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  if (searchResults.length === 1) { addToCart(searchResults[0]); return }
+                  if (searchResults.length === 0 && searchQ.trim()) {
+                    lookupBarcode(searchQ.trim())
+                    setSearchQ("")
+                  }
+                }
+                if (e.key === "Escape") setSearchQ("")
+              }}
+              placeholder="Product name or barcode…"
+              style={{ background:"transparent", border:"none", color:"var(--ink)", fontSize:14,
+                outline:"none", flex:1, fontWeight:600, minWidth:0 }}
+              autoFocus
+            />
+            {searchQ && (
+              <button onClick={() => { setSearchQ(""); setBarcodeResult(null) }}
+                style={{ background:"none", border:"none", color:"var(--ink-faint)", fontSize:16, cursor:"pointer", padding:0, flexShrink:0 }}>
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* 🎤 Voice */}
+          <button onClick={voiceActive ? undefined : startVoiceSearch}
+            title={voiceActive ? "Listening…" : "Voice search"}
+            style={{
+              width:46, height:46, borderRadius:13, flexShrink:0, cursor: voiceActive ? "default" : "pointer",
+              background: voiceActive ? "linear-gradient(135deg,#dc2626,#b91c1c)" : "var(--bg2)",
+              border: voiceActive ? "2px solid #dc2626" : "1.5px solid var(--rule)",
+              color: voiceActive ? "#fff" : "var(--ink-faint)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:19,
+              boxShadow: voiceActive ? "0 0 0 4px rgba(220,38,38,.25)" : "none",
+              animation: voiceActive ? "micPulse 1s infinite" : "none",
+              transition:"all 0.2s",
+            }}>
+            🎤
           </button>
-          {hasCamera() && hasFeature("barcode_scanner") && (
-            <button onClick={() => setScanner(true)} className="btn btn-sm px-3" title="Use camera scanner">
-              📷
-            </button>
-          )}
+
+          {/* 📷 Barcode scan */}
+          <button onClick={() => setScanner(true)} title="Scan barcode"
+            style={{ width:46, height:46, borderRadius:13, border:"none", cursor:"pointer", flexShrink:0,
+              background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+              color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:20, boxShadow:"0 4px 14px rgba(232,119,34,0.35)" }}>
+            📷
+          </button>
         </div>
 
-        {/* Search result */}
+        {/* ── Search suggestions dropdown ─────────── */}
+        {searchResults.length > 0 && (
+          <div style={{ position:"absolute", left:14, right:14, top:"calc(100% - 4px)",
+            background:"var(--bg1)", border:"1px solid var(--rule)",
+            borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.18)", overflow:"hidden" }}>
+            {searchResults.map((p, i) => (
+              <button key={p.id} onClick={() => addToCart(p)}
+                style={{ width:"100%", background:"none", border:"none",
+                  borderBottom: i < searchResults.length-1 ? "1px solid var(--rule-soft,rgba(0,0,0,0.05))" : "none",
+                  padding:"11px 16px", display:"flex", alignItems:"center", gap:12,
+                  cursor:"pointer", textAlign:"left" }}
+                onMouseEnter={e => e.currentTarget.style.background="var(--bg2)"}
+                onMouseLeave={e => e.currentTarget.style.background="none"}>
+                <div style={{ width:32, height:32, borderRadius:8, flexShrink:0, fontSize:16,
+                  background:"var(--bg2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {CAT_EMOJI[p.category] || "📦"}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)",
+                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                  <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
+                    ₹{p.mrp} · {p.stock} {p.unit||"pcs"} in stock
+                    {p.gst_percent > 0 && ` · GST ${p.gst_percent}%`}
+                  </div>
+                </div>
+                <div style={{ fontSize:13, color:"var(--saffron)", fontWeight:800, flexShrink:0 }}>+ Add</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Barcode result banner ─────────────────── */}
         {barcodeResult && (
-          <div className={`mt-2 p-3 rounded-lg text-xs ${barcodeResult.notFound ? "bg-red-50" : "bg-primary-light"}`}>
+          <div style={{ marginTop:8, padding:"12px 14px", borderRadius:12,
+            background: barcodeResult.notFound ? "var(--ember-bg)" : "var(--jade-bg)",
+            border: `1px solid ${barcodeResult.notFound ? "rgba(192,57,43,0.25)" : "rgba(26,122,74,0.25)"}` }}>
             {barcodeResult.notFound ? (
               <div>
-                <div className="text-red-600">
-                  No product found in your inventory for "{barcodeResult.code}".
+                <div style={{ fontSize:12, color:"var(--ember)", fontWeight:700, marginBottom:6 }}>
+                  Not found: "{barcodeResult.code}"
                 </div>
-                {barcodeResult.looking && (
-                  <div className="mt-1 text-gray-500">Looking up product catalogs…</div>
-                )}
+                {barcodeResult.looking && <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Looking up catalogs…</div>}
                 {!barcodeResult.looking && barcodeResult.ext?.found && (
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <div>
-                      <div className="font-medium text-gray-700">{barcodeResult.ext.name}</div>
-                      <div className="text-gray-500 mt-0.5">
-                        {barcodeResult.ext.brand ? `${barcodeResult.ext.brand} · ` : ""}
-                        {barcodeResult.ext.category}
-                        {barcodeResult.ext.mrp ? ` · MRP ₹${barcodeResult.ext.mrp}` : ""}
-                      </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ flex:1, fontSize:12, color:"var(--ink)" }}>
+                      <strong>{barcodeResult.ext.name}</strong>
+                      {barcodeResult.ext.mrp && ` · ₹${barcodeResult.ext.mrp}`}
                     </div>
-                    <button
-                      onClick={() => quickAddToInventoryAndBill(barcodeResult.code, barcodeResult.ext)}
-                      className="btn btn-primary btn-sm whitespace-nowrap">
-                      + Add to inventory & bill
+                    <button onClick={() => quickAddToInventoryAndBill(barcodeResult.code, barcodeResult.ext)}
+                      style={{ padding:"7px 14px", borderRadius:9, border:"none", background:"var(--jade)",
+                        color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
+                      + Add to inventory
                     </button>
                   </div>
                 )}
                 {!barcodeResult.looking && !barcodeResult.ext?.found && !quickAdd && (
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <div className="text-gray-600">
-                      Not in public catalogs. Register it quickly here:
-                    </div>
-                    <button
-                      onClick={() => setQuickAdd({ code: barcodeResult.code, name:"", mrp:"", stock:"1", gst_percent:5, category:"Other" })}
-                      className="btn btn-primary btn-sm whitespace-nowrap">
-                      + Quick Add
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Not in public catalogs.</div>
+                    <button onClick={() => setQuickAdd({ code:barcodeResult.code, name:"", mrp:"", stock:"1", gst_percent:5, category:"Other" })}
+                      style={{ padding:"7px 14px", borderRadius:9, border:"none", background:"var(--saffron)",
+                        color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                      + Quick Register
                     </button>
                   </div>
                 )}
                 {quickAdd && quickAdd.code === barcodeResult.code && (
-                  <div className="mt-3 p-3 rounded-lg bg-white border border-gray-200 space-y-2">
-                    <div className="text-[11px] text-gray-500">Barcode: <span className="font-mono">{quickAdd.code}</span></div>
-                    <input
-                      className="input w-full"
-                      placeholder="Product name *"
-                      value={quickAdd.name}
-                      onChange={e => setQuickAdd(q => ({...q, name:e.target.value}))}
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <input
-                        className="input flex-1"
-                        type="number"
-                        placeholder="MRP ₹"
-                        value={quickAdd.mrp}
-                        onChange={e => setQuickAdd(q => ({...q, mrp:e.target.value}))}
-                      />
-                      <input
-                        className="input w-20"
-                        type="number"
-                        placeholder="Qty"
-                        value={quickAdd.stock}
-                        onChange={e => setQuickAdd(q => ({...q, stock:e.target.value}))}
-                      />
-                      <select
-                        className="input w-20"
-                        value={quickAdd.gst_percent}
-                        onChange={e => setQuickAdd(q => ({...q, gst_percent:Number(e.target.value)}))}
-                      >
-                        {[0,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
+                  <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:8 }}>
+                    <input className="input" placeholder="Product name *" value={quickAdd.name} autoFocus
+                      onChange={e => setQuickAdd(q => ({...q, name:e.target.value}))} />
+                    <div style={{ display:"flex", gap:8 }}>
+                      <input className="input" type="number" placeholder="MRP ₹" value={quickAdd.mrp}
+                        onChange={e => setQuickAdd(q => ({...q, mrp:e.target.value}))} style={{ flex:1 }} />
+                      <select className="input" value={quickAdd.gst_percent}
+                        onChange={e => setQuickAdd(q => ({...q, gst_percent:Number(e.target.value)}))}>
+                        {[0,5,12,18,28].map(g => <option key={g} value={g}>{g}% GST</option>)}
                       </select>
                     </div>
-                    <select
-                      className="input w-full"
-                      value={quickAdd.category}
-                      onChange={e => setQuickAdd(q => ({...q, category:e.target.value}))}
-                    >
-                      {["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"].map(c => <option key={c}>{c}</option>)}
-                    </select>
-                    <div className="flex gap-2 justify-end">
+                    <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
                       <button onClick={() => setQuickAdd(null)} className="btn btn-sm text-gray-500">Cancel</button>
-                      <button
-                        disabled={!quickAdd.name.trim() || !quickAdd.mrp}
-                        onClick={() => quickAddToInventoryAndBill(quickAdd.code, {
-                          name:        quickAdd.name.trim(),
-                          category:    quickAdd.category,
-                          mrp:         quickAdd.mrp,
-                          stock:       quickAdd.stock,
-                          gst_percent: quickAdd.gst_percent,
-                        })}
-                        className="btn btn-primary btn-sm">
-                        Save & Add to Bill
-                      </button>
+                      <button disabled={!quickAdd.name.trim() || !quickAdd.mrp}
+                        onClick={() => quickAddToInventoryAndBill(quickAdd.code, { name:quickAdd.name.trim(), category:quickAdd.category, mrp:quickAdd.mrp, stock:quickAdd.stock, gst_percent:quickAdd.gst_percent })}
+                        className="btn btn-primary btn-sm">Save & Add to Bill</button>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-primary-dark">{barcodeResult.name}</div>
-                  <div className="text-primary-dark/70 mt-0.5">
-                    MRP: ₹{barcodeResult.mrp} · Stock: {barcodeResult.stock} units ·
-                    GST: {barcodeResult.gst_percent}%
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"var(--jade)" }}>{barcodeResult.name}</div>
+                  <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>
+                    ₹{barcodeResult.mrp} · Stock: {barcodeResult.stock} · GST {barcodeResult.gst_percent}%
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => addBarcodeProductToBill(barcodeResult)}
-                    className="btn btn-primary btn-sm">
-                    + Add to bill
-                  </button>
-                  <button
-                    onClick={() => { setBarcodeInput(""); setBarcodeResult(null) }}
-                    className="btn btn-sm text-gray-400">
-                    ✕
-                  </button>
-                </div>
+                <button onClick={() => addBarcodeProductToBill(barcodeResult)}
+                  style={{ padding:"8px 16px", borderRadius:10, border:"none", background:"var(--jade)",
+                    color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                  + Add to bill
+                </button>
+                <button onClick={() => setBarcodeResult(null)}
+                  style={{ background:"none", border:"none", color:"var(--ink-faint)", cursor:"pointer", fontSize:18 }}>✕</button>
               </div>
             )}
           </div>
         )}
+      </div>
 
-        {/* Tip for desktop users */}
-        {!hasCamera() && (
-          <div className="mt-1.5 text-[10px] text-gray-400">
-            💡 Desktop tip: plug in a USB barcode scanner — it types the code automatically. Press Enter to search.
+      {/* ── CUSTOMER PILL ────────────────────────── */}
+      <div style={{ padding:"0 14px 8px", background:"var(--bg0)", flexShrink:0 }}>
+        {custExpanded ? (
+          <div style={{ background:"var(--bg2)", border:"1px solid var(--rule)", borderRadius:12, padding:"12px 14px" }}>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              <input value={cust} onChange={e => setCust(e.target.value)} placeholder="Customer name"
+                style={{ flex:1, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                  padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone"
+                style={{ width:130, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                  padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
+            </div>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <input value={gstin} onChange={e => setGstin(e.target.value)} placeholder="GSTIN (optional)"
+                style={{ flex:1, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                  padding:"8px 12px", fontSize:12, color:"var(--ink)", outline:"none" }} />
+              <select value={pay} onChange={e => setPay(e.target.value)}
+                style={{ background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                  padding:"8px 10px", fontSize:12, color:"var(--ink)", outline:"none" }}>
+                {["Cash","UPI","Credit","Cheque"].map(m => <option key={m}>{m}</option>)}
+              </select>
+              <button onClick={() => setCustExpanded(false)}
+                style={{ background:"none", border:"none", color:"var(--saffron)", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
+                Done ✓
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ background:"var(--bg2)", border:"1px solid var(--rule)", borderRadius:10,
+            padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:"50%", flexShrink:0,
+              background:"linear-gradient(135deg,var(--brass),var(--saffron))",
+              color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+              fontWeight:800, fontSize:13 }}>
+              {cust ? cust.charAt(0).toUpperCase() : "W"}
+            </div>
+            <div style={{ flex:1, fontSize:13, color: cust ? "var(--ink)" : "var(--ink-faint)", fontWeight:600 }}>
+              {cust || "Walk-in customer"}
+              {phone && <span style={{ fontSize:11, color:"var(--ink-faint)", marginLeft:8 }}>{phone}</span>}
+            </div>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <span style={{ fontSize:10, color:"var(--ink-faint)", background:"var(--bg0)",
+                padding:"3px 8px", borderRadius:6, border:"1px solid var(--rule)", fontWeight:600 }}>{pay}</span>
+              <button onClick={() => setCustExpanded(true)}
+                style={{ background:"transparent", color:"var(--saffron)", border:"none",
+                  fontSize:13, fontWeight:800, cursor:"pointer" }}>
+                {cust ? "Edit" : "+ Add"}
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Left: bill form */}
-        <div className="card">
-          <div className="text-xs font-medium text-gray-600 mb-3">Customer details</div>
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <div className="col-span-2">
-              <label className="label">Customer Name *</label>
-              <input className="input" value={cust} onChange={e => setCust(e.target.value)} placeholder="Ravi Kirana Mart" />
+      {/* ── CART + PRODUCT BROWSER ───────────────── */}
+      <div style={{ flex:1, overflowY:"auto", background:"var(--bg1)" }}>
+
+        {/* Cart items — shown when cart not empty */}
+        {rows.length > 0 && (
+          <div style={{ padding:"4px 14px 0" }}>
+            <div style={{ fontSize:10, color:"var(--ink-faint)", letterSpacing:"1.5px",
+              fontWeight:800, padding:"10px 4px 8px", textTransform:"uppercase" }}>
+              🛒 {rows.length} {rows.length === 1 ? "ITEM" : "ITEMS"} IN CART
             </div>
-            <div>
-              <label className="label">Phone (for WhatsApp)</label>
-              <input className="input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="9876543210" />
+
+            {rows.map((row, i) => {
+              const p = getProduct(row.prodId)
+              if (!p) return null
+              const rowTotal = Math.round(p.mrp * row.qty * (1 + p.gst_percent / 100) * 100) / 100
+              const inCartCount = rows.find(r => r.prodId === p.id)?.qty || 0
+              return (
+                <div key={i} style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px",
+                  marginBottom:8, border:"1px solid var(--rule)",
+                  display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
+                    background:"var(--bg0)", border:"1px solid var(--rule)",
+                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>
+                    {CAT_EMOJI[p.category] || "📦"}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:800, color:"var(--ink)", lineHeight:1.2,
+                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
+                      ₹{p.mrp}/unit
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:4,
+                    background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
+                    <button onClick={() => row.qty <= 1 ? delRow(i) : setRow(i, "qty", row.qty - 1)}
+                      style={{ width:30, height:30, borderRadius:8, background:"var(--bg2)",
+                        color: row.qty <= 1 ? "var(--ember)" : "var(--brass-deep)",
+                        border:"none", fontSize:row.qty <= 1 ? 13 : 18, fontWeight:800, cursor:"pointer" }}>
+                      {row.qty <= 1 ? "🗑" : "−"}
+                    </button>
+                    <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)" }}>
+                      {row.qty}
+                    </span>
+                    <button onClick={() => setRow(i, "qty", row.qty + 1)}
+                      style={{ width:30, height:30, borderRadius:8, background:"var(--saffron)",
+                        color:"#fff", border:"none", fontSize:18, fontWeight:800, cursor:"pointer" }}>
+                      +
+                    </button>
+                  </div>
+                  <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:15,
+                    color:"var(--brass-deep)", fontWeight:800, minWidth:54, textAlign:"right" }}>
+                    {INR(rowTotal)}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* discount / note row */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+              <button style={{ background:"var(--bg2)", border:"1.5px dashed rgba(184,134,11,0.3)",
+                color:"var(--brass-deep)", borderRadius:12, padding:"10px",
+                fontSize:11, fontWeight:800, cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                💰 Discount
+              </button>
+              <button style={{ background:"var(--bg2)", border:"1.5px dashed rgba(184,134,11,0.3)",
+                color:"var(--brass-deep)", borderRadius:12, padding:"10px",
+                fontSize:11, fontWeight:800, cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                📝 Note
+              </button>
             </div>
-            <div>
-              <label className="label">GSTIN</label>
-              <input className="input" value={gstin} onChange={e => setGstin(e.target.value)} placeholder="Optional" />
-            </div>
-            <div>
-              <label className="label">Payment</label>
-              <select className="input" value={pay} onChange={e => setPay(e.target.value)}>
-                {["Cash","UPI","Credit","Cheque"].map(m => <option key={m}>{m}</option>)}
-              </select>
+
+            {/* divider */}
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+              <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", whiteSpace:"nowrap" }}>
+                ADD MORE ITEMS
+              </div>
+              <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
             </div>
           </div>
+        )}
 
-          <div className="text-xs font-medium text-gray-600 mb-2">Items</div>
-          <div className="overflow-x-auto -mx-1">
-          <table className="w-full mb-2 min-w-[480px]">
-            <thead><tr>
-              <th className="th">Product</th>
-              <th className="th w-16">Qty</th>
-              <th className="th">Rate</th>
-              <th className="th">GST</th>
-              <th className="th">Total</th>
-              <th className="th w-6"></th>
-            </tr></thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="td text-center py-4 text-gray-400 text-[11px]">
-                    No items yet — search a product above or click "+ Add item"
-                  </td>
-                </tr>
-              )}
-              {rows.map((row, i) => {
-                const p = getProduct(row.prodId)
-                const total = p ? Math.round(p.mrp * row.qty * (1 + p.gst_percent/100) * 100)/100 : 0
-                return (
-                  <tr key={i}>
-                    <td className="td">
-                      <select className="input py-1 text-[11px]" value={row.prodId}
-                        onChange={e => setRow(i, "prodId", e.target.value)}>
-                        <option value="">— Select product —</option>
-                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </td>
-                    <td className="td">
-                      <input type="number" min="1" value={row.qty}
-                        onChange={e => setRow(i, "qty", +e.target.value || 1)}
-                        className="input py-1 w-14 text-center text-[11px]" />
-                    </td>
-                    <td className="td text-xs">{p ? "₹"+p.mrp : "—"}</td>
-                    <td className="td text-xs">{p ? p.gst_percent+"%" : "—"}</td>
-                    <td className="td text-xs font-medium text-primary">{p ? "₹"+total : "—"}</td>
-                    <td className="td">
-                      <button onClick={() => delRow(i)}
-                        className="w-6 h-6 rounded-full bg-red-50 text-red-400 hover:bg-red-100 text-sm font-bold flex items-center justify-center">
-                        ×
+        {/* ── PRODUCT BROWSER ─────────────────────── */}
+        {(() => {
+          const cats = ["Frequent", ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort()]
+          const shown = catFilter === "Frequent"
+            ? products.slice(0, 12)
+            : products.filter(p => p.category === catFilter).slice(0, 24)
+
+          return (
+            <div style={{ padding: rows.length > 0 ? "0 14px 80px" : "4px 14px 80px" }}>
+
+              {/* Category filter pills */}
+              <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:8,
+                scrollbarWidth:"none", marginBottom:2 }}>
+                {cats.map(c => (
+                  <button key={c} onClick={() => setCatFilter(c)}
+                    style={{ padding:"6px 14px", borderRadius:20, border:"none", cursor:"pointer",
+                      flexShrink:0, fontSize:11, fontWeight:700, transition:"all 0.12s",
+                      background: catFilter === c ? "var(--saffron)" : "var(--bg2)",
+                      color:      catFilter === c ? "#fff"          : "var(--ink-dim)",
+                      boxShadow:  catFilter === c ? "0 3px 10px rgba(232,119,34,0.3)" : "none" }}>
+                    {c === "Frequent" ? "⭐ Frequent" : c}
+                  </button>
+                ))}
+              </div>
+
+              {/* Product grid */}
+              {shown.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"32px 0", color:"var(--ink-faint)", fontSize:12 }}>
+                  No products in this category
+                </div>
+              ) : (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10, paddingTop:4 }}>
+                  {shown.map(p => {
+                    const inCart = rows.find(r => r.prodId === p.id)
+                    const emoji = CAT_EMOJI[p.category] || "📦"
+                    const outOfStock = p.stock <= 0
+                    return (
+                      <button key={p.id}
+                        onClick={() => !outOfStock && addToCart(p)}
+                        style={{
+                          background:"var(--bg2)", borderRadius:14, padding:"14px 12px",
+                          border: inCart ? "2px solid var(--saffron)" : "1px solid var(--rule)",
+                          boxShadow: inCart ? "0 2px 14px rgba(232,119,34,0.18)" : "0 2px 6px rgba(0,0,0,0.04)",
+                          cursor: outOfStock ? "default" : "pointer",
+                          opacity: outOfStock ? 0.45 : 1,
+                          display:"flex", flexDirection:"column", alignItems:"flex-start",
+                          gap:8, textAlign:"left", position:"relative", transition:"all 0.12s",
+                        }}
+                        onMouseEnter={e => { if (!outOfStock) e.currentTarget.style.transform="translateY(-2px)" }}
+                        onMouseLeave={e => e.currentTarget.style.transform="none"}>
+
+                        {/* in-cart badge */}
+                        {inCart && (
+                          <div style={{ position:"absolute", top:8, right:8,
+                            minWidth:20, height:20, padding:"0 6px", borderRadius:10,
+                            background:"var(--saffron)", color:"#fff",
+                            fontSize:11, fontWeight:800,
+                            display:"flex", alignItems:"center", justifyContent:"center" }}>
+                            {inCart.qty}
+                          </div>
+                        )}
+
+                        {/* emoji icon */}
+                        <div style={{ width:40, height:40, borderRadius:10,
+                          background:"var(--bg0)", border:"1px solid var(--rule)",
+                          display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+                          {emoji}
+                        </div>
+
+                        {/* name + price */}
+                        <div style={{ width:"100%", paddingRight: inCart ? 20 : 0 }}>
+                          <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)", lineHeight:1.3,
+                            overflow:"hidden", textOverflow:"ellipsis",
+                            display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
+                            {p.name}
+                          </div>
+                          <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+                            fontSize:15, color:"var(--brass-deep)", fontWeight:800, marginTop:4 }}>
+                            ₹{p.mrp}
+                          </div>
+                          {outOfStock && (
+                            <div style={{ fontSize:9, color:"var(--ember)", fontWeight:800,
+                              letterSpacing:"0.5px", marginTop:2 }}>OUT OF STOCK</div>
+                          )}
+                        </div>
                       </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+      </div>
 
-          </div>
-          <button onClick={addRow} className="btn btn-sm mb-3">+ Add item</button>
-
-          <div className="text-right text-xs text-gray-500 mb-3">
-            Subtotal: ₹{Math.round(totals.sub*100)/100} &nbsp;|&nbsp;
-            CGST: ₹{Math.round(totals.tax/2*100)/100} &nbsp;|&nbsp;
-            SGST: ₹{Math.round(totals.tax/2*100)/100}<br/>
-            <span className="text-base font-semibold text-primary">Total: ₹{grandTotal}</span>
-          </div>
-
-          <div className="flex gap-2">
-            <button onClick={openReview} disabled={saving} className="btn btn-primary flex-1">
-              {saving ? "Generating..." : "Review & Generate Invoice"}
-            </button>
-            <button onClick={clearBill} className="btn">Clear</button>
-          </div>
-        </div>
-
-        {/* Right: invoice preview */}
-        <div className="card">
-          <div className="text-xs font-medium text-gray-600 mb-3">Invoice Preview</div>
-          {!invoice ? (
-            <div className="flex flex-col items-center justify-center h-48 gap-2 text-center">
-              <div className="text-4xl">🧾</div>
-              <div className="text-xs text-gray-300">
-                Generate an invoice to preview and share on WhatsApp
+      {/* ── STICKY PAYMENT FOOTER ────────────────── */}
+      {rows.length > 0 && !invoice && (
+        <div style={{ background:"linear-gradient(180deg,var(--bg2),var(--bg3))",
+          borderTop:"2px solid rgba(184,134,11,0.3)",
+          boxShadow:"0 -8px 24px rgba(26,12,4,0.1)",
+          padding:"12px 14px 14px", flexShrink:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+            <div>
+              <div style={{ fontSize:11, color:"var(--brass-deep)", letterSpacing:"1.5px",
+                fontWeight:800, textTransform:"uppercase" }}>
+                TOTAL · {rows.length} item{rows.length !== 1 ? "s" : ""}
+              </div>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>
+                incl. ₹{Math.round(totals.tax * 100) / 100} GST (CGST + SGST)
               </div>
             </div>
-          ) : (
-            <>
-              <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 shadow-sm">
-                <InvoiceView invoice={invoice} customerPhone={phone} />
-              </div>
-              <div className="flex flex-col gap-2">
-                <button onClick={shareWhatsApp}
-                  className="w-full py-2 rounded-lg text-xs font-semibold cursor-pointer"
-                  style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
-                  Send on WhatsApp
-                </button>
-                <button onClick={() => window.print()} className="btn w-full text-xs">
-                  Print Invoice
-                </button>
-                <button onClick={clearBill} className="btn w-full text-xs text-gray-400">
-                  New Bill
-                </button>
-              </div>
-            </>
-          )}
+            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:38,
+              color:"var(--saffron)", fontWeight:800, lineHeight:1 }}>
+              ₹{grandTotal}
+            </div>
+          </div>
+
+          <button onClick={openPay} disabled={saving}
+            style={{ width:"100%", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+              color:"#fff", border:"none", borderRadius:14, padding:"17px",
+              fontSize:17, fontWeight:900, letterSpacing:"0.3px",
+              boxShadow:"0 12px 28px rgba(232,119,34,0.45)", cursor:"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+              opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Generating…" : `💳 Pay ₹${grandTotal} →`}
+          </button>
         </div>
-      </div>
+      )}
     </div>
   )
 }

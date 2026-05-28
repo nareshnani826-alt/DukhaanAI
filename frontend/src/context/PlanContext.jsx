@@ -66,6 +66,26 @@ const FEATURE_LABELS = {
 
 const PlanCtx = createContext(null)
 
+// ── Voice trial helpers ───────────────────────────────────────
+const VOICE_TRIAL_KEY  = "dk_voice_trial_start"
+const VOICE_TRIAL_DAYS = 7
+
+export function getTrialDaysLeft() {
+  try {
+    const start = localStorage.getItem(VOICE_TRIAL_KEY)
+    if (!start) return -1  // never started
+    const elapsed = Math.floor((Date.now() - new Date(start).getTime()) / 86400000)
+    return Math.max(0, VOICE_TRIAL_DAYS - elapsed)
+  } catch { return -1 }
+}
+
+export function startVoiceTrial() {
+  try {
+    if (!localStorage.getItem(VOICE_TRIAL_KEY))
+      localStorage.setItem(VOICE_TRIAL_KEY, new Date().toISOString())
+  } catch {}
+}
+
 // Read toggles from localStorage
 function getToggles() {
   try { return JSON.parse(localStorage.getItem("dk_feature_toggles") || "{}") }
@@ -94,7 +114,11 @@ export function PlanProvider({ children }) {
 
   function hasFeature(feature) {
     // 1. Plan must include the feature
-    if (!features.includes(feature)) return false
+    if (!features.includes(feature)) {
+      // Voice trial: free users get 7 days of voice_agent access
+      if (feature === "voice_agent" && getTrialDaysLeft() > 0) return true
+      return false
+    }
     // 2. Feature must not be toggled OFF by vendor
     if (toggles[feature] === false) return false
     return true
@@ -117,6 +141,7 @@ export function PlanProvider({ children }) {
       plan, features, hasFeature, requirePlan, isToggledOff,
       planLabel: PLAN_LABELS[plan] || PLAN_LABELS.free,
       PLAN_LABELS, FEATURE_LABELS,
+      trialDaysLeft: getTrialDaysLeft(),
     }}>
       {children}
     </PlanCtx.Provider>

@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Products, Sales, Invoices, api } from "../sync/db"
+import { Products, Sales, Invoices, api, isCloud } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
+import { tr } from "../i18n/kiranaStrings"
 
 const INR = n => "₹" + (n || 0).toLocaleString("en-IN")
+
+// Read persisted UI language (same key as voice language)
+function getUILang() {
+  try { return localStorage.getItem("dk_voice_lang") || "en-IN" } catch { return "en-IN" }
+}
 
 function greeting() {
   const h = new Date().getHours()
@@ -170,15 +176,42 @@ function BriefingCard({ briefing, navigate }) {
   )
 }
 
+// ── Local day-session helpers (free-plan users) ───────────────
+function localGetDaySession() {
+  try {
+    const s = JSON.parse(localStorage.getItem("dk_day_session") || "null")
+    if (!s) return null
+    const today = new Date().toISOString().slice(0, 10)
+    return s.date === today ? s : null
+  } catch { return null }
+}
+function localSetDaySession(s) {
+  try { localStorage.setItem("dk_day_session", JSON.stringify(s)) } catch {}
+}
+
 export default function Dashboard() {
   const { vendor, cloud } = useAuth()
   const navigate = useNavigate()
+  const [uiLang, setUiLang] = useState(getUILang)
+  // Re-read lang if voice language changes (same event key used in voice/i18n.js)
+  useEffect(() => {
+    const onStorage = () => setUiLang(getUILang())
+    window.addEventListener("storage", onStorage)
+    window.addEventListener("dk:voice-lang", onStorage)
+    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("dk:voice-lang", onStorage) }
+  }, [])
+  const t = (key) => tr(key, uiLang)
   const [today,    setToday]    = useState({ total:0, count:0, sales:[] })
   const [summary,  setSummary]  = useState({ total_revenue:0 })
   const [low,      setLow]      = useState([])
   const [total,    setTotal]    = useState(0)
   const [loading,  setLoading]  = useState(true)
   const [briefing, setBriefing] = useState(null)
+
+  // ── Day session state ─────────────────────────────────────
+  const [daySession,  setDaySession]  = useState(undefined) // undefined = loading
+  const [dayActing,   setDayActing]   = useState(false)
+  const [dayError,    setDayError]    = useState("")
 
   useEffect(() => {
     // Use Invoices.today() for revenue — it captures voice bills that have no
@@ -192,6 +225,51 @@ export default function Dashboard() {
       api.get("/insights/briefing").then(setBriefing).catch(() => {})
     }
   }, [cloud, vendor?.id])
+
+  // Load day session
+  useEffect(() => {
+    if (!vendor) { setDaySession(null); return }
+    if (isCloud()) {
+      api.get("/day-sessions/today")
+        .then(s => setDaySession(s))
+        .catch(() => setDaySession(null))
+    } else {
+      setDaySession(localGetDaySession())
+    }
+  }, [vendor?.id])
+
+  async function openDay() {
+    setDayActing(true); setDayError("")
+    try {
+      if (isCloud()) {
+        const s = await api.post("/day-sessions/open", {})
+        setDaySession(s)
+      } else {
+        const s = { id:"local-day-"+Date.now(), date:new Date().toISOString().slice(0,10),
+          opened_at:new Date().toISOString(), status:"open", opening_stock:[] }
+        localSetDaySession(s); setDaySession(s)
+      }
+    } catch { setDayError("Could not open — try Day Ops page") }
+    setDayActing(false)
+  }
+
+  async function closeDay() {
+    if (!window.confirm("Close today's day? This will record your final stock and profits.")) return
+    setDayActing(true); setDayError("")
+    try {
+      if (isCloud()) {
+        const s = await api.post("/day-sessions/close", {})
+        setDaySession(s)
+      } else {
+        const s = localGetDaySession()
+        if (s) {
+          const closed = { ...s, status:"closed", closed_at:new Date().toISOString() }
+          localSetDaySession(closed); setDaySession(closed)
+        }
+      }
+    } catch { setDayError("Could not close — try Day Ops page") }
+    setDayActing(false)
+  }
 
   const avgInv = today.count > 0 ? Math.round(today.total / today.count) : 0
   const profit  = briefing?.profit
@@ -216,7 +294,7 @@ export default function Dashboard() {
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)",
               overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {greeting()}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
+              {t(greeting())}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
             </div>
             <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1,
               display:"flex", alignItems:"center", gap:6 }}>
@@ -233,7 +311,7 @@ export default function Dashboard() {
         </div>
         <button onClick={() => navigate("/billing")} className="btn btn-primary btn-sm"
           style={{ flexShrink:0, marginLeft:8 }}>
-          + New Invoice
+          {t("+ New Invoice")}
         </button>
       </div>
 
@@ -255,7 +333,7 @@ export default function Dashboard() {
           </svg>
           <div style={{ position:"relative" }}>
             <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
-              letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>Today's Takings</div>
+              letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>{t("Today's Takings")}</div>
             <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
               fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
               {loading ? "—" : INR(today.total)}
@@ -283,7 +361,7 @@ export default function Dashboard() {
 
             <div style={{ display:"flex", gap:20, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
               <span style={{ color:"var(--jade)", fontWeight:600 }}>
-                {today.count > 0 ? `${today.count} invoices today` : "No sales yet"}
+                {today.count > 0 ? `${today.count} ${t(today.count===1?"invoice today":"invoices today")}` : t("No sales yet")}
               </span>
               <span style={{ color:"var(--ink-faint)" }}>
                 {INR(avgInv)} avg · {INR(summary.total_revenue || 0)} this month
@@ -297,6 +375,95 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── Day Session Card ─────────────────────────────── */}
+        {vendor && daySession !== undefined && (() => {
+          const isOpen   = daySession?.status === "open"
+          const isClosed = daySession?.status === "closed"
+          const notOpened = !daySession
+
+          const openedTime = daySession?.opened_at
+            ? new Date(daySession.opened_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
+            : null
+          const closedTime = daySession?.closed_at
+            ? new Date(daySession.closed_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
+            : null
+
+          const cardBg     = isOpen ? "var(--jade-bg,#e8f8f2)" : isClosed ? "var(--bg2)" : "#fffbeb"
+          const cardBorder = isOpen ? "rgba(26,122,74,0.25)"   : isClosed ? "var(--rule)" : "rgba(202,138,4,0.35)"
+          const dotColor   = isOpen ? "var(--jade)"            : isClosed ? "var(--ink-faint)" : "#d97706"
+          const label      = isOpen ? "Day Open"               : isClosed ? "Day Closed"       : "Day Not Started"
+          const sublabel   = isOpen   ? `Opened at ${openedTime}`
+                           : isClosed ? `${openedTime} → ${closedTime}`
+                           : "Open the day to track stock & profit"
+
+          return (
+            <div style={{ background:cardBg, border:`1px solid ${cardBorder}`,
+              borderRadius:16, padding:"12px 16px", marginBottom:14,
+              display:"flex", alignItems:"center", gap:12 }}>
+
+              {/* Status dot + label */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
+                  <span style={{ width:8, height:8, borderRadius:"50%", background:dotColor,
+                    flexShrink:0, boxShadow: isOpen ? `0 0 0 3px ${dotColor}22` : "none" }}/>
+                  <span style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{label}</span>
+                </div>
+                <div style={{ fontSize:11, color:"var(--ink-faint)" }}>{sublabel}</div>
+                {isClosed && daySession.total_sales > 0 && (
+                  <div style={{ fontSize:11, marginTop:4, display:"flex", gap:12 }}>
+                    <span style={{ color:"var(--jade)", fontWeight:600 }}>
+                      {INR(daySession.total_sales)} sales
+                    </span>
+                    {daySession.gross_profit != null && (
+                      <span style={{ color: daySession.gross_profit >= 0 ? "var(--jade)" : "var(--ember)", fontWeight:600 }}>
+                        {daySession.gross_profit >= 0 ? "+" : ""}{INR(daySession.gross_profit)} profit
+                      </span>
+                    )}
+                  </div>
+                )}
+                {isOpen && today.total > 0 && (
+                  <div style={{ fontSize:11, marginTop:4, color:"var(--jade)", fontWeight:600 }}>
+                    {INR(today.total)} so far · {today.count} invoices
+                  </div>
+                )}
+                {dayError && (
+                  <div style={{ fontSize:10, color:"var(--ember)", marginTop:4 }}>{dayError}</div>
+                )}
+              </div>
+
+              {/* Action button */}
+              {notOpened && (
+                <button onClick={openDay} disabled={dayActing}
+                  style={{ padding:"9px 18px", borderRadius:12, border:"none", flexShrink:0,
+                    background:"linear-gradient(135deg,var(--saffron,#e87722),#d45f00)",
+                    color:"#fff", fontSize:12, fontWeight:700,
+                    cursor: dayActing ? "default" : "pointer", opacity: dayActing ? 0.7 : 1 }}>
+                  {dayActing ? "Opening…" : "Open Day"}
+                </button>
+              )}
+              {isOpen && (
+                <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                  <button onClick={closeDay} disabled={dayActing}
+                    style={{ padding:"9px 18px", borderRadius:12, border:"none",
+                      background:"linear-gradient(135deg,#185FA5,#2563eb)",
+                      color:"#fff", fontSize:12, fontWeight:700,
+                      cursor: dayActing ? "default" : "pointer", opacity: dayActing ? 0.7 : 1 }}>
+                    {dayActing ? "Closing…" : "Close Day"}
+                  </button>
+                </div>
+              )}
+              {isClosed && (
+                <button onClick={() => navigate("/day")}
+                  style={{ padding:"9px 18px", borderRadius:12, flexShrink:0,
+                    border:"1.5px solid var(--rule)", background:"transparent",
+                    color:"var(--ink-dim)", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                  View Report
+                </button>
+              )}
+            </div>
+          )
+        })()}
+
         {/* Morning Briefing */}
         <BriefingCard briefing={briefing} navigate={navigate} />
 
@@ -304,23 +471,23 @@ export default function Dashboard() {
         <div className="dash-stats-grid" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
           {[
             {
-              label: "Open Udhaar",
+              label: t("Open Udhaar"),
               value: briefing ? INR(briefing.udhar.total_due) : "₹0",
               sub:   briefing?.udhar?.customer_count > 0
                        ? `${briefing.udhar.customer_count} customer${briefing.udhar.customer_count > 1 ? "s" : ""}`
-                       : "Check khata",
+                       : t("Check khata"),
               color: "var(--ember)", bar:"var(--ember)",
             },
             {
-              label: "Products",
+              label: t("Products"),
               value: loading ? "—" : total,
-              sub:   low.length > 0 ? `${low.length} low stock` : "All stocked",
+              sub:   low.length > 0 ? `${low.length} ${t("low stock")}` : t("All stocked"),
               color: "var(--brass)", bar:"var(--brass-deep)",
             },
             {
-              label: "Avg Invoice",
+              label: t("Avg Invoice"),
               value: loading ? "—" : INR(avgInv),
-              sub:   "Today",
+              sub:   t("Today"),
               color: "var(--jade)", bar:"var(--jade)",
             },
           ].map((s, i) => (
@@ -358,15 +525,15 @@ export default function Dashboard() {
         {/* Quick actions — 4 primary tiles matching design */}
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:10 }}>
           <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
-            letterSpacing:"2px", textTransform:"uppercase" }}>QUICK ACTIONS</div>
+            letterSpacing:"2px", textTransform:"uppercase" }}>{t("QUICK ACTIONS")}</div>
           <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:12, color:"var(--ink-faint)" }}>त्वरित</div>
         </div>
         <div className="dash-quick-grid" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
           {[
-            { label:"New Sale",  emoji:"🛒", tone:"var(--saffron)",    border:"rgba(212,98,31,0.35)",   to:"/billing" },
-            { label:"Add Stock", emoji:"📦", tone:"var(--brass)",       border:"rgba(166,124,46,0.35)",  to:"/inventory" },
-            { label:"Udhaar",    emoji:"📒", tone:"var(--ember)",       border:"rgba(179,38,30,0.35)",   to:"/udhar" },
-            { label:"Scan",      emoji:"📷", tone:"var(--jade-lite)",   border:"rgba(46,156,122,0.35)",  to:"/billing" },
+            { label:t("New Sale"),   emoji:"🛒", tone:"var(--saffron)",  border:"rgba(212,98,31,0.35)",  to:"/billing" },
+            { label:t("Add Stock"),  emoji:"📦", tone:"var(--brass)",     border:"rgba(166,124,46,0.35)", to:"/inventory" },
+            { label:t("Udhaar"),     emoji:"📒", tone:"var(--ember)",     border:"rgba(179,38,30,0.35)",  to:"/udhar" },
+            { label:t("Scan"),       emoji:"📷", tone:"var(--jade-lite)", border:"rgba(46,156,122,0.35)", to:"/billing" },
           ].map((qa, i) => (
             <button key={i} onClick={() => navigate(qa.to)}
               style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
@@ -390,10 +557,10 @@ export default function Dashboard() {
           {/* Recent sales */}
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>Recent Sales</div>
+              <div style={{ fontSize:11, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>{t("RECENT SALES")}</div>
               <button onClick={() => navigate("/billing")}
                 style={{ fontSize:11, color:"var(--saffron)", fontWeight:600,
-                  background:"none", border:"none", cursor:"pointer" }}>View all →</button>
+                  background:"none", border:"none", cursor:"pointer" }}>{t("View all →")}</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14,
               border:"1px solid var(--rule)", overflow:"hidden",

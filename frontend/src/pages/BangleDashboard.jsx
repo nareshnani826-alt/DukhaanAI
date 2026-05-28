@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
-import { getToken } from "../sync/db"
+import { getToken, api, isCloud } from "../sync/db"
 import { useLang, LangToggle } from "../hooks/useLang"
 
 const API = import.meta.env.VITE_API_URL ?? ""
@@ -131,6 +131,18 @@ function BriefingCard({ data, navigate }) {
   )
 }
 
+// ── Local day-session helpers (free-plan users) ───────────────
+function localGetDaySession() {
+  try {
+    const s = JSON.parse(localStorage.getItem("dk_day_session") || "null")
+    if (!s) return null
+    return s.date === new Date().toISOString().slice(0, 10) ? s : null
+  } catch { return null }
+}
+function localSetDaySession(s) {
+  try { localStorage.setItem("dk_day_session", JSON.stringify(s)) } catch {}
+}
+
 // ── Main page ──────────────────────────────────────────────────
 export default function BangleDashboard() {
   const { vendor, cloud } = useAuth()
@@ -142,6 +154,55 @@ export default function BangleDashboard() {
   const [sales,        setSales]        = useState([])
   const [stockSummary, setStockSummary] = useState(null)
   const [loading,      setLoading]      = useState(true)
+
+  // ── Day session state ─────────────────────────────────────
+  const [daySession, setDaySession] = useState(undefined)
+  const [dayActing,  setDayActing]  = useState(false)
+  const [dayError,   setDayError]   = useState("")
+
+  useEffect(() => {
+    if (!vendor) { setDaySession(null); return }
+    if (isCloud()) {
+      api.get("/day-sessions/today")
+        .then(s => setDaySession(s))
+        .catch(() => setDaySession(null))
+    } else {
+      setDaySession(localGetDaySession())
+    }
+  }, [vendor?.id])
+
+  async function openDay() {
+    setDayActing(true); setDayError("")
+    try {
+      if (isCloud()) {
+        const s = await api.post("/day-sessions/open", {})
+        setDaySession(s)
+      } else {
+        const s = { id:"local-day-"+Date.now(), date:new Date().toISOString().slice(0,10),
+          opened_at:new Date().toISOString(), status:"open", opening_stock:[] }
+        localSetDaySession(s); setDaySession(s)
+      }
+    } catch { setDayError("Could not open — try Day Ops page") }
+    setDayActing(false)
+  }
+
+  async function closeDay() {
+    if (!window.confirm("Close today's day? This will record your final stock and profits.")) return
+    setDayActing(true); setDayError("")
+    try {
+      if (isCloud()) {
+        const s = await api.post("/day-sessions/close", {})
+        setDaySession(s)
+      } else {
+        const s = localGetDaySession()
+        if (s) {
+          const closed = { ...s, status:"closed", closed_at:new Date().toISOString() }
+          localSetDaySession(closed); setDaySession(closed)
+        }
+      }
+    } catch { setDayError("Could not close — try Day Ops page") }
+    setDayActing(false)
+  }
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -199,7 +260,6 @@ export default function BangleDashboard() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0, marginLeft: 8 }}>
-          <LangToggle />
           <button onClick={() => navigate("/bangle-billing")} className="btn btn-primary btn-sm">
             {t("+ New Bill")}
           </button>
@@ -268,6 +328,80 @@ export default function BangleDashboard() {
             </div>
           </div>
         </div>
+
+        {/* ── Day Session Card ─────────────────────────────── */}
+        {vendor && daySession !== undefined && (() => {
+          const isOpen    = daySession?.status === "open"
+          const isClosed  = daySession?.status === "closed"
+          const notOpened = !daySession
+          const openedTime = daySession?.opened_at
+            ? new Date(daySession.opened_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) : null
+          const closedTime = daySession?.closed_at
+            ? new Date(daySession.closed_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) : null
+          const cardBg     = isOpen ? "var(--jade-bg,#e8f8f2)" : isClosed ? "var(--bg2)" : "#fffbeb"
+          const cardBorder = isOpen ? "rgba(26,122,74,0.25)"   : isClosed ? "var(--rule)" : "rgba(202,138,4,0.35)"
+          const dotColor   = isOpen ? "var(--jade)"            : isClosed ? "var(--ink-faint)" : "#d97706"
+          const label      = isOpen ? "Day Open"   : isClosed ? "Day Closed"   : "Day Not Started"
+          const sublabel   = isOpen   ? `Opened at ${openedTime}`
+                           : isClosed ? `${openedTime} → ${closedTime}`
+                           : "Open the day to track stock & profit"
+          return (
+            <div style={{ background:cardBg, border:`1px solid ${cardBorder}`,
+              borderRadius:16, padding:"12px 16px", marginBottom:14,
+              display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
+                  <span style={{ width:8, height:8, borderRadius:"50%", background:dotColor, flexShrink:0,
+                    boxShadow: isOpen ? `0 0 0 3px ${dotColor}22` : "none" }}/>
+                  <span style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{label}</span>
+                </div>
+                <div style={{ fontSize:11, color:"var(--ink-faint)" }}>{sublabel}</div>
+                {isClosed && daySession.total_sales > 0 && (
+                  <div style={{ fontSize:11, marginTop:4, display:"flex", gap:12 }}>
+                    <span style={{ color:"var(--jade)", fontWeight:600 }}>{INR(daySession.total_sales)} sales</span>
+                    {daySession.gross_profit != null && (
+                      <span style={{ color: daySession.gross_profit >= 0 ? "var(--jade)" : "var(--ember)", fontWeight:600 }}>
+                        {daySession.gross_profit >= 0 ? "+" : ""}{INR(daySession.gross_profit)} profit
+                      </span>
+                    )}
+                  </div>
+                )}
+                {isOpen && tod.revenue > 0 && (
+                  <div style={{ fontSize:11, marginTop:4, color:"var(--jade)", fontWeight:600 }}>
+                    {INR(tod.revenue)} so far · {tod.bills} bills
+                  </div>
+                )}
+                {dayError && <div style={{ fontSize:10, color:"var(--ember)", marginTop:4 }}>{dayError}</div>}
+              </div>
+              {notOpened && (
+                <button onClick={openDay} disabled={dayActing}
+                  style={{ padding:"9px 18px", borderRadius:12, border:"none", flexShrink:0,
+                    background:"linear-gradient(135deg,var(--saffron,#e87722),#d45f00)",
+                    color:"#fff", fontSize:12, fontWeight:700,
+                    cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>
+                  {dayActing ? "Opening…" : "Open Day"}
+                </button>
+              )}
+              {isOpen && (
+                <button onClick={closeDay} disabled={dayActing}
+                  style={{ padding:"9px 18px", borderRadius:12, border:"none", flexShrink:0,
+                    background:"linear-gradient(135deg,#185FA5,#2563eb)",
+                    color:"#fff", fontSize:12, fontWeight:700,
+                    cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>
+                  {dayActing ? "Closing…" : "Close Day"}
+                </button>
+              )}
+              {isClosed && (
+                <button onClick={() => navigate("/day")}
+                  style={{ padding:"9px 18px", borderRadius:12, flexShrink:0,
+                    border:"1.5px solid var(--rule)", background:"transparent",
+                    color:"var(--ink-dim)", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                  View Report
+                </button>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Briefing */}
         <BriefingCard data={briefing} navigate={navigate} />

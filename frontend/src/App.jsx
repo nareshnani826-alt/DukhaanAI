@@ -39,9 +39,16 @@ import BangleInsights      from "./pages/BangleInsights"
 import BangleDashboard    from "./pages/BangleDashboard"
 import BangleBulkImport  from "./pages/BangleBulkImport"
 import ReorderHub        from "./pages/ReorderHub"
+import Onboarding       from "./pages/Onboarding"
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
   return <UpgradeWall feature={feature}>{children}</UpgradeWall>
+}
+// Redirect first-time users to onboarding before showing any app page
+function FirstRunGuard({ children }) {
+  const done = (() => { try { return !!localStorage.getItem("dk_onboarding_done") } catch { return true } })()
+  if (!done) { window.location.replace("/onboarding"); return null }
+  return children
 }
 
 export default function App() {
@@ -57,9 +64,11 @@ export default function App() {
           <OfflineBanner />
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/hero-loop" element={<HeroLoop />} />
             <Route path="/*" element={
+              <FirstRunGuard>
               <Layout>
                 <Routes>
                   <Route path="/dashboard"  element={<Dashboard />} />
@@ -91,7 +100,7 @@ export default function App() {
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                 </Routes>
               </Layout>
-            } />
+            </FirstRunGuard>} />
           </Routes>
         </BrowserRouter>
       </AppModeProvider>

@@ -1665,6 +1665,207 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
   )
 }
 
+// ── Variant selector bottom-sheet ────────────────────────────
+function VariantSheet({ product, onAdd, onClose, t }) {
+  const variants = product?.variants || []
+  const colours  = [...new Set(variants.map(v => v.colour).filter(Boolean))]
+  const sizes    = [...new Set(variants.map(v => v.size).filter(Boolean))]
+  const designs  = [...new Set(variants.map(v => v.design).filter(Boolean))]
+
+  const [colour, setColour] = useState(colours[0] || null)
+  const [size,   setSize]   = useState(sizes[0]   || null)
+  const [design, setDesign] = useState(designs[0] || null)
+  const [unit,   setUnit]   = useState("piece")
+  const [qty,    setQty]    = useState(1)
+
+  const matched = variants.find(v =>
+    (colours.length===0 || v.colour===colour) &&
+    (sizes.length===0   || v.size===size)     &&
+    (designs.length===0 || v.design===design)
+  ) || variants[0]
+
+  const dozenMrp  = matched?.mrp  ?? product?.mrp  ?? 0
+  const dozenCost = matched?.cost_price ?? product?.cost_price ?? 0
+  const unitPrice = unit==="dozen" ? dozenMrp : unit==="set" ? +(dozenMrp/2).toFixed(2) : +(dozenMrp/12).toFixed(2)
+  const [sp, setSp] = useState(0)
+  useEffect(() => { setSp(unitPrice) }, [matched?.id, unit])
+
+  const pieces = qty * (UNITS.find(u=>u.id===unit)?.pcs||1)
+  const amount = +(qty * sp).toFixed(2)
+  const margin = sp > 0 && unitPrice > 0 ? ((sp - (unit==="dozen"?dozenCost:unit==="set"?+(dozenCost/2).toFixed(2):+(dozenCost/12).toFixed(2))) / sp * 100) : null
+  const mColor = margin===null?"var(--ink-faint)":margin>25?"var(--jade)":margin>=10?"#c47f00":"var(--ember)"
+
+  const canAdd = matched && qty > 0 && sp > 0
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
+      display:"flex", alignItems:"flex-end" }}>
+      <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+        maxHeight:"88dvh", display:"flex", flexDirection:"column" }}>
+
+        {/* Header */}
+        <div style={{ padding:"14px 16px", borderBottom:"1px solid var(--rule)",
+          display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:15, fontWeight:800, color:"var(--ink)" }}>{product.name}</div>
+            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>{product.category}</div>
+          </div>
+          <button onClick={onClose}
+            style={{ width:32, height:32, borderRadius:8, background:"var(--bg2)",
+              border:"1px solid var(--rule)", color:"var(--ink-faint)", fontSize:16, cursor:"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+        </div>
+
+        {/* Scrollable options */}
+        <div style={{ flex:1, overflowY:"auto", padding:"14px 16px 8px" }}>
+          {/* Colour chips */}
+          {colours.length > 0 && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:6,
+                textTransform:"uppercase", letterSpacing:"0.8px" }}>Colour</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {colours.map(c => (
+                  <button key={c} onClick={() => setColour(c===colour?null:c)}
+                    style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid", cursor:"pointer",
+                      fontSize:11, fontWeight:600,
+                      background:  colour===c ? "var(--saffron)" : "var(--bg2)",
+                      color:       colour===c ? "#fff"           : "var(--ink-dim)",
+                      borderColor: colour===c ? "var(--saffron)" : "var(--rule)" }}>{c}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Size chips */}
+          {sizes.length > 0 && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:6,
+                textTransform:"uppercase", letterSpacing:"0.8px" }}>Size</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {sizes.map(s => (
+                  <button key={s} onClick={() => setSize(s===size?null:s)}
+                    style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid", cursor:"pointer",
+                      fontSize:11, fontWeight:600,
+                      background:  size===s ? "var(--saffron)" : "var(--bg2)",
+                      color:       size===s ? "#fff"           : "var(--ink-dim)",
+                      borderColor: size===s ? "var(--saffron)" : "var(--rule)" }}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Design chips */}
+          {designs.length > 0 && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:6,
+                textTransform:"uppercase", letterSpacing:"0.8px" }}>Design</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {designs.map(d => (
+                  <button key={d} onClick={() => setDesign(d===design?null:d)}
+                    style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid", cursor:"pointer",
+                      fontSize:11, fontWeight:600,
+                      background:  design===d ? "var(--saffron)" : "var(--bg2)",
+                      color:       design===d ? "#fff"           : "var(--ink-dim)",
+                      borderColor: design===d ? "var(--saffron)" : "var(--rule)" }}>{d}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Variant status */}
+          {matched && (
+            <div style={{ fontSize:11, padding:"7px 12px", borderRadius:8, marginBottom:12,
+              background: matched.stock>0 ? "rgba(31,122,94,0.08)" : "rgba(179,38,30,0.08)",
+              color: matched.stock>0 ? "var(--jade)" : "var(--ember)", fontWeight:600 }}>
+              {matched.stock>0 ? `✓ ${matched.stock} pcs in stock` : "⚠ Out of stock"}
+            </div>
+          )}
+
+          {/* Unit picker */}
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:6,
+              textTransform:"uppercase", letterSpacing:"0.8px" }}>Billing Unit</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {UNITS.map(u => (
+                <button key={u.id} onClick={() => setUnit(u.id)}
+                  style={{ flex:1, padding:"8px 4px", borderRadius:10, border:"1.5px solid", cursor:"pointer",
+                    fontSize:11, fontWeight:700,
+                    background:  unit===u.id ? "var(--saffron)" : "var(--bg2)",
+                    color:       unit===u.id ? "#fff"           : "var(--ink-dim)",
+                    borderColor: unit===u.id ? "var(--saffron)" : "var(--rule)" }}>
+                  {u.label}<br/>
+                  <span style={{ fontSize:9, opacity:0.7 }}>{u.pcs} pcs</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Qty + Price */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:8 }}>
+            <div>
+              <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:6,
+                textTransform:"uppercase", letterSpacing:"0.8px" }}>Qty</div>
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <button onClick={() => setQty(q => Math.max(1, q-1))}
+                  style={{ width:34, height:34, borderRadius:9, background:"var(--bg2)",
+                    border:"1px solid var(--rule)", color:"var(--brass-deep)", cursor:"pointer", fontSize:18 }}>−</button>
+                <input type="number" min="1" value={qty}
+                  onChange={e => setQty(Math.max(1, +e.target.value||1))}
+                  style={{ flex:1, textAlign:"center", border:"1px solid var(--rule)", borderRadius:9,
+                    padding:"7px 0", fontSize:15, fontWeight:700, color:"var(--ink)",
+                    background:"var(--bg2)", outline:"none" }} />
+                <button onClick={() => setQty(q => q+1)}
+                  style={{ width:34, height:34, borderRadius:9, background:"var(--saffron)",
+                    border:"none", color:"#fff", cursor:"pointer", fontSize:18 }}>+</button>
+              </div>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:4 }}>= {pieces} pcs</div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, fontWeight:700, color:"var(--ink-faint)", marginBottom:6,
+                textTransform:"uppercase", letterSpacing:"0.8px" }}>Selling price / {unit}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ flex:1, position:"relative" }}>
+                  <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)",
+                    fontSize:13, color:"var(--ink-dim)", pointerEvents:"none" }}>₹</span>
+                  <input type="number" min="0" value={sp||""}
+                    onChange={e => setSp(Math.max(0, +e.target.value||0))}
+                    style={{ width:"100%", paddingLeft:22, border:`1.5px solid ${mColor}`,
+                      borderRadius:9, padding:"7px 8px 7px 22px", fontSize:14, fontWeight:700,
+                      color:"var(--ink)", background:"var(--bg2)", outline:"none", boxSizing:"border-box" }} />
+                </div>
+                {margin !== null && (
+                  <div style={{ fontSize:12, fontWeight:800, color:mColor, minWidth:36, textAlign:"center" }}>
+                    {margin.toFixed(0)}%
+                  </div>
+                )}
+              </div>
+              {dozenMrp > 0 && (
+                <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:4 }}>
+                  MRP ₹{unitPrice.toFixed(2)}/{unit}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sticky footer */}
+        <div style={{ flexShrink:0, padding:"12px 16px",
+          paddingBottom:"max(16px,env(safe-area-inset-bottom))",
+          borderTop:"1px solid var(--rule)", background:"var(--bg1)" }}>
+          <button onClick={() => canAdd && onAdd(matched, unit, qty, sp)} disabled={!canAdd}
+            style={{ width:"100%", padding:"15px", borderRadius:14, border:"none",
+              background: canAdd ? "linear-gradient(135deg,var(--saffron),var(--saffron-hot))" : "var(--bg2)",
+              color: canAdd ? "#fff" : "var(--ink-faint)",
+              fontSize:15, fontWeight:900, cursor: canAdd ? "pointer" : "default",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}>
+            {canAdd ? `+ Add to Cart · ₹${amount.toFixed(2)}` : "Select a variant first"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 export default function BangleBilling() {
     // Unified scan handler: always use native scanner in app, web scanner in browser
@@ -1826,75 +2027,713 @@ export default function BangleBilling() {
 
   const storeName = vendor?.store_name || "Bangle Store"
 
-  return (
-    <div className="page-flex-fill" style={{ background: "var(--bg0)" }}>
-      {/* Native Barcode Scan Button */}
-      <div style={{ padding: 16 }}>
-        <button onClick={handleScan} style={{ marginBottom: 12, padding: '8px 16px', fontWeight: 'bold' }}>
-          Scan Barcode
-        </button>
-      </div>
+  // ── billing-first state ───────────────────────────────────
+  const [searchQ,          setSearchQ]          = useState("")
+  const [bangleVoiceActive, setBangleVoiceActive] = useState(false)
+  const [catFilter,     setCatFilter]     = useState("All")
+  const [selProduct,    setSelProduct]    = useState(null)   // product opened in VariantSheet
+  const [custExpanded,  setCustExpanded]  = useState(false)
+  const [customer,      setCustomer]      = useState({ name:"", phone:"" })
+  const [payMode,       setPayMode]       = useState("cash")
+  const [discountPct,   setDiscountPct]   = useState(0)
+  const [applyGst,      setApplyGst]      = useState(false)
+  const [showPaySheet,  setShowPaySheet]  = useState(false)
+  const [paying,        setPaying]        = useState(false)
+  const [payErr,        setPayErr]        = useState("")
+  const [heldBills,     setHeldBills]     = useState(() => {
+    try { return JSON.parse(localStorage.getItem("dk_bangle_held")||"[]") } catch { return [] }
+  })
+  const [showHeld,      setShowHeld]      = useState(false)
 
-      {receipt && (
-        <ReceiptModal sale={receipt} storeName={storeName}
-          onClose={() => setReceipt(null)}
-          onNewBill={() => { setReceipt(null); setTab("items") }} />
-      )}
-      {/* Only show ScanBillModal (web scanner) in browser, never in native app */}
+  const searchResults = searchQ.trim().length >= 1
+    ? products.filter(p => p.name.toLowerCase().includes(searchQ.toLowerCase())).slice(0, 8)
+    : []
+
+  const uniqueCats = ["All", ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort()]
+  const gridProducts = catFilter === "All"
+    ? products.slice(0, 20)
+    : products.filter(p => p.category === catFilter).slice(0, 30)
+
+  // Cart totals
+  const cartSubtotal   = cart.reduce((s, i) => s + i.amount, 0)
+  const discountAmt    = +(cartSubtotal * discountPct / 100).toFixed(2)
+  const afterDiscount  = +(cartSubtotal - discountAmt).toFixed(2)
+  const gstAmount      = applyGst ? cart.reduce((s, i) => s + i.amount * (i.gst_percent / 100), 0) : 0
+  const cartTotal      = +(afterDiscount + gstAmount).toFixed(2)
+
+  function addToCartDirect(product, variant, unit="piece", qty=1, sellingPriceOverride=null) {
+    const unitDef   = UNITS.find(u => u.id === unit)
+    const pieces    = qty * (unitDef?.pcs || 1)
+    const dozenMrp  = variant.mrp  ?? product.mrp  ?? 0
+    const dozenCost = variant.cost_price ?? product.cost_price ?? 0
+    const unitPrice = unit === "dozen" ? dozenMrp : unit === "set" ? +(dozenMrp/2).toFixed(2) : +(dozenMrp/12).toFixed(2)
+    const sp = sellingPriceOverride ?? unitPrice
+    addToCart({
+      variant_id:   variant.id,
+      product_id:   product.id,
+      product_name: product.name,
+      colour:       variant.colour,
+      size:         variant.size,
+      design:       variant.design,
+      unit, unit_qty: qty, unit_price: sp,
+      pieces, amount: +(qty * sp).toFixed(2),
+      cost_price: dozenCost,
+      gst_percent: product.gst_percent || 3,
+      _id: variant.id + "-" + Date.now(),
+    }, true)
+  }
+
+  function holdBill() {
+    if (!cart.length) return
+    const held = [{ id:Date.now(), cart, customer, payMode, heldAt:Date.now() }, ...heldBills].slice(0,10)
+    setHeldBills(held); localStorage.setItem("dk_bangle_held", JSON.stringify(held))
+    setCart([]); setCustomer({name:"",phone:""}); setPayMode("cash"); setDiscountPct(0)
+  }
+
+  function resumeBill(b) {
+    setCart(b.cart); setCustomer(b.customer); setPayMode(b.payMode)
+    const remaining = heldBills.filter(x => x.id !== b.id)
+    setHeldBills(remaining); localStorage.setItem("dk_bangle_held", JSON.stringify(remaining))
+    setShowHeld(false)
+  }
+
+  async function checkoutNow() {
+    if (!cart.length) return
+    setPaying(true); setPayErr("")
+    try {
+      const mult = discountPct > 0 ? (1 - discountPct / 100) : 1
+      const sendItems = cart.map(({ _id, cost_price, ...rest }) => ({
+        ...rest, amount: +(rest.amount * mult).toFixed(2),
+      }))
+      const sale = await BangleSales.create({
+        items:          sendItems,
+        customer_name:  customer.name  || "Walk-in",
+        customer_phone: customer.phone || null,
+        payment_mode:   payMode,
+        apply_gst:      applyGst,
+        notes:          discountPct > 0 ? `Discount: ${discountPct}%` : null,
+      })
+      onBill(sale); setShowPaySheet(false)
+      setCustomer({name:"",phone:""}); setPayMode("cash"); setDiscountPct(0); setApplyGst(false)
+    } catch(e) { setPayErr(e.message) }
+    finally { setPaying(false) }
+  }
+
+  function updateQty(itemId, delta) {
+    setCart(prev => prev.map(i => {
+      if (i._id !== itemId) return i
+      const newQty = Math.max(1, i.unit_qty + delta)
+      const pieces = newQty * (UNITS.find(u => u.id === i.unit)?.pcs || 1)
+      return { ...i, unit_qty: newQty, pieces, amount: +(newQty * i.unit_price).toFixed(2) }
+    }))
+  }
+
+  // cat emoji for bangle products
+  function startBangleVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { alert("Voice not supported — use Chrome or Edge"); return }
+    setBangleVoiceActive(true)
+    const rec = new SR()
+    rec.lang           = localStorage.getItem("dk_voice_lang") || "te-IN"
+    rec.interimResults = false
+    rec.maxAlternatives = 1
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript.trim()
+      setBangleVoiceActive(false)
+      const matches = products.filter(p =>
+        p.name.toLowerCase().includes(text.toLowerCase()) ||
+        text.toLowerCase().includes(p.name.toLowerCase().split(" ")[0])
+      )
+      if (matches.length === 1) {
+        setSelProduct(matches[0])       // open variant sheet
+      } else {
+        setSearchQ(text)                // show search dropdown
+      }
+    }
+    rec.onerror = () => setBangleVoiceActive(false)
+    rec.onend   = () => setBangleVoiceActive(false)
+    rec.start()
+  }
+
+  const BCAT_EMOJI = { "Bangles":"💍","Earrings":"👂","Necklace":"📿","Maang Tikka":"✨",
+    "Anklet":"🦶","Hair Clip":"💇","Bindi":"🔴","Rings":"💎","Bracelet":"⌚","Nose Ring":"💫",
+    "Nail Polish":"💅","Kajal":"👁","Lipstick":"💄","Mehendi":"🌿","Perfume":"🧴",
+    "Compact":"🪮","Skin Care":"🧴","Shampoo":"🚿","Hair Oil":"💧","Body Lotion":"🧴",
+    "Soap":"🫧","Talcum Powder":"✨","Hair Color":"🎨","Other":"📦" }
+
+  const INRb = n => "₹" + Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:0,maximumFractionDigits:2})
+
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>
+
+      {/* ── Modals ───────────────────────────────── */}
       {showScanner && !Capacitor.isNativePlatform() && (
-        <ScanBillModal
-          products={products}
+        <ScanBillModal products={products}
           onBill={sale => { onBill(sale); setShowScanner(false) }}
-          onAddToCart={item => { addToCart(item); setTab("cart") }}
-          onClose={() => setShowScanner(false)}
-        />
+          onAddToCart={item => { addToCart(item, true) }}
+          onClose={() => setShowScanner(false)} />
       )}
       {showQuick && (
-        <QuickItemModal
-          products={products}
-          onAdd={item => { addToCart(item); setTab("cart") }}
-          onClose={() => setShowQuick(false)}
-        />
+        <QuickItemModal products={products}
+          onAdd={item => { addToCart(item, true) }}
+          onClose={() => setShowQuick(false)} />
       )}
 
-      {/* Mobile tabs */}
-      <div className="mobile-billing-tabs">
-        {[{ id: "items", label: t("Add Items") }, { id: "cart", label: `${t("Cart")} (${cart.length})` }].map(tab_ => (
-          <button key={tab_.id} onClick={() => setTab(tab_.id)}
-            style={{ flex: 1, padding: "10px 0", background: "none", border: "none",
-              borderBottom: `2px solid ${tab === tab_.id ? "var(--saffron)" : "transparent"}`,
-              fontSize: 13, fontWeight: tab === tab_.id ? 700 : 500,
-              color: tab === tab_.id ? "var(--saffron)" : "var(--ink-dim)", cursor: "pointer" }}>
-            {tab_.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-          color: "var(--ink-faint)", fontSize: 13 }}>Loading products…</div>
-      ) : (
-        <div className="billing-layout" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          <div className={`billing-left${tab === "cart" ? " billing-hidden-mobile" : ""}`}
-            style={{ flex: 1, borderRight: "1px solid var(--rule)", overflow: "hidden",
-              display: "flex", flexDirection: "column" }}>
-            <ProductPicker
-              products={products}
-              onAdd={addToCart}
-              t={t}
-              onScanRequest={() => setShowScanner(true)}
-              onQuickItem={() => setShowQuick(true)}
-              onNativeScan={handleScan}
-            />
-          </div>
-          <div className={`billing-right${tab === "items" ? " billing-hidden-mobile" : ""}`}
-            style={{ width: 340, minWidth: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <CartPanel items={cart} onRemove={removeFromCart}
-              onUpdatePrice={updateCartPrice} onBill={onBill} t={t} />
+      {/* ── Receipt bottom sheet ─────────────────── */}
+      {receipt && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
+          display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+          <div style={{ width:"100%", maxWidth:520, height:"90dvh", background:"var(--bg1)",
+            borderRadius:"20px 20px 0 0", display:"flex", flexDirection:"column",
+            boxShadow:"0 -8px 40px rgba(0,0,0,0.25)" }}>
+            <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--rule)",
+              display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:18 }}>✅</span>
+                <div style={{ fontSize:15, fontWeight:800, color:"var(--jade)" }}>Bill Generated!</div>
+              </div>
+              <button onClick={() => setReceipt(null)}
+                style={{ width:32, height:32, borderRadius:8, background:"var(--bg2)",
+                  border:"1px solid var(--rule)", color:"var(--ink-faint)", fontSize:16, cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:"14px 16px 8px", WebkitOverflowScrolling:"touch" }}>
+              {(receipt.items||[]).map((item, i) => (
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
+                  padding:"10px 0", borderBottom:"1px solid var(--rule)" }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{item.product_name}</div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:3, display:"flex", gap:5, flexWrap:"wrap" }}>
+                      {[item.colour, item.size, item.design].filter(Boolean).map(v => (
+                        <span key={v} style={{ background:"var(--bg2)", padding:"1px 7px", borderRadius:10, border:"1px solid var(--rule)" }}>{v}</span>
+                      ))}
+                      <span>{item.unit_qty} {item.unit} ({item.pieces} pcs)</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)", marginLeft:12 }}>{INRb(item.amount)}</div>
+                </div>
+              ))}
+              {receipt.total && (
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:17, fontWeight:800,
+                  color:"var(--saffron)", padding:"12px 0 0", marginTop:4 }}>
+                  <span>Total</span><span>{INRb(receipt.total)}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ flexShrink:0, padding:"12px 16px", borderTop:"1px solid var(--rule)",
+              paddingBottom:"max(16px,env(safe-area-inset-bottom))",
+              background:"var(--bg1)", display:"flex", flexDirection:"column", gap:10 }}>
+              <button onClick={() => {
+                const lines = (receipt.items||[]).map(i =>
+                  `• ${i.product_name}${i.colour?" "+i.colour:""}${i.size?" "+i.size:""} | ${i.unit_qty} ${i.unit} = ₹${Number(i.amount).toLocaleString("en-IN")}`)
+                const msg = [`🧾 *${storeName}*`,"",...lines,"",`*Total: ₹${Number(receipt.total||0).toLocaleString("en-IN")}*`,`Payment: ${(receipt.payment_mode||"").toUpperCase()}`].join("\n")
+                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank")
+              }} style={{ width:"100%", padding:"14px", borderRadius:13, border:"none",
+                background:"#25D366", color:"#fff", fontSize:15, fontWeight:800,
+                cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                📱 Send on WhatsApp
+              </button>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <button onClick={() => window.print()}
+                  style={{ padding:"12px", borderRadius:12, border:"1px solid var(--rule)",
+                    background:"transparent", color:"var(--ink)", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                  🖨 Print
+                </button>
+                <button onClick={() => setReceipt(null)}
+                  style={{ padding:"12px", borderRadius:12, border:"1px solid var(--rule)",
+                    background:"var(--bg2)", color:"var(--ink-dim)", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                  + New Bill
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
+      {/* ── Variant selector sheet ───────────────── */}
+      {selProduct && (
+        <VariantSheet
+          product={selProduct}
+          onAdd={(variant, unit, qty, sp) => { addToCartDirect(selProduct, variant, unit, qty, sp); setSelProduct(null) }}
+          onClose={() => setSelProduct(null)}
+          t={t}
+        />
+      )}
+
+      {/* ── Held-bills sheet ─────────────────────── */}
+      {showHeld && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)",
+          display:"flex", alignItems:"flex-end" }} onClick={() => setShowHeld(false)}>
+          <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+            padding:"20px 16px 32px", maxHeight:"65vh", overflowY:"auto" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>
+                Held Bills {heldBills.length > 0 && `(${heldBills.length})`}
+              </div>
+              <button onClick={() => setShowHeld(false)}
+                style={{ background:"none", border:"none", color:"var(--ink-faint)", fontSize:20, cursor:"pointer" }}>✕</button>
+            </div>
+            {heldBills.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"28px 0", color:"var(--ink-faint)", fontSize:13 }}>No held bills</div>
+            ) : heldBills.map(b => (
+              <button key={b.id} onClick={() => resumeBill(b)}
+                style={{ width:"100%", background:"var(--bg2)", border:"1px solid var(--rule)",
+                  borderRadius:14, padding:"14px", marginBottom:10, textAlign:"left",
+                  display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
+                <div style={{ width:40, height:40, borderRadius:10, background:"var(--saffron-bg)",
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>💍</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>
+                    {b.customer?.name || "Walk-in"} · {b.cart.length} items
+                  </div>
+                  <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>
+                    {INRb(b.cart.reduce((s,i)=>s+i.amount,0))} · {new Date(b.heldAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
+                  </div>
+                </div>
+                <div style={{ fontSize:12, color:"var(--saffron)", fontWeight:700 }}>Resume →</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Pay sheet ────────────────────────────── */}
+      {showPaySheet && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
+          display:"flex", alignItems:"flex-end" }}>
+          <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+            padding:"20px 16px", maxHeight:"80dvh", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>
+                💳 Payment · {INRb(cartTotal)}
+              </div>
+              <button onClick={() => setShowPaySheet(false)}
+                style={{ background:"none", border:"none", color:"var(--ink-faint)", fontSize:20, cursor:"pointer" }}>✕</button>
+            </div>
+
+            {/* Customer */}
+            <div style={{ background:"var(--bg2)", borderRadius:12, padding:"10px 14px", marginBottom:12 }}>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", marginBottom:8 }}>CUSTOMER</div>
+              <div style={{ display:"flex", gap:8 }}>
+                <input value={customer.name} onChange={e => setCustomer(c=>({...c,name:e.target.value}))}
+                  placeholder="Name (or Walk-in)"
+                  style={{ flex:1, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                    padding:"8px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
+                <input value={customer.phone} onChange={e => setCustomer(c=>({...c,phone:e.target.value}))}
+                  placeholder="Phone"
+                  style={{ width:120, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                    padding:"8px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
+              </div>
+            </div>
+
+            {/* Payment mode */}
+            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+              {["cash","upi","card","credit"].map(m => (
+                <button key={m} onClick={() => setPayMode(m)}
+                  style={{ flex:1, padding:"9px 4px", borderRadius:10, border:"1.5px solid", cursor:"pointer",
+                    fontSize:11, fontWeight:700, textTransform:"capitalize",
+                    background:  payMode===m ? "var(--saffron)" : "var(--bg2)",
+                    color:       payMode===m ? "#fff"           : "var(--ink-dim)",
+                    borderColor: payMode===m ? "var(--saffron)" : "var(--rule)" }}>
+                  {m==="cash"?"💵 Cash":m==="upi"?"📱 UPI":m==="card"?"💳 Card":"📒 Credit"}
+                </button>
+              ))}
+            </div>
+
+            {/* Discount + GST */}
+            <div style={{ display:"flex", gap:10, marginBottom:12, alignItems:"center" }}>
+              <div style={{ flex:1, position:"relative" }}>
+                <input type="number" min="0" max="100" value={discountPct||""} placeholder="0"
+                  onChange={e => setDiscountPct(Math.min(100,Math.max(0,+e.target.value||0)))}
+                  style={{ width:"100%", background:"var(--bg2)", border:"1px solid var(--rule)", borderRadius:9,
+                    padding:"8px 28px 8px 12px", fontSize:13, fontWeight:700, color:"var(--ink)", outline:"none", boxSizing:"border-box" }} />
+                <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
+                  fontSize:12, color:"var(--ink-faint)", pointerEvents:"none" }}>% off</span>
+              </div>
+              <button onClick={() => setApplyGst(g => !g)}
+                style={{ padding:"8px 14px", borderRadius:9, border:"1.5px solid", cursor:"pointer", fontSize:12, fontWeight:700,
+                  background:  applyGst ? "var(--jade-bg)" : "var(--bg2)",
+                  color:       applyGst ? "var(--jade)"   : "var(--ink-dim)",
+                  borderColor: applyGst ? "var(--jade)"   : "var(--rule)" }}>
+                {applyGst ? "✓ GST ON" : "GST"}
+              </button>
+            </div>
+
+            {/* Bill breakdown */}
+            <div style={{ background:"var(--bg2)", borderRadius:12, padding:"12px 14px", marginBottom:12 }}>
+              {[
+                discountPct > 0 && ["Subtotal", INRb(cartSubtotal)],
+                discountPct > 0 && [`Discount ${discountPct}%`, `−${INRb(discountAmt)}`, "#dc2626"],
+                applyGst       && ["GST", INRb(gstAmount)],
+              ].filter(Boolean).map(([l,v,c]) => (
+                <div key={l} style={{ display:"flex", justifyContent:"space-between",
+                  fontSize:12, color:c||"var(--ink-dim)", marginBottom:4 }}>
+                  <span>{l}</span><span style={{ color:c||"var(--ink-dim)" }}>{v}</span>
+                </div>
+              ))}
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:20,
+                fontWeight:800, color:"var(--saffron)", paddingTop:8,
+                borderTop:"1px solid var(--rule)", marginTop:4 }}>
+                <span>Total</span><span>{INRb(cartTotal)}</span>
+              </div>
+            </div>
+
+            {payErr && <div style={{ fontSize:11, color:"var(--ember)", marginBottom:8 }}>{payErr}</div>}
+
+            <button onClick={checkoutNow} disabled={paying}
+              style={{ width:"100%", padding:"16px", borderRadius:14, border:"none",
+                background: paying ? "var(--bg2)" : "linear-gradient(135deg,var(--jade),#4cb892)",
+                color: paying ? "var(--ink-faint)" : "#fff", fontSize:16, fontWeight:900,
+                cursor: paying ? "default" : "pointer",
+                paddingBottom:"max(16px,env(safe-area-inset-bottom))" }}>
+              {paying ? "Saving…" : `✓ Collect ${INRb(cartTotal)} · Bill Karo`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── COMPACT TOPBAR ───────────────────────── */}
+      <div style={{ padding:"10px 14px", background:"var(--bg0)",
+        borderBottom:"1px solid var(--rule)", display:"flex", alignItems:"center",
+        gap:10, flexShrink:0 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:11, color:"var(--ink-faint)", letterSpacing:"1px", fontWeight:700 }}>BANGLE BILLING</div>
+          <div style={{ fontSize:14, color:"var(--ink)", fontWeight:800 }}>New Sale</div>
+        </div>
+        <button onClick={() => setShowQuick(true)}
+          style={{ background:"var(--bg2)", border:"1px solid var(--rule)", color:"var(--ink)",
+            borderRadius:9, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
+          + Custom
+        </button>
+        <button onClick={holdBill}
+          style={{ background:"var(--bg2)", border:"1px solid var(--rule)", color:"var(--ink)",
+            borderRadius:9, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
+          Hold
+        </button>
+        {cart.length > 0 && (
+          <button onClick={() => { setCart([]); setDiscountPct(0) }}
+            style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
+              color:"var(--ember)", borderRadius:9, padding:"6px 12px",
+              fontSize:11, fontWeight:700, cursor:"pointer" }}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* ── SEARCH + SCAN ────────────────────────── */}
+      <style>{`@keyframes micPulse{0%,100%{box-shadow:0 0 0 4px rgba(220,38,38,.25)}50%{box-shadow:0 0 0 8px rgba(220,38,38,.08)}}`}</style>
+      <div style={{ padding:"10px 14px 8px", background:"var(--bg0)", flexShrink:0, position:"relative", zIndex:50 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {/* Search input */}
+          <div style={{
+            flex:1, minWidth:0, background:"var(--bg2)",
+            border:`2px solid ${searchQ ? "var(--saffron)" : "var(--rule)"}`,
+            boxShadow: searchQ ? "0 4px 14px rgba(232,119,34,0.18)" : "none",
+            borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
+            transition:"all 0.15s",
+          }}>
+            <span style={{ fontSize:18, color: searchQ ? "var(--saffron)" : "var(--ink-faint)", flexShrink:0 }}>🔍</span>
+            <input
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && searchResults.length === 1) setSelProduct(searchResults[0])
+                if (e.key === "Escape") setSearchQ("")
+              }}
+              placeholder="Search bangles, earrings…"
+              style={{ background:"transparent", border:"none", color:"var(--ink)", fontSize:14,
+                outline:"none", flex:1, fontWeight:600, minWidth:0 }}
+              autoFocus
+            />
+            {searchQ && (
+              <button onClick={() => setSearchQ("")}
+                style={{ background:"none", border:"none", color:"var(--ink-faint)", fontSize:16, cursor:"pointer", padding:0, flexShrink:0 }}>✕</button>
+            )}
+          </div>
+
+          {/* 🎤 Voice */}
+          <button onClick={bangleVoiceActive ? undefined : startBangleVoice}
+            title={bangleVoiceActive ? "Listening…" : "Voice search"}
+            style={{
+              width:46, height:46, borderRadius:13, flexShrink:0, cursor: bangleVoiceActive ? "default" : "pointer",
+              background: bangleVoiceActive ? "linear-gradient(135deg,#dc2626,#b91c1c)" : "var(--bg2)",
+              border: bangleVoiceActive ? "2px solid #dc2626" : "1.5px solid var(--rule)",
+              color: bangleVoiceActive ? "#fff" : "var(--ink-faint)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:19,
+              boxShadow: bangleVoiceActive ? "0 0 0 4px rgba(220,38,38,.25)" : "none",
+              animation: bangleVoiceActive ? "micPulse 1s infinite" : "none",
+              transition:"all 0.2s",
+            }}>
+            🎤
+          </button>
+
+          {/* 📷 Barcode scan */}
+          <button onClick={handleScan} title="Scan barcode"
+            style={{ width:46, height:46, borderRadius:13, border:"none", cursor:"pointer", flexShrink:0,
+              background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+              color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:20, boxShadow:"0 4px 14px rgba(232,119,34,0.35)" }}>
+            📷
+          </button>
+        </div>
+
+        {/* Search suggestions */}
+        {searchResults.length > 0 && (
+          <div style={{ position:"absolute", left:14, right:14, top:"calc(100% - 4px)",
+            background:"var(--bg1)", border:"1px solid var(--rule)",
+            borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.18)", overflow:"hidden", zIndex:100 }}>
+            {searchResults.map((p, i) => (
+              <button key={p.id} onClick={() => { setSelProduct(p); setSearchQ("") }}
+                style={{ width:"100%", background:"none", border:"none",
+                  borderBottom: i < searchResults.length-1 ? "1px solid var(--rule-soft)" : "none",
+                  padding:"11px 16px", display:"flex", alignItems:"center", gap:12,
+                  cursor:"pointer", textAlign:"left" }}
+                onMouseEnter={e => e.currentTarget.style.background="var(--bg2)"}
+                onMouseLeave={e => e.currentTarget.style.background="none"}>
+                <div style={{ width:32, height:32, borderRadius:8, background:"var(--bg2)",
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>
+                  {BCAT_EMOJI[p.category] || "💍"}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)",
+                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                  <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
+                    {p.category} · {(p.variants||[]).length} variants
+                    {p.mrp > 0 && ` · ₹${(p.mrp/12).toFixed(0)}/pc`}
+                  </div>
+                </div>
+                <div style={{ fontSize:13, color:"var(--saffron)", fontWeight:800, flexShrink:0 }}>Select →</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── CUSTOMER PILL ────────────────────────── */}
+      <div style={{ padding:"0 14px 8px", background:"var(--bg0)", flexShrink:0 }}>
+        {custExpanded ? (
+          <div style={{ background:"var(--bg2)", border:"1px solid var(--rule)", borderRadius:12, padding:"10px 14px" }}>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              <input value={customer.name} onChange={e => setCustomer(c=>({...c,name:e.target.value}))}
+                placeholder="Customer name"
+                style={{ flex:1, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                  padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
+              <input value={customer.phone} onChange={e => setCustomer(c=>({...c,phone:e.target.value}))}
+                placeholder="Phone"
+                style={{ width:130, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
+                  padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
+            </div>
+            <button onClick={() => setCustExpanded(false)}
+              style={{ background:"none", border:"none", color:"var(--saffron)", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+              Done ✓
+            </button>
+          </div>
+        ) : (
+          <div style={{ background:"var(--bg2)", border:"1px solid var(--rule)", borderRadius:10,
+            padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:"50%", flexShrink:0,
+              background:"linear-gradient(135deg,var(--brass),var(--saffron))",
+              color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+              fontWeight:800, fontSize:13 }}>
+              {customer.name ? customer.name.charAt(0).toUpperCase() : "W"}
+            </div>
+            <div style={{ flex:1, fontSize:13, color: customer.name ? "var(--ink)" : "var(--ink-faint)", fontWeight:600 }}>
+              {customer.name || "Walk-in customer"}
+            </div>
+            <button onClick={() => setCustExpanded(true)}
+              style={{ background:"transparent", color:"var(--saffron)", border:"none",
+                fontSize:13, fontWeight:800, cursor:"pointer" }}>
+              {customer.name ? "Edit" : "+ Add"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── CART + PRODUCT BROWSER ───────────────── */}
+      <div style={{ flex:1, overflowY:"auto", background:"var(--bg1)" }}>
+
+        {/* Cart items */}
+        {cart.length > 0 && (
+          <div style={{ padding:"4px 14px 0" }}>
+            <div style={{ fontSize:10, color:"var(--ink-faint)", letterSpacing:"1.5px",
+              fontWeight:800, padding:"10px 4px 8px", textTransform:"uppercase" }}>
+              💍 {cart.length} {cart.length===1?"ITEM":"ITEMS"} IN CART
+            </div>
+
+            {cart.map((item) => (
+              <div key={item._id} style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px",
+                marginBottom:8, border:"1px solid var(--rule)", display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
+                  background:"var(--saffron-bg)", border:"1px solid rgba(232,119,34,0.25)",
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                  {BCAT_EMOJI[products.find(p=>p.id===item.product_id)?.category]||"💍"}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)",
+                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.product_name}</div>
+                  <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
+                    {[item.colour, item.size, item.design].filter(Boolean).map(v => (
+                      <span key={v} style={{ fontSize:10, fontWeight:600, padding:"1px 7px", borderRadius:10,
+                        background:"var(--bg0)", border:"1px solid var(--rule)", color:"var(--ink-dim)" }}>{v}</span>
+                    ))}
+                    <span style={{ fontSize:10, color:"var(--ink-faint)" }}>{item.unit_qty} {item.unit}</span>
+                  </div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:4,
+                  background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
+                  <button onClick={() => item.unit_qty <= 1 ? removeFromCart(item._id) : updateQty(item._id, -1)}
+                    style={{ width:28, height:28, borderRadius:7, background:"var(--bg2)",
+                      color: item.unit_qty<=1 ? "var(--ember)" : "var(--brass-deep)",
+                      border:"none", fontSize:item.unit_qty<=1?12:16, fontWeight:800, cursor:"pointer" }}>
+                    {item.unit_qty<=1?"🗑":"−"}
+                  </button>
+                  <span style={{ minWidth:22, textAlign:"center", fontSize:14, fontWeight:800, color:"var(--ink)" }}>
+                    {item.unit_qty}
+                  </span>
+                  <button onClick={() => updateQty(item._id, 1)}
+                    style={{ width:28, height:28, borderRadius:7, background:"var(--saffron)",
+                      color:"#fff", border:"none", fontSize:16, fontWeight:800, cursor:"pointer" }}>+</button>
+                </div>
+                <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:14,
+                  color:"var(--brass-deep)", fontWeight:800, minWidth:54, textAlign:"right" }}>
+                  {INRb(item.amount)}
+                </div>
+              </div>
+            ))}
+
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 12px" }}>
+              <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", whiteSpace:"nowrap" }}>ADD MORE ITEMS</div>
+              <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
+            </div>
+          </div>
+        )}
+
+        {/* Product browser */}
+        {loading ? (
+          <div style={{ textAlign:"center", padding:"40px 0", color:"var(--ink-faint)", fontSize:13 }}>Loading products…</div>
+        ) : (() => {
+          return (
+            <div style={{ padding: cart.length > 0 ? "0 14px 80px" : "4px 14px 80px" }}>
+              {/* Category filter pills */}
+              <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:8,
+                scrollbarWidth:"none", marginBottom:2 }}>
+                {uniqueCats.map(c => (
+                  <button key={c} onClick={() => setCatFilter(c)}
+                    style={{ padding:"6px 14px", borderRadius:20, border:"none", cursor:"pointer",
+                      flexShrink:0, fontSize:11, fontWeight:700, transition:"all 0.12s",
+                      background: catFilter===c ? "var(--saffron)" : "var(--bg2)",
+                      color:      catFilter===c ? "#fff"          : "var(--ink-dim)",
+                      boxShadow:  catFilter===c ? "0 3px 10px rgba(232,119,34,0.3)" : "none" }}>
+                    {c === "All" ? "💍 All" : c}
+                  </button>
+                ))}
+              </div>
+
+              {/* Product grid */}
+              {gridProducts.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"32px 0", color:"var(--ink-faint)", fontSize:12 }}>
+                  No products in this category
+                </div>
+              ) : (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10, paddingTop:4 }}>
+                  {gridProducts.map(p => {
+                    const inCartQty = cart.filter(i => i.product_id === p.id).reduce((s,i)=>s+i.unit_qty,0)
+                    const totalStock = (p.variants||[]).reduce((s,v)=>s+(v.stock||0),0)
+                    const outOfStock = totalStock <= 0 && (p.variants||[]).length > 0
+                    return (
+                      <button key={p.id}
+                        onClick={() => !outOfStock && setSelProduct(p)}
+                        style={{
+                          background:"var(--bg2)", borderRadius:14, padding:"14px 12px",
+                          border: inCartQty>0 ? "2px solid var(--saffron)" : "1px solid var(--rule)",
+                          boxShadow: inCartQty>0 ? "0 2px 14px rgba(232,119,34,0.18)" : "0 2px 6px rgba(0,0,0,0.04)",
+                          cursor: outOfStock ? "default" : "pointer",
+                          opacity: outOfStock ? 0.45 : 1,
+                          display:"flex", flexDirection:"column", alignItems:"flex-start",
+                          gap:8, textAlign:"left", position:"relative", transition:"all 0.12s",
+                        }}
+                        onMouseEnter={e => { if (!outOfStock) e.currentTarget.style.transform="translateY(-2px)" }}
+                        onMouseLeave={e => e.currentTarget.style.transform="none"}>
+
+                        {inCartQty > 0 && (
+                          <div style={{ position:"absolute", top:8, right:8,
+                            minWidth:20, height:20, padding:"0 5px", borderRadius:10,
+                            background:"var(--saffron)", color:"#fff",
+                            fontSize:11, fontWeight:800,
+                            display:"flex", alignItems:"center", justifyContent:"center" }}>
+                            {inCartQty}
+                          </div>
+                        )}
+
+                        <div style={{ width:40, height:40, borderRadius:10, flexShrink:0,
+                          background:"var(--bg0)", border:"1px solid var(--rule)",
+                          display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+                          {BCAT_EMOJI[p.category] || "💍"}
+                        </div>
+
+                        <div style={{ width:"100%", paddingRight: inCartQty>0 ? 20 : 0 }}>
+                          <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)", lineHeight:1.3,
+                            overflow:"hidden", textOverflow:"ellipsis",
+                            display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
+                            {p.name}
+                          </div>
+                          {p.mrp > 0 && (
+                            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+                              fontSize:14, color:"var(--brass-deep)", fontWeight:800, marginTop:4 }}>
+                              ₹{+(p.mrp/12).toFixed(0)}/pc
+                            </div>
+                          )}
+                          <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:2 }}>
+                            {(p.variants||[]).length} variants
+                            {outOfStock && <span style={{ color:"var(--ember)", fontWeight:800, marginLeft:4 }}>OUT</span>}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* ── STICKY PAY FOOTER ────────────────────── */}
+      {cart.length > 0 && !receipt && (
+        <div style={{ background:"linear-gradient(180deg,var(--bg2),var(--bg3))",
+          borderTop:"2px solid rgba(184,134,11,0.3)",
+          boxShadow:"0 -8px 24px rgba(26,12,4,0.1)",
+          padding:"12px 14px 14px", flexShrink:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+            <div>
+              <div style={{ fontSize:11, color:"var(--brass-deep)", letterSpacing:"1.5px",
+                fontWeight:800, textTransform:"uppercase" }}>
+                TOTAL · {cart.reduce((s,i)=>s+i.pieces,0)} pcs
+              </div>
+              {discountPct > 0 && (
+                <div style={{ fontSize:10, color:"#dc2626", marginTop:2 }}>
+                  {discountPct}% off applied
+                </div>
+              )}
+            </div>
+            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:38,
+              color:"var(--saffron)", fontWeight:800, lineHeight:1 }}>
+              {INRb(cartTotal)}
+            </div>
+          </div>
+
+          <button onClick={() => setShowPaySheet(true)}
+            style={{ width:"100%", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+              color:"#fff", border:"none", borderRadius:14, padding:"17px",
+              fontSize:17, fontWeight:900, letterSpacing:"0.3px",
+              boxShadow:"0 12px 28px rgba(232,119,34,0.45)", cursor:"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}>
+            💳 Bill Karo · {INRb(cartTotal)} →
+          </button>
+        </div>
+      )}
     </div>
   )
 }

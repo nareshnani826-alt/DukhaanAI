@@ -9,6 +9,8 @@ import { LANG_KEY, getSavedLang } from "../voice/i18n"
 import { getToken, Products, Sales, Invoices, Udhar } from "../sync/db"
 import { BangleProducts } from "../sync/bangleDb.js"
 import { VocabDB, preloadVocab } from "../sync/vocabDb.js"
+import DaySessionGate from "./DaySessionGate.jsx"
+import { tr } from "../i18n/kiranaStrings.js"
 
 const KIRANA_NAV = [
   { label:"Home", to:"/dashboard",
@@ -55,14 +57,14 @@ const BANGLE_MOB_TABS = [
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
+// Billing-first 4-tab nav — billing IS home, no dashboard tab
 const MOB_TABS = [
-  { to:"/dashboard", label:"Home",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg> },
   { to:"/billing", label:"Bill",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg> },
-  { to:"/voice", label:"", voice:true },
-  { to:"/demand", label:"Demand",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-7"/></svg> },
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 001.98 1.61h9.72a2 2 0 001.97-1.67L23 6H6"/></svg> },
+  { to:"/billing", label:"Held", held:true,
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> },
+  { to:"/voice", label:"Voice",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> },
   { to:"/more", label:"More",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
@@ -914,6 +916,44 @@ export default function Layout({ children }) {
 
   const [storeMode, setStoreMode] = useState("kirana")
 
+  // UI language — read from voice language setting (unified key)
+  const [uiLang, setUiLang] = useState(() => {
+    try { return localStorage.getItem("dk_voice_lang") || "en-IN" } catch { return "en-IN" }
+  })
+  const [showLangPicker, setShowLangPicker] = useState(false)
+  useEffect(() => {
+    const sync = () => { try { setUiLang(localStorage.getItem("dk_voice_lang") || "en-IN") } catch {} }
+    window.addEventListener("storage", sync)
+    window.addEventListener("dk:voice-lang", sync)
+    return () => { window.removeEventListener("storage", sync); window.removeEventListener("dk:voice-lang", sync) }
+  }, [])
+  const tNav = (key) => tr(key, uiLang)
+
+  function setAppLang(code) {
+    try {
+      localStorage.setItem("dk_voice_lang", code)
+      // Keep bangle useLang hook in sync (it uses "te" / "en" shortcodes)
+      const bangShort = code.startsWith("te") ? "te" : "en"
+      localStorage.setItem("dk_bangle_lang", bangShort)
+      window.dispatchEvent(new CustomEvent("dk:lang", { detail: bangShort }))
+    } catch {}
+    setUiLang(code)
+    window.dispatchEvent(new Event("storage"))
+    setShowLangPicker(false)
+  }
+
+  const LANG_OPTIONS = [
+    { code:"en-IN", label:"English", native:"EN"   },
+    { code:"te-IN", label:"Telugu",  native:"తె"   },
+    { code:"hi-IN", label:"Hindi",   native:"हि"    },
+    { code:"ta-IN", label:"Tamil",   native:"த"    },
+    { code:"kn-IN", label:"Kannada", native:"ಕ"    },
+    { code:"ml-IN", label:"Malayalam",native:"മ"   },
+    { code:"mr-IN", label:"Marathi", native:"म"    },
+    { code:"bn-IN", label:"Bengali", native:"বাং"  },
+  ]
+  const currentLangNative = LANG_OPTIONS.find(l => l.code === uiLang)?.native || "EN"
+
   // Re-derive mode whenever vendor changes (login/logout) or modules change
   useEffect(() => {
     let newMode = "kirana"
@@ -1090,6 +1130,18 @@ export default function Layout({ children }) {
           <div style={{ fontSize:10, color: cloud ? "var(--jade)" : "var(--ink-faint)", marginBottom:10 }}>
             {cloud ? "● Cloud sync ON" : loggedIn ? "● Free plan" : "● Local only"}
           </div>
+          {/* Language button — sidebar */}
+          <button onClick={() => setShowLangPicker(true)}
+            style={{ display:"flex", alignItems:"center", gap:8, width:"100%",
+              background:"var(--bg2)", border:"1px solid var(--rule)",
+              borderRadius:9, padding:"7px 12px", cursor:"pointer",
+              color:"var(--ink-dim)", fontSize:11, fontWeight:600, marginBottom:8,
+              transition:"all 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
+            onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
+            <span style={{ fontSize:15 }}>🌐</span>
+            Language · <strong style={{ color:"var(--saffron)" }}>{LANG_OPTIONS.find(l=>l.code===uiLang)?.label || "English"}</strong>
+          </button>
           <button onClick={toggleTheme}
             style={{ display:"flex", alignItems:"center", gap:8, width:"100%",
               background:"var(--bg2)", border:"1px solid var(--rule)",
@@ -1156,6 +1208,15 @@ export default function Layout({ children }) {
           )}
 
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            {/* Language picker button */}
+            <button onClick={() => setShowLangPicker(true)}
+              title="Change language"
+              style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
+                borderRadius:8, padding:"5px 10px", cursor:"pointer",
+                fontSize:13, fontWeight:800, color:"var(--ink)",
+                boxShadow:"0 1px 4px var(--shadow)", minWidth:36, textAlign:"center" }}>
+              {currentLangNative}
+            </button>
             <button onClick={toggleTheme}
               style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
                 borderRadius:8, padding:"5px 9px", cursor:"pointer", fontSize:14,
@@ -1179,39 +1240,43 @@ export default function Layout({ children }) {
         background:"var(--bg2)", borderTop:"1px solid var(--rule)",
         display:"none", alignItems:"flex-end", justifyContent:"space-around",
         padding:"8px 4px 12px", boxShadow:"0 -4px 20px var(--shadow)" }}>
-        {(storeMode === "bangle_fancy"
-          ? MOB_TABS_ACTIVE
-          : [
-              ...MOB_TABS.slice(0, 3),
-              appMode === "lite"
-                ? { to:"/inventory", label:"Stock",
-                    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg> }
-                : MOB_TABS[3],
-              MOB_TABS[4],
-            ]
-        ).map(tab => {
-          if (tab.voice) return (
-            <div key="voice" onClick={() => navigate("/voice")}
-              style={{ position:"relative", marginTop:-22, width:58, height:58, borderRadius:"50%",
-                background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-                boxShadow:"0 0 0 4px var(--bg2), 0 8px 20px rgba(212,98,31,0.55)",
-                display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
-                <path d="M19 10v2a7 7 0 01-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8" y1="23" x2="16" y2="23"/>
-              </svg>
-            </div>
-          )
+        {(storeMode === "bangle_fancy" ? MOB_TABS_ACTIVE : MOB_TABS).map(tab => {
+          // Held-bills tab: navigate to /billing + dispatch show-held event
+          if (tab.held) {
+            const heldCount = (() => { try { return JSON.parse(localStorage.getItem("dk_held_bills")||"[]").length } catch { return 0 } })()
+            const onBilling = location.pathname === "/billing"
+            return (
+              <button key="held"
+                onClick={() => { navigate("/billing"); window.dispatchEvent(new CustomEvent("dk:show-held")) }}
+                style={{ background:"transparent", border:"none", cursor:"pointer",
+                  display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+                  color:"var(--ink-faint)", padding:"4px 10px",
+                  flex:1, position:"relative" }}>
+                <div style={{ position:"relative", width:22, height:22,
+                  display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {tab.icon}
+                  {heldCount > 0 && (
+                    <div style={{ position:"absolute", top:-4, right:-6,
+                      minWidth:14, height:14, padding:"0 3px", borderRadius:7,
+                      background:"var(--ember)", color:"#fff",
+                      fontSize:9, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {heldCount}
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontSize:10, fontWeight:500 }}>{tNav(tab.label)}</span>
+              </button>
+            )
+          }
+
           const PRIMARY = storeMode === "bangle_fancy"
             ? ["/bangle-inventory", "/bangle-billing", "/voice", "/bangle-dashboard"]
-            : ["/dashboard", "/billing", "/voice", "/demand"]
+            : ["/billing", "/voice"]
           const on = tab.to === "/more"
             ? !PRIMARY.some(p => location.pathname.startsWith(p)) && location.pathname !== "/"
             : location.pathname.startsWith(tab.to)
           return (
-            <button key={tab.to} onClick={() => navigate(tab.to)}
+            <button key={tab.to + tab.label} onClick={() => navigate(tab.to)}
               style={{ background:"transparent", border:"none", cursor:"pointer",
                 display:"flex", flexDirection:"column", alignItems:"center", gap:3,
                 color: on ? "var(--saffron)" : "var(--ink-faint)", padding:"4px 10px",
@@ -1222,36 +1287,57 @@ export default function Layout({ children }) {
                 background: on ? "var(--saffron-bg)" : "transparent",
                 borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
                 padding:2 }}>{tab.icon}</div>
-              <span style={{ fontSize:10, fontWeight: on ? 700 : 500 }}>{tab.label}</span>
+              <span style={{ fontSize:10, fontWeight: on ? 700 : 500 }}>{tNav(tab.label)}</span>
             </button>
           )
         })}
       </nav>
 
-      {/* Floating mic — hidden on mobile (bottom nav has the mic) and on Voice page */}
-      <button onClick={() => navigate("/voice")} title="Voice Entry"
-        className="mob-voice-fab"
-        style={{ position:"fixed", bottom:24, right:86, zIndex:50,
-          display: location.pathname === "/voice" ? "none" : undefined,
-          width:52, height:52, borderRadius:"50%",
-          background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-          border:"3px solid var(--bg1)",
-          boxShadow:"0 4px 20px rgba(232,119,34,0.45)",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          cursor:"pointer", transition:"transform 0.2s, box-shadow 0.2s" }}
-        onMouseEnter={e => { e.currentTarget.style.transform="scale(1.1)"; e.currentTarget.style.boxShadow="0 6px 28px rgba(232,119,34,0.6)" }}
-        onMouseLeave={e => { e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.boxShadow="0 4px 20px rgba(232,119,34,0.45)" }}>
-        <svg width="20" height="20" fill="none" stroke="white" strokeWidth="2.5"
-          strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-          <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
-          <path d="M19 10v2a7 7 0 01-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
-      </button>
+      {/* ── Language picker sheet ─────────────────── */}
+      {showLangPicker && (
+        <div style={{ position:"fixed", inset:0, zIndex:9998, background:"rgba(0,0,0,0.5)",
+          display:"flex", alignItems:"flex-end" }}
+          onClick={() => setShowLangPicker(false)}>
+          <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+            padding:"20px 16px 32px", boxShadow:"0 -8px 32px rgba(0,0,0,0.2)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>🌐 Language</div>
+              <button onClick={() => setShowLangPicker(false)}
+                style={{ background:"none", border:"none", color:"var(--ink-faint)", fontSize:20, cursor:"pointer" }}>✕</button>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              {LANG_OPTIONS.map(l => (
+                <button key={l.code} onClick={() => setAppLang(l.code)}
+                  style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px",
+                    borderRadius:14, border:`1.5px solid ${uiLang===l.code ? "var(--saffron)" : "var(--rule)"}`,
+                    background: uiLang===l.code ? "var(--saffron-bg)" : "var(--bg2)",
+                    cursor:"pointer", textAlign:"left", transition:"all 0.12s" }}>
+                  <div style={{ width:36, height:36, borderRadius:10,
+                    background: uiLang===l.code ? "var(--saffron)" : "var(--bg0)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:18, fontWeight:800,
+                    color: uiLang===l.code ? "#fff" : "var(--ink)", flexShrink:0 }}>
+                    {l.native}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{l.label}</div>
+                    {uiLang===l.code && (
+                      <div style={{ fontSize:10, color:"var(--saffron)", fontWeight:700 }}>✓ Active</div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Groq AI chat bubble */}
       <AIChatWidget />
+
+      {/* Daily open/close gate — prompts on first load each day */}
+      {loggedIn && <DaySessionGate vendor={vendor} />}
     </div>
   )
 }
