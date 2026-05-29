@@ -38,6 +38,7 @@ import BangleFestivals      from "./pages/BangleFestivals"
 import BangleInsights      from "./pages/BangleInsights"
 import BangleDashboard    from "./pages/BangleDashboard"
 import BangleBulkImport  from "./pages/BangleBulkImport"
+import BangleDayOps      from "./pages/BangleDayOps"
 import ReorderHub        from "./pages/ReorderHub"
 import Onboarding       from "./pages/Onboarding"
 // Wrapper that gates a page behind a plan feature
@@ -96,6 +97,7 @@ export default function App() {
                   <Route path="/bangle-insights"    element={<BangleInsights />} />
                   <Route path="/bangle-dashboard"   element={<BangleDashboard />} />
                   <Route path="/bangle-bulk-import" element={<BangleBulkImport />} />
+                  <Route path="/bangle-day"         element={<BangleDayOps />} />
                   <Route path="/reorder"           element={<ReorderHub />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                 </Routes>

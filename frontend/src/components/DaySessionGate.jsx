@@ -64,6 +64,8 @@ export default function DaySessionGate({ vendor }) {
 
   useEffect(() => {
     if (!vendor) return
+    // Skip bangle-only users — they manage day sessions via /bangle-day
+    if (Array.isArray(vendor.modules) && vendor.modules.includes("bangle_fancy") && !vendor.modules.includes("kirana")) return
     if (sessionStorage.getItem(doneKey)) return
 
     const snoozeUntil = parseInt(sessionStorage.getItem(snoozeKey) || "0")
@@ -77,6 +79,8 @@ export default function DaySessionGate({ vendor }) {
   // End-of-day closing reminder: if still open after 6 PM, nudge once per hour
   useEffect(() => {
     if (!vendor) return
+    // Skip bangle-only users — they manage day sessions via /bangle-day
+    if (Array.isArray(vendor.modules) && vendor.modules.includes("bangle_fancy") && !vendor.modules.includes("kirana")) return
     const closeReminderKey = `dk_gate_close_remind_${today}`
 
     const check = async () => {

@@ -47,7 +47,8 @@ const SECTIONS = [
 
 export default function More() {
   const navigate = useNavigate()
-  const { vendor, cloud, logout, loggedIn } = useAuth()
+  const { vendor, cloud, logout, loggedIn, hasModule } = useAuth()
+  const isBangleOnly = hasModule("bangle_fancy") && !hasModule("kirana")
   const { planLabel } = usePlan()
   const { isDark, toggleTheme } = useTheme()
   const { appMode, setAppMode, isScreenVisible, APP_MODES } = useAppMode()
@@ -129,8 +130,10 @@ export default function More() {
                   fontSize:12, color:"var(--ink-faint)" }}>{sec.hindi}</div>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                {visible.map(item => (
-                  <button key={item.to} onClick={() => navigate(item.to)}
+                {visible.map(item => {
+                  const effectiveTo = item.to === "/day" && isBangleOnly ? "/bangle-day" : item.to
+                  return (
+                  <button key={item.to} onClick={() => navigate(effectiveTo)}
                     style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
                       borderRadius:14, padding:"14px 12px", cursor:"pointer",
                       display:"flex", flexDirection:"column", alignItems:"flex-start", gap:6,
@@ -150,7 +153,8 @@ export default function More() {
                       {item.desc}
                     </div>
                   </button>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )

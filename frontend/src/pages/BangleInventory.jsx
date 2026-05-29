@@ -36,6 +36,12 @@ const CAT_GROUPS = {
   "Beauty": ["Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care"],
   "Personal Care": ["Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color"],
 }
+// Categories priced per PIECE (not per dozen like bangles)
+const PIECE_CATS = new Set([
+  "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact","Skin Care",
+  "Shampoo","Hair Oil","Body Lotion","Soap","Talcum Powder","Hair Color","Other",
+])
+const isPieceCat = cat => PIECE_CATS.has(cat)
 const CAT_GROUP_ICONS = { "Jewellery": "💍", "Beauty": "💄", "Personal Care": "🧴" }
 
 const CATEGORY_SIZES = {
@@ -1338,7 +1344,7 @@ function AddVariantsModal({ product, onClose, onSaved }) {
 }
 
 // ── Variant Row ────────────────────────────────────────────
-function VariantRow({ variant, productMrp, onStockChange }) {
+function VariantRow({ variant, productMrp, productCategory, onStockChange }) {
   const [stock, setStock] = useState(variant.stock)
   const [saving, setSaving] = useState(false)
   const isLow = stock < variant.min_stock
@@ -1379,8 +1385,21 @@ function VariantRow({ variant, productMrp, onStockChange }) {
           className="w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center"
           style={{background:"var(--bg2)",color:"var(--ink-dim)"}}>+</button>
       </div>
-      <div className="text-[10px] font-semibold w-12 text-right" style={{color:"var(--jade)"}}>
-        {INR(variant.mrp||productMrp)}
+      <div className="text-right" style={{minWidth:52}}>
+        {isPieceCat(productCategory) ? (
+          <div className="text-[10px] font-semibold" style={{color:"var(--jade)"}}>
+            {INR(variant.mrp||productMrp)}<span style={{fontSize:8,color:"var(--ink-faint)",fontWeight:500}}>/pc</span>
+          </div>
+        ) : (
+          <>
+            <div className="text-[10px] font-semibold" style={{color:"var(--jade)"}}>
+              {INR(variant.mrp||productMrp)}<span style={{fontSize:8,color:"var(--ink-faint)",fontWeight:500}}>/dz</span>
+            </div>
+            <div style={{fontSize:9,color:"var(--ink-faint)"}}>
+              ₹{+((variant.mrp||productMrp)/12).toFixed(0)}/pc
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -1589,12 +1608,16 @@ function EditProductModal({ product, onClose, onSaved, suppliers }) {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="label">MRP (₹)</label>
+              <label className="label">
+                MRP {isPieceCat(form.category) ? "(₹/piece)" : "(₹/dozen)"}
+              </label>
               <input className="input" type="number" min="0" placeholder="0"
                 value={form.mrp} onChange={e => set("mrp", e.target.value)} />
             </div>
             <div>
-              <label className="label">Cost Price (₹)</label>
+              <label className="label">
+                Cost Price {isPieceCat(form.category) ? "(₹/piece)" : "(₹/dozen)"}
+              </label>
               <input className="input" type="number" min="0" placeholder="0"
                 value={form.cost_price} onChange={e => set("cost_price", e.target.value)} />
             </div>
@@ -1662,12 +1685,22 @@ function EditProductModal({ product, onClose, onSaved, suppliers }) {
           {form.mrp && form.cost_price && Number(form.mrp) > 0 && Number(form.cost_price) > 0 && (
             <div style={{background:"#f0faf6", borderRadius:10, padding:"8px 12px", fontSize:11}}>
               <div style={{display:"flex", justifyContent:"space-between"}}>
-                <span style={{color:"var(--ink-faint)"}}>Margin per dozen</span>
+                <span style={{color:"var(--ink-faint)"}}>
+                  Margin {isPieceCat(form.category) ? "per piece" : "per dozen"}
+                </span>
                 <span style={{fontWeight:700, color:"var(--jade)"}}>
                   {INR(Number(form.mrp) - Number(form.cost_price))}
                   &nbsp;({Math.round((Number(form.mrp) - Number(form.cost_price)) / Number(form.mrp) * 100)}%)
                 </span>
               </div>
+              {!isPieceCat(form.category) && (
+                <div style={{display:"flex", justifyContent:"space-between", marginTop:4}}>
+                  <span style={{color:"var(--ink-faint)"}}>Per piece</span>
+                  <span style={{fontWeight:600, color:"var(--jade)"}}>
+                    {INR(+((Number(form.mrp) - Number(form.cost_price)) / 12).toFixed(2))}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -1725,10 +1758,10 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated, 
   const isLow = product.low_stock_count > 0
   const isOut = product.total_stock === 0 && product.variant_count > 0
 
-  // Investment = sum(variant.stock × cost_price_per_dozen / 12)
+  // Investment: piece-priced cats use cost per piece; others divide by 12 (per-dozen cost)
   const investment = (product.variants || []).reduce((s, v) => {
     const cost = v.cost_price || product.cost_price || 0
-    return s + v.stock * cost / 12
+    return s + v.stock * (isPieceCat(product.category) ? cost : cost / 12)
   }, 0)
 
   const supplierName = suppliers?.find(s => s.id === product.supplier_id)?.name
@@ -1901,6 +1934,7 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated, 
               </div>
             ) : product.variants.map(v => (
               <VariantRow key={v.id} variant={v} productMrp={product.mrp}
+                productCategory={product.category}
                 onStockChange={(id, s) => onStockChange(product.id, id, s)} />
             ))}
           </div>

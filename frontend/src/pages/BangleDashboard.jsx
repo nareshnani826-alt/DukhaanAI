@@ -134,13 +134,13 @@ function BriefingCard({ data, navigate }) {
 // ── Local day-session helpers (free-plan users) ───────────────
 function localGetDaySession() {
   try {
-    const s = JSON.parse(localStorage.getItem("dk_day_session") || "null")
+    const s = JSON.parse(localStorage.getItem("dk_bangle_day_session") || "null")
     if (!s) return null
     return s.date === new Date().toISOString().slice(0, 10) ? s : null
   } catch { return null }
 }
 function localSetDaySession(s) {
-  try { localStorage.setItem("dk_day_session", JSON.stringify(s)) } catch {}
+  try { localStorage.setItem("dk_bangle_day_session", JSON.stringify(s)) } catch {}
 }
 
 // ── Main page ──────────────────────────────────────────────────
@@ -392,7 +392,7 @@ export default function BangleDashboard() {
                 </button>
               )}
               {isClosed && (
-                <button onClick={() => navigate("/day")}
+                <button onClick={() => navigate("/bangle-day")}
                   style={{ padding:"9px 18px", borderRadius:12, flexShrink:0,
                     border:"1.5px solid var(--rule)", background:"transparent",
                     color:"var(--ink-dim)", fontSize:12, fontWeight:600, cursor:"pointer" }}>
