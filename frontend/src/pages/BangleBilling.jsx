@@ -22,15 +22,19 @@ const PIECE_CATS = new Set([
 // Returns per-unit price based on the product's pricing convention
 function unitPriceFor(mrpStored, unit, category) {
   if (PIECE_CATS.has(category)) {
-    // MRP is per piece — scale up for dozen/set
     if (unit === "dozen") return +(mrpStored * 12).toFixed(2)
     if (unit === "set")   return +(mrpStored * 6).toFixed(2)
     return mrpStored  // piece
   }
-  // MRP is per dozen (bangle convention)
+  // per dozen (bangle convention)
   if (unit === "dozen") return mrpStored
   if (unit === "set")   return +(mrpStored / 2).toFixed(2)
   return +(mrpStored / 12).toFixed(2)  // piece
+}
+// Returns cost per PIECE for a cart item — used consistently in all profit calcs.
+// cart items store cost_price as per-piece (converted at add-to-cart time).
+function itemCostTotal(item) {
+  return item.pieces * (item.cost_price || 0)
 }
 const COLOURS = [
   // Reds & Pinks
@@ -252,9 +256,11 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
   function handleScanned(decoded, match) {
     if (!match) { showFeedback("✗ No product for this barcode"); return }
     const { product, variant } = match
-    const dozenMrp  = variant.mrp  ?? product.mrp  ?? 0
-    const dozenCost = variant.cost_price ?? product.cost_price ?? 0
-    const unitPrice = +(dozenMrp / 12).toFixed(2)
+    const storedMrp  = variant.mrp  ?? product.mrp  ?? 0
+    const storedCost = variant.cost_price ?? product.cost_price ?? 0
+    const unitPrice  = unitPriceFor(storedMrp, "piece", product.category)
+    const dozenMrp   = storedMrp  // keep name for backward compat below
+    const dozenCost  = unitPriceFor(storedCost, "piece", product.category)  // now per-piece
 
     setScanItems(prev => {
       const idx = prev.findIndex(i => i.variant_id === variant.id)
@@ -302,7 +308,7 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
   const subtotal     = scanItems.reduce((s, i) => s + i.amount, 0)
   const discountAmt  = +(subtotal * discountPct / 100).toFixed(2)
   const afterDiscount= +(subtotal - discountAmt).toFixed(2)
-  const totalCost    = scanItems.reduce((s, i) => s + (i.pieces * (i.cost_price || 0) / 12), 0)
+  const totalCost    = scanItems.reduce((s, i) => s + itemCostTotal(i), 0)
   const profit       = afterDiscount - totalCost
   const hasCost      = scanItems.some(i => i.cost_price > 0)
   const marginPct    = afterDiscount > 0 ? (profit / afterDiscount) * 100 : 0
@@ -1592,8 +1598,8 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
   const total = +(afterDiscount + gstAmount).toFixed(2)
 
   // Profit = revenue after discount − cost of goods sold
-  // cost_price is stored per-dozen; divide by 12 for per-piece cost
-  const totalCost = items.reduce((s, i) => s + (i.pieces * (i.cost_price || 0) / 12), 0)
+  // cost_price is stored as per-piece in all cart items
+  const totalCost = items.reduce((s, i) => s + itemCostTotal(i), 0)
   const profit     = +(afterDiscount - totalCost).toFixed(2)
   const marginPct  = afterDiscount > 0 ? (profit / afterDiscount * 100) : 0
   const hasCost    = items.some(i => (i.cost_price || 0) > 0)
@@ -1863,7 +1869,459 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
   )
 }
 
-// ── Variant selector modal (matches Kirana POS style) ────────
+// ── 3-Step Billing Flow Modal ─────────────────────────────────
+// Step "select" → variant/unit/qty  →  Add to Cart
+// Step "cart"   → review cart items →  Generate Invoice
+// Step "review" → edit prices/GST   →  Collect & Pay
+function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToCart, onRemove, onUpdateQty, onClose, onConfirm, products, t }) {
+  const [step, setStep]       = useState(initialStep)
+  const [product, setProduct] = useState(initialProduct)
+
+  // ── SELECT step state ─────────────────────────────────────────
+  const variants = product?.variants || []
+  const colours  = [...new Set(variants.map(v => v.colour).filter(Boolean))]
+  const sizes    = [...new Set(variants.map(v => v.size).filter(Boolean))]
+  const designs  = [...new Set(variants.map(v => v.design).filter(Boolean))]
+  const [colour, setColour] = useState(colours[0] || null)
+  const [size,   setSize]   = useState(sizes[0]   || null)
+  const [design, setDesign] = useState(designs[0] || null)
+  const [unit,   setUnit]   = useState("piece")
+  const [qty,    setQty]    = useState(1)
+  const matched = variants.find(v =>
+    (colours.length===0 || v.colour===colour) &&
+    (sizes.length===0   || v.size===size)     &&
+    (designs.length===0 || v.design===design)
+  ) || variants[0]
+  const storedMrp  = matched?.mrp  ?? product?.mrp  ?? 0
+  const storedCost = matched?.cost_price ?? product?.cost_price ?? 0
+  const cat        = product?.category || ""
+  const unitPrice  = unitPriceFor(storedMrp, unit, cat)
+  const costPerUnit= unitPriceFor(storedCost, unit, cat)
+  const [sp, setSp] = useState(0)
+  useEffect(() => { if (product) setSp(unitPrice) }, [matched?.id, unit, product?.id])
+  const pieces = qty * (UNITS.find(u=>u.id===unit)?.pcs||1)
+  const amount = +(qty * sp).toFixed(2)
+  const margin = sp > 0 && costPerUnit > 0 ? ((sp - costPerUnit) / sp * 100) : null
+  const mColor = margin===null ? "#888" : margin>25 ? "#16a34a" : margin>=10 ? "#c47f00" : "#dc2626"
+  const canAdd = matched && qty > 0 && sp > 0
+
+  function handleAddToCart() {
+    if (!canAdd) return
+    onAddToCart({
+      variant_id: matched.id, product_id: product.id, product_name: product.name,
+      colour: matched.colour, size: matched.size, design: matched.design,
+      unit, unit_qty: qty, unit_price: sp, pieces, amount: +(qty * sp).toFixed(2),
+      cost_price: unitPriceFor(storedCost, "piece", cat),  // always per-piece
+      gst_percent: product.gst_percent || 3, _id: matched.id + "-" + Date.now(),
+    })
+    setStep("cart")
+  }
+
+  // ── CART step state ───────────────────────────────────────────
+  const [searchQ, setSearchQ] = useState("")
+  const searchResults = searchQ.trim().length >= 1
+    ? (products||[]).filter(p => p.name.toLowerCase().includes(searchQ.toLowerCase())).slice(0, 6) : []
+  const cartSubtotal = cart.reduce((s, i) => s + i.amount, 0)
+
+  function pickProduct(p) {
+    setProduct(p)
+    const vs = p.variants || []
+    setColour([...new Set(vs.map(v=>v.colour).filter(Boolean))][0] || null)
+    setSize([...new Set(vs.map(v=>v.size).filter(Boolean))][0] || null)
+    setDesign([...new Set(vs.map(v=>v.design).filter(Boolean))][0] || null)
+    setUnit("piece"); setQty(1); setSearchQ("")
+    setStep("select")
+  }
+
+  // ── REVIEW step state ─────────────────────────────────────────
+  const [reviewItems, setReviewItems] = useState([])
+  const [discountType,setDType]   = useState("flat")
+  const [discountVal, setDVal]    = useState("")
+  const [payMode,     setPayMode] = useState("cash")
+  const [paying,      setPaying]  = useState(false)
+  const [payErr,      setPayErr]  = useState("")
+
+  function enterReview() { setReviewItems(cart.map(i => ({ ...i }))); setStep("review") }
+
+  function setRQty(i, val) {
+    const q = Math.max(1, +val || 1)
+    const pcs = UNITS.find(u => u.id === reviewItems[i]?.unit)?.pcs || 1
+    setReviewItems(prev => prev.map((it, ri) => ri===i ? { ...it, unit_qty:q, pieces:q*pcs, amount:+(q*it.unit_price).toFixed(2) } : it))
+  }
+  function setRPrice(i, val) {
+    const p = Math.max(0, +val || 0)
+    setReviewItems(prev => prev.map((it, ri) => ri===i ? { ...it, unit_price:p, amount:+(p*it.unit_qty).toFixed(2) } : it))
+  }
+
+  const rSub      = reviewItems.reduce((s,i) => s + i.amount, 0)
+  const rDiscAmt  = discountType==="percent"
+    ? Math.round(rSub*(+discountVal||0)/100*100)/100
+    : Math.min(+discountVal||0, rSub)
+  const rAfterDisc= Math.round((rSub - rDiscAmt)*100)/100
+  const rGst      = reviewItems.reduce((s,i) => {
+    const prop = rSub>0 ? i.amount/rSub : 0
+    return s + Math.round(rAfterDisc*prop*((i.gst_percent??3)/100)*100)/100
+  }, 0)
+  const rGrandTotal = Math.round((rAfterDisc + rGst)*100)/100
+  const rTotalCost  = reviewItems.reduce((s,i) => s + itemCostTotal(i), 0)
+  const rProfit     = Math.round((rAfterDisc - rTotalCost)*100)/100
+  const rProfitPct  = rTotalCost>0 ? Math.round(rProfit/rTotalCost*100) : null
+
+  async function handleConfirm() {
+    setPaying(true); setPayErr("")
+    try {
+      const mult = rSub > 0 ? rAfterDisc / rSub : 1
+      await onConfirm({
+        items: reviewItems.map(({ _id, cost_price, ...rest }) => ({
+          ...rest, unit_price:+(rest.unit_price*mult).toFixed(2), amount:+(rest.amount*mult).toFixed(2),
+        })),
+        payment_mode: payMode,
+        notes: rDiscAmt > 0 ? `Discount: ${discountType==="percent" ? discountVal+"%" : "₹"+rDiscAmt}` : null,
+      })
+    } catch(e) { setPayErr(e.message) }
+    finally { setPaying(false) }
+  }
+
+  const headerTitle = step==="select" ? (product?.name||"Select Product")
+    : step==="cart" ? `Cart · ${cart.length} item${cart.length!==1?"s":""}`
+    : "Review Invoice"
+  const headerSub = step==="select" ? (product?.category||"")
+    : step==="cart" ? "Tap Generate Invoice to proceed"
+    : "Edit prices, apply discount, confirm GST"
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:200,
+      display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"16px", overflowY:"auto" }}>
+      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:520,
+        marginTop:16, marginBottom:16, overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
+
+        {/* Shared header */}
+        <div style={{ padding:"14px 20px", borderBottom:"1px solid #f0f0f0",
+          display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:700 }}>{headerTitle}</div>
+            <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{headerSub}</div>
+          </div>
+          <button onClick={step==="review" ? () => setStep("cart") : step==="cart" && initialStep==="select" ? () => setStep("select") : onClose}
+            style={{ background:"#f5f5f5", border:"none", borderRadius:8, padding:"6px 12px", fontSize:12, cursor:"pointer", color:"#666" }}>
+            {step==="select" ? "✕ Back" : "← Back"}
+          </button>
+        </div>
+
+        {/* ── STEP 1: SELECT ───────────────────────────────────── */}
+        {step==="select" && product && (
+          <div style={{ padding:"16px 20px" }}>
+            {matched && (
+              <div style={{ fontSize:11, padding:"6px 12px", borderRadius:8, marginBottom:14,
+                background: matched.stock>0?"#f0fdf4":"#fff1f2",
+                border:`1px solid ${matched.stock>0?"#bbf7d0":"#fecdd3"}`,
+                color: matched.stock>0?"#16a34a":"#dc2626", fontWeight:600 }}>
+                {matched.stock>0 ? `✓ ${matched.stock} pcs in stock` : "⚠ Out of stock"}
+              </div>
+            )}
+            {colours.length > 0 && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Colour</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {colours.map(c => (
+                    <button key={c} onClick={() => setColour(c===colour?null:c)}
+                      style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid", cursor:"pointer", fontSize:11, fontWeight:600,
+                        background:colour===c?"#E87722":"#f9fafb", color:colour===c?"#fff":"#555", borderColor:colour===c?"#E87722":"#e5e7eb" }}>{c}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {sizes.length > 0 && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Size</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {sizes.map(s => (
+                    <button key={s} onClick={() => setSize(s===size?null:s)}
+                      style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid", cursor:"pointer", fontSize:11, fontWeight:600,
+                        background:size===s?"#E87722":"#f9fafb", color:size===s?"#fff":"#555", borderColor:size===s?"#E87722":"#e5e7eb" }}>{s}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {designs.length > 0 && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Design</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {designs.map(d => (
+                    <button key={d} onClick={() => setDesign(d===design?null:d)}
+                      style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid", cursor:"pointer", fontSize:11, fontWeight:600,
+                        background:design===d?"#E87722":"#f9fafb", color:design===d?"#fff":"#555", borderColor:design===d?"#E87722":"#e5e7eb" }}>{d}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.8px" }}>Billing Unit</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {UNITS.map(u => (
+                  <button key={u.id} onClick={() => setUnit(u.id)}
+                    style={{ flex:1, padding:"9px 4px", borderRadius:10, border:"1.5px solid", cursor:"pointer", fontSize:11, fontWeight:700,
+                      background:unit===u.id?"#E87722":"#f9fafb", color:unit===u.id?"#fff":"#555", borderColor:unit===u.id?"#E87722":"#e5e7eb" }}>
+                    {u.label}<br/><span style={{ fontSize:9, opacity:0.75 }}>{u.pcs} pcs</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Qty</div>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <button onClick={() => setQty(q=>Math.max(1,q-1))}
+                    style={{ width:34, height:34, borderRadius:8, background:"#f9fafb", border:"1px solid #e5e7eb", color:"#555", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+                  <input type="number" min="1" value={qty} onChange={e=>setQty(Math.max(1,+e.target.value||1))}
+                    style={{ flex:1, textAlign:"center", border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 0", fontSize:15, fontWeight:700, color:"#111", background:"#fff", outline:"none" }}/>
+                  <button onClick={() => setQty(q=>q+1)}
+                    style={{ width:34, height:34, borderRadius:8, background:"#E87722", border:"none", color:"#fff", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+                </div>
+                <div style={{ fontSize:10, color:"#888", marginTop:4 }}>= {pieces} pcs</div>
+              </div>
+              <div>
+                <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Selling Price / {unit}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <div style={{ flex:1, position:"relative" }}>
+                    <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", fontSize:13, color:"#888", pointerEvents:"none" }}>₹</span>
+                    <input type="number" min="0" value={sp||""} onChange={e=>setSp(Math.max(0,+e.target.value||0))}
+                      style={{ width:"100%", border:`1.5px solid ${mColor}`, borderRadius:8, padding:"7px 8px 7px 22px", fontSize:14, fontWeight:700, color:"#111", background:"#fff", outline:"none", boxSizing:"border-box" }}/>
+                  </div>
+                  {margin!==null && <div style={{ fontSize:12, fontWeight:800, color:mColor, minWidth:36, textAlign:"center" }}>{margin.toFixed(0)}%</div>}
+                </div>
+                {storedMrp>0 && <div style={{ fontSize:10, color:"#888", marginTop:4 }}>MRP ₹{unitPrice.toFixed(2)}/{unit}</div>}
+              </div>
+            </div>
+            <button onClick={handleAddToCart} disabled={!canAdd}
+              style={{ width:"100%", padding:"13px", borderRadius:10, border:"none",
+                background:canAdd?"#1D9E75":"#e5e7eb", color:canAdd?"#fff":"#9ca3af",
+                fontSize:14, fontWeight:700, cursor:canAdd?"pointer":"default" }}>
+              {canAdd ? `+ Add to Cart · ₹${amount.toFixed(2)}` : "Select a variant first"}
+            </button>
+            {cart.length > 0 && (
+              <button onClick={() => setStep("cart")}
+                style={{ width:"100%", marginTop:8, padding:"9px", borderRadius:10,
+                  border:"1px solid #e5e7eb", background:"transparent", fontSize:12, color:"#555", cursor:"pointer" }}>
+                View Cart ({cart.length} item{cart.length!==1?"s":""}) →
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── STEP 2: CART ─────────────────────────────────────── */}
+        {step==="cart" && (
+          <div style={{ padding:"16px 20px" }}>
+            <div style={{ position:"relative", marginBottom:14 }}>
+              <input value={searchQ} onChange={e=>setSearchQ(e.target.value)}
+                placeholder="🔍  Search to add more products…"
+                style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"9px 12px",
+                  fontSize:13, outline:"none", background:"#f9fafb", color:"#111", boxSizing:"border-box" }}
+                onFocus={e=>e.target.style.borderColor="#E87722"}
+                onBlur={e=>{e.target.style.borderColor="#e5e7eb"; setTimeout(()=>setSearchQ(""),150)}}/>
+              {searchResults.length>0 && (
+                <div style={{ position:"absolute", top:"100%", left:0, right:0, zIndex:10,
+                  background:"#fff", border:"1.5px solid #E87722", borderRadius:10,
+                  boxShadow:"0 8px 24px rgba(0,0,0,0.12)", marginTop:3, overflow:"hidden" }}>
+                  {searchResults.map(p => (
+                    <button key={p.id} onMouseDown={()=>pickProduct(p)}
+                      style={{ width:"100%", background:"none", border:"none",
+                        borderBottom:"1px solid #f0f0f0", padding:"9px 12px",
+                        display:"flex", alignItems:"center", justifyContent:"space-between",
+                        cursor:"pointer", textAlign:"left" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#fff7ed"}
+                      onMouseLeave={e=>e.currentTarget.style.background=""}>
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#111" }}>{p.name}</div>
+                        <div style={{ fontSize:10, color:"#888" }}>{p.category} · ₹{unitPriceFor(p.mrp,"piece",p.category).toFixed(0)}/pc</div>
+                      </div>
+                      <span style={{ fontSize:11, color:"#E87722", fontWeight:700 }}>+ Add →</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {cart.length===0 ? (
+              <div style={{ textAlign:"center", padding:"32px 0", color:"#888" }}>
+                <div style={{ fontSize:36, marginBottom:8 }}>🛒</div>
+                <div style={{ fontSize:13 }}>Cart is empty — search a product above</div>
+              </div>
+            ) : (
+              <>
+                {cart.map(item => (
+                  <div key={item._id} style={{ display:"flex", alignItems:"center", gap:10,
+                    padding:"10px", borderRadius:10, marginBottom:8, background:"#f9fafb", border:"1px solid #e5e7eb" }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:"#111", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                        {item.product_name}
+                      </div>
+                      <div style={{ fontSize:10, color:"#888", marginTop:2 }}>
+                        {[item.colour,item.size,item.design].filter(Boolean).join(" · ")||item.unit}
+                        {" · "}{item.unit_qty} {item.unit} · ₹{item.unit_price}/{item.unit}
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, flexShrink:0 }}>
+                      <button onClick={()=>item.unit_qty<=1?onRemove(item._id):onUpdateQty(item._id,-1)}
+                        style={{ width:28, height:28, borderRadius:7, border:"none",
+                          background:item.unit_qty<=1?"#fee2e2":"#f3f4f6",
+                          color:item.unit_qty<=1?"#dc2626":"#374151",
+                          cursor:"pointer", fontSize:14, fontWeight:800 }}>
+                        {item.unit_qty<=1?"🗑":"−"}
+                      </button>
+                      <span style={{ minWidth:20, textAlign:"center", fontSize:14, fontWeight:800, color:"#111" }}>{item.unit_qty}</span>
+                      <button onClick={()=>onUpdateQty(item._id,1)}
+                        style={{ width:28, height:28, borderRadius:7, border:"none",
+                          background:"#E87722", color:"#fff", cursor:"pointer", fontSize:16, fontWeight:800 }}>+</button>
+                    </div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#111", minWidth:52, textAlign:"right", flexShrink:0 }}>
+                      ₹{item.amount.toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 4px",
+                  borderTop:"1px solid #e5e7eb", marginTop:4, marginBottom:10 }}>
+                  <span style={{ fontSize:13, color:"#555", fontWeight:600 }}>Subtotal</span>
+                  <span style={{ fontSize:15, fontWeight:800, color:"#111" }}>₹{cartSubtotal.toFixed(2)}</span>
+                </div>
+                <button onClick={enterReview}
+                  style={{ width:"100%", padding:"13px", borderRadius:10, border:"none",
+                    background:"#1D9E75", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>
+                  Generate Invoice · ₹{cartSubtotal.toFixed(2)} →
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── STEP 3: REVIEW ───────────────────────────────────── */}
+        {step==="review" && (
+          <div style={{ padding:"16px 20px" }}>
+            <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Items</div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                <thead>
+                  <tr style={{ background:"#f9fafb" }}>
+                    <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"#555" }}>Product</th>
+                    <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:50 }}>Qty</th>
+                    <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:80 }}>Rate ₹</th>
+                    <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:60 }}>GST %</th>
+                    <th style={{ textAlign:"right", padding:"6px 8px", fontWeight:600, color:"#555" }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviewItems.map((item,i) => {
+                    const gstAmt = Math.round(item.amount*((item.gst_percent??3)/100)*100)/100
+                    const total  = +(item.amount+gstAmt).toFixed(2)
+                    const costPc = itemCostTotal(item)
+                    const iProfit= +(item.amount-costPc).toFixed(2)
+                    const label  = [item.product_name,item.colour,item.size,item.design].filter(Boolean).join(" · ")
+                    return (
+                      <tr key={item._id||i} style={{ borderTop:"1px solid #f0f0f0" }}>
+                        <td style={{ padding:"8px 8px" }}>
+                          <div style={{ fontWeight:500 }}>{label}</div>
+                          <div style={{ fontSize:10, color:"#888", marginTop:1 }}>{item.unit_qty} {item.unit} · {item.pieces} pcs</div>
+                          {item.cost_price>0 && (
+                            <div style={{ fontSize:10, color:iProfit>=0?"#16a34a":"#dc2626", marginTop:2 }}>
+                              {iProfit>=0?"+":""}₹{iProfit} profit
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding:"8px 4px" }}>
+                          <input type="number" min="1" value={item.unit_qty} onChange={e=>setRQty(i,e.target.value)}
+                            style={{ width:46, textAlign:"center", border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 2px", fontSize:12 }}/>
+                        </td>
+                        <td style={{ padding:"8px 4px" }}>
+                          <input type="number" min="0" step="0.01" value={item.unit_price} onChange={e=>setRPrice(i,e.target.value)}
+                            style={{ width:72, border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 6px", fontSize:12 }}/>
+                        </td>
+                        <td style={{ padding:"8px 4px" }}>
+                          <select value={item.gst_percent??3}
+                            onChange={e=>setReviewItems(prev=>prev.map((it,ri)=>ri===i?{...it,gst_percent:+e.target.value}:it))}
+                            style={{ width:56, border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 2px", fontSize:11 }}>
+                            {[0,3,5,12,18,28].map(g=><option key={g} value={g}>{g}%</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding:"8px 8px", textAlign:"right", fontWeight:600, color:"#1D9E75" }}>₹{total}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop:14, padding:"12px", background:"#f9fafb", borderRadius:10 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Discount</div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <select value={discountType} onChange={e=>setDType(e.target.value)}
+                  style={{ border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 8px", fontSize:12, background:"#fff" }}>
+                  <option value="flat">₹ Flat</option>
+                  <option value="percent">% Percent</option>
+                </select>
+                <input type="number" min="0" placeholder="0" value={discountVal} onChange={e=>setDVal(e.target.value)}
+                  style={{ flex:1, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }}/>
+                {rDiscAmt>0 && <span style={{ fontSize:12, color:"#dc2626", fontWeight:600, whiteSpace:"nowrap" }}>− ₹{rDiscAmt}</span>}
+              </div>
+            </div>
+            <div style={{ marginTop:14, padding:"12px", border:"1px solid #e5e7eb", borderRadius:10 }}>
+              {[["Subtotal",`₹${Math.round(rSub*100)/100}`],
+                ...(rDiscAmt>0?[["Discount",`− ₹${rDiscAmt}`,"#dc2626","#dc2626"]]:[]),
+                ["CGST",`₹${Math.round(rGst/2*100)/100}`],
+                ["SGST",`₹${Math.round((rGst-rGst/2)*100)/100}`]].map(([l,v,lc,vc])=>(
+                <div key={l} style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+                  <span style={{ color:lc||"#888" }}>{l}</span>
+                  <span style={{ color:vc||undefined }}>{v}</span>
+                </div>
+              ))}
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700,
+                paddingTop:10, borderTop:"1px solid #f0f0f0", marginTop:4 }}>
+                <span>Grand Total</span>
+                <span style={{ color:"#1D9E75" }}>₹{rGrandTotal}</span>
+              </div>
+            </div>
+            {rTotalCost>0 && (
+              <div style={{ marginTop:10, padding:"10px 12px", borderRadius:10,
+                background:rProfit>=0?"#f0fdf4":"#fff1f2",
+                border:`1px solid ${rProfit>=0?"#bbf7d0":"#fecdd3"}`,
+                display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:12, color:"#555" }}>Estimated Profit</span>
+                <span style={{ fontSize:13, fontWeight:700, color:rProfit>=0?"#16a34a":"#dc2626" }}>
+                  {rProfit>=0?"+":""}₹{rProfit}
+                  {rProfitPct!==null && <span style={{ fontSize:11, fontWeight:400, marginLeft:6 }}>({rProfitPct}%)</span>}
+                </span>
+              </div>
+            )}
+            <div style={{ marginTop:14 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Payment Mode</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {[{id:"cash",label:"💵 Cash"},{id:"upi",label:"📱 UPI"},{id:"card",label:"💳 Card"},{id:"credit",label:"📒 Credit"}].map(m=>(
+                  <button key={m.id} onClick={()=>setPayMode(m.id)}
+                    style={{ flex:1, padding:"8px 4px", borderRadius:8, border:"1.5px solid", cursor:"pointer", fontSize:11, fontWeight:700,
+                      background:payMode===m.id?"#1D9E75":"#f9fafb", color:payMode===m.id?"#fff":"#555", borderColor:payMode===m.id?"#1D9E75":"#e5e7eb" }}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {payErr && <div style={{ fontSize:11, color:"#dc2626", marginTop:10 }}>{payErr}</div>}
+            <div style={{ display:"flex", gap:10, marginTop:14 }}>
+              <button onClick={()=>setStep("cart")}
+                style={{ flex:1, padding:"13px", borderRadius:10, border:"1px solid #e5e7eb", background:"#fff", fontSize:13, cursor:"pointer", color:"#666" }}>
+                ← Edit Bill
+              </button>
+              <button onClick={handleConfirm} disabled={paying}
+                style={{ flex:2, padding:"13px", borderRadius:10, border:"none",
+                  background:paying?"#e5e7eb":"#1D9E75", color:paying?"#9ca3af":"#fff",
+                  fontSize:14, fontWeight:800, cursor:paying?"default":"pointer" }}>
+                {paying?"Saving…":`✓ Collect ₹${rGrandTotal} · ${payMode.charAt(0).toUpperCase()+payMode.slice(1)}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── (Legacy — no longer used directly) ───────────────────────
 function VariantSheet({ product, onAdd, onClose, t }) {
   const variants = product?.variants || []
   const colours  = [...new Set(variants.map(v => v.colour).filter(Boolean))]
@@ -2104,7 +2562,7 @@ function BangleReviewModal({ cart, onClose, onConfirm }) {
   }, 0)
   const grandTotal = Math.round((afterDisc + gstTotal) * 100) / 100
 
-  const totalCost  = items.reduce((s, i) => s + i.pieces * ((i.cost_price || 0) / 12), 0)
+  const totalCost  = items.reduce((s, i) => s + itemCostTotal(i), 0)
   const profit     = Math.round((afterDisc - totalCost) * 100) / 100
   const profitPct  = totalCost > 0 ? Math.round(profit / totalCost * 100) : null
 
@@ -2171,7 +2629,7 @@ function BangleReviewModal({ cart, onClose, onConfirm }) {
                 {items.map((item, i) => {
                   const gstAmt     = Math.round(item.amount * ((item.gst_percent ?? 3) / 100) * 100) / 100
                   const total      = +(item.amount + gstAmt).toFixed(2)
-                  const costPc     = item.pieces * ((item.cost_price || 0) / 12)
+                  const costPc     = itemCostTotal(item)
                   const itemProfit = +(item.amount - costPc).toFixed(2)
                   const label      = [item.product_name, item.colour, item.size, item.design]
                     .filter(Boolean).join(" · ")
@@ -2397,8 +2855,9 @@ export default function BangleBilling() {
               if (match) {
                 const { product, variant } = match;
                 const storedMrp  = variant.mrp  ?? product.mrp  ?? 0;
-                const dozenCost  = variant.cost_price ?? product.cost_price ?? 0;
+                const storedCost = variant.cost_price ?? product.cost_price ?? 0;
                 const unitPrice  = unitPriceFor(storedMrp, "piece", product.category);
+                const dozenCost  = unitPriceFor(storedCost, "piece", product.category);  // per-piece
                 addToCart({
                   variant_id:   variant.id,
                   product_id:   product.id,
@@ -2540,7 +2999,6 @@ export default function BangleBilling() {
     const storedMrp  = variant.mrp  ?? product.mrp  ?? 0
     const storedCost = variant.cost_price ?? product.cost_price ?? 0
     const unitPrice  = unitPriceFor(storedMrp, unit, product.category)
-    const dozenCost  = storedCost  // keep for profit calc
     const sp = sellingPriceOverride ?? unitPrice
     addToCart({
       variant_id:   variant.id,
@@ -2551,7 +3009,7 @@ export default function BangleBilling() {
       design:       variant.design,
       unit, unit_qty: qty, unit_price: sp,
       pieces, amount: +(qty * sp).toFixed(2),
-      cost_price: dozenCost,
+      cost_price: unitPriceFor(storedCost, "piece", product.category),  // always per-piece
       gst_percent: product.gst_percent || 3,
       _id: variant.id + "-" + Date.now(),
     }, true)
@@ -2720,11 +3178,17 @@ export default function BangleBilling() {
         </div>
       )}
 
-      {/* ── Review Invoice modal (overlay) ── */}
-      {showPaySheet && (
-        <BangleReviewModal
+      {/* ── Unified 3-step billing flow modal ─────── */}
+      {(selProduct || showPaySheet) && (
+        <BillingFlowModal
+          initialStep={showPaySheet ? "cart" : "select"}
+          initialProduct={selProduct}
           cart={cart}
-          onClose={() => setShowPaySheet(false)}
+          products={products}
+          onAddToCart={item => addToCart(item, true)}
+          onRemove={removeFromCart}
+          onUpdateQty={updateQty}
+          onClose={() => { setSelProduct(null); setShowPaySheet(false) }}
           onConfirm={async (payload) => {
             const sale = await BangleSales.create({
               ...payload,
@@ -2733,18 +3197,9 @@ export default function BangleBilling() {
               apply_gst:      true,
             })
             onBill(sale)
-            setShowPaySheet(false)
+            setSelProduct(null); setShowPaySheet(false)
             setCustomer({ name:"", phone:"" })
           }}
-        />
-      )}
-
-      {/* ── Variant selector sheet ───────────────── */}
-      {selProduct && (
-        <VariantSheet
-          product={selProduct}
-          onAdd={(variant, unit, qty, sp) => { addToCartDirect(selProduct, variant, unit, qty, sp); setSelProduct(null) }}
-          onClose={() => setSelProduct(null)}
           t={t}
         />
       )}
@@ -2807,12 +3262,21 @@ export default function BangleBilling() {
           Hold
         </button>
         {cart.length > 0 && (
-          <button onClick={() => { setCart([]); setDiscountPct(0) }}
-            style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
-              color:"var(--ember)", borderRadius:9, padding:"6px 12px",
-              fontSize:11, fontWeight:700, cursor:"pointer" }}>
-            Clear
-          </button>
+          <>
+            <button onClick={() => setShowPaySheet(true)}
+              style={{ background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+                border:"none", color:"#fff", borderRadius:9, padding:"6px 14px",
+                fontSize:11, fontWeight:800, cursor:"pointer",
+                boxShadow:"0 3px 10px rgba(232,119,34,0.35)" }}>
+              🧾 Invoice
+            </button>
+            <button onClick={() => { setCart([]); setDiscountPct(0) }}
+              style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
+                color:"var(--ember)", borderRadius:9, padding:"6px 12px",
+                fontSize:11, fontWeight:700, cursor:"pointer" }}>
+              Clear
+            </button>
+          </>
         )}
       </div>
 
@@ -2998,18 +3462,7 @@ export default function BangleBilling() {
               </div>
             ))}
 
-            {/* Review & Pay — inline at bottom of cart */}
-            <button onClick={() => setShowPaySheet(true)}
-              style={{ width:"100%", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-                color:"#fff", border:"none", borderRadius:14, padding:"15px",
-                fontSize:15, fontWeight:900, cursor:"pointer", marginBottom:12,
-                display:"flex", alignItems:"center", justifyContent:"space-between",
-                boxShadow:"0 4px 16px rgba(232,119,34,0.35)" }}>
-              <span>Review &amp; Pay</span>
-              <span style={{ fontSize:17, fontWeight:900 }}>{INRb(cartSubtotal)} →</span>
-            </button>
-
-            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"0 0 12px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 12px" }}>
               <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
               <div style={{ fontSize:10, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", whiteSpace:"nowrap" }}>ADD MORE ITEMS</div>
               <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
@@ -3106,6 +3559,7 @@ export default function BangleBilling() {
           )
         })()}
       </div>
+
 
     </div>
   )

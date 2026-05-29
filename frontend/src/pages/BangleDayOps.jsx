@@ -33,7 +33,7 @@ function flattenVariants(products) {
       out.push({
         product_id:   p.id,
         product_name: p.name,
-        color:        p.color || "",
+        color:        v.colour || "",   // variants store colour (with u), not products
         variant_id:   v.id,
         size:         v.size || "",
         stock:        v.stock || 0,
@@ -44,6 +44,17 @@ function flattenVariants(products) {
     }
   }
   return out
+}
+
+// Build a lookup map from variant_id → display info (used when API doesn't include names)
+function buildVariantMap(products) {
+  const map = {}
+  for (const p of products) {
+    for (const v of (p.variants || [])) {
+      map[v.id] = { product_name: p.name, color: v.colour || "", size: v.size || "" }
+    }
+  }
+  return map
 }
 
 async function localOpenDay(products) {
@@ -156,10 +167,9 @@ export default function BangleDayOps() {
       ])
       setProducts(prods)
       setTodaySummary(summary)
-      const sess = isCloud()
-        ? await api.get("/day-sessions/today").catch(() => null)
-        : localGetSession()
-      setSession(sess)
+      // Always use local session — the generic /day-sessions cloud endpoint
+      // snapshots from the products table and doesn't include bangle variant fields.
+      setSession(localGetSession())
     } finally { setLoading(false) }
   }
 
@@ -200,8 +210,9 @@ export default function BangleDayOps() {
   const isClosed  = session?.status === "closed"
   const notOpened = !session
 
+  const variantMap   = buildVariantMap(products)   // id → {product_name, color, size}
   const allVariants  = products.flatMap(p =>
-    (p.variants || []).map(v => ({ ...v, product_name: p.name, color: p.color || "" }))
+    (p.variants || []).map(v => ({ ...v, product_name: p.name, color: v.colour || "" }))
   )
   const lowVariants  = allVariants.filter(v => v.stock < (v.min_stock || 0))
   const lowAtClose   = session?.low_stock_items || []
@@ -411,15 +422,16 @@ export default function BangleDayOps() {
                   </thead>
                   <tbody>
                     {session.opening_stock.map((v, i) => {
-                      const cur      = allVariants.find(x => x.id === v.variant_id)
+                      const cur       = allVariants.find(x => x.id === v.variant_id)
+                      const info      = variantMap[v.variant_id] || {}
                       const soldToday = Math.max(0, (v.stock || 0) - (cur?.stock || 0))
-                      const value    = (cur?.stock || 0) * ((v.cost_price || 0) / 12)
-                      const isLow    = cur && cur.stock < (cur.min_stock || 0)
+                      const value     = (cur?.stock || 0) * ((v.cost_price || 0) / 12)
+                      const isLow     = cur && cur.stock < (cur.min_stock || 0)
                       return (
                         <tr key={v.variant_id || i} style={{ background: isLow ? "#fff5f5" : undefined }}>
-                          <td className="td font-medium text-xs">{v.product_name}</td>
-                          <td className="td text-xs text-gray-500">{v.color || "—"}</td>
-                          <td className="td text-xs text-gray-500">{v.size || "—"}</td>
+                          <td className="td font-medium text-xs">{v.product_name || info.product_name || "—"}</td>
+                          <td className="td text-xs text-gray-500">{v.color || info.color || "—"}</td>
+                          <td className="td text-xs text-gray-500">{v.size || info.size || "—"}</td>
                           <td className="td text-right text-xs">{v.stock}</td>
                           <td className={`td text-right text-xs font-medium ${isLow ? "text-red-600" : "text-primary"}`}>
                             {cur?.stock ?? "—"}
@@ -463,13 +475,14 @@ export default function BangleDayOps() {
                   <tbody>
                     {session.closing_stock.map((v, i) => {
                       const opening = (session.opening_stock || []).find(o => o.variant_id === v.variant_id)
+                      const info    = variantMap[v.variant_id] || {}
                       const sold    = Math.max(0, (opening?.stock || 0) - (v.stock || 0))
                       const isLow   = v.stock < (v.min_stock || 0)
                       return (
                         <tr key={v.variant_id || i} style={{ background: isLow ? "#fff5f5" : undefined }}>
-                          <td className="td font-medium text-xs">{v.product_name}</td>
-                          <td className="td text-xs text-gray-500">{v.color || "—"}</td>
-                          <td className="td text-xs text-gray-500">{v.size || "—"}</td>
+                          <td className="td font-medium text-xs">{v.product_name || info.product_name || "—"}</td>
+                          <td className="td text-xs text-gray-500">{v.color || v.colour || info.color || "—"}</td>
+                          <td className="td text-xs text-gray-500">{v.size || info.size || "—"}</td>
                           <td className="td text-right text-xs text-gray-500">{opening?.stock ?? "—"}</td>
                           <td className={`td text-right text-xs font-medium ${isLow ? "text-red-600" : "text-gray-700"}`}>
                             {v.stock}
