@@ -511,6 +511,7 @@ function AIChatWidget() {
   const [micActive, setMicActive] = useState(false)
   const msgsRef    = useRef(null)
   const inputRef   = useRef(null)
+  const recRef     = useRef(null)
   const langInitRef = useRef(true)
 
   useEffect(() => {
@@ -626,17 +627,36 @@ function AIChatWidget() {
     }])
   }
 
+  function stopMic() {
+    try { recRef.current?.stop() } catch {}
+    recRef.current = null
+    setMicActive(false)
+  }
+
   function startMic() {
+    // Toggle: if already listening, stop
+    if (micActive) { stopMic(); return }
+
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) return
-    const rec    = new SR()
-    rec.lang     = lang
+    const rec = new SR()
+    recRef.current = rec
+    rec.lang = lang
     rec.onstart  = () => setMicActive(true)
-    rec.onresult = (e) => { const t = e.results[0][0].transcript; setMicActive(false); send(t) }
-    rec.onerror  = () => setMicActive(false)
-    rec.onend    = () => setMicActive(false)
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript
+      stopMic()
+      send(text)
+    }
+    rec.onerror  = () => stopMic()
+    rec.onend    = () => stopMic()
     rec.start()
   }
+
+  // Stop mic when widget is closed or component unmounts
+  useEffect(() => {
+    if (!open) stopMic()
+  }, [open])
 
   const chips = isBangle
     ? (BANGLE_CHIPS_BY_LANG[lang] || BANGLE_CHIPS_BY_LANG["en-IN"])
@@ -796,7 +816,8 @@ function AIChatWidget() {
               border: micActive ? "1.5px solid rgba(220,38,38,0.45)" : "0.5px solid var(--rule, #eee)",
               padding:"0 10px", minHeight:34, transition:"all 0.2s" }}>
               {micActive ? (
-                <div style={{ flex:1, display:"flex", alignItems:"center", gap:6, padding:"6px 0" }}>
+                <div onClick={stopMic} title="Tap to stop"
+                  style={{ flex:1, display:"flex", alignItems:"center", gap:6, padding:"6px 0", cursor:"pointer" }}>
                   <span style={{ fontSize:11, color:"#dc2626", fontWeight:600,
                     animation:"micListenPulse 1.2s ease-in-out infinite" }}>{t.listening}</span>
                   <div style={{ display:"flex", gap:2, alignItems:"flex-end" }}>
@@ -809,6 +830,7 @@ function AIChatWidget() {
                       }}/>
                     ))}
                   </div>
+                  <span style={{ fontSize:9, color:"rgba(220,38,38,0.6)", marginLeft:2 }}>tap to stop</span>
                 </div>
               ) : (
                 <input ref={inputRef} type="text" value={input}
@@ -819,20 +841,31 @@ function AIChatWidget() {
                   style={{ flex:1, border:"none", outline:"none", background:"transparent",
                     fontSize:12, color:"var(--ink, #1a1a1a)", fontFamily:"inherit", padding:"6px 0" }}/>
               )}
-              <button onClick={startMic} aria-label="Voice input" disabled={micActive}
-                style={{ background: micActive ? "rgba(220,38,38,0.1)" : "none",
-                  border:"none", cursor: micActive ? "default" : "pointer", padding:"2px",
-                  borderRadius:"50%", width:22, height:22,
+              <button onClick={startMic} aria-label={micActive ? "Stop listening" : "Voice input"}
+                title={micActive ? "Tap to stop" : "Voice input"}
+                style={{ background: micActive ? "rgba(220,38,38,0.15)" : "none",
+                  border: micActive ? "1.5px solid rgba(220,38,38,0.5)" : "none",
+                  cursor: "pointer", padding:"2px",
+                  borderRadius:"50%", width:24, height:24,
                   color: micActive ? "#dc2626" : "var(--saffron, #e87722)",
                   display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
                   animation: micActive ? "micRing 1.4s ease-in-out infinite" : "none" }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="2" width="6" height="11" rx="3"/>
-                  <path d="M5 10a7 7 0 0 0 14 0"/>
-                  <line x1="12" y1="19" x2="12" y2="22"/>
-                  <line x1="9" y1="22" x2="15" y2="22"/>
-                </svg>
+                {micActive ? (
+                  /* Stop icon when active */
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                    fill="currentColor">
+                    <rect x="4" y="4" width="16" height="16" rx="2"/>
+                  </svg>
+                ) : (
+                  /* Mic icon when idle */
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2" width="6" height="11" rx="3"/>
+                    <path d="M5 10a7 7 0 0 0 14 0"/>
+                    <line x1="12" y1="19" x2="12" y2="22"/>
+                    <line x1="9" y1="22" x2="15" y2="22"/>
+                  </svg>
+                )}
               </button>
             </div>
             <button onClick={() => send()} disabled={loading || !input.trim()} aria-label="Send"
