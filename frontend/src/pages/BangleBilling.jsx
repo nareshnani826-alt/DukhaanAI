@@ -2333,8 +2333,28 @@ function BangleReviewModal({ cart, onClose, onConfirm }) {
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function BangleBilling() {
-    // Unified scan handler: always use native scanner in app, web scanner in browser
-    const handleScan = async () => {
+  const { vendor } = useAuth()
+  const { t }      = useLang()
+  const [products,     setProducts]     = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [cart,         setCart]         = useState([])
+  const [receipt,      setReceipt]      = useState(null)
+  const [tab,          setTab]          = useState("items")
+  const [today,        setToday]        = useState(null)
+  const [offline,      setOffline]      = useState(!navigator.onLine)
+  const [pending,      setPending]      = useState(BangleSync.pendingCount())
+  const [syncing,      setSyncing]      = useState(false)
+  const [showScanner,  setShowScanner]  = useState(false)
+  const [showQuick,    setShowQuick]    = useState(false)
+  const [scanToast,    setScanToast]    = useState(null)  // { msg, ok }
+
+  function showScanToast(msg, ok = true, duration = 2500) {
+    setScanToast({ msg, ok })
+    setTimeout(() => setScanToast(null), duration)
+  }
+
+  // Unified scan handler — moved after state declarations so all hooks are available
+  const handleScan = async () => {
       if (Capacitor.isNativePlatform()) {
         // Native scan (MLKit)
         try {
@@ -2342,14 +2362,15 @@ export default function BangleBilling() {
           if (typeof BarcodeScanner.isGoogleBarcodeScannerModuleAvailable === 'function') {
             const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
             if (!available && typeof BarcodeScanner.installGoogleBarcodeScannerModule === 'function') {
-              alert('Google Barcode Scanner module not found. Installing now...');
+              showScanToast('Installing barcode scanner module…', true, 4000)
               await BarcodeScanner.installGoogleBarcodeScannerModule();
-              alert('Google Barcode Scanner module installed. You can now scan barcodes.');
+              showScanToast('Scanner module installed — try again', true, 3000)
+              return
             }
           }
           const perm = await BarcodeScanner.requestPermissions();
           if (!perm.camera) {
-            alert('Camera permission is required for barcode scanning.');
+            showScanToast('Camera permission required — allow in settings', false, 3500)
             return;
           }
           // Show instructions overlay before scanning
@@ -2394,42 +2415,29 @@ export default function BangleBilling() {
                   gst_percent:  product.gst_percent || 3,
                   _id:          variant.id + '-' + Date.now(),
                 });
-                alert('✓ Added: ' + product.name + (variant.colour ? ' · ' + variant.colour : ''));
+                showScanToast('✓ Added: ' + product.name + (variant.colour ? ' · ' + variant.colour : ''))
               } else {
-                alert('✗ No product for this barcode');
+                showScanToast('✗ No product found for this barcode', false)
               }
             } else {
-              alert('No barcode detected.');
+              showScanToast('No barcode detected — try again', false)
             }
           } catch (e) {
             scanError = e;
             console.error('BarcodeScanner.scan error:', e);
           } finally {
             if (document.body.contains(overlay)) document.body.removeChild(overlay);
-            if (scanError) alert('Barcode scan failed: ' + (scanError?.message || scanError));
+            if (scanError) showScanToast('Scan failed: ' + (scanError?.message || 'unknown error'), false, 3500)
           }
         } catch (e) {
           console.error('handleScan outer error:', e);
-          alert('Unexpected error: ' + (e?.message || e));
+          showScanToast('Unexpected error: ' + (e?.message || e), false, 3500)
         }
       } else {
         // Web: open ScanBillModal in camera mode
         setShowScanner(true);
       }
     };
-  const { vendor } = useAuth()
-  const { t }      = useLang()
-  const [products,     setProducts]     = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [cart,         setCart]         = useState([])
-  const [receipt,      setReceipt]      = useState(null)
-  const [tab,          setTab]          = useState("items")
-  const [today,        setToday]        = useState(null)
-  const [offline,      setOffline]      = useState(!navigator.onLine)
-  const [pending,      setPending]      = useState(BangleSync.pendingCount())
-  const [syncing,      setSyncing]      = useState(false)
-  const [showScanner,  setShowScanner]  = useState(false)
-  const [showQuick,    setShowQuick]    = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -2631,6 +2639,19 @@ export default function BangleBilling() {
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>
+
+      {/* ── Scan toast (native barcode feedback) ─── */}
+      {scanToast && (
+        <div style={{
+          position:"fixed", top:20, left:"50%", transform:"translateX(-50%)",
+          zIndex:500, background: scanToast.ok ? "var(--jade)" : "#dc2626",
+          color:"#fff", padding:"10px 20px", borderRadius:999,
+          fontSize:13, fontWeight:700, whiteSpace:"nowrap",
+          boxShadow:"0 4px 20px rgba(0,0,0,0.25)", pointerEvents:"none",
+        }}>
+          {scanToast.msg}
+        </div>
+      )}
 
       {/* ── Modals ───────────────────────────────── */}
       {showScanner && !Capacitor.isNativePlatform() && (
