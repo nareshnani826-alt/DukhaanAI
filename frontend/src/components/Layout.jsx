@@ -966,15 +966,24 @@ function AIChatWidget() {
       )}
 
       {/* Floating bubble button — hidden on Voice page (bill panel already occupies bottom-right) */}
+      {(() => {
+        const billingRoute   = storeMode === "bangle_fancy" ? "/bangle-billing" : "/billing"
+        const dashboardRoute = storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard"
+        const newBillFabVisible = location.pathname !== billingRoute
+          && location.pathname !== dashboardRoute
+          && !showAuth
+        // Stack above the New Bill FAB when both are visible; else sit just above the tab bar
+        const bubbleBottom = newBillFabVisible ? 130 : 84
+        return (
       <button onClick={() => setOpen(o => !o)} title="AI Assistant"
         className="mob-chat-btn"
-        style={{ position:"fixed", bottom:24, right:24, zIndex:201,
+        style={{ position:"fixed", bottom: bubbleBottom, right:24, zIndex:201,
           width:52, height:52, borderRadius:"50%",
           display: location.pathname === "/voice" ? "none" : "flex",
           background: open ? "var(--ink, #333)" : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
           border:"3px solid var(--bg1, #fff)",
           boxShadow:"0 4px 20px rgba(232,119,34,0.45)",
-          display:"flex", alignItems:"center", justifyContent:"center",
+          alignItems:"center", justifyContent:"center",
           cursor:"pointer", transition:"all 0.2s" }}
         onMouseEnter={e => e.currentTarget.style.transform="scale(1.1)"}
         onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
@@ -990,6 +999,8 @@ function AIChatWidget() {
           </svg>
         )}
       </button>
+        )
+      })()}
 
       <style>{`
         @keyframes chatPop {
