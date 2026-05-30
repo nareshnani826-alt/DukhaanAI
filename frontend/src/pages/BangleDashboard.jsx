@@ -214,7 +214,7 @@ export default function BangleDashboard() {
     ]).then(([b, p, s, ss]) => {
       setBriefing(b)
       setProfit(p)
-      setSales(s)
+      setSales(Array.isArray(s) ? s : (s.sales || []))
       setStockSummary(ss)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [vendor?.id])
@@ -293,19 +293,31 @@ export default function BangleDashboard() {
 
             {/* Profit clarity */}
             {profit && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8,
-                padding: "7px 12px", borderRadius: 10, width: "fit-content",
-                background: todProfit.profit >= 0 ? "var(--jade-bg)" : "var(--ember-bg)",
-                border: `1px solid ${todProfit.profit >= 0 ? "rgba(26,122,74,0.2)" : "rgba(192,57,43,0.2)"}` }}>
-                <span style={{ fontSize: 14 }}>{todProfit.profit >= 0 ? "📈" : "📉"}</span>
-                <span style={{ fontSize: 13, fontWeight: 700,
-                  color: todProfit.profit >= 0 ? "var(--jade)" : "var(--ember)" }}>
-                  {todProfit.profit >= 0 ? "+" : ""}{INR(todProfit.profit)} profit
-                </span>
-                <span style={{ fontSize: 11, color: "var(--ink-faint)", marginLeft: 4 }}>
-                  ({todProfit.margin_pct}% margin)
-                </span>
-              </div>
+              todProfit.cost_known === false || todProfit.profit === null ? (
+                /* Cost prices not set — show actionable warning instead of fake 100% */
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8,
+                  padding: "7px 12px", borderRadius: 10, width: "fit-content",
+                  background: "#fffbeb", border: "1px solid rgba(202,138,4,0.3)" }}>
+                  <span style={{ fontSize: 14 }}>⚠️</span>
+                  <span style={{ fontSize: 12, color: "#92400e" }}>
+                    Profit unavailable — <b>set cost prices</b> in Inventory to track margins
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8,
+                  padding: "7px 12px", borderRadius: 10, width: "fit-content",
+                  background: todProfit.profit >= 0 ? "var(--jade-bg)" : "var(--ember-bg)",
+                  border: `1px solid ${todProfit.profit >= 0 ? "rgba(26,122,74,0.2)" : "rgba(192,57,43,0.2)"}` }}>
+                  <span style={{ fontSize: 14 }}>{todProfit.profit >= 0 ? "📈" : "📉"}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700,
+                    color: todProfit.profit >= 0 ? "var(--jade)" : "var(--ember)" }}>
+                    {todProfit.profit >= 0 ? "+" : ""}{INR(todProfit.profit)} profit
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)", marginLeft: 4 }}>
+                    ({todProfit.margin_pct}% margin)
+                  </span>
+                </div>
+              )
             )}
 
             <div style={{ display: "flex", gap: 20, marginTop: 10, fontSize: 12, flexWrap: "wrap" }}>
@@ -406,29 +418,88 @@ export default function BangleDashboard() {
         {/* Briefing */}
         <BriefingCard data={briefing} navigate={navigate} />
 
+        {/* Quick tiles — Add Stock | Udhaar | Low Stock */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
+
+          {/* Add Stock */}
+          <button onClick={() => navigate("/bangle-inventory")}
+            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
+              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
+              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
+              boxShadow:"0 2px 8px var(--shadow)" }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:44, height:44, borderRadius:12,
+              background:"rgba(166,124,46,0.12)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>💍</div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
+            <div style={{ fontSize:11, color:"var(--brass)", fontWeight:600 }}>
+              {loading ? "—" : (stockSummary ? stockSummary.total_pieces + " pcs" : "Inventory")}
+            </div>
+          </button>
+
+          {/* Udhaar */}
+          <button onClick={() => navigate("/bangle-udhar")}
+            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
+              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
+              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
+              boxShadow:"0 2px 8px var(--shadow)" }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:44, height:44, borderRadius:12,
+              background:"rgba(220,80,60,0.10)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>📒</div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Udhaar")}</div>
+            <div style={{ fontSize:11, fontWeight:600,
+              color: (briefing?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
+              {briefing
+                ? (briefing.udhar.collected_today > 0
+                    ? "Kaata: " + INR(briefing.udhar.collected_today)
+                    : briefing.udhar.total_due > 0
+                      ? INR(briefing.udhar.total_due) + " due"
+                      : "All clear")
+                : "—"}
+            </div>
+          </button>
+
+          {/* Low Stock */}
+          <button onClick={() => navigate("/bangle-inventory")}
+            style={{ background: (briefing?.low_stock_count || 0) > 0 ? "var(--ember-bg,#fff5f5)" : "var(--bg2)",
+              border: `1.5px solid ${(briefing?.low_stock_count || 0) > 0 ? "rgba(192,57,43,0.3)" : "var(--rule)"}`,
+              borderRadius:18, padding:"18px 16px",
+              display:"flex", flexDirection:"column", alignItems:"flex-start",
+              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
+              boxShadow:"0 2px 8px var(--shadow)" }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:44, height:44, borderRadius:12,
+              background: (briefing?.low_stock_count || 0) > 0 ? "rgba(192,57,43,0.12)" : "rgba(26,122,74,0.10)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+              {(briefing?.low_stock_count || 0) > 0 ? "⚠️" : "✅"}
+            </div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Low Stock")}</div>
+            <div style={{ fontSize:11, fontWeight:600,
+              color: (briefing?.low_stock_count || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
+              {loading ? "—"
+                : (briefing?.low_stock_count || 0) > 0
+                  ? briefing.low_stock_count + " variants"
+                  : t("All stocked")}
+            </div>
+          </button>
+        </div>
+
         {/* Stats row */}
-        <div className="dash-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px,1fr))", gap: 12, marginBottom: 16 }}>
+        <div className="dash-stats-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           {[
-            {
-              label: t("Bills Today"),
-              value: loading ? "—" : tod.bills || 0,
-              sub:   loading ? "" : tod.pieces > 0 ? `${tod.pieces} ${t("pieces sold")}` : t("Start selling"),
-              color: "var(--saffron)", bar: "var(--saffron)",
-            },
-            {
-              label: t("Avg Bill"),
-              value: loading ? "—" : INR(avgBill),
-              sub:   t("Today"),
-              color: "var(--brass)", bar: "var(--brass-deep)",
-            },
             {
               label: t("Stock Value"),
               value: loading ? "—" : stockSummary?.total_investment > 0
                 ? `₹${(stockSummary.total_investment / 1000).toFixed(1)}k`
                 : "—",
-              sub: stockSummary
-                ? `${stockSummary.total_pieces} pcs`
-                : t("invested"),
+              sub:   stockSummary ? `${stockSummary.total_pieces} pcs` : t("invested"),
               color: "#7c5cbf", bar: "#7c5cbf",
             },
             {

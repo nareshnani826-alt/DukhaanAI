@@ -616,6 +616,12 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
         .order("total_due", desc=True).limit(5)
         .execute().data or []
     )
+    udhar_collected_today = (
+        db.table("udhar_transactions").select("amount")
+        .eq("vendor_id", vendor["id"]).eq("type", "payment")
+        .gte("created_at", f"{today_str}T00:00:00")
+        .execute().data or []
+    )
 
     # Stock health
     low_stock    = [p for p in products if 0 < float(p.get("stock") or 0) < float(p.get("min_stock") or 0)]
@@ -662,6 +668,7 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
     festival_boost, upcoming_festivals = get_upcoming_festivals(days_ahead=14)
 
     udhar_total = round(sum(float(u.get("total_due") or 0) for u in udhar_top), 2)
+    udhar_kaata = round(sum(float(t.get("amount") or 0) for t in udhar_collected_today), 2)
 
     return {
         "date":       today_str,
@@ -685,8 +692,9 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
         "margin_alerts":    margin_issues[:5],
         "festival_signals": {"boost": festival_boost, "upcoming": upcoming_festivals},
         "udhar": {
-            "total_due":      udhar_total,
-            "customer_count": len(udhar_top),
-            "top":            [{"name": u["name"], "amount": float(u["total_due"])} for u in udhar_top[:3]],
+            "total_due":       udhar_total,
+            "customer_count":  len(udhar_top),
+            "top":             [{"name": u["name"], "amount": float(u["total_due"])} for u in udhar_top[:3]],
+            "collected_today": udhar_kaata,
         },
     }

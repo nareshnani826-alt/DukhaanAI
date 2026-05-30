@@ -1,4 +1,4 @@
-import { useEffect }                    from "react"
+import { useEffect, lazy, Suspense }     from "react"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { initializeSeedTraining }        from "./voice-ai/seedTraining"
 import { ThemeProvider }    from "./context/ThemeContext"
@@ -8,39 +8,42 @@ import { AppModeProvider }  from "./context/AppModeContext"
 import Layout            from "./components/Layout"
 import UpgradeWall       from "./components/UpgradeWall"
 import InstallPrompt     from "./components/InstallPrompt"
-import Dashboard         from "./pages/Dashboard"
-import Inventory         from "./pages/Inventory"
-import Billing           from "./pages/Billing"
-import Agent             from "./pages/Agent"
-import Insights          from "./pages/Insights"
-import Voice             from "./pages/Voice"
-import Customers         from "./pages/Customers"
-import DayOps            from "./pages/DayOps"
-import Settings          from "./pages/Settings"
-import Help             from "./pages/Help"
-import UdharKhata           from "./pages/UdharKhata"
-import DemandIntelligence   from "./pages/DemandIntelligence"
-import WastageRecording     from "./pages/Wastage"
-import InstallGuide         from "./pages/InstallGuide"
-import BulkImport           from "./pages/BulkImport"
-import ExpiryIntelligence   from "./pages/ExpiryIntelligence"
-import History             from "./pages/History"
-import AppScreens           from "./pages/AppScreens"
-import HeroLoop             from "./pages/HeroLoop"
-import Landing              from "./pages/Landing"
-import OfflineBanner        from "./components/OfflineBanner"
-import AITest               from "./pages/AITest"
-import More                 from "./pages/More"
-import ResetPassword        from "./pages/ResetPassword"
-import BangleInventory      from "./pages/BangleInventory"
-import BangleBilling        from "./pages/BangleBilling"
-import BangleFestivals      from "./pages/BangleFestivals"
-import BangleInsights      from "./pages/BangleInsights"
-import BangleDashboard    from "./pages/BangleDashboard"
-import BangleBulkImport  from "./pages/BangleBulkImport"
-import BangleDayOps      from "./pages/BangleDayOps"
-import ReorderHub        from "./pages/ReorderHub"
-import Onboarding       from "./pages/Onboarding"
+import OfflineBanner     from "./components/OfflineBanner"
+
+const Dashboard         = lazy(() => import("./pages/Dashboard"))
+const Inventory         = lazy(() => import("./pages/Inventory"))
+const Billing           = lazy(() => import("./pages/Billing"))
+const Agent             = lazy(() => import("./pages/Agent"))
+const Insights          = lazy(() => import("./pages/Insights"))
+const Voice             = lazy(() => import("./pages/Voice"))
+const Customers         = lazy(() => import("./pages/Customers"))
+const DayOps            = lazy(() => import("./pages/DayOps"))
+const Settings          = lazy(() => import("./pages/Settings"))
+const Help              = lazy(() => import("./pages/Help"))
+const UdharKhata        = lazy(() => import("./pages/UdharKhata"))
+const DemandIntelligence = lazy(() => import("./pages/DemandIntelligence"))
+const WastageRecording  = lazy(() => import("./pages/Wastage"))
+const InstallGuide      = lazy(() => import("./pages/InstallGuide"))
+const BulkImport        = lazy(() => import("./pages/BulkImport"))
+const ExpiryIntelligence = lazy(() => import("./pages/ExpiryIntelligence"))
+const History           = lazy(() => import("./pages/History"))
+const AppScreens        = lazy(() => import("./pages/AppScreens"))
+const HeroLoop          = lazy(() => import("./pages/HeroLoop"))
+const Landing           = lazy(() => import("./pages/Landing"))
+const AITest            = lazy(() => import("./pages/AITest"))
+const More              = lazy(() => import("./pages/More"))
+const ResetPassword     = lazy(() => import("./pages/ResetPassword"))
+const BangleInventory   = lazy(() => import("./pages/BangleInventory"))
+const BangleBilling     = lazy(() => import("./pages/BangleBilling"))
+const BangleFestivals   = lazy(() => import("./pages/BangleFestivals"))
+const BangleInsights    = lazy(() => import("./pages/BangleInsights"))
+const BangleDashboard   = lazy(() => import("./pages/BangleDashboard"))
+const BangleBulkImport  = lazy(() => import("./pages/BangleBulkImport"))
+const BangleDayOps      = lazy(() => import("./pages/BangleDayOps"))
+const BangleHistory     = lazy(() => import("./pages/BangleHistory"))
+const BangleUdhar       = lazy(() => import("./pages/BangleUdhar"))
+const ReorderHub        = lazy(() => import("./pages/ReorderHub"))
+const Onboarding        = lazy(() => import("./pages/Onboarding"))
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
   return <UpgradeWall feature={feature}>{children}</UpgradeWall>
@@ -63,6 +66,12 @@ export default function App() {
         <BrowserRouter>
           <InstallPrompt />
           <OfflineBanner />
+          <Suspense fallback={
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
+              height:"100vh", fontSize:13, color:"var(--ink-faint,#aaa)" }}>
+              Loading…
+            </div>
+          }>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/onboarding" element={<Onboarding />} />
@@ -98,12 +107,15 @@ export default function App() {
                   <Route path="/bangle-dashboard"   element={<BangleDashboard />} />
                   <Route path="/bangle-bulk-import" element={<BangleBulkImport />} />
                   <Route path="/bangle-day"         element={<BangleDayOps />} />
+                  <Route path="/bangle-history"     element={<BangleHistory />} />
+                  <Route path="/bangle-udhar"       element={<BangleUdhar />} />
                   <Route path="/reorder"           element={<ReorderHub />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                 </Routes>
               </Layout>
             </FirstRunGuard>} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </AppModeProvider>
       </PlanProvider>

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
 import InvoiceView from "../components/InvoiceView.jsx"
+import UPIQRCode   from "../components/UPIQRCode.jsx"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
@@ -624,6 +625,14 @@ Thank you for shopping! 🙏`
               borderTop:"1px solid var(--rule)", background:"var(--bg1)",
               paddingBottom:"max(16px, env(safe-area-inset-bottom))",
               display:"flex", flexDirection:"column", gap:10 }}>
+
+              {/* UPI QR — compact mode, shows if UPI ID is configured */}
+              <UPIQRCode
+                invoice={invoice}
+                storeName={vendor?.store_name}
+                compact={true}
+              />
+
               <button onClick={shareWhatsApp}
                 style={{ width:"100%", padding:"14px", borderRadius:13, border:"none",
                   background:"#25D366", color:"#fff", fontSize:15, fontWeight:800,

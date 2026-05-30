@@ -1,8 +1,10 @@
+import asyncio
 from datetime import date as date_type
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from app.core.cache import cache_get, cache_set, cache_bust
 from pydantic import BaseModel, field_validator
 
 from app.core.config import settings
@@ -165,33 +167,65 @@ async def delete_supplier(supplier_id: str, vendor=Depends(get_current_vendor)):
 
 # ── Products ──────────────────────────────────────────────────
 
-@router.get("/products")
-async def list_products(vendor=Depends(get_current_vendor)):
-    db = get_db()
-    products = (
-        db.table("bangle_products")
-        .select("*")
-        .eq("vendor_id", vendor["id"])
-        .eq("is_active", True)
-        .order("created_at", desc=True)
-        .execute()
-    ).data or []
+_CACHE_TTL = 30  # seconds
 
-    # Attach variant summary to each product
-    for p in products:
-        variants = (
+def _bust_bangle(vendor_id: str) -> None:
+    cache_bust(f"bangle:{vendor_id}:")
+
+
+@router.get("/products")
+async def list_products(
+    limit:  int = Query(200, ge=1, le=500),
+    offset: int = Query(0,   ge=0),
+    vendor=Depends(get_current_vendor),
+):
+    cache_key = f"bangle:{vendor['id']}:{limit}:{offset}"
+    cached = cache_get(cache_key, _CACHE_TTL)
+    if cached is not None:
+        return cached
+
+    def _query():
+        db = get_db()
+        products = (
+            db.table("bangle_products")
+            .select("*")
+            .eq("vendor_id", vendor["id"])
+            .eq("is_active", True)
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        ).data or []
+
+        if not products:
+            return products
+
+        # Single batch query for all variants — replaces N per-product queries
+        product_ids = [p["id"] for p in products]
+        all_variants = (
             db.table("bangle_variants")
-            .select("id,colour,size,design,stock,min_stock,mrp,cost_price,is_active")
-            .eq("product_id", p["id"])
+            .select("id,product_id,colour,size,design,stock,min_stock,mrp,cost_price,is_active")
+            .in_("product_id", product_ids)
             .eq("is_active", True)
             .execute()
         ).data or []
-        p["variants"] = variants
-        p["total_stock"] = sum(v["stock"] for v in variants)
-        p["low_stock_count"] = sum(1 for v in variants if v["stock"] < v["min_stock"])
-        p["variant_count"] = len(variants)
 
-    return products
+        # Group variants by product_id in Python
+        variant_map: dict = {}
+        for v in all_variants:
+            variant_map.setdefault(v["product_id"], []).append(v)
+
+        for p in products:
+            variants = variant_map.get(p["id"], [])
+            p["variants"]        = variants
+            p["total_stock"]     = sum(v["stock"] for v in variants)
+            p["low_stock_count"] = sum(1 for v in variants if v["stock"] < v["min_stock"])
+            p["variant_count"]   = len(variants)
+
+        return products
+
+    data = await asyncio.to_thread(_query)
+    cache_set(cache_key, data)
+    return data
 
 
 @router.post("/products", status_code=201)
@@ -225,6 +259,7 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
     row["variants"] = []
     row["total_stock"] = 0
     row["variant_count"] = 0
+    _bust_bangle(vendor["id"])
     return row
 
 
@@ -254,6 +289,7 @@ async def update_product(product_id: str, body: ProductUpdate, vendor=Depends(ge
             .eq("is_active", True) \
             .execute()
 
+    _bust_bangle(vendor["id"])
     return result.data[0]
 
 
@@ -261,6 +297,7 @@ async def update_product(product_id: str, body: ProductUpdate, vendor=Depends(ge
 async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     db.table("bangle_products").update({"is_active": False}).eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
+    _bust_bangle(vendor["id"])
     return {"message": "Product deleted"}
 
 
@@ -535,6 +572,7 @@ async def add_variant(product_id: str, body: VariantCreate, vendor=Depends(get_c
         "mrp":        body.mrp,
         "cost_price": body.cost_price,
     }).execute().data[0]
+    _bust_bangle(vendor["id"])
     return row
 
 
@@ -553,6 +591,7 @@ async def update_variant(variant_id: str, body: VariantUpdate, vendor=Depends(ge
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Variant not found")
+    _bust_bangle(vendor["id"])
     return result.data[0]
 
 
@@ -560,6 +599,7 @@ async def update_variant(variant_id: str, body: VariantUpdate, vendor=Depends(ge
 async def delete_variant(variant_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     db.table("bangle_variants").update({"is_active": False}).eq("id", variant_id).eq("vendor_id", vendor["id"]).execute()
+    _bust_bangle(vendor["id"])
     return {"message": "Variant deleted"}
 
 
@@ -635,6 +675,7 @@ async def bulk_import_products(body: BulkImportBody, vendor=Depends(get_current_
         except Exception:
             failed += 1
 
+    _bust_bangle(vendor["id"])
     return {
         "products_added": products_added,
         "variants_added": variants_added,
@@ -688,6 +729,7 @@ async def bulk_restock_variants(body: BulkRestockBody, vendor=Depends(get_curren
             except Exception:
                 failed += 1
 
+    _bust_bangle(vendor["id"])
     return {"updated": updated, "failed": failed, "total": len(body.items)}
 
 
@@ -827,14 +869,147 @@ async def today_summary(vendor=Depends(get_current_vendor)):
 
 @router.get("/sales")
 async def list_sales(
-    sale_date: Optional[str] = Query(None),
+    sale_date:    Optional[str] = Query(None),
+    date_from:    Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to:      Optional[str] = Query(None, description="YYYY-MM-DD"),
+    search:       Optional[str] = Query(None, description="Customer name or invoice ID"),
+    payment_mode: Optional[str] = Query(None),
+    sort:         str           = Query("newest",  description="newest|oldest|amount_desc|amount_asc"),
+    limit:        int           = Query(50,  ge=1, le=200),
+    offset:       int           = Query(0,   ge=0),
     vendor=Depends(get_current_vendor),
 ):
-    db = get_db()
-    q  = db.table("bangle_sales").select("*").eq("vendor_id", vendor["id"])
-    if sale_date:
-        q = q.eq("sale_date", sale_date)
-    return (q.order("created_at", desc=True).limit(100).execute()).data or []
+    import asyncio
+
+    def _query():
+        db = get_db()
+        q  = db.table("bangle_sales").select("*").eq("vendor_id", vendor["id"])
+
+        # ── Filters ─────────────────────────────────────────────
+        if sale_date:
+            q = q.eq("sale_date", sale_date)
+        if date_from:
+            q = q.gte("sale_date", date_from)
+        if date_to:
+            q = q.lte("sale_date", date_to)
+        if payment_mode:
+            q = q.eq("payment_mode", payment_mode)
+
+        rows = q.order(
+            "created_at" if sort in ("newest", "oldest") else "total",
+            desc=(sort in ("newest", "amount_desc")),
+        ).execute().data or []
+
+        # ── In-memory search ─────────────────────────────────────
+        if search:
+            s = search.strip().lower()
+            rows = [
+                r for r in rows
+                if s in (r.get("customer_name") or "").lower()
+                or s in (r.get("customer_phone") or "").lower()
+                or r.get("id", "").lower().startswith(s)
+                or r.get("id", "").lower()[-8:].startswith(s)
+            ]
+
+        # ── Period summary (calculated on full filtered set) ──────
+        revenue     = round(sum(float(r.get("total") or 0) for r in rows), 2)
+        total_bills = len(rows)
+        total_pieces = sum(
+            int(i.get("pieces") or 0)
+            for r in rows for i in (r.get("items") or [])
+        )
+
+        # ── Build variant→cost map with product-level fallback ───
+        # Matches exactly what the Inventory page uses so numbers agree.
+        all_variant_ids = list({
+            i["variant_id"] for r in rows for i in (r.get("items") or [])
+            if i.get("variant_id")
+        })
+        variant_costs: dict = {}
+        if all_variant_ids:
+            vcrows = db.table("bangle_variants") \
+                .select("id,product_id,cost_price") \
+                .in_("id", all_variant_ids).execute().data or []
+
+            # Fetch product-level cost_price fallback for variants with no variant cost
+            null_product_ids = list({
+                v["product_id"] for v in vcrows
+                if not v.get("cost_price") and v.get("product_id")
+            })
+            prod_cost: dict = {}
+            if null_product_ids:
+                prows = db.table("bangle_products").select("id,cost_price") \
+                    .in_("id", null_product_ids).execute().data or []
+                prod_cost = {p["id"]: float(p.get("cost_price") or 0) for p in prows}
+
+            for v in vcrows:
+                cost_val = float(v.get("cost_price") or 0) \
+                           or prod_cost.get(v.get("product_id", ""), 0)
+                variant_costs[v["id"]] = cost_val
+
+        # Count coverage after fallback
+        all_items   = [i for r in rows for i in (r.get("items") or [])]
+        items_with_cost = sum(
+            1 for i in all_items
+            if variant_costs.get(i.get("variant_id", ""), 0) > 0
+        )
+        coverage = items_with_cost / len(all_items) if all_items else 0
+
+        cost = round(sum(
+            float(i.get("pieces") or 0) * variant_costs.get(i.get("variant_id", ""), 0) / 12
+            for i in all_items
+        ), 2)
+
+        cost_known  = coverage >= 0.80
+        partial     = 0 < coverage < 0.80
+        profit      = round(revenue - cost, 2) if cost_known else None
+        margin_pct  = round((profit / revenue * 100), 1) if (cost_known and revenue > 0) else None
+
+        # ── Stock value — same logic as Inventory page ─────────────
+        sv_rows = db.table("bangle_variants") \
+            .select("stock,cost_price,product_id") \
+            .eq("vendor_id", vendor["id"]).eq("is_active", True).execute().data or []
+
+        # Product-level fallback for stock variants with no cost
+        sv_null_pids = list({
+            v["product_id"] for v in sv_rows
+            if not v.get("cost_price") and v.get("product_id")
+        })
+        sv_prod_cost: dict = {}
+        if sv_null_pids:
+            svp = db.table("bangle_products").select("id,cost_price") \
+                .in_("id", sv_null_pids).execute().data or []
+            sv_prod_cost = {p["id"]: float(p.get("cost_price") or 0) for p in svp}
+
+        stock_value = round(sum(
+            float(v.get("stock") or 0) *
+            (float(v.get("cost_price") or 0) or sv_prod_cost.get(v.get("product_id", ""), 0)) / 12
+            for v in sv_rows
+        ), 2)
+
+        summary = {
+            "revenue":      revenue,
+            "profit":       profit,
+            "margin_pct":   margin_pct,
+            "cost_known":   cost_known,
+            "partial_cost": partial,          # some costs set, but not enough to trust
+            "cost_coverage": round(coverage * 100, 0),  # % of items with cost data
+            "total_bills":  total_bills,
+            "total_pieces": total_pieces,
+            "stock_value":  stock_value,
+        }
+
+        total_count = len(rows)
+        return rows[offset: offset + limit], total_count, summary
+
+    rows, total_count, summary = await asyncio.to_thread(_query)
+    return {
+        "sales":   rows,
+        "total":   total_count,
+        "limit":   limit,
+        "offset":  offset,
+        "summary": summary,
+    }
 
 
 @router.get("/sales/{sale_id}")
@@ -973,10 +1148,18 @@ async def bangle_profit(vendor=Depends(get_current_vendor)):
             float(item.get("pieces") or 0) * variant_costs.get(item.get("variant_id", ""), 0) / 12
             for s in sale_list for item in (s.get("items") or [])
         )
+        # cost_known = True only when at least one variant has a non-zero cost price.
+        # If all cost prices are 0, profit numbers are meaningless (misleading 100% margin).
+        cost_known = cost > 0
         profit = rev - cost
-        margin = (profit / rev * 100) if rev > 0 else 0
-        return {"revenue": round(rev, 2), "cost": round(cost, 2),
-                "profit": round(profit, 2), "margin_pct": round(margin, 1)}
+        margin = (profit / rev * 100) if rev > 0 and cost_known else 0
+        return {
+            "revenue":    round(rev, 2),
+            "cost":       round(cost, 2),
+            "profit":     round(profit, 2) if cost_known else None,
+            "margin_pct": round(margin, 1) if cost_known else None,
+            "cost_known": cost_known,
+        }
 
     today_str  = today.isoformat()
     today_sales = [s for s in sales if s.get("sale_date", "")[:10] == today_str]
@@ -1091,6 +1274,23 @@ async def bangle_briefing(vendor=Depends(get_current_vendor)):
     _, upcoming_fests = get_upcoming_festivals(days_ahead=60)
     next_fest = upcoming_fests[0] if upcoming_fests else None
 
+    # Udhaar collected today (payments received)
+    udhar_payments_today = (
+        db.table("udhar_transactions").select("amount")
+        .eq("vendor_id", vendor["id"]).eq("type", "payment")
+        .gte("created_at", f"{today.isoformat()}T00:00:00")
+        .execute().data or []
+    )
+    udhar_collected_today = round(sum(float(t.get("amount") or 0) for t in udhar_payments_today), 2)
+
+    # Udhaar outstanding
+    udhar_customers = (
+        db.table("udhar_customers").select("total_due")
+        .eq("vendor_id", vendor["id"]).gt("total_due", 0).execute().data or []
+    )
+    udhar_total_due    = round(sum(float(u.get("total_due") or 0) for u in udhar_customers), 2)
+    udhar_customer_count = len(udhar_customers)
+
     return {
         "today": {
             "revenue":    t_revenue,
@@ -1098,10 +1298,15 @@ async def bangle_briefing(vendor=Depends(get_current_vendor)):
             "pieces":     t_pieces,
             "top_colour": top_colour,
         },
-        "low_stock_count": len(low_stock),
-        "out_of_stock":    len(out_stock),
+        "low_stock_count":  len(low_stock),
+        "out_of_stock":     len(out_stock),
         "dead_stock_count": dead_count,
-        "next_festival":   next_fest,
+        "next_festival":    next_fest,
+        "udhar": {
+            "total_due":       udhar_total_due,
+            "customer_count":  udhar_customer_count,
+            "collected_today": udhar_collected_today,
+        },
     }
 
 

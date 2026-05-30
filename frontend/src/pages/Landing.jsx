@@ -1,5 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { useAuth } from "../context/AuthContext"
 import AuthModal from "../components/AuthModal"
 
 const RESPONSIVE_CSS = `
@@ -67,11 +68,23 @@ const RESPONSIVE_CSS = `
   }
 `
 
+function homeRoute(vendor) {
+  const mods = vendor?.modules || []
+  if (mods.includes("bangle_fancy") && !mods.includes("kirana")) return "/bangle-billing"
+  return "/billing"
+}
+
 export default function Landing() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const { loggedIn, vendor } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
 
-  function goToApp() { navigate("/dashboard") }
+  // Redirect logged-in users straight to their billing page
+  useEffect(() => {
+    if (loggedIn) navigate(homeRoute(vendor))
+  }, [loggedIn])
+
+  function goToApp() { navigate(loggedIn ? homeRoute(vendor) : "/billing") }
 
   return (
     <div style={{
@@ -80,7 +93,7 @@ export default function Landing() {
       background:"#140b06", color:"#f4e4c1",
     }}>
       <style>{RESPONSIVE_CSS}</style>
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {showAuth && <AuthModal onClose={(success) => { setShowAuth(false); if (success) navigate(homeRoute(vendor)) }} />}
 
       {/* ── NAV ───────────────────────────────────────────── */}
       <nav className="lp-nav" style={{

@@ -201,12 +201,14 @@ export default function Dashboard() {
     return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("dk:voice-lang", onStorage) }
   }, [])
   const t = (key) => tr(key, uiLang)
-  const [today,    setToday]    = useState({ total:0, count:0, sales:[] })
-  const [summary,  setSummary]  = useState({ total_revenue:0 })
-  const [low,      setLow]      = useState([])
-  const [total,    setTotal]    = useState(0)
-  const [loading,  setLoading]  = useState(true)
-  const [briefing, setBriefing] = useState(null)
+  const [today,       setToday]       = useState({ total:0, count:0, sales:[] })
+  const [summary,     setSummary]     = useState({ total_revenue:0 })
+  const [low,         setLow]         = useState([])
+  const [total,       setTotal]       = useState(0)
+  const [loading,     setLoading]     = useState(true)
+  const [briefing,    setBriefing]    = useState(null)
+  const [showLowList,  setShowLowList]  = useState(false)
+  const [stockToast,   setStockToast]   = useState(false)
 
   // ── Day session state ─────────────────────────────────────
   const [daySession,  setDaySession]  = useState(undefined) // undefined = loading
@@ -216,9 +218,17 @@ export default function Dashboard() {
   useEffect(() => {
     // Use Invoices.today() for revenue — it captures voice bills that have no
     // product_id and therefore no matching sales record.
-    Promise.all([Invoices.today(), Sales.summary({ days:30 }), Products.lowStock(), Products.list()])
-      .then(([t, s, l, p]) => { setToday({ ...t, sales: t.invoices || t.sales || [] }); setSummary(s); setLow(l); setTotal(p.length) })
-      .finally(() => setLoading(false))
+    Promise.all([
+      Invoices.today().catch(() => null),
+      Sales.summary({ days:30 }).catch(() => null),
+      Products.lowStock().catch(() => []),
+      Products.list().catch(() => []),
+    ]).then(([t, s, l, p]) => {
+      if (t) setToday({ ...t, sales: t.invoices || t.sales || [] })
+      if (s) setSummary(s)
+      setLow(Array.isArray(l) ? l : [])
+      setTotal(Array.isArray(p) ? p.length : 0)
+    }).finally(() => setLoading(false))
 
     // Briefing only for authenticated (cloud) users
     if (vendor) {
@@ -276,6 +286,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ flex:1, overflowY:"auto", background:"var(--bg0)" }}>
+      <style>{`@keyframes fadeIn { from { opacity:0; transform:translateY(-4px) } to { opacity:1; transform:none } }`}</style>
 
       {/* Top bar */}
       <div style={{ background:"var(--bg0)", backdropFilter:"blur(6px)",
@@ -309,13 +320,186 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-        <button onClick={() => navigate("/billing")} className="btn btn-primary btn-sm"
-          style={{ flexShrink:0, marginLeft:8 }}>
-          {t("+ New Invoice")}
-        </button>
       </div>
 
       <div className="page-content" style={{ padding:"16px" }}>
+
+        {/* ══ 4 BIG QUICK-ACTION TILES ════════════════════════ */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
+
+          {/* 1 — New Bill (primary CTA) */}
+          <button onClick={() => navigate("/billing")}
+            style={{ gridColumn:"1 / -1",          /* full width */
+              background:"linear-gradient(135deg,var(--saffron,#e87722),#d45f00)",
+              border:"none", borderRadius:18, padding:"20px 22px",
+              display:"flex", alignItems:"center", gap:16,
+              cursor:"pointer", boxShadow:"0 8px 24px rgba(232,119,34,0.4)",
+              transition:"transform 0.15s",
+            }}
+            onPointerDown={e => e.currentTarget.style.transform = "scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform = "scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform = "scale(1)"}>
+            <div style={{ width:52, height:52, borderRadius:14, background:"rgba(255,255,255,0.2)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, flexShrink:0 }}>
+              🧾
+            </div>
+            <div style={{ textAlign:"left" }}>
+              <div style={{ fontSize:18, fontWeight:900, color:"#fff", lineHeight:1 }}>
+                {t("New Bill")}
+              </div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginTop:4 }}>
+                {loading ? "Loading…"
+                  : today.count > 0
+                  ? `${today.count} bill${today.count > 1 ? "s" : ""} today · ${INR(today.total)}`
+                  : "Tap to start billing"}
+              </div>
+            </div>
+            <svg style={{ marginLeft:"auto", flexShrink:0 }} width="20" height="20" fill="none"
+              stroke="rgba(255,255,255,0.8)" strokeWidth="2.5" strokeLinecap="round"
+              strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+
+          {/* 2 — Add Stock */}
+          <button onClick={() => navigate("/inventory")}
+            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
+              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
+              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
+              boxShadow:"0 2px 8px var(--shadow)",
+            }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:44, height:44, borderRadius:12,
+              background:"rgba(29,158,117,0.12)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+              📦
+            </div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
+            <div style={{ fontSize:11, color:"var(--jade)", fontWeight:600 }}>
+              {loading ? "—" : `${total} products`}
+            </div>
+          </button>
+
+          {/* 3 — Open Udhaar */}
+          <button onClick={() => navigate("/udhar")}
+            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
+              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
+              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
+              boxShadow:"0 2px 8px var(--shadow)",
+            }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:44, height:44, borderRadius:12,
+              background:"rgba(220,80,60,0.10)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+              📒
+            </div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Udhaar")}</div>
+            <div style={{ fontSize:11, fontWeight:600,
+              color: (briefing?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
+              {briefing
+                ? (briefing.udhar.collected_today > 0
+                    ? "Kaata: " + INR(briefing.udhar.collected_today)
+                    : briefing.udhar.total_due > 0
+                      ? INR(briefing.udhar.total_due) + " due"
+                      : "All clear")
+                : "—"}
+            </div>
+          </button>
+
+          {/* 4 — Low Stock (tap to expand inline list) */}
+          <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+            <button onClick={() => {
+              if (low.length > 0) { setShowLowList(v => !v) }
+              else { setStockToast(true); setTimeout(() => setStockToast(false), 3000) }
+            }}
+              style={{ background: low.length > 0 ? "var(--ember-bg,#fff5f5)" : "var(--bg2)",
+                border: `1.5px solid ${low.length > 0 ? "rgba(192,57,43,0.3)" : "var(--rule)"}`,
+                borderRadius: showLowList ? "18px 18px 0 0" : 18,
+                padding:"18px 16px",
+                display:"flex", flexDirection:"column", alignItems:"flex-start",
+                gap:8, cursor: "pointer",
+                transition:"all 0.15s", textAlign:"left",
+                boxShadow:"0 2px 8px var(--shadow)",
+              }}>
+              <div style={{ width:44, height:44, borderRadius:12,
+                background: low.length > 0 ? "rgba(192,57,43,0.12)" : "rgba(26,122,74,0.10)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:22,
+                position:"relative" }}>
+                {low.length > 0 ? "⚠️" : "✅"}
+                {low.length > 0 && (
+                  <div style={{ position:"absolute", top:-6, right:-6,
+                    minWidth:18, height:18, borderRadius:9, padding:"0 4px",
+                    background:"var(--ember,#c0392b)", color:"#fff",
+                    fontSize:10, fontWeight:900,
+                    display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {low.length}
+                  </div>
+                )}
+              </div>
+              <div style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Low Stock")}</div>
+                  <div style={{ fontSize:11, fontWeight:600, marginTop:2,
+                    color: low.length > 0 ? "var(--ember)" : "var(--jade)" }}>
+                    {loading ? "—" : low.length > 0 ? `${low.length} item${low.length>1?"s":""}` : "All stocked"}
+                  </div>
+                </div>
+                {low.length > 0 && (
+                  <span style={{ fontSize:16, color:"var(--ember)", transition:"transform 0.2s",
+                    transform: showLowList ? "rotate(90deg)" : "none" }}>›</span>
+                )}
+              </div>
+
+              {/* All-stocked toast */}
+              {stockToast && (
+                <div style={{
+                  marginTop: 8, padding: "8px 12px", borderRadius: 10,
+                  background: "rgba(26,122,74,0.12)",
+                  border: "1px solid rgba(26,122,74,0.25)",
+                  fontSize: 11, fontWeight: 600, color: "var(--jade)",
+                  display: "flex", alignItems: "center", gap: 6,
+                  animation: "fadeIn 0.2s ease",
+                }}>
+                  🎉 All shelves are fully stocked — great job!
+                </div>
+              )}
+            </button>
+
+            {/* Inline expandable low-stock list */}
+            {showLowList && low.length > 0 && (
+              <div style={{ background:"var(--ember-bg,#fff5f5)",
+                border:"1.5px solid rgba(192,57,43,0.3)", borderTop:"none",
+                borderRadius:"0 0 18px 18px", overflow:"hidden" }}>
+                {low.slice(0,6).map((p, i) => (
+                  <div key={p.id} onClick={() => navigate("/inventory")}
+                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                      padding:"9px 16px", cursor:"pointer",
+                      borderTop: i > 0 ? "1px solid rgba(192,57,43,0.1)" : "none" }}>
+                    <div style={{ fontSize:11, fontWeight:600, color:"var(--ink)",
+                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"60%" }}>
+                      {p.name}
+                    </div>
+                    <div style={{ fontSize:10, color:"var(--ember)", fontWeight:700, flexShrink:0 }}>
+                      {p.stock} / {p.min_stock} {p.unit || ""}
+                    </div>
+                  </div>
+                ))}
+                <div onClick={() => navigate("/inventory")}
+                  style={{ padding:"9px 16px", borderTop:"1px solid rgba(192,57,43,0.15)",
+                    fontSize:11, fontWeight:700, color:"var(--ember)", cursor:"pointer",
+                    textAlign:"center" }}>
+                  View all in Inventory →
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+        {/* ══ END QUICK TILES ══════════════════════════════════ */}
 
         {/* Hero card */}
         <div style={{ background:"linear-gradient(135deg,var(--bg2),var(--bg3))",
@@ -467,85 +651,22 @@ export default function Dashboard() {
         {/* Morning Briefing */}
         <BriefingCard briefing={briefing} navigate={navigate} />
 
-        {/* Stats row */}
-        <div className="dash-stats-grid" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
+        {/* Secondary quick links row */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
           {[
-            {
-              label: t("Open Udhaar"),
-              value: briefing ? INR(briefing.udhar.total_due) : "₹0",
-              sub:   briefing?.udhar?.customer_count > 0
-                       ? `${briefing.udhar.customer_count} customer${briefing.udhar.customer_count > 1 ? "s" : ""}`
-                       : t("Check khata"),
-              color: "var(--ember)", bar:"var(--ember)",
-            },
-            {
-              label: t("Products"),
-              value: loading ? "—" : total,
-              sub:   low.length > 0 ? `${low.length} ${t("low stock")}` : t("All stocked"),
-              color: "var(--brass)", bar:"var(--brass-deep)",
-            },
-            {
-              label: t("Avg Invoice"),
-              value: loading ? "—" : INR(avgInv),
-              sub:   t("Today"),
-              color: "var(--jade)", bar:"var(--jade)",
-            },
-          ].map((s, i) => (
-            <div key={i} className="stat-card">
-              <div className="stat-bar" style={{ background:s.bar }}/>
-              <div style={{ fontSize:9, fontWeight:700, color:"var(--ink-faint)",
-                textTransform:"uppercase", letterSpacing:"1.2px", marginTop:4 }}>{s.label}</div>
-              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
-                fontSize:22, fontWeight:800, color:"var(--ink)", marginTop:6, lineHeight:1 }}>{s.value}</div>
-              <div style={{ fontSize:10, color:s.color, marginTop:4, fontWeight:600 }}>{s.sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Low stock alert banner */}
-        {low.length > 0 && (
-          <div style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
-            borderRadius:14, padding:"12px 16px", marginBottom:16,
-            display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:20, flexShrink:0 }}>⚠️</span>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:"var(--ember)" }}>
-                {low.length} product{low.length > 1 ? "s" : ""} need restocking
-              </div>
-              <div style={{ fontSize:11, color:"var(--ink-dim)", marginTop:2 }}>
-                {low.slice(0,3).map(p => p.name).join(", ")}{low.length > 3 ? ` +${low.length - 3} more` : ""}
-              </div>
-            </div>
-            <button onClick={() => navigate("/inventory")} className="btn btn-sm btn-danger">
-              View →
-            </button>
-          </div>
-        )}
-
-        {/* Quick actions — 4 primary tiles matching design */}
-        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:10 }}>
-          <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
-            letterSpacing:"2px", textTransform:"uppercase" }}>{t("QUICK ACTIONS")}</div>
-          <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:12, color:"var(--ink-faint)" }}>त्वरित</div>
-        </div>
-        <div className="dash-quick-grid" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
-          {[
-            { label:t("New Sale"),   emoji:"🛒", tone:"var(--saffron)",  border:"rgba(212,98,31,0.35)",  to:"/billing" },
-            { label:t("Add Stock"),  emoji:"📦", tone:"var(--brass)",     border:"rgba(166,124,46,0.35)", to:"/inventory" },
-            { label:t("Udhaar"),     emoji:"📒", tone:"var(--ember)",     border:"rgba(179,38,30,0.35)",  to:"/udhar" },
-            { label:t("Scan"),       emoji:"📷", tone:"var(--jade-lite)", border:"rgba(46,156,122,0.35)", to:"/billing" },
+            { label:t("Udhaar"),     emoji:"📒", to:"/udhar" },
+            { label:t("History"),    emoji:"🕑", to:"/history" },
+            { label:t("Voice"),      emoji:"🎤", to:"/voice" },
+            { label:t("Day Ops"),    emoji:"📅", to:"/day" },
           ].map((qa, i) => (
             <button key={i} onClick={() => navigate(qa.to)}
               style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
-                borderRadius:12, padding:"12px 6px", cursor:"pointer",
-                display:"flex", flexDirection:"column", alignItems:"center", gap:6,
+                borderRadius:12, padding:"10px 6px", cursor:"pointer",
+                display:"flex", flexDirection:"column", alignItems:"center", gap:5,
                 transition:"all 0.15s", boxShadow:"0 1px 4px var(--shadow)" }}
-              onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.borderColor=qa.border }}
-              onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.borderColor="var(--rule)" }}>
-              <div style={{ width:34, height:34, borderRadius:9,
-                background:`color-mix(in srgb, ${qa.tone} 18%, transparent)`,
-                border:`1px solid ${qa.border}`,
-                display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>{qa.emoji}</div>
+              onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
+              onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
+              <span style={{ fontSize:18 }}>{qa.emoji}</span>
               <span style={{ fontSize:10, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
             </button>
           ))}

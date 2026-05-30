@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "../context/AuthContext"
 import { BangleProducts, BangleSales, BangleSync } from "../sync/bangleDb"
+import InvoiceView from "../components/InvoiceView"
 import { useLang, LangToggle } from "../hooks/useLang"
 import { VOICE_LANGS } from "../voice/useProductVoice.js"
 import { getSavedLang } from "../voice/i18n.js"
@@ -1476,13 +1477,37 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
     day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
   })
 
+  // Normalise Bangle sale → InvoiceView-compatible invoice object
+  const invoice = {
+    invoice_no:     sale.id ? `#${sale.id.slice(-8).toUpperCase()}` : "#000000",
+    created_at:     sale.created_at,
+    status:         "paid",
+    customer_name:  sale.customer_name || "Walk-in Customer",
+    customer_phone: sale.customer_phone || null,
+    payment_mode:   sale.payment_mode  || "Cash",
+    subtotal:       sale.subtotal      || sale.total,
+    cgst:           (sale.gst_amount   || 0) / 2,
+    sgst:           (sale.gst_amount   || 0) / 2,
+    gst_amount:     sale.gst_amount    || 0,
+    total:          sale.total,
+    items: lines.map(i => ({
+      name:        [i.product_name, i.colour, i.size, i.design].filter(Boolean).join(" · "),
+      qty:         `${i.unit_qty} ${i.unit || ""}`.trim(),
+      unit_price:  i.mrp || 0,
+      subtotal:    i.amount,
+      tax:         0,
+      gst_percent: 0,
+      total:       i.amount,
+    })),
+  }
+
   function shareWhatsApp() {
     const text = [
       `🧾 *${storeName}*`,
       `Date: ${dateStr}`,
       ``,
       ...lines.map(i =>
-        `• ${i.product_name}${i.colour ? " " + i.colour : ""}${i.size ? " " + i.size : ""} | ${i.unit_qty} ${i.unit} = ₹${Number(i.amount).toLocaleString("en-IN")}`
+        `• ${i.product_name}${i.colour ? " " + i.colour : ""}${i.size ? " [" + i.size + "]" : ""} | ${i.unit_qty} ${i.unit} = ₹${Number(i.amount).toLocaleString("en-IN")}`
       ),
       ``,
       sale.gst_amount > 0 ? `Subtotal: ₹${Number(sale.subtotal).toLocaleString("en-IN")}` : "",
@@ -1494,85 +1519,38 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50,
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 50,
+      display: "flex", alignItems: "flex-end", justifyContent: "center" }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: "var(--bg2)", borderRadius: 20, width: "100%", maxWidth: 400,
-        maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+      <div style={{ background: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 560,
+        maxHeight: "92vh", overflow: "auto", boxShadow: "0 -8px 40px rgba(0,0,0,0.25)" }}>
 
-        <div style={{ padding: "20px 20px 14px", borderBottom: "1px solid var(--rule)", textAlign: "center" }}>
-          <div style={{ fontSize: 28, marginBottom: 6 }}>✅</div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>Bill Generated!</div>
-          <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>{dateStr}</div>
-          {sale.customer_name && (
-            <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 4 }}>
-              {sale.customer_name}{sale.customer_phone ? ` · ${sale.customer_phone}` : ""}
-            </div>
-          )}
-        </div>
-
-        <div style={{ padding: "14px 20px" }}>
-          {lines.map((item, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-              padding: "8px 0", borderBottom: "1px solid var(--rule)" }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{item.product_name}</div>
-                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>
-                  {[item.colour, item.size, item.design].filter(Boolean).join(" · ")}
-                  {" · "}{item.unit_qty} {item.unit} ({item.pieces} pcs)
-                </div>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", flexShrink: 0, marginLeft: 12 }}>
-                {INR(item.amount)}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ padding: "0 20px 14px" }}>
-          {/* Show discount line if notes contains discount info */}
-          {sale.notes && sale.notes.startsWith("Discount:") && (
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12,
-              color: "#dc2626", padding: "4px 0" }}>
-              <span>{sale.notes}</span>
-              <span>applied</span>
-            </div>
-          )}
-          {sale.gst_amount > 0 && (
-            <>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12,
-                color: "var(--ink-dim)", padding: "4px 0" }}>
-                <span>Subtotal</span><span>{INR(sale.subtotal)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12,
-                color: "var(--ink-dim)", padding: "4px 0" }}>
-                <span>GST</span><span>{INR(sale.gst_amount)}</span>
-              </div>
-            </>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16,
-            fontWeight: 800, color: "var(--saffron)", padding: "8px 0",
-            borderTop: "2px solid var(--rule)", marginTop: 4 }}>
-            <span>Total</span><span>{INR(sale.total)}</span>
-          </div>
-          <div style={{ fontSize: 12, color: "var(--ink-faint)", textAlign: "right", marginTop: 2 }}>
-            {sale.payment_mode.toUpperCase()}
-          </div>
-        </div>
-
-        <div style={{ padding: "0 20px 20px", display: "flex", gap: 8 }}>
+        {/* Action bar */}
+        <div style={{ position: "sticky", top: 0, background: "#fff", zIndex: 10,
+          padding: "12px 16px", borderBottom: "1px solid #f0f0f0",
+          display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a", flex: 1 }}>
+            ✅ Invoice Generated
+          </span>
           <button onClick={shareWhatsApp}
-            style={{ flex: 1, background: "#25D366", color: "#fff", border: "none",
-              borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            style={{ background: "#25D366", color: "#fff", border: "none",
+              borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             📲 WhatsApp
           </button>
+          <button onClick={() => window.print()}
+            style={{ background: "transparent", color: "#555", border: "1px solid #e5e7eb",
+              borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            🖨 Print
+          </button>
           <button onClick={onNewBill}
-            style={{ flex: 1, background: "linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-              color: "#fff", border: "none", borderRadius: 10, padding: "10px 0",
-              fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            style={{ background: "linear-gradient(135deg,#e87722,#c25500)", color: "#fff", border: "none",
+              borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             + New Bill
           </button>
         </div>
+
+        {/* Invoice */}
+        <InvoiceView invoice={invoice} />
       </div>
     </div>
   )
@@ -1876,6 +1854,7 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
 function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToCart, onRemove, onUpdateQty, onClose, onConfirm, products, t }) {
   const [step, setStep]       = useState(initialStep)
   const [product, setProduct] = useState(initialProduct)
+  const [prevStep, setPrevStep] = useState(null)   // remembers where we came from
 
   // ── SELECT step state ─────────────────────────────────────────
   const variants = product?.variants || []
@@ -1911,10 +1890,17 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
       variant_id: matched.id, product_id: product.id, product_name: product.name,
       colour: matched.colour, size: matched.size, design: matched.design,
       unit, unit_qty: qty, unit_price: sp, pieces, amount: +(qty * sp).toFixed(2),
-      cost_price: unitPriceFor(storedCost, "piece", cat),  // always per-piece
+      cost_price: unitPriceFor(storedCost, "piece", cat),
       gst_percent: product.gst_percent || 3, _id: matched.id + "-" + Date.now(),
     })
-    setStep("cart")
+    // Close modal → user lands back on the product grid to tap the next item.
+    // Cart count in the top bar shows running total.
+    // They open cart only when ready to generate invoice.
+    if (prevStep === "cart") {
+      setStep("cart")   // came from cart search → stay in cart
+    } else {
+      onClose()         // came from product grid → back to grid
+    }
   }
 
   // ── CART step state ───────────────────────────────────────────
@@ -1924,6 +1910,7 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
   const cartSubtotal = cart.reduce((s, i) => s + i.amount, 0)
 
   function pickProduct(p) {
+    setPrevStep(step)          // remember we came from cart (or wherever)
     setProduct(p)
     const vs = p.variants || []
     setColour([...new Set(vs.map(v=>v.colour).filter(Boolean))][0] || null)
@@ -1931,6 +1918,17 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
     setDesign([...new Set(vs.map(v=>v.design).filter(Boolean))][0] || null)
     setUnit("piece"); setQty(1); setSearchQ("")
     setStep("select")
+  }
+
+  function goBack() {
+    if (step === "review")  { setStep("cart"); return }
+    if (step === "select")  {
+      // If we navigated here from cart (via search), return to cart
+      if (prevStep === "cart" || initialStep === "cart") { setStep("cart"); return }
+      if (initialStep === "select") { onClose(); return }
+    }
+    if (step === "cart" && initialStep === "select") { setStep("select"); return }
+    onClose()
   }
 
   // ── REVIEW step state ─────────────────────────────────────────
@@ -2002,9 +2000,9 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
             <div style={{ fontSize:14, fontWeight:700 }}>{headerTitle}</div>
             <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{headerSub}</div>
           </div>
-          <button onClick={step==="review" ? () => setStep("cart") : step==="cart" && initialStep==="select" ? () => setStep("select") : onClose}
+          <button onClick={goBack}
             style={{ background:"#f5f5f5", border:"none", borderRadius:8, padding:"6px 12px", fontSize:12, cursor:"pointer", color:"#666" }}>
-            {step==="select" ? "✕ Back" : "← Back"}
+            {step==="select" && (prevStep==="cart" || initialStep==="cart") ? "← Cart" : step==="select" ? "✕ Close" : "← Back"}
           </button>
         </div>
 
@@ -2118,15 +2116,17 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
                 style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"9px 12px",
                   fontSize:13, outline:"none", background:"#f9fafb", color:"#111", boxSizing:"border-box" }}
                 onFocus={e=>e.target.style.borderColor="#E87722"}
-                onBlur={e=>{e.target.style.borderColor="#e5e7eb"; setTimeout(()=>setSearchQ(""),150)}}/>
+                onBlur={e=>{e.target.style.borderColor="#e5e7eb"; setTimeout(()=>setSearchQ(""),300)}}/>
               {searchResults.length>0 && (
                 <div style={{ position:"absolute", top:"100%", left:0, right:0, zIndex:10,
                   background:"#fff", border:"1.5px solid #E87722", borderRadius:10,
                   boxShadow:"0 8px 24px rgba(0,0,0,0.12)", marginTop:3, overflow:"hidden" }}>
                   {searchResults.map(p => (
-                    <button key={p.id} onMouseDown={()=>pickProduct(p)}
+                    <button key={p.id}
+                      onMouseDown={()=>pickProduct(p)}
+                      onTouchStart={()=>pickProduct(p)}
                       style={{ width:"100%", background:"none", border:"none",
-                        borderBottom:"1px solid #f0f0f0", padding:"9px 12px",
+                        borderBottom:"1px solid #f0f0f0", padding:"10px 12px",
                         display:"flex", alignItems:"center", justifyContent:"space-between",
                         cursor:"pointer", textAlign:"left" }}
                       onMouseEnter={e=>e.currentTarget.style.background="#fff7ed"}
@@ -2932,7 +2932,15 @@ export default function BangleBilling() {
     setSyncing(false)
   }
 
-  function addToCart(item, stayOnItems = false) { setCart(prev => [...prev, item]); if (!stayOnItems) setTab("cart") }
+  function addToCart(item, stayOnItems = false) {
+    setCart(prev => {
+      const newCart = [...prev, item]
+      // Show toast with cart count so user knows item was added
+      showScanToast(`✓ ${item.product_name} added · ${newCart.length} item${newCart.length !== 1 ? "s" : ""} in cart`, true, 2000)
+      return newCart
+    })
+    if (!stayOnItems) setTab("cart")
+  }
   function removeFromCart(id) { setCart(prev => prev.filter(i => i._id !== id)) }
   function updateCartPrice(id, newAmount, oldAmount) {
     setCart(prev => prev.map(i => {
@@ -3267,8 +3275,13 @@ export default function BangleBilling() {
               style={{ background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
                 border:"none", color:"#fff", borderRadius:9, padding:"6px 14px",
                 fontSize:11, fontWeight:800, cursor:"pointer",
-                boxShadow:"0 3px 10px rgba(232,119,34,0.35)" }}>
+                boxShadow:"0 3px 10px rgba(232,119,34,0.35)",
+                display:"flex", alignItems:"center", gap:6 }}>
               🧾 Invoice
+              <span style={{ background:"rgba(255,255,255,0.3)", borderRadius:10,
+                padding:"1px 7px", fontSize:12, fontWeight:900 }}>
+                {cart.length}
+              </span>
             </button>
             <button onClick={() => { setCart([]); setDiscountPct(0) }}
               style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",

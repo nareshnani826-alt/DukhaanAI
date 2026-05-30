@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
+from app.core.config import settings
 
 router = APIRouter(prefix="/invoice-scan", tags=["invoice-scan"])
 logger = logging.getLogger(__name__)
@@ -469,6 +471,168 @@ def _parse_ocr_text(text: str) -> list:
     return items
 
 
+# ── AI-powered invoice parser (Groq → Gemini fallback) ───────
+_LLM_PROMPT = """You are an invoice data extractor. Extract every product/item line from this invoice text and return a JSON array ONLY — no markdown, no explanation.
+
+CRITICAL RULES — read carefully:
+
+1. NAME: The main product name (bold/first text in the row). SKIP sub-description lines
+   (e.g. "Red · 2.4 · Plain"), piece-count lines (e.g. "1 piece (1 pcs)"), and serial numbers.
+
+2. QTY: The Qty/Quantity column value. It is always a WHOLE NUMBER like 1, 2, 3, 10.
+   WARNING: Do NOT use the integer part of the price as qty.
+   If Rate = 4.17 and Qty column = 3, output qty=3 NOT qty=4.
+
+3. UNIT_PRICE: The Rate/Price column — the per-unit selling price.
+   Column order is usually: # | Item | Qty | Rate | Taxable | GST% | Tax | Total
+   So Rate comes BEFORE Taxable and BEFORE Total. Use the Rate column, not Tax or Total.
+   PRESERVE DECIMALS EXACTLY: ₹4.17 → 4.17, ₹2.5 → 2.5, ₹0.08 is the TAX not the price.
+
+4. TOTAL: Rightmost price column (after GST/tax applied).
+
+5. Validation: unit_price × qty should approximately equal total (before GST).
+   If your numbers don't make sense together, re-read the row.
+
+6. GST_PERCENT: GST% column as a plain number (3 for "3%"), null if absent.
+
+7. SKIP: header row, sub-description lines, piece-count lines, Taxable rows, CGST/SGST/Tax rows,
+   subtotals, discounts, grand total, address, signature, "Thank you" lines.
+
+8. Gold/jewellery: include purity in name (e.g. "Necklace 22kt"), qty = net weight grams, unit="g".
+
+Each element: {{"name": str, "qty": number, "unit": str, "unit_price": number|null, "total": number|null, "gst_percent": number|null}}
+
+Invoice text:
+{text}
+
+Return ONLY a valid JSON array.
+Example with 3 items:
+[
+  {{"name":"Stone Studded Bangle","qty":1,"unit":"pc","unit_price":2.5,"total":2.58,"gst_percent":3}},
+  {{"name":"Red Glass Bangles Set","qty":3,"unit":"pc","unit_price":4.17,"total":12.89,"gst_percent":3}},
+  {{"name":"Green Glass Bangles Set","qty":1,"unit":"pc","unit_price":4.17,"total":4.3,"gst_percent":3}}
+]"""
+
+
+def _sanity_fix(items: list) -> list:
+    """
+    Post-process LLM-extracted items to fix systematic AI errors:
+
+    Error A — qty = int(unit_price):  When AI reads Rate=4.17 and sets qty=4.
+              Detect: int(unit_price) == qty AND qty * unit_price !≈ total
+              Fix:   derive correct qty from total / unit_price.
+
+    Error B — decimal dropped in price:  ₹2.5 read as 25, ₹0.08 used as price.
+              Detect: unit_price * qty is 10x off from total.
+              Fix:   unit_price = unit_price / 10 (or total / qty).
+
+    Error C — tax column used as price:  ₹0.08 (tax) taken as unit_price.
+              Detect: unit_price < 0.5 but total > 1 with qty == 1.
+              Fix:   unit_price = total (pre-GST).
+    """
+    for item in items:
+        qty   = item.get("qty") or 1
+        price = item.get("unit_price")
+        total = item.get("total")
+        gst   = (item.get("gst_percent") or 0) / 100
+        if not (price and total and qty):
+            continue
+
+        # Pre-tax total expected
+        pre_tax = total / (1 + gst) if gst else total
+
+        # Error A: qty = int(price)
+        if price > 1 and abs(int(price) - qty) < 0.5:
+            correct_qty = round(pre_tax / price)
+            if correct_qty >= 1 and abs(correct_qty * price - pre_tax) / pre_tax < 0.15:
+                logger.info("sanity_fix A: qty %s→%s for %s", qty, correct_qty, item.get("name",""))
+                item["qty"] = correct_qty
+
+        # Error B: decimal dropped (price is 10x too large)
+        qty2 = item.get("qty") or 1
+        if abs(qty2 * price - pre_tax) / max(pre_tax, 0.01) > 2:
+            fixed = price / 10
+            if abs(qty2 * fixed - pre_tax) / max(pre_tax, 0.01) < 0.15:
+                logger.info("sanity_fix B: price %s→%s for %s", price, fixed, item.get("name",""))
+                item["unit_price"] = fixed
+
+        # Error C: price is suspiciously small (tax column used as price)
+        qty3 = item.get("qty") or 1
+        p3   = item.get("unit_price") or price
+        if p3 < 0.5 and total > 1:
+            fixed = round(pre_tax / qty3, 2)
+            logger.info("sanity_fix C: price %s→%s for %s", p3, fixed, item.get("name",""))
+            item["unit_price"] = fixed
+
+    return items
+
+
+async def _parse_with_llm(text: str) -> list:
+    """
+    Send raw OCR text to Groq (primary) or Gemini (fallback) and parse the JSON response.
+    Returns empty list on any failure so the caller can fall back to rule-based parsing.
+    """
+    if not text.strip():
+        return []
+
+    prompt = _LLM_PROMPT.format(text=text[:4000])  # cap at 4 KB to stay within token limits
+
+    # ── Try Groq first (faster, free tier) ────────────────────
+    if settings.groq_api_key:
+        try:
+            from groq import AsyncGroq
+            client = AsyncGroq(api_key=settings.groq_api_key)
+            resp = await client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=1024,
+            )
+            raw = resp.choices[0].message.content.strip()
+            raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.M).strip()
+            items = json.loads(raw)
+            if isinstance(items, list) and items:
+                logger.info("invoice_scan llm(groq) items=%d", len(items))
+                made = [_make_item(
+                    i.get("name", ""), i.get("qty", 1), i.get("unit", "pc"),
+                    i.get("unit_price"), i.get("total"), i.get("gst_percent"),
+                ) for i in items if i.get("name") and len(str(i.get("name",""))) >= 2]
+                # Pass original gst/total through for sanity check
+                for orig, m in zip(items, made):
+                    m["_total_raw"] = orig.get("total")
+                    m["_gst_raw"]   = orig.get("gst_percent")
+                return _sanity_fix(made)
+        except Exception as e:
+            logger.warning("invoice_scan groq failed: %s", e)
+
+    # ── Gemini fallback ────────────────────────────────────────
+    if settings.gemini_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.gemini_api_key}",
+                    json={"contents": [{"parts": [{"text": prompt}]}]},
+                )
+                resp.raise_for_status()
+                raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.M).strip()
+                items = json.loads(raw)
+                if isinstance(items, list) and items:
+                    logger.info("invoice_scan llm(gemini) items=%d", len(items))
+                    made = [_make_item(
+                        i.get("name", ""), i.get("qty", 1), i.get("unit", "pc"),
+                        i.get("unit_price"), i.get("total"), i.get("gst_percent"),
+                    ) for i in items if i.get("name") and len(str(i.get("name",""))) >= 2]
+                    for orig, m in zip(items, made):
+                        m["_total_raw"] = orig.get("total")
+                        m["_gst_raw"]   = orig.get("gst_percent")
+                    return _sanity_fix(made)
+        except Exception as e:
+            logger.warning("invoice_scan gemini failed: %s", e)
+
+    return []
+
+
 # ── EasyOCR (server-side, local, no API) ─────────────────────
 # Singleton — model loads once (~600 MB download on first use, then cached)
 _ocr_reader = None
@@ -529,70 +693,215 @@ def _easyocr_rows_to_text(results: list) -> str:
     return "\n".join(lines)
 
 
-def _extract_image(raw: bytes, mime: str) -> list:
-    """Server-side OCR using EasyOCR (local, no external API)."""
+def _preprocess_image(raw: bytes) -> bytes:
+    """
+    Enhance invoice image quality before OCR/Vision:
+      1. Auto-rotate using EXIF orientation
+      2. Convert to grayscale + increase contrast (improves OCR on faded/coloured invoices)
+      3. Upscale if too small (min 1200px on the long edge for readable text)
+      4. Convert back to JPEG bytes for sending to Gemini
+
+    Returns the preprocessed image bytes, or original bytes on any failure.
+    """
+    try:
+        from PIL import Image, ImageOps, ImageEnhance
+        img = Image.open(io.BytesIO(raw))
+
+        # 1. Auto-rotate from EXIF (phone photos are often rotated 90°)
+        img = ImageOps.exif_transpose(img)
+
+        # 2. Convert to RGB
+        img = img.convert("RGB")
+
+        # 3. Upscale if short edge < 800px — small images cause OCR errors
+        w, h = img.size
+        min_edge = min(w, h)
+        if min_edge < 800:
+            scale = 800 / min_edge
+            img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            logger.info("invoice_scan upscaled %.1fx to %dx%d", scale, img.width, img.height)
+
+        # 4. Boost contrast slightly — helps with faded thermal-printed receipts
+        img = ImageEnhance.Contrast(img).enhance(1.4)
+        img = ImageEnhance.Sharpness(img).enhance(1.3)
+
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=92, optimize=True)
+        return out.getvalue()
+    except Exception as e:
+        logger.warning("invoice_scan preprocess failed (using original): %s", e)
+        return raw
+
+
+def _extract_image_sync(raw: bytes, mime: str) -> str:
+    """Run EasyOCR on preprocessed image and return extracted text."""
     from PIL import Image
     import numpy as np
 
+    processed = _preprocess_image(raw)
     try:
-        # Convert to RGB numpy array (EasyOCR expects this)
-        img = Image.open(io.BytesIO(raw)).convert("RGB")
+        img = Image.open(io.BytesIO(processed)).convert("RGB")
         img_array = np.array(img)
     except Exception as e:
         logger.error("Image open failed: %s", e)
-        return []
+        return ""
 
     reader = _get_ocr_reader()
     if reader is None:
-        return []
+        return ""
 
     try:
-        results = reader.readtext(
-            img_array,
-            detail=1,
-            paragraph=False,   # individual text blocks — better for tables
-        )
+        results = reader.readtext(img_array, detail=1, paragraph=False)
         text = _easyocr_rows_to_text(results)
         logger.info("invoice_scan easyocr chars=%d", len(text))
-        if not text.strip():
-            return []
-        return _parse_ocr_text(text)
+        return text
     except Exception as e:
         logger.error("EasyOCR failed: %s", e)
+        return ""
+
+
+_VISION_PROMPT = """Carefully read this invoice image and extract every product line item. Return a JSON array ONLY — no markdown, no explanation.
+
+CRITICAL RULES — follow exactly:
+
+1. NAME: Main product name only (bold/largest text per row).
+   SKIP sub-description lines (e.g. "Red · 2.4 · Plain", "Gold · 2.4 · Stone Studded").
+   SKIP piece-count lines (e.g. "1 piece (1 pcs)", "3 piece (3 pcs)").
+   SKIP serial numbers.
+
+2. QTY: The "Qty" column value. It is always a WHOLE NUMBER (1, 2, 3, 10...).
+   CRITICAL: Do NOT use the integer part of the price as qty.
+   Example: if Rate=4.17 and Qty column shows 3 → output qty=3 (NOT 4).
+
+3. UNIT_PRICE: The "Rate" column — per-unit price.
+   Column order: # | Item Description | Qty | Rate | Taxable | GST% | Tax | Total
+   Rate is the 4th column. Taxable is 5th. Tax is 7th. Total is 8th (last).
+   Use ONLY the Rate column. ₹0.08 is TAX — never use Tax as unit_price.
+   PRESERVE DECIMALS: ₹4.17→4.17, ₹2.5→2.5, ₹6711.7→6711.7. Never remove the decimal point.
+
+4. TOTAL: The rightmost column value for each item row (after GST included).
+
+5. SANITY CHECK: unit_price × qty should approximately match total ÷ 1.03 (before GST).
+   If your numbers don't satisfy this, re-read the row.
+
+6. GST_PERCENT: GST% column as a plain number. 0 if blank.
+
+7. SKIP completely: header row, sub-description lines, piece-count lines, Taxable rows,
+   CGST/SGST/Tax summary rows, Subtotal, Discount, Grand Total, address, signature lines.
+
+8. Multi-section invoices: extract from ALL sections.
+
+Each element: {"name": str, "qty": number, "unit": str, "unit_price": number|null, "total": number|null, "gst_percent": number|null}
+
+Return ONLY a valid JSON array.
+Correct example:
+[
+  {"name":"Stone Studded Bangle","qty":1,"unit":"pc","unit_price":2.5,"total":2.58,"gst_percent":3},
+  {"name":"Red Glass Bangles Set","qty":3,"unit":"pc","unit_price":4.17,"total":12.89,"gst_percent":3},
+  {"name":"Green Glass Bangles Set","qty":1,"unit":"pc","unit_price":4.17,"total":4.3,"gst_percent":3}
+]"""
+
+
+async def _gemini_vision(raw: bytes, mime: str) -> list:
+    """Send preprocessed image directly to Gemini Vision."""
+    if not settings.gemini_api_key:
         return []
+    import base64
+    import asyncio
+    # Preprocess in thread pool (PIL is sync)
+    processed = await asyncio.to_thread(_preprocess_image, raw)
+    b64 = base64.b64encode(processed).decode()
+    mime = "image/jpeg"   # always JPEG after preprocessing
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.gemini_api_key}",
+                json={"contents": [{"parts": [
+                    {"text": _VISION_PROMPT},
+                    {"inline_data": {"mime_type": mime, "data": b64}},
+                ]}]},
+            )
+            resp.raise_for_status()
+            raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            raw_text = re.sub(r"^```(?:json)?|```$", "", raw_text, flags=re.M).strip()
+            items = json.loads(raw_text)
+            if isinstance(items, list) and items:
+                logger.info("invoice_scan gemini_vision items=%d", len(items))
+                made = [_make_item(
+                    i.get("name",""), i.get("qty",1), i.get("unit","pc"),
+                    i.get("unit_price"), i.get("total"), i.get("gst_percent"),
+                ) for i in items if i.get("name") and len(str(i.get("name",""))) >= 2]
+                for orig, m in zip(items, made):
+                    m["_total_raw"] = orig.get("total")
+                    m["_gst_raw"]   = orig.get("gst_percent")
+                return _sanity_fix(made)
+    except Exception as e:
+        logger.warning("invoice_scan gemini_vision failed: %s", e)
+    return []
+
+
+async def _extract_image(raw: bytes, mime: str) -> list:
+    """
+    Three-pass image invoice extraction:
+      Pass 1 — Gemini Vision (reads image directly, no OCR needed — best for
+               complex layouts: Vyapar gold, multi-section, 9-column tables)
+      Pass 2 — EasyOCR → Groq/Gemini text parsing (LLM understands any format)
+      Pass 3 — EasyOCR → rule-based regex (simple kirana invoices, no LLM)
+    """
+    import asyncio
+
+    # Pass 1: Gemini Vision — most accurate for complex invoices
+    items = await _gemini_vision(raw, mime)
+    if items:
+        return items
+
+    # Pass 2 & 3: EasyOCR text → LLM or rule-based
+    text = await asyncio.to_thread(_extract_image_sync, raw, mime)
+    if text.strip():
+        items = await _parse_with_llm(text)
+        if items:
+            return items
+        logger.info("invoice_scan falling back to rule-based parser")
+        return _parse_ocr_text(text)
+
+    return []
 
 
 # ── File-type extractors ──────────────────────────────────────
 
-def _extract_pdf(raw: bytes) -> list:
-    """pdfplumber: try table extraction first, fall back to plain text."""
-    items = []
+async def _extract_pdf(raw: bytes) -> list:
+    """
+    Three-pass PDF extraction:
+      1. pdfplumber table extraction (digital PDFs with clear tables)
+      2. LLM parsing of plain text (complex layouts like Vyapar)
+      3. Rule-based text parser (simple kirana invoices)
+    """
     try:
         with pdfplumber.open(io.BytesIO(raw)) as pdf:
-            # ── Pass 1: table extraction (works on most digital invoices) ──
+            # Pass 1: structured table extraction
             all_rows: list[list] = []
             for page in pdf.pages:
-                tables = page.extract_tables()
-                for table in tables:
+                for table in page.extract_tables():
                     all_rows.extend(table)
-
             if all_rows:
                 items = _parse_table_rows(all_rows)
                 if items:
                     logger.info("invoice_scan pdf table items=%d", len(items))
                     return items
 
-            # ── Pass 2: plain text fallback ───────────────────────────────
-            full_text = "\n".join(
-                page.extract_text() or "" for page in pdf.pages
-            )
+            # Pass 2 + 3: plain text → LLM → rule-based
+            full_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
             if full_text.strip():
+                items = await _parse_with_llm(full_text)
+                if items:
+                    logger.info("invoice_scan pdf llm items=%d", len(items))
+                    return items
                 items = _parse_ocr_text(full_text)
                 logger.info("invoice_scan pdf text items=%d", len(items))
+                return items
     except Exception as e:
         logger.error("PDF extract failed: %s", e)
-
-    return items
+    return []
 
 
 def _extract_excel(raw: bytes) -> list:
@@ -638,10 +947,47 @@ def _extract_csv(raw: bytes) -> list:
 
 # ── Result builder ────────────────────────────────────────────
 
+def _field_confidence(item: dict) -> dict:
+    """
+    Score each extracted field 0.0–1.0 so the UI can highlight uncertain values.
+
+    Logic:
+    - price×qty ≈ total  → prices are reliable (high confidence)
+    - price×qty far off  → one of the three values is probably wrong (low confidence)
+    - total is None      → can't validate, medium confidence
+    - qty is suspiciously large (>100 for non-bulk) → flag
+    """
+    qty   = item.get("qty") or 1
+    price = item.get("unit_price")
+    total = item.get("total")
+    gst   = (item.get("gst_percent") or 0) / 100
+
+    qty_conf   = 1.0
+    price_conf = 1.0
+
+    if price and total:
+        pre_tax  = total / (1 + gst) if gst else total
+        expected = qty * price
+        ratio    = abs(expected - pre_tax) / max(pre_tax, 0.01)
+        if ratio < 0.05:
+            qty_conf = price_conf = 1.0      # very close — both reliable
+        elif ratio < 0.20:
+            qty_conf = price_conf = 0.75     # slight mismatch — review
+        else:
+            qty_conf = price_conf = 0.40     # large mismatch — check manually
+
+    # Flag implausible qtys for piece-goods
+    if qty > 100 and item.get("unit", "pc") in ("pc", "piece", "pcs"):
+        qty_conf = min(qty_conf, 0.35)
+
+    return {"qty_confidence": round(qty_conf, 2), "price_confidence": round(price_conf, 2)}
+
+
 def _build_results(extracted: list, inventory: list) -> list:
     results = []
     for item in extracted:
-        mi = _match_product(item.get("name", ""), inventory)
+        mi     = _match_product(item.get("name", ""), inventory)
+        scores = _field_confidence(item)
         results.append({
             "extracted_name": item.get("name", ""),
             "qty":            item.get("qty", 1),
@@ -655,6 +1001,9 @@ def _build_results(extracted: list, inventory: list) -> list:
             "match_type":     mi["type"],
             "match_product":  mi["match"],
             "confidence":     mi["confidence"],
+            # Per-field confidence scores so the UI can highlight uncertain values
+            "qty_confidence":   scores["qty_confidence"],
+            "price_confidence": scores["price_confidence"],
         })
     return results
 
@@ -696,14 +1045,11 @@ async def scan_invoice(
     extracted: Optional[list] = None
     tier_used: str            = "local"
 
-    # ── Images: EasyOCR (server-side, local deep-learning OCR) ──
+    # ── Images: EasyOCR → LLM parsing ──────────────────────────
     if mime.startswith("image/"):
-        import asyncio
-        extracted = await asyncio.get_event_loop().run_in_executor(
-            None, _extract_image, raw, mime
-        )
+        extracted = await _extract_image(raw, mime)
         tier_used = "image"
-        logger.info("invoice_scan image easyocr items=%d", len(extracted or []))
+        logger.info("invoice_scan image items=%d", len(extracted or []))
         if not extracted:
             raise HTTPException(
                 status_code=422,
@@ -715,7 +1061,7 @@ async def scan_invoice(
 
     # ── PDF ───────────────────────────────────────────────────
     elif mime == "application/pdf":
-        extracted = _extract_pdf(raw)
+        extracted = await _extract_pdf(raw)
         tier_used = "pdf"
         if not extracted:
             raise HTTPException(

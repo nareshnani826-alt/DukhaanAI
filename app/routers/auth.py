@@ -22,6 +22,7 @@ from app.schemas.schemas import (
     RefreshRequest, VendorProfile, VendorUpdate, MessageResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
     SendOtpRequest, VerifyOtpRequest,
+    RegisterOtpRequired, RegisterConfirm,
 )
 from app.core.config import settings
 from app.core.whatsapp import send_otp as _send_whatsapp_otp, _normalize_phone
@@ -60,31 +61,38 @@ def _send_reset_email(to_email: str, store_name: str, reset_url: str) -> None:
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=201)
-@limiter.limit("10/minute")
-async def register(request: Request, body: VendorRegister):
-    db = get_db()
+def _normalize_phone_local(raw: str) -> str:
+    """Strip spaces/dashes and leading country code → bare 10-digit number."""
+    p = raw.replace(" ", "").replace("-", "")
+    if p.startswith("+91"): p = p[3:]
+    elif p.startswith("91") and len(p) == 12: p = p[2:]
+    elif p.startswith("0"): p = p[1:]
+    return p
 
-    # Check duplicate email
-    existing = db.table("vendors").select("id").eq("email", body.email).execute()
-    if existing.data:
-        raise HTTPException(status_code=409, detail="Email already registered")
 
-    # Create vendor
-    vendor = db.table("vendors").insert({
-        "email": body.email,
-        "password_hash": hash_password(body.password),
-        "store_name": body.store_name,
-        "gstin": body.gstin,
-        "phone": body.phone,
-        "plan": "free",
-        "modules": body.modules or ["kirana"],
-    }).execute().data[0]
+def _make_pending_token(data: dict) -> str:
+    """Sign a short-lived JWT carrying pending registration payload."""
+    from jose import jwt as _jwt
+    payload = {**data, "type": "pending_reg",
+                "exp": datetime.now(timezone.utc) + timedelta(minutes=10)}
+    return _jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
-    # Issue tokens
+
+def _decode_pending_token(token: str) -> dict:
+    from jose import jwt as _jwt, JWTError
+    try:
+        payload = _jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        if payload.get("type") != "pending_reg":
+            raise ValueError("wrong token type")
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Registration session expired. Please start again.")
+
+
+def _issue_tokens(db, vendor: dict) -> TokenResponse:
+    """Create access + refresh tokens for a newly authenticated vendor."""
     access_token = create_access_token({"sub": vendor["id"], "plan": vendor["plan"]})
     raw_refresh, hashed_refresh = create_refresh_token()
-
     db.table("refresh_tokens").insert({
         "vendor_id": vendor["id"],
         "token_hash": hashed_refresh,
@@ -93,7 +101,6 @@ async def register(request: Request, body: VendorRegister):
             + timedelta(days=settings.jwt_refresh_token_expire_days)
         ).isoformat(),
     }).execute()
-
     return TokenResponse(
         access_token=access_token,
         refresh_token=raw_refresh,
@@ -102,6 +109,165 @@ async def register(request: Request, body: VendorRegister):
         plan=vendor["plan"],
         modules=vendor.get("modules", ["kirana"]),
     )
+
+
+def _send_otp_email(to_email: str, store_name: str, otp: str) -> bool:
+    """Send a 6-digit OTP to the user's email via SMTP. Returns False if SMTP not configured."""
+    if not settings.smtp_host:
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"🔐 {otp} is your DukaanAI verification code"
+        msg["From"]    = settings.smtp_from
+        msg["To"]      = to_email
+        text = (
+            f"Hi {store_name},\n\n"
+            f"Your DukaanAI verification code is: {otp}\n\n"
+            f"Valid for 10 minutes. Do not share this code with anyone."
+        )
+        html = f"""<div style="font-family:sans-serif;max-width:480px;margin:auto">
+<h2 style="color:#1D9E75">DukaanAI Verification</h2>
+<p>Hi <b>{store_name}</b>,</p>
+<p>Use the code below to complete your registration:</p>
+<div style="text-align:center;margin:28px 0;padding:20px;background:#f0faf6;border-radius:12px">
+  <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#1D9E75">{otp}</span>
+</div>
+<p style="font-size:12px;color:#666">Valid for <b>10 minutes</b>. Do not share this code.</p>
+<p style="font-size:11px;color:#aaa">If you didn't request this, ignore this email.</p>
+</div>"""
+        msg.attach(MIMEText(text, "plain"))
+        msg.attach(MIMEText(html,  "html"))
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as s:
+            s.starttls()
+            s.login(settings.smtp_user, settings.smtp_pass)
+            s.sendmail(settings.smtp_from, to_email, msg.as_string())
+        return True
+    except Exception:
+        return False
+
+
+@router.post("/register")
+@limiter.limit("10/minute")
+async def register(request: Request, body: VendorRegister):
+    """
+    Register a new vendor.
+    Always sends a 6-digit OTP to the email address before creating the account.
+    Call POST /auth/register/confirm with the OTP to complete registration.
+    """
+    db = get_db()
+    email = str(body.email)
+
+    if not settings.smtp_host:
+        raise HTTPException(
+            status_code=503,
+            detail="Email service is not configured. Please contact support."
+        )
+
+    # Reject duplicate email up front
+    if db.table("vendors").select("id").eq("email", email).execute().data:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    # Validate phone if provided (stored but not used for OTP)
+    phone = None
+    if body.phone:
+        phone = _normalize_phone_local(body.phone)
+        if len(phone) != 10 or not phone.isdigit():
+            raise HTTPException(status_code=422, detail="Enter a valid 10-digit Indian mobile number")
+        if db.table("vendors").select("id").eq("phone", phone).execute().data:
+            raise HTTPException(status_code=409, detail="Phone number already registered")
+
+    # Generate OTP — store with email as key (reuses otp_codes table)
+    otp        = str(secrets.randbelow(900000) + 100000)
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    db.table("otp_codes").delete().eq("phone", email).execute()   # phone col used as generic key
+    db.table("otp_codes").insert({
+        "phone":      email,
+        "code_hash":  _otp_hash(otp),
+        "expires_at": expires_at,
+        "attempts":   0,
+    }).execute()
+
+    # Send OTP email (run sync SMTP in thread pool)
+    import asyncio
+    sent = await asyncio.to_thread(_send_otp_email, email, body.store_name, otp)
+    if not sent:
+        raise HTTPException(status_code=502, detail="Failed to send verification email. Please try again.")
+
+    # Sign a short-lived pending token (10 min, same as OTP)
+    pending_token = _make_pending_token({
+        "email":         email,
+        "password_hash": hash_password(body.password),
+        "store_name":    body.store_name,
+        "phone":         phone,
+        "gstin":         body.gstin,
+        "modules":       body.modules or ["kirana"],
+    })
+
+    return RegisterOtpRequired(
+        status="otp_required",
+        email=email,
+        pending_token=pending_token,
+    )
+
+
+@router.post("/register/confirm", response_model=TokenResponse, status_code=201)
+@limiter.limit("10/minute")
+async def register_confirm(request: Request, body: RegisterConfirm):
+    """
+    Complete phone-verified registration.
+    Verifies the OTP, then creates the vendor account and issues tokens.
+    """
+    db = get_db()
+
+    # Decode pending registration data
+    pending = _decode_pending_token(body.pending_token)
+    email   = pending["email"]   # OTP was keyed by email
+    otp     = body.otp.strip()
+
+    # Verify OTP — keyed by email in the phone column
+    row = db.table("otp_codes").select("*").eq("phone", email).execute()
+    if not row.data:
+        raise HTTPException(status_code=400, detail="OTP expired or not found. Please start registration again.")
+
+    record = row.data[0]
+
+    if record["attempts"] >= 5:
+        db.table("otp_codes").delete().eq("phone", email).execute()
+        raise HTTPException(status_code=400, detail="Too many wrong attempts. Please start registration again.")
+
+    if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
+        db.table("otp_codes").delete().eq("phone", email).execute()
+        raise HTTPException(status_code=400, detail="OTP expired. Please start registration again.")
+
+    if record["code_hash"] != _otp_hash(otp):
+        db.table("otp_codes").update({"attempts": record["attempts"] + 1}).eq("phone", email).execute()
+        remaining = 5 - record["attempts"] - 1
+        raise HTTPException(status_code=400, detail=f"Incorrect OTP. {remaining} attempt(s) left.")
+
+    # OTP valid — clean up
+    db.table("otp_codes").delete().eq("phone", email).execute()
+
+    # Final duplicate checks (race condition guard)
+    if db.table("vendors").select("id").eq("email", email).execute().data:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    phone = pending.get("phone")
+    if phone and db.table("vendors").select("id").eq("phone", phone).execute().data:
+        raise HTTPException(status_code=409, detail="Phone number already registered")
+
+    # Create the verified vendor account
+    vendor = db.table("vendors").insert({
+        "email":          email,
+        "password_hash":  pending["password_hash"],
+        "store_name":     pending["store_name"],
+        "phone":          phone,
+        "gstin":          pending.get("gstin"),
+        "plan":           "free",
+        "modules":        pending.get("modules", ["kirana"]),
+        "phone_verified": bool(phone),
+    }).execute().data[0]
+
+    return _issue_tokens(db, vendor)
 
 
 @router.post("/login", response_model=TokenResponse)

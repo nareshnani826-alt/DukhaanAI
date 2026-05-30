@@ -34,7 +34,22 @@ export function AuthProvider({ children }) {
     setLoading(true); setError("")
     try {
       const d = await api.post("/auth/register", data)
+      // Phone provided → backend returns {status:"otp_required"} — don't log in yet
+      if (d.status === "otp_required") return d   // { status, email, pending_token }
+      // No phone → account created immediately
       setTokens(d.access_token, d.refresh_token, true)
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
+      setVendor(v); setVendorState(v)
+      return d
+    } catch(e) { setError(e.message); throw e }
+    finally { setLoading(false) }
+  }
+
+  async function registerConfirm(pendingToken, otp, remember = true) {
+    setLoading(true); setError("")
+    try {
+      const d = await api.post("/auth/register/confirm", { pending_token: pendingToken, otp })
+      setTokens(d.access_token, d.refresh_token, remember)
       const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
       setVendor(v); setVendorState(v)
       return d
@@ -76,7 +91,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, loading, error, setError, login, register, sendOtp, verifyOtp, forgotPassword, logout }}>
+    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, loading, error, setError, login, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout }}>
       {children}
     </AuthCtx.Provider>
   )

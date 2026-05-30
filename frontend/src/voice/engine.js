@@ -2,6 +2,8 @@
 // Uses Web Speech API (Chrome/Android)
 // Falls back to guidance for unsupported browsers
 
+import { t } from "./i18n.js"
+
 const TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
 
 // ── Translation ───────────────────────────────────────────
@@ -33,17 +35,46 @@ export async function translateToEnglish(text, sourceLang = "auto") {
 }
 
 // ── Text-to-Speech ────────────────────────────────────────
+// Voices load asynchronously — cache them once available so speak() always
+// finds the right voice even on the first call.
+let _voiceCache = []
+
+function _cacheVoices() {
+  const v = window.speechSynthesis?.getVoices() || []
+  if (v.length) _voiceCache = v
+}
+
+if (typeof window !== "undefined" && window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = _cacheVoices
+  _cacheVoices() // sync load if already available (Chromium)
+}
+
+function _pickVoice(lang) {
+  const voices  = _voiceCache.length ? _voiceCache : (window.speechSynthesis?.getVoices() || [])
+  const base    = lang.split("-")[0]           // "te", "hi", "ta", ...
+  const region  = lang.split("-")[1] || ""     // "IN", "US", ...
+
+  // 1. Exact match: "te-IN"
+  let v = voices.find(v => v.lang === lang)
+  // 2. Same base language + IN region
+  if (!v) v = voices.find(v => v.lang.startsWith(base) && v.lang.includes("IN"))
+  // 3. Any voice for this base language
+  if (!v) v = voices.find(v => v.lang.toLowerCase().startsWith(base.toLowerCase()))
+  // 4. Google / network voices are better quality — prefer them
+  if (!v) v = voices.find(v => v.name.toLowerCase().includes("google") && v.lang.startsWith(base))
+  return v || null
+}
+
 export function speak(text, lang = "en-IN") {
-  if (!window.speechSynthesis) return
+  if (!window.speechSynthesis || !text) return
   window.speechSynthesis.cancel()
   const utterance  = new SpeechSynthesisUtterance(text)
   utterance.lang   = lang
-  utterance.rate   = 0.9
+  utterance.rate   = 0.85
   utterance.volume = 1.0
-  const voices = window.speechSynthesis.getVoices()
-  const match  = voices.find(v => v.lang === lang)
-    || voices.find(v => v.lang.startsWith(lang.split("-")[0]))
-  if (match) utterance.voice = match
+  utterance.pitch  = 1.0
+  const voice = _pickVoice(lang)
+  if (voice) utterance.voice = voice
   window.speechSynthesis.speak(utterance)
 }
 
@@ -143,11 +174,14 @@ export class VoiceEngine {
       clearTimeout(autoStopTimer)
       this.isListening = false
       if (e.error === "aborted") return
-      let msg = "Voice error — try again"
-      if (e.error === "no-speech")     msg = "No speech heard. Tap mic and speak clearly."
-      if (e.error === "not-allowed")   msg = "Microphone blocked. Allow mic permission."
-      if (e.error === "network")       msg = "Network error. Check internet."
-      if (e.error === "audio-capture") msg = "No microphone found."
+      // "no-speech" is normal background silence — treat it as a quiet end so
+      // continuous mode can restart cleanly without flashing an error message
+      if (e.error === "no-speech") { this.onEnd?.(); return }
+      const lang = this.currentLang
+      let msg = t("err_generic",     lang)
+      if (e.error === "not-allowed")   msg = t("err_mic_blocked", lang)
+      if (e.error === "network")       msg = t("err_network",     lang)
+      if (e.error === "audio-capture") msg = t("err_mic_blocked", lang)
       this.onError?.(msg)
     }
 

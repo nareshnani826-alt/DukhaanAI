@@ -355,9 +355,13 @@ export default function InvoiceScanTab() {
             </thead>
             <tbody>
               {items.map((it, i) => {
-                const badge  = MATCH_BADGE[it.match_type]
-                const isSkip = it.action === "skip"
-                const rowBg  = isSkip ? ROW_BG.skip : ROW_BG[it.match_type]
+                const badge      = MATCH_BADGE[it.match_type]
+                const isSkip     = it.action === "skip"
+                const rowBg      = isSkip ? ROW_BG.skip : ROW_BG[it.match_type]
+                const qtyLow     = (it.qty_confidence   ?? 1) < 0.6
+                const priceLow   = (it.price_confidence ?? 1) < 0.6
+                const warnBorder = "1.5px solid #f59e0b"
+                const warnBg     = "#fffbeb"
                 return (
                   <tr key={i} style={{ background: rowBg, opacity: isSkip ? 0.5 : 1 }}>
 
@@ -409,12 +413,20 @@ export default function InvoiceScanTab() {
 
                     {/* Qty */}
                     <td style={td}>
-                      <input type="number" min="0" step="1"
-                        value={it.qty}
-                        onChange={e => setItemField(i, "qty", e.target.value)}
-                        style={{ width: 54, border: "1.5px solid var(--rule)", borderRadius: 6,
-                          padding: "4px 5px", fontSize: 12, fontWeight: 700, outline: "none",
-                          background: "white", textAlign: "right" }}/>
+                      <div style={{ position: "relative", display: "inline-block" }}>
+                        <input type="number" min="0" step="1"
+                          value={it.qty}
+                          onChange={e => setItemField(i, "qty", e.target.value)}
+                          title={qtyLow ? "⚠ Low confidence — please verify this quantity" : ""}
+                          style={{ width: 54, borderRadius: 6, padding: "4px 5px",
+                            fontSize: 12, fontWeight: 700, outline: "none", textAlign: "right",
+                            border: qtyLow ? warnBorder : "1.5px solid var(--rule)",
+                            background: qtyLow ? warnBg : "white" }}/>
+                        {qtyLow && (
+                          <span style={{ position:"absolute", top:-6, right:-6, fontSize:11,
+                            lineHeight:1 }} title="Low confidence — verify">⚠️</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Unit */}
@@ -432,13 +444,21 @@ export default function InvoiceScanTab() {
 
                     {/* Price */}
                     <td style={td}>
-                      <input type="number" min="0" step="0.01"
-                        value={it.unit_price || ""}
-                        onChange={e => setItemField(i, "unit_price", e.target.value)}
-                        placeholder="—"
-                        style={{ width: 74, border: "1.5px solid var(--rule)", borderRadius: 6,
-                          padding: "4px 5px", fontSize: 12, outline: "none",
-                          background: "white", textAlign: "right" }}/>
+                      <div style={{ position: "relative", display: "inline-block" }}>
+                        <input type="number" min="0" step="0.01"
+                          value={it.unit_price || ""}
+                          onChange={e => setItemField(i, "unit_price", e.target.value)}
+                          placeholder="—"
+                          title={priceLow ? "⚠ Low confidence — please verify this price" : ""}
+                          style={{ width: 74, borderRadius: 6, padding: "4px 5px",
+                            fontSize: 12, outline: "none", textAlign: "right",
+                            border: priceLow ? warnBorder : "1.5px solid var(--rule)",
+                            background: priceLow ? warnBg : "white" }}/>
+                        {priceLow && (
+                          <span style={{ position:"absolute", top:-6, right:-6, fontSize:11,
+                            lineHeight:1 }} title="Low confidence — verify">⚠️</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* GST% */}

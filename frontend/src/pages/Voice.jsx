@@ -240,6 +240,8 @@ export default function Voice() {
   const [generating, setGenerating] = useState(false)
   const [showReview, setShowReview] = useState(false)
   const [mobileTab,  setMobileTab]  = useState("voice")
+  const [editingIdx, setEditingIdx] = useState(null)  // index of cart item being edited
+  const [editForm,   setEditForm]   = useState({})    // { qty, mrp }
 
   const isSafari    = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
   const isIOS       = /iphone|ipad|ipod/i.test(navigator.userAgent)
@@ -593,45 +595,105 @@ Thank you! 🙏`
                   Invoice ready
                 </div>
               ) : (
-                billItems.map((item, i) => (
-                  <div key={item.id} style={{
-                    background:"var(--bg2)", borderRadius:10,
-                    padding:"8px 10px", marginBottom:8,
-                    border:"1px solid var(--rule-soft)",
-                  }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                      <div style={{ fontSize:11, fontWeight:600, color:"#222", flex:1, paddingRight:8 }}>
-                        {item.name}
-                      </div>
-                      <button onClick={async () => {
-                          if (item.id && !item.id.startsWith("voice-")) {
-                            try {
-                              const prods = await Products.list()
-                              const prod  = prods.find(p => p.id === item.id)
-                              if (prod) {
-                                await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
+                billItems.map((item, i) => {
+                  const isEditing = editingIdx === i
+                  return (
+                    <div key={item.id} style={{
+                      background:"var(--bg2)", borderRadius:10,
+                      padding:"8px 10px", marginBottom:8,
+                      border: isEditing ? "1px solid var(--jade)" : "1px solid var(--rule-soft)",
+                      transition:"border 0.15s",
+                    }}>
+                      {/* Name row + action buttons */}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                        <div style={{ fontSize:11, fontWeight:600, color:"var(--ink)", flex:1, paddingRight:6 }}>
+                          {item.name}
+                        </div>
+                        <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                          {/* Edit toggle */}
+                          <button
+                            onClick={() => {
+                              if (isEditing) { setEditingIdx(null) }
+                              else { setEditingIdx(i); setEditForm({ qty: item.qty, mrp: item.mrp }) }
+                            }}
+                            style={{ background:"none", border:"none", cursor:"pointer",
+                              fontSize:13, color: isEditing ? "var(--jade)" : "var(--ink-faint)",
+                              lineHeight:1, padding:"0 2px" }}>
+                            ✏
+                          </button>
+                          {/* Remove */}
+                          <button onClick={async () => {
+                              if (item.id && !item.id.startsWith("voice-")) {
+                                try {
+                                  const prods = await Products.list()
+                                  const prod  = prods.find(p => p.id === item.id)
+                                  if (prod) await Products.update(item.id, { stock: (prod.stock || 0) + item.qty })
+                                } catch(e) { console.error("Stock restore failed:", e) }
                               }
-                            } catch(e) { console.error("Stock restore failed:", e) }
-                          }
-                          setBillItems(b => b.filter((_,bi) => bi !== i))
-                          showNotif(`${item.name} removed — stock restored`)
-                        }}
-                        style={{ background:"none", border:"none", color:"var(--ink-faint)",
-                          cursor:"pointer", fontSize:16, lineHeight:1 }}>
-                        ×
-                      </button>
+                              if (editingIdx === i) setEditingIdx(null)
+                              setBillItems(b => b.filter((_,bi) => bi !== i))
+                              showNotif(item.name + " removed")
+                            }}
+                            style={{ background:"none", border:"none", color:"var(--ink-faint)",
+                              cursor:"pointer", fontSize:16, lineHeight:1, padding:"0 2px" }}>
+                            ×
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Inline edit form */}
+                      {isEditing ? (
+                        <div style={{ marginTop:8 }}>
+                          <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:6 }}>
+                            <div style={{ flex:1 }}>
+                              <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>Qty</div>
+                              <input type="number" min="0.01" step="0.01"
+                                value={editForm.qty}
+                                onChange={e => setEditForm(f => ({ ...f, qty: e.target.value }))}
+                                style={{ width:"100%", border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"5px 6px", fontSize:12, background:"var(--bg1)", color:"var(--ink)",
+                                  boxSizing:"border-box" }} />
+                            </div>
+                            <div style={{ flex:1 }}>
+                              <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>Price ₹</div>
+                              <input type="number" min="0" step="0.01"
+                                value={editForm.mrp}
+                                onChange={e => setEditForm(f => ({ ...f, mrp: e.target.value }))}
+                                style={{ width:"100%", border:"1px solid var(--rule)", borderRadius:6,
+                                  padding:"5px 6px", fontSize:12, background:"var(--bg1)", color:"var(--ink)",
+                                  boxSizing:"border-box" }} />
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const qty = Math.max(0.01, +editForm.qty || item.qty)
+                              const mrp = Math.max(0, +editForm.mrp || item.mrp)
+                              const lineTotal = Math.round(qty * mrp * (1 + item.gst / 100) * 100) / 100
+                              setBillItems(b => b.map((it, bi) =>
+                                bi === i ? { ...it, qty, mrp, unit_price: mrp, lineTotal } : it
+                              ))
+                              setEditingIdx(null)
+                            }}
+                            style={{ width:"100%", padding:"6px", borderRadius:7, border:"none",
+                              background:"var(--jade)", color:"#fff", fontSize:11,
+                              fontWeight:600, cursor:"pointer" }}>
+                            ✓ Save
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                          <span style={{ fontSize:10, color:"var(--ink-faint)" }}>
+                            {item.qty} {item.unit} × {INR(item.mrp)}
+                            {item.gst > 0 && " + " + item.gst + "%GST"}
+                          </span>
+                          <span style={{ fontSize:11, fontWeight:700, color:"var(--jade)" }}>
+                            {INR(item.lineTotal)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-                      <span style={{ fontSize:10, color:"var(--ink-faint)" }}>
-                        {item.qty} {item.unit} × {INR(item.mrp)}
-                        {item.gst > 0 && ` + ${item.gst}%GST`}
-                      </span>
-                      <span style={{ fontSize:11, fontWeight:700, color:"var(--jade)" }}>
-                        {INR(item.lineTotal)}
-                      </span>
-                    </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
 

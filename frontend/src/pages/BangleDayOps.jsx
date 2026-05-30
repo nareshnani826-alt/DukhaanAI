@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { api, isCloud } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { BangleProducts, BangleSales } from "../sync/bangleDb.js"
 
@@ -178,9 +177,7 @@ export default function BangleDayOps() {
   async function openDay() {
     setActing(true)
     try {
-      const sess = isCloud()
-        ? await api.post("/day-sessions/open", {})
-        : await localOpenDay(products)
+      const sess = await localOpenDay(products)
       setSession(sess)
       playAlert("open")
       showNotif("✓ Day opened! Stock snapshot taken.")
@@ -192,9 +189,7 @@ export default function BangleDayOps() {
     if (!confirm("Close today's day? This will record your final stock and profits.")) return
     setActing(true)
     try {
-      const sess = isCloud()
-        ? await api.post("/day-sessions/close", {})
-        : await localCloseDay(todaySummary, products)
+      const sess = await localCloseDay(todaySummary, products)
       setSession(sess)
       playAlert("close")
       showNotif("✓ Day closed! Summary ready.")
@@ -385,7 +380,7 @@ export default function BangleDayOps() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span>{v.stock <= 0 ? "🔴" : "🟡"}</span>
                       <span style={{ fontWeight: 600, color: "#374151" }}>
-                        {v.product_name}{v.color ? ` · ${v.color}` : ""}{v.size ? ` [${v.size}]` : ""}
+                        {v.product_name || v.name || "—"}{(v.color || v.colour) ? ` · ${v.color || v.colour}` : ""}{v.size ? ` [${v.size}]` : ""}
                       </span>
                     </div>
                     <span style={{ fontWeight: 700, color: "#dc2626" }}>{v.stock} pcs / min {v.min_stock}</span>
@@ -429,8 +424,8 @@ export default function BangleDayOps() {
                       const isLow     = cur && cur.stock < (cur.min_stock || 0)
                       return (
                         <tr key={v.variant_id || i} style={{ background: isLow ? "#fff5f5" : undefined }}>
-                          <td className="td font-medium text-xs">{v.product_name || info.product_name || "—"}</td>
-                          <td className="td text-xs text-gray-500">{v.color || info.color || "—"}</td>
+                          <td className="td font-medium text-xs">{v.product_name || v.name || info.product_name || "—"}</td>
+                          <td className="td text-xs text-gray-500">{v.color || v.colour || info.color || "—"}</td>
                           <td className="td text-xs text-gray-500">{v.size || info.size || "—"}</td>
                           <td className="td text-right text-xs">{v.stock}</td>
                           <td className={`td text-right text-xs font-medium ${isLow ? "text-red-600" : "text-primary"}`}>
@@ -480,7 +475,7 @@ export default function BangleDayOps() {
                       const isLow   = v.stock < (v.min_stock || 0)
                       return (
                         <tr key={v.variant_id || i} style={{ background: isLow ? "#fff5f5" : undefined }}>
-                          <td className="td font-medium text-xs">{v.product_name || info.product_name || "—"}</td>
+                          <td className="td font-medium text-xs">{v.product_name || v.name || info.product_name || "—"}</td>
                           <td className="td text-xs text-gray-500">{v.color || v.colour || info.color || "—"}</td>
                           <td className="td text-xs text-gray-500">{v.size || info.size || "—"}</td>
                           <td className="td text-right text-xs text-gray-500">{opening?.stock ?? "—"}</td>

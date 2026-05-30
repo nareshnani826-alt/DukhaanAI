@@ -37,9 +37,11 @@ export async function call(method, path, body = null, retry = true) {
   if (body) opts.body = JSON.stringify(body)
   const res = await fetch(BASE + path, opts)
   if (res.status === 401 && retry) {
+    const hadSession = !!(getToken() || getRefresh())
     const ok = await tryRefresh()
     if (ok) return call(method, path, body, false)
-    clearAuth(); window.location.href = "/"
+    // Only redirect if a real session expired — not for wrong-password 401s
+    if (hadSession) { clearAuth(); window.location.href = "/" }
   }
   if (!res.ok) {
     const e = await res.json().catch(() => ({ detail: "Unknown error" }))
@@ -73,7 +75,9 @@ export const Products = {
       if (f.category)  q.set("category",  f.category)
       if (f.search)    q.set("search",     f.search)
       if (f.low_stock) q.set("low_stock",  "true")
-      return api.get("/products" + (q.toString() ? "?" + q : ""))
+      q.set("limit",  String(f.limit  ?? 200))
+      q.set("offset", String(f.offset ?? 0))
+      return api.get("/products?" + q)
     }
     let p = localRead().products.filter(x => x.is_active !== false)
     if (f.category)  p = p.filter(x => x.category === f.category)

@@ -1,6 +1,8 @@
+import asyncio
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.database import get_db
 from app.core.security import get_current_vendor
+from app.core.cache import cache_get, cache_set, cache_bust
 from app.schemas.schemas import (
     ProductCreate, ProductUpdate, ProductOut, MessageResponse,
     BulkImportRequest, BulkImportResponse,
@@ -8,35 +10,56 @@ from app.schemas.schemas import (
 
 router = APIRouter(prefix="/products", tags=["products"])
 
+_CACHE_TTL = 30  # seconds — products change infrequently within a request burst
+
+
+def _bust(vendor_id: str) -> None:
+    cache_bust(f"products:{vendor_id}:")
+
 
 @router.get("", response_model=list[ProductOut])
 async def list_products(
-    category: str | None = Query(None),
-    low_stock: bool = Query(False, description="Only show items below min stock"),
-    search: str | None = Query(None),
-    is_active: bool = Query(True),
+    category:  str | None = Query(None),
+    low_stock: bool       = Query(False, description="Only show items below min stock"),
+    search:    str | None = Query(None),
+    is_active: bool       = Query(True),
+    limit:     int        = Query(200, ge=1, le=1000),
+    offset:    int        = Query(0,   ge=0),
     vendor=Depends(get_current_vendor),
 ):
-    db = get_db()
-    q = db.table("products").select("*").eq("vendor_id", vendor["id"]).eq("is_active", is_active)
-
-    if category:
-        q = q.eq("category", category)
+    # low_stock uses a dedicated RPC — skip the cache for that path
     if low_stock:
-        # Supabase doesn't support column comparison in filter, use RPC or fetch + filter
-        result = q.execute()
-        return [p for p in result.data if p["stock"] < p["min_stock"]]
-    if search:
-        q = q.ilike("name", f"%{search}%")
+        def _low():
+            return get_db().rpc(
+                "get_low_stock_products", {"p_vendor_id": vendor["id"]}
+            ).execute().data
+        return await asyncio.to_thread(_low)
 
-    return q.order("name").execute().data
+    cache_key = f"products:{vendor['id']}:{limit}:{offset}:{category or ''}:{search or ''}"
+    cached = cache_get(cache_key, _CACHE_TTL)
+    if cached is not None:
+        return cached
+
+    def _query():
+        db = get_db()
+        q = (db.table("products")
+               .select("*")
+               .eq("vendor_id", vendor["id"])
+               .eq("is_active", is_active))
+        if category:
+            q = q.eq("category", category)
+        if search:
+            q = q.ilike("name", f"%{search}%")
+        return q.order("name").range(offset, offset + limit - 1).execute().data
+
+    data = await asyncio.to_thread(_query)
+    cache_set(cache_key, data)
+    return data
 
 
 @router.post("", response_model=ProductOut, status_code=201)
 async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
-
-    # Check SKU uniqueness per vendor
     if body.sku:
         existing = (
             db.table("products")
@@ -50,10 +73,10 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
 
     data = body.model_dump()
     data["vendor_id"] = vendor["id"]
-    # Empty string SKU → None to avoid unique constraint conflicts
     if not data.get("sku"):
         data["sku"] = None
     result = db.table("products").insert(data).execute()
+    _bust(vendor["id"])
     return result.data[0]
 
 
@@ -88,27 +111,23 @@ async def bulk_import_products(body: BulkImportRequest, vendor=Depends(get_curre
                 data["vendor_id"] = vendor["id"]
                 data["sku"] = None
                 db.table("products").insert(data).execute()
-                by_name[key] = {"name": item.name, "stock": item.stock}  # prevent re-insert in same batch
+                by_name[key] = {"name": item.name, "stock": item.stock}
                 added += 1
         except Exception:
             failed += 1
 
+    _bust(vendor["id"])
     return BulkImportResponse(added=added, updated=updated, failed=failed, total=len(body.items))
 
 
 @router.get("/low-stock", response_model=list[ProductOut])
 async def low_stock_alerts(vendor=Depends(get_current_vendor)):
-    db = get_db()
-    result = (
-        db.table("products")
-        .select("*")
-        .eq("vendor_id", vendor["id"])
-        .eq("is_active", True)
-        .execute()
-    )
-    alerts = [p for p in result.data if p["stock"] < p["min_stock"]]
-    alerts.sort(key=lambda p: p["stock"])
-    return alerts
+    """Dedicated low-stock endpoint using a PostgreSQL RPC — no Python-side filter."""
+    def _query():
+        return get_db().rpc(
+            "get_low_stock_products", {"p_vendor_id": vendor["id"]}
+        ).execute().data
+    return await asyncio.to_thread(_query)
 
 
 @router.get("/categories")
@@ -145,7 +164,6 @@ async def update_product(
     product_id: str, body: ProductUpdate, vendor=Depends(get_current_vendor)
 ):
     db = get_db()
-    # Verify ownership
     existing = (
         db.table("products")
         .select("id")
@@ -161,6 +179,7 @@ async def update_product(
         raise HTTPException(status_code=400, detail="Nothing to update")
 
     result = db.table("products").update(updates).eq("id", product_id).execute()
+    _bust(vendor["id"])
     return result.data[0]
 
 
@@ -177,8 +196,8 @@ async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
     if not existing.data:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Soft delete — preserves sales history
     db.table("products").update({"is_active": False}).eq("id", product_id).execute()
+    _bust(vendor["id"])
     return MessageResponse(message="Product removed")
 
 
@@ -214,4 +233,5 @@ async def adjust_stock(
         .eq("id", product_id)
         .execute()
     )
+    _bust(vendor["id"])
     return updated.data[0]

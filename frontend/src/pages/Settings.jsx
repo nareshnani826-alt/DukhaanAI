@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { getUPIVpa, saveUPIVpa } from "../components/UPIQRCode.jsx"
 import { LANGUAGES } from "../voice/languages.js"
 import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan } from "../context/PlanContext"
@@ -23,6 +24,62 @@ const PLAN_INFO = {
   free:      { name:"Free",      price:"₹0",    color:"var(--ink-faint)",    bg:"#f3f4f6" },
   pro:       { name:"Pro",       price:"₹299",  color:"var(--jade)", bg:"#E1F5EE" },
   wholesale: { name:"Wholesale", price:"₹799",  color:"#7F77DD", bg:"#EEEDFE" },
+}
+
+function UPISetting() {
+  const [vpa,    setVpa]    = useState(getUPIVpa)
+  const [draft,  setDraft]  = useState(getUPIVpa)
+  const [saved,  setSaved]  = useState(false)
+
+  function handleSave() {
+    saveUPIVpa(draft)
+    setVpa(draft.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="card mb-4" style={{ padding: 14 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+        <span style={{ fontSize:20 }}>📱</span>
+        <div>
+          <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>UPI Payment ID</div>
+          <div style={{ fontSize:10, color:"var(--ink-faint)" }}>
+            Customers scan a QR on every bill to pay instantly
+          </div>
+        </div>
+      </div>
+      <div style={{ display:"flex", gap:8 }}>
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          placeholder="9876543210@paytm or name@okaxis"
+          style={{
+            flex:1, padding:"9px 12px", borderRadius:9,
+            border:"1.5px solid var(--rule)", fontSize:12,
+            background:"var(--bg2)", color:"var(--ink)", outline:"none",
+          }}
+          onFocus={e  => e.target.style.borderColor = "var(--jade)"}
+          onBlur={e   => e.target.style.borderColor = "var(--rule)"}
+          onKeyDown={e => e.key === "Enter" && handleSave()}
+        />
+        <button onClick={handleSave}
+          style={{
+            padding:"9px 16px", borderRadius:9, border:"none",
+            background: saved ? "#059669" : "var(--jade)",
+            color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer",
+            transition:"background 0.2s", whiteSpace:"nowrap",
+          }}>
+          {saved ? "✓ Saved" : "Save"}
+        </button>
+      </div>
+      {vpa && (
+        <div style={{ marginTop:8, fontSize:10, color:"var(--jade)", fontWeight:600 }}>
+          ✓ UPI active: {vpa}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function Settings() {
@@ -221,6 +278,9 @@ export default function Settings() {
           })}
         </div>
       </div>
+
+      {/* UPI Payment Setting */}
+      <UPISetting />
 
       {/* Feature toggles */}
       <div className="card mb-4">

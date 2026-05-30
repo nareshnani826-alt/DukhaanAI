@@ -6,11 +6,37 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from jose import jwt, JWTError
 
 from app.core.config import settings
 
+
+def _rate_limit_key(request: Request) -> str:
+    """Rate-limit by vendor ID from JWT when present, fall back to IP address.
+
+    IP-based limiting is unfair: 10 vendors sharing a network (café, apartment)
+    all share one bucket. JWT-based limiting is per-account.
+    """
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        try:
+            token = auth.split(" ", 1)[1]
+            payload = jwt.decode(
+                token,
+                settings.jwt_secret_key,
+                algorithms=[settings.jwt_algorithm],
+                options={"verify_exp": False},   # only need sub, skip expiry re-check
+            )
+            vendor_id = payload.get("sub")
+            if vendor_id:
+                return f"vendor:{vendor_id}"
+        except JWTError:
+            pass
+    return get_remote_address(request)
+
+
 # Rate limiter — shared across routers via app.state
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=_rate_limit_key)
 
 from app.routers import (
     auth,

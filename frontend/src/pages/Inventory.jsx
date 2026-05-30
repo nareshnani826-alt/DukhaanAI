@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { Products } from "../sync/db.js"
 import BarcodeGenerator from "../components/BarcodeGenerator.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
@@ -468,15 +468,34 @@ export default function Inventory() {
   const [dateFilter,  setDateFilter]  = useState("all")
   const { hasFeature } = usePlan()
 
-  async function load() {
-    setLoading(true)
-    try {
-      const list = await Products.list({ search, category: cat||undefined })
-      setProducts(list)
-    } finally { setLoading(false) }
+  const [debouncedSearch, setDebouncedSearch] = useState(search)
+  const debounceTimer = useRef(null)
+  const [page,    setPage]    = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const PAGE_SIZE = 50
+
+  function handleSearchChange(val) {
+    setSearch(val)
+    clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => setDebouncedSearch(val), 300)
   }
 
-  useEffect(() => { load() }, [search, cat])
+  async function load(pageNum = 0, append = false) {
+    if (!append) setLoading(true)
+    try {
+      const list = await Products.list({
+        search:   debouncedSearch,
+        category: cat || undefined,
+        limit:    PAGE_SIZE,
+        offset:   pageNum * PAGE_SIZE,
+      })
+      setProducts(prev => append ? [...prev, ...list] : list)
+      setHasMore(list.length === PAGE_SIZE)
+      setPage(pageNum)
+    } finally { if (!append) setLoading(false) }
+  }
+
+  useEffect(() => { load(0, false) }, [debouncedSearch, cat])
 
   function showNotif(msg) { setNotif(msg); setTimeout(() => setNotif(""), 2500) }
 
@@ -612,15 +631,16 @@ export default function Inventory() {
     { value: "month", label: "This month" },
   ]
 
-  const displayProducts = products.filter(p => {
-    if (dateFilter === "all") return true
-    if (!p.updated_at) return false
-    const d = new Date(p.updated_at), now = new Date()
-    if (dateFilter === "today") { const s = new Date(now); s.setHours(0,0,0,0); return d >= s }
-    if (dateFilter === "week")  return d >= new Date(now - 7 * 86400000)
-    if (dateFilter === "month") return d >= new Date(now - 30 * 86400000)
-    return true
-  })
+  const displayProducts = useMemo(() => {
+    if (dateFilter === "all") return products
+    const now = Date.now()
+    const cutoff = dateFilter === "today"
+      ? (() => { const s = new Date(); s.setHours(0,0,0,0); return s.getTime() })()
+      : dateFilter === "week"  ? now - 7  * 86400000
+      : dateFilter === "month" ? now - 30 * 86400000
+      : 0
+    return products.filter(p => p.updated_at && new Date(p.updated_at).getTime() >= cutoff)
+  }, [products, dateFilter])
 
   const pct    = p => Math.max(4, Math.min(100, Math.round(p.stock / Math.max(p.min_stock*2,1) * 100)))
   const barCls = p => p.stock < p.min_stock*0.3 ? "bg-red-500" : p.stock < p.min_stock ? "bg-amber-400" : "bg-primary"
@@ -719,7 +739,7 @@ export default function Inventory() {
       {/* Filters */}
       <div className="flex gap-2 mb-3 flex-wrap">
         <input className="input flex-1" style={{ minWidth: 140 }} placeholder="Search products..."
-          value={search} onChange={e => setSearch(e.target.value)} />
+          value={search} onChange={e => handleSearchChange(e.target.value)} />
         <select className="input" style={{ width: 140 }} value={cat} onChange={e => setCat(e.target.value)}>
           <option value="">All categories</option>
           {CATS.map(c => <option key={c}>{c}</option>)}
@@ -826,6 +846,18 @@ export default function Inventory() {
           </tbody>
         </table>
         </div>
+
+        {/* Load more */}
+        {hasMore && (
+          <div style={{ textAlign: "center", padding: "12px 0" }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => load(page + 1, true)}
+            >
+              Load more products
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

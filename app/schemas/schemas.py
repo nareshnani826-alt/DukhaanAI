@@ -50,6 +50,19 @@ class VerifyOtpRequest(BaseModel):
     otp: str
 
 
+class RegisterOtpRequired(BaseModel):
+    """Returned by POST /auth/register — email OTP sent, account not created yet."""
+    status: Literal["otp_required"]
+    email: str          # address where OTP was sent
+    pending_token: str  # short-lived signed JWT carrying the registration data
+
+
+class RegisterConfirm(BaseModel):
+    """Second step: submit OTP to complete phone-verified registration."""
+    pending_token: str
+    otp: str
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

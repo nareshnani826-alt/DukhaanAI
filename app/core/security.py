@@ -56,14 +56,19 @@ def decode_access_token(token: str) -> dict[str, Any]:
 async def get_current_vendor(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ):
+    import asyncio
     payload = decode_access_token(credentials.credentials)
     vendor_id: str | None = payload.get("sub")
     if not vendor_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
-    db = get_db()
-    result = db.table("vendors").select(
-        "id,email,store_name,gstin,phone,address,plan,plan_expires_at,is_active,is_admin,created_at,updated_at"
-    ).eq("id", vendor_id).single().execute()
+
+    def _fetch():
+        db = get_db()
+        return db.table("vendors").select(
+            "id,email,store_name,gstin,phone,address,plan,plan_expires_at,is_active,is_admin,created_at,updated_at"
+        ).eq("id", vendor_id).single().execute()
+
+    result = await asyncio.to_thread(_fetch)
     if not result.data:
         raise HTTPException(status_code=401, detail="Vendor not found")
     vendor = result.data

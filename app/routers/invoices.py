@@ -130,23 +130,109 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
     return invoice
 
 
-@router.get("", response_model=list[InvoiceOut])
+@router.get("")
 async def list_invoices(
-    status: str | None = Query(None),
-    limit: int = Query(50, le=200),
+    status:       str | None = Query(None),
+    search:       str | None = Query(None, description="Customer name, phone or invoice number"),
+    date_from:    str | None = Query(None, description="YYYY-MM-DD"),
+    date_to:      str | None = Query(None, description="YYYY-MM-DD"),
+    payment_mode: str | None = Query(None),
+    sort:         str        = Query("newest", description="newest|oldest|amount_desc|amount_asc"),
+    limit:        int        = Query(50, ge=1, le=200),
+    offset:       int        = Query(0,  ge=0),
     vendor=Depends(get_current_vendor),
 ):
-    db = get_db()
-    q = (
-        db.table("invoices")
-        .select("*")
-        .eq("vendor_id", vendor["id"])
-        .order("created_at", desc=True)
-        .limit(limit)
-    )
-    if status:
-        q = q.eq("status", status)
-    return q.execute().data
+    import asyncio
+
+    def _query():
+        db = get_db()
+        q  = db.table("invoices").select("*").eq("vendor_id", vendor["id"])
+
+        if status:
+            q = q.eq("status", status)
+        if payment_mode:
+            q = q.eq("payment_mode", payment_mode)
+        if date_from:
+            q = q.gte("created_at", date_from + "T00:00:00+00:00")
+        if date_to:
+            q = q.lte("created_at", date_to   + "T23:59:59+00:00")
+
+        rows = q.order(
+            "created_at" if sort in ("newest", "oldest") else "total",
+            desc=(sort in ("newest", "amount_desc")),
+        ).execute().data or []
+
+        # In-memory search (customer name, phone, invoice number)
+        if search:
+            s = search.strip().lower()
+            rows = [
+                r for r in rows
+                if s in (r.get("customer_name")  or "").lower()
+                or s in (r.get("customer_phone") or "").lower()
+                or s in (r.get("invoice_no")     or "").lower()
+            ]
+
+        # ── Summary for the full filtered set ───────────────────
+        paid   = [r for r in rows if r.get("status") != "cancelled"]
+        revenue = round(sum(float(r.get("total") or 0) for r in paid), 2)
+        total_bills = len(paid)
+
+        # Profit: use the sales table — sales records always have product_id,
+        # unlike invoice items which may be null for manually-typed entries.
+        sales_q = db.table("sales").select("product_id,qty") \
+            .eq("vendor_id", vendor["id"])
+        if date_from:
+            sales_q = sales_q.gte("sold_at", date_from + "T00:00:00+00:00")
+        if date_to:
+            sales_q = sales_q.lte("sold_at", date_to   + "T23:59:59+00:00")
+        if payment_mode:
+            sales_q = sales_q.eq("payment_mode", payment_mode)
+        sales_rows = sales_q.execute().data or []
+
+        sale_pids = list({s["product_id"] for s in sales_rows if s.get("product_id")})
+        prod_cost: dict = {}
+        if sale_pids:
+            prows = db.table("products").select("id,cost_price") \
+                .in_("id", sale_pids).eq("vendor_id", vendor["id"]).execute().data or []
+            prod_cost = {p["id"]: float(p.get("cost_price") or 0) for p in prows}
+
+        sales_with_cost = sum(1 for s in sales_rows if prod_cost.get(s.get("product_id", ""), 0) > 0)
+        coverage = sales_with_cost / len(sales_rows) if sales_rows else 0
+
+        cost = round(sum(
+            float(s.get("qty") or 0) * prod_cost.get(s.get("product_id", ""), 0)
+            for s in sales_rows
+        ), 2)
+
+        cost_known = coverage > 0
+        partial    = 0 < coverage < 0.80
+        profit     = round(revenue - cost, 2) if cost_known else None
+        margin_pct = round(profit / revenue * 100, 1) if (cost_known and revenue > 0) else None
+
+        # Stock value — all active products × cost_price
+        sv_rows = db.table("products").select("stock,cost_price") \
+            .eq("vendor_id", vendor["id"]).eq("is_active", True).execute().data or []
+        stock_value = round(sum(
+            float(v.get("stock") or 0) * float(v.get("cost_price") or 0)
+            for v in sv_rows
+        ), 2)
+
+        summary = {
+            "revenue":       revenue,
+            "profit":        profit,
+            "margin_pct":    margin_pct,
+            "cost_known":    cost_known,
+            "partial_cost":  partial,
+            "cost_coverage": round(coverage * 100, 0),
+            "total_bills":   total_bills,
+            "stock_value":   stock_value,
+        }
+
+        total_count = len(rows)
+        return rows[offset: offset + limit], total_count, summary
+
+    rows, total_count, summary = await asyncio.to_thread(_query)
+    return {"invoices": rows, "total": total_count, "limit": limit, "offset": offset, "summary": summary}
 
 
 @router.get("/today")

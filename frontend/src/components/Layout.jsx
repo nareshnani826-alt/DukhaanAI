@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom"
+import Logo from "./Logo"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
@@ -36,7 +37,10 @@ const BANGLE_NAV = [
     sub:null },
   { label:"Inventory", to:"/bangle-inventory",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>,
-    sub:[{to:"/bangle-inventory",label:"💍 Stock"},{to:"/bangle-bulk-import",label:"📦 Bulk Import"},{to:"/bangle-billing",label:"🧾 Billing"},{to:"/bangle-festivals",label:"🗓️ Festival Calendar"},{to:"/bangle-insights",label:"📊 Insights"},{to:"/reorder",label:"🤖 Reorder Agent"}] },
+    sub:[{to:"/bangle-inventory",label:"💍 Stock"},{to:"/bangle-bulk-import",label:"📦 Bulk Import"},{to:"/bangle-festivals",label:"🗓️ Festival Calendar"},{to:"/bangle-insights",label:"📊 Insights"},{to:"/reorder",label:"🤖 Reorder Agent"}] },
+  { label:"Sales", to:"/bangle-billing",
+    icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>,
+    sub:[{to:"/bangle-billing",label:"🧾 Billing"},{to:"/bangle-history",label:"📋 Bill History"}] },
   { label:"Assistant", to:"/voice",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
     sub:null },
@@ -46,13 +50,13 @@ const BANGLE_NAV = [
 ]
 
 const BANGLE_MOB_TABS = [
-  { to:"/bangle-inventory", label:"Stock",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg> },
   { to:"/bangle-billing", label:"Bill",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+  { to:"/bangle-inventory", label:"Stock",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg> },
   { to:"/voice", label:"", voice:true },
-  { to:"/bangle-dashboard", label:"Home",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg> },
+  { to:"/bangle-history", label:"History",
+    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-4"/><polyline points="3 3 3 7 7 7"/></svg> },
   { to:"/more", label:"More",
     icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
@@ -161,7 +165,8 @@ function phoneticKey(s) {
 
 // ── Answer using db.js APIs (auth handled internally, no raw fetch) ──
 async function localReply(q, storeMode = "kirana") {
-  const query = q.toLowerCase()
+  // Strip punctuation before any processing so "milk?" matches "milk"
+  const query = q.toLowerCase().replace(/[?!.,;:'"()\-]/g, " ").replace(/\s+/g, " ").trim()
 
   // Fetch products from the active store
   const products = storeMode === "bangle_fancy"
@@ -176,7 +181,7 @@ async function localReply(q, storeMode = "kirana") {
           unit:       "piece",
         }))
       }).catch(() => [])
-    : await Products.list({ limit: 1000 }).catch(() => [])
+    : await Products.list({ limit: 1000 }).then(r => Array.isArray(r) ? r : (r?.data || [])).catch(() => [])
 
   // ── Availability / product search ───────────────────────
   const isAvailQuery = /do you have|do we have|have you|is there|available|milega|milta|undi|vundi|unnaya|ఉందా|కావాలి|ఉన్నాయా|मिलेगा|किधर|கிடைக்கும்|ಸಿಗುತ್ತಾ/i.test(query)
@@ -203,20 +208,39 @@ async function localReply(q, storeMode = "kirana") {
     : []
 
   // ── 1. Phonetic / substring match ─────────────────────────────
-  const phoneticMatched = allWords.length > 0 && vocabProducts.length === 0
-    ? products.filter(p => allWords.some(w => {
-        if (p.name?.toLowerCase().includes(w) || p.category?.toLowerCase().includes(w)) return true
-        if (hasIndic && w.length > 1) {
-          const wKey = phoneticKey(w)
-          if (wKey.length < 2) return false
-          return (p.name || '').toLowerCase().split(/\s+/).some(nw => {
-            const nk = phoneticKey(nw)
-            return nk.length >= 2 && (nk === wKey || nk.startsWith(wKey) || wKey.startsWith(nk))
-          })
-        }
-        return false
-      }))
-    : []
+  // wordMatches: how many search words appear in a product name (for scoring)
+  function wordMatchCount(p) {
+    const name = (p.name || "").toLowerCase()
+    const cat  = (p.category || "").toLowerCase()
+    return allWords.filter(w => {
+      if (name.includes(w) || cat.includes(w)) return true
+      if (hasIndic && w.length > 1) {
+        const wKey = phoneticKey(w)
+        if (wKey.length < 2) return false
+        return name.split(/\s+/).some(nw => {
+          const nk = phoneticKey(nw)
+          return nk.length >= 2 && (nk === wKey || nk.startsWith(wKey) || wKey.startsWith(nk))
+        })
+      }
+      return false
+    }).length
+  }
+
+  let phoneticMatched = []
+  if (allWords.length > 0 && vocabProducts.length === 0) {
+    // Tier 1: ALL words must match (precise — "amul milk" → only Amul Milk products)
+    const strict = products.filter(p => wordMatchCount(p) === allWords.length)
+    if (strict.length > 0) {
+      phoneticMatched = strict
+    } else {
+      // Tier 2: at least one word matches — sort by how many words match
+      phoneticMatched = products
+        .map(p => ({ p, score: wordMatchCount(p) }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(x => x.p)
+    }
+  }
 
   const matched = vocabProducts.length > 0 ? vocabProducts : phoneticMatched
 
@@ -261,7 +285,9 @@ async function localReply(q, storeMode = "kirana") {
   }
 
   // ── Not found → return teach data so chat can prompt user ─────
-  if (allWords.length > 0 && matched.length === 0 && (isAvailQuery || allWords.some(w => w.length > 3))) {
+  // Skip this for analytics queries (profit, sales, revenue etc.) — let them
+  // fall through to the dedicated analytics handlers below.
+  if (allWords.length > 0 && matched.length === 0 && !isAnalyticsQuery && (isAvailQuery || allWords.some(w => w.length > 3))) {
     const displayWords = romanWords.length > 0 ? romanWords : words
     const searchTerm   = displayWords.filter(w => w.length > 3).slice(0, 3).join(" ") || displayWords.join(" ")
     const topProducts  = [...products]
@@ -332,8 +358,59 @@ ${lines.join("\n")}`
     return reply.trim()
   }
 
-  // ── Best margin / most profitable ───────────────────────
-  if (/margin|profit|profitable|best|top|లాభ|लाभ/.test(query)) {
+  // ── Today's / period profit ──────────────────────────────
+  if (/profit|లాభ|लाभ|லாபம்|ಲಾಭ/.test(query)) {
+    const isToday = /today|aaj|ఈరోజు|आज|இன்று|ಇಂದು/.test(query)
+    const isMonth = /month|mahina|నెల|महीना|மாதம்|ತಿಂಗಳು/.test(query)
+    const days = isToday ? 1 : isMonth ? 30 : 7
+
+    const [salesData, todaySales] = await Promise.all([
+      Sales.summary({ days }).catch(() => ({ total_revenue: 0, transaction_count: 0 })),
+      isToday ? Sales.today().catch(() => ({ total: 0, count: 0, sales: [] })) : Promise.resolve(null),
+    ])
+
+    // Calculate cost from products' cost_price × qty sold
+    const allSales = isToday && todaySales?.sales
+      ? todaySales.sales
+      : []
+
+    let cost = 0
+    let hasCost = false
+    if (allSales.length > 0) {
+      for (const s of allSales) {
+        const prod = products.find(p => p.id === s.product_id)
+        if (prod?.cost_price > 0) {
+          cost += parseFloat(prod.cost_price) * parseFloat(s.qty || 1)
+          hasCost = true
+        }
+      }
+    }
+
+    const revenue = isToday
+      ? (todaySales?.total || 0)
+      : (salesData?.total_revenue || 0)
+
+    const label = isToday ? "Today" : isMonth ? "This month" : "Last 7 days"
+    const profitLine = hasCost
+      ? `• Profit: ₹${(revenue - cost).toFixed(2)} (Revenue ₹${revenue} − Cost ₹${cost.toFixed(2)})`
+      : `• Revenue: ₹${revenue}\n• Profit: Set cost prices in Inventory to calculate profit`
+
+    // Also show best-margin products as a bonus
+    const top3 = products
+      .filter(p => parseFloat(p.mrp||0) > 0 && parseFloat(p.cost_price||0) > 0)
+      .map(p => ({ ...p, m: calcMargin(p) }))
+      .sort((a, b) => b.m - a.m)
+      .slice(0, 3)
+      .map(p => `  • ${p.name} — ${p.m}% margin`)
+
+    return `💰 Profit Summary (${label}):
+${profitLine}
+• Transactions: ${isToday ? (todaySales?.count || 0) : (salesData?.transaction_count || 0)}
+${top3.length ? `\n🏆 Top margin products:\n${top3.join("\n")}` : ""}`
+  }
+
+  // ── Best margin products ─────────────────────────────────
+  if (/margin|profitable|best.*product|top.*product/.test(query)) {
     const withMargin = products
       .filter(p => parseFloat(p.mrp||0) > 0 && parseFloat(p.cost_price||0) > 0)
       .map(p => ({ ...p, m: calcMargin(p) }))
@@ -1043,6 +1120,12 @@ export default function Layout({ children }) {
     }
   }, [location.state, location.pathname, navigate])
 
+  // Auto-expand the sidebar section whose sub-item matches the current route
+  useEffect(() => {
+    const active = NAV.find(nav => nav.sub?.some(s => location.pathname.startsWith(s.to)))
+    if (active) setExpanded(active.label)
+  }, [location.pathname])
+
   function isActive(nav) {
     if (nav.sub) return nav.sub.some(s => location.pathname.startsWith(s.to))
     return location.pathname.startsWith(nav.to)
@@ -1055,19 +1138,7 @@ export default function Layout({ children }) {
       <aside className="app-sidebar">
         <div className="sidebar-logo">
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
-              background:"linear-gradient(135deg,#e87722,#d45f00)",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:20, color:"#fff",
-              boxShadow:"0 3px 10px rgba(232,119,34,0.35)" }}>द</div>
-            <div>
-              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:17,
-                color:"var(--ink)", fontWeight:700, lineHeight:1 }}>
-                दुकान<span style={{color:"var(--saffron)"}}>•</span>AI
-              </div>
-              <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:2,
-                letterSpacing:"1.2px", textTransform:"uppercase" }}>{storeLabel}</div>
-            </div>
+            <Logo size={38} storeLabel={storeLabel} />
           </div>
           {loggedIn && (
             <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:4,
@@ -1303,7 +1374,7 @@ export default function Layout({ children }) {
           }
 
           const PRIMARY = storeMode === "bangle_fancy"
-            ? ["/bangle-inventory", "/bangle-billing", "/voice", "/bangle-dashboard"]
+            ? ["/bangle-billing", "/bangle-inventory", "/voice", "/bangle-history"]
             : ["/billing", "/voice"]
           const on = tab.to === "/more"
             ? !PRIMARY.some(p => location.pathname.startsWith(p)) && location.pathname !== "/"
@@ -1366,8 +1437,32 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      {/* Groq AI chat bubble */}
-      <AIChatWidget />
+      {/* ── Persistent "New Bill" FAB ───────────────── */}
+      {(() => {
+        const billingRoute  = storeMode === "bangle_fancy" ? "/bangle-billing" : "/billing"
+        const dashboardRoute = storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard"
+        if (location.pathname === billingRoute)   return null  // already on billing
+        if (location.pathname === dashboardRoute) return null  // dashboard has its own tile
+        if (showAuth) return null
+        return (
+          <button
+            onClick={() => navigate(billingRoute)}
+            style={{
+              position: "fixed", bottom: 74, right: 16, zIndex: 98,
+              background: "linear-gradient(135deg, var(--saffron), var(--saffron-hot))",
+              color: "#fff", border: "none", borderRadius: 28,
+              padding: "13px 22px", fontSize: 14, fontWeight: 800,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              boxShadow: "0 6px 24px rgba(232,119,34,0.55)",
+              letterSpacing: "0.2px", whiteSpace: "nowrap",
+            }}>
+            🧾 <span>New Bill</span>
+          </button>
+        )
+      })()}
+
+      {/* Groq AI chat bubble — hidden while auth modal is open */}
+      {!showAuth && <AIChatWidget />}
 
       {/* Daily open/close gate — prompts on first load each day */}
       {loggedIn && <DaySessionGate vendor={vendor} />}

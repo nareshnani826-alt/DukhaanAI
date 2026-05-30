@@ -1,17 +1,23 @@
 import { useState, useRef, useEffect } from "react"
 import { useAuth } from "../context/AuthContext"
+import Logo from "./Logo"
 
 const isValidEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 const isValidPhone = v => /^(\+91|0|91)?[6-9]\d{9}$/.test(v.replace(/\s/g, ""))
 
 export default function AuthModal({ onClose }) {
-  const { login, register, sendOtp, verifyOtp, forgotPassword, loading, error, setError } = useAuth()
-  const [mode, setMode]       = useState("login")   // login | register | otp | forgot
+  const { login, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, loading, error, setError } = useAuth()
+  const [mode, setMode]       = useState("login")   // login | register | register_otp | otp | forgot
   const [form, setForm]       = useState({ identifier: "", password: "", store_name: "", phone: "", gstin: "" })
   const [modules, setModules] = useState(["kirana"])
   const [remember, setRemember] = useState(true)
   const [fieldErr, setFieldErr] = useState({})
-  // OTP state
+  // Register-OTP state (email verification during sign-up)
+  const [regOtpEmail,     setRegOtpEmail]     = useState("")
+  const [regPendingToken, setRegPendingToken] = useState("")
+  const [regOtpCode,      setRegOtpCode]      = useState("")
+  const [regOtpErr,       setRegOtpErr]       = useState("")
+  // Login-OTP state
   const [otpPhone, setOtpPhone]       = useState("")
   const [otpPhoneErr, setOtpPhoneErr] = useState("")
   const [otpStep, setOtpStep]         = useState(1)   // 1=enter phone, 2=enter code
@@ -46,13 +52,49 @@ export default function AuthModal({ onClose }) {
     if (Object.keys(errs).length) { setFieldErr(errs); return }
 
     try {
-      if (mode === "login") await login(form.identifier, form.password, remember)
-      else await register({ ...form, email: form.identifier, modules })
-      onClose()
+      if (mode === "login") {
+        await login(form.identifier, form.password, remember)
+        onClose(true)
+      } else {
+        const res = await register({ ...form, email: form.identifier, modules })
+        if (res?.status === "otp_required") {
+          // Email verification required — switch to OTP step
+          setRegOtpEmail(res.email)
+          setRegPendingToken(res.pending_token)
+          setRegOtpCode(""); setRegOtpErr("")
+          startCountdown()
+          setMode("register_otp")
+        } else {
+          onClose(true)
+        }
+      }
     } catch {}
   }
 
-  // ── WhatsApp OTP ───────────────────────────────────────
+  // ── Register phone verification ────────────────────────
+  async function handleRegisterConfirm() {
+    setRegOtpErr("")
+    if (!regOtpCode || regOtpCode.length !== 6) { setRegOtpErr("Enter the 6-digit OTP"); return }
+    try {
+      await registerConfirm(regPendingToken, regOtpCode, remember)
+      onClose(true)
+    } catch(e) { setRegOtpErr(e.message) }
+  }
+
+  async function handleRegisterResend() {
+    // Re-submit the original register form to get a fresh OTP + pending token
+    setRegOtpErr(""); setError("")
+    try {
+      const res = await register({ ...form, email: form.identifier, modules })
+      if (res?.status === "otp_required") {
+        setRegPendingToken(res.pending_token)
+        setRegOtpCode("")
+        startCountdown()
+      }
+    } catch(e) { setRegOtpErr(e.message) }
+  }
+
+  // ── WhatsApp OTP (login) ────────────────────────────────
   function startCountdown() {
     clearInterval(timerRef.current)
     setCountdown(30)
@@ -77,7 +119,7 @@ export default function AuthModal({ onClose }) {
     if (!otpCode || otpCode.length !== 6) { setOtpCodeErr("Enter the 6-digit OTP"); return }
     try {
       await verifyOtp(otpPhone, otpCode, remember)
-      onClose()
+      onClose(true)
     } catch(e) { setOtpCodeErr(e.message) }
   }
 
@@ -97,17 +139,15 @@ export default function AuthModal({ onClose }) {
 
   // ── Render ────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center animate-fade-in"
+    <div className="fixed inset-0 flex items-center justify-center animate-fade-in"
+      style={{ background:"rgba(0,0,0,0.55)", zIndex:500, pointerEvents:"all" }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl p-6 w-80 shadow-xl animate-slide-up">
 
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
-          <div>
-            <div className="text-base font-semibold text-primary">DukaanAI Cloud</div>
-            <div className="text-[10px] text-gray-400">Sync your data across devices</div>
-          </div>
-          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none">×</button>
+          <Logo size={34} storeLabel="Cloud Sync" />
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none mt-1">×</button>
         </div>
 
         {/* Tabs */}
@@ -205,7 +245,77 @@ export default function AuthModal({ onClose }) {
           </div>
         )}
 
-        {/* ── WhatsApp OTP ── */}
+        {/* ── Register: Verify Email OTP ── */}
+        {mode === "register_otp" && (
+          <div className="space-y-2.5">
+            <div className="text-center py-1">
+              <div className="text-2xl">📧</div>
+              <div className="text-[12px] font-semibold text-gray-700 mt-1">Verify your email</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                6-digit code sent to <b>{regOtpEmail}</b>
+              </div>
+            </div>
+
+            {/* Mobile guidance for older users */}
+            <div style={{
+              background: "#f0faf6", border: "1px solid #c6e9dc",
+              borderRadius: 10, padding: "8px 12px",
+              fontSize: 11, color: "#1D9E75", lineHeight: 1.5
+            }}>
+              📱 <b>Check your phone</b> — open Gmail or your email app,
+              a message from DukaanAI is waiting with your code.
+            </div>
+
+            <div>
+              <label className="label">Enter 6-digit OTP *</label>
+              <input
+                className={`input text-center text-xl tracking-[8px] ${regOtpErr ? "border-red-400" : ""}`}
+                type="number" placeholder="••••••" maxLength={6}
+                value={regOtpCode}
+                onChange={e => { setRegOtpCode(e.target.value.slice(0, 6)); setRegOtpErr("") }}
+                onKeyDown={e => e.key === "Enter" && handleRegisterConfirm()}
+                autoFocus
+              />
+              {regOtpErr && <p className="text-red-500 text-[10px] mt-0.5">{regOtpErr}</p>}
+            </div>
+
+            <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
+              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+                className="accent-primary w-3.5 h-3.5" />
+              Remember me
+            </label>
+
+            {error && <p className="text-red-500 text-[11px]">{error}</p>}
+
+            <button onClick={handleRegisterConfirm} disabled={loading}
+              className="w-full py-2 rounded-lg text-xs font-semibold bg-primary text-white disabled:opacity-60 transition-colors">
+              {loading ? "Verifying..." : "Verify & Create Account"}
+            </button>
+
+            {/* Open Gmail on phone */}
+            <a href="https://mail.google.com" target="_blank" rel="noreferrer"
+              style={{
+                display: "block", textAlign: "center", padding: "7px",
+                borderRadius: 8, border: "1px solid #e5e7eb",
+                fontSize: 11, color: "#555", textDecoration: "none",
+              }}>
+              📬 Open Gmail to find your code
+            </a>
+
+            <div className="flex justify-between items-center">
+              <button disabled={countdown > 0 || loading} onClick={handleRegisterResend}
+                className={`text-[11px] border-none bg-transparent cursor-pointer ${countdown > 0 ? "text-gray-300" : "text-primary underline"}`}>
+                {countdown > 0 ? `Resend code (${countdown}s)` : "Resend code"}
+              </button>
+              <button onClick={() => { setMode("register"); setError("") }}
+                className="text-[11px] text-gray-400 underline bg-transparent border-none cursor-pointer">
+                ← Change email
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── WhatsApp OTP (login) ── */}
         {mode === "otp" && (
           <div className="space-y-2.5">
             <div className="text-center py-1">

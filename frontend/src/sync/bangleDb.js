@@ -73,9 +73,9 @@ async function apiUpload(path, formData, retry = true) {
 
 // ── Products ───────────────────────────────────────────────────
 export const BangleProducts = {
-  async list() {
+  async list({ limit = 200, offset = 0 } = {}) {
     try {
-      const data = await apiFetch("/bangle/products")
+      const data = await apiFetch(`/bangle/products?limit=${limit}&offset=${offset}`)
       const c = readCache()
       c.products = data
       c.productsSyncedAt = new Date().toISOString()
