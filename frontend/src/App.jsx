@@ -29,7 +29,7 @@ const ExpiryIntelligence = lazy(() => import("./pages/ExpiryIntelligence"))
 const History           = lazy(() => import("./pages/History"))
 const AppScreens        = lazy(() => import("./pages/AppScreens"))
 const HeroLoop          = lazy(() => import("./pages/HeroLoop"))
-const Landing           = lazy(() => import("./pages/Landing"))
+const LoginHome         = lazy(() => import("./pages/LoginHome"))
 const AITest            = lazy(() => import("./pages/AITest"))
 const More              = lazy(() => import("./pages/More"))
 const ResetPassword     = lazy(() => import("./pages/ResetPassword"))
@@ -73,7 +73,7 @@ export default function App() {
             </div>
           }>
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<LoginHome />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/hero-loop" element={<HeroLoop />} />

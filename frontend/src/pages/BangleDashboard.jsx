@@ -26,7 +26,155 @@ async function apiFetch(path) {
 }
 
 // ── Bangle Briefing Card ───────────────────────────────────────
-function BriefingCard({ data, navigate }) {
+// ── Bangle Stock Popup ────────────────────────────────────────
+function BangleStockPopup({ type, items, storeName, onClose, onStockUpdate }) {
+  const [editing, setEditing] = useState(null)
+  const [editVal, setEditVal] = useState("")
+  const [saving,  setSaving]  = useState(false)
+
+  const meta = {
+    out_of_stock: { label:"Out of Stock",    icon:"🔴", desc:"Zero stock. Restock immediately." },
+    low_stock:    { label:"Low Stock",        icon:"🟡", desc:"Below minimum stock level." },
+    dead_stock:   { label:"Dead Stock (30d)", icon:"💤", desc:"No sales in 30 days. Consider discounting." },
+  }[type] || { label:"Stock Alert", icon:"⚠️", desc:"" }
+
+  function buildWAMessage() {
+    const lines = items.map(p =>
+      type === "out_of_stock"
+        ? `• ${p.name}${p.colour ? " · " + p.colour : ""}${p.size ? " · " + p.size : ""}: OUT OF STOCK ❌`
+        : type === "low_stock"
+        ? `• ${p.name}${p.colour ? " · " + p.colour : ""}${p.size ? " · " + p.size : ""}: ${p.stock} left (min: ${p.min_stock})`
+        : `• ${p.name}${p.colour ? " · " + p.colour : ""}${p.size ? " · " + p.size : ""}: ${p.stock} unsold`
+    ).join("\n")
+    const header = type === "out_of_stock"
+      ? `🚨 *Out of Stock Alert — ${storeName}*\nRestock these items immediately:\n\n`
+      : type === "low_stock"
+      ? `⚠️ *Low Stock Alert — ${storeName}*\nPlease arrange stock for:\n\n`
+      : `📦 *Dead Stock Report — ${storeName}*\nConsider discounting:\n\n`
+    return encodeURIComponent(header + lines + "\n\n_Sent from DukhaanAI_")
+  }
+
+  async function saveEdit() {
+    if (!editing) return
+    const newStock = parseFloat(editVal)
+    if (isNaN(newStock) || newStock < 0) return
+    setSaving(true)
+    try {
+      const delta = newStock - editing.stock
+      await api.patch(`/bangle/variants/${editing.id}/stock?adjustment=${delta}&reason=manual+update`)
+      onStockUpdate(editing.id, newStock)
+      setEditing(null)
+    } catch {}
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:350, background:"rgba(0,0,0,0.55)",
+      backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center",
+      padding:"24px 16px" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width:"100%", maxWidth:460, background:"var(--bg1,#fff)", borderRadius:22,
+          boxShadow:"0 12px 48px rgba(0,0,0,0.25)", display:"flex", flexDirection:"column",
+          maxHeight:"80vh", overflow:"hidden" }}>
+
+        {/* Header */}
+        <div style={{ padding:"20px 22px 16px", borderBottom:"1px solid var(--rule)",
+          display:"flex", alignItems:"flex-start", gap:12 }}>
+          <div style={{ width:42, height:42, borderRadius:12, flexShrink:0,
+            background: type === "out_of_stock" ? "rgba(192,57,43,0.10)" : type === "low_stock" ? "rgba(217,119,6,0.10)" : "rgba(124,92,191,0.10)",
+            display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>
+            {meta.icon}
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>{meta.label}</div>
+            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:3 }}>{meta.desc}</div>
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
+            fontSize:18, color:"var(--ink-faint)", flexShrink:0, padding:4 }}>✕</button>
+        </div>
+
+        {/* WhatsApp CTA */}
+        <div style={{ padding:"10px 22px", borderBottom:"1px solid var(--rule)", background:"rgba(37,211,102,0.06)" }}>
+          <a href={`https://wa.me/?text=${buildWAMessage()}`} target="_blank" rel="noreferrer"
+            style={{ display:"flex", alignItems:"center", gap:10, textDecoration:"none" }}>
+            <div style={{ width:34, height:34, borderRadius:10, background:"#25D366",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>📲</div>
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#128C7E" }}>Send WhatsApp Stock Alert</div>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>Share with your supplier or staff</div>
+            </div>
+            <svg style={{ marginLeft:"auto", flexShrink:0 }} width="14" height="14" fill="none"
+              stroke="#128C7E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </a>
+        </div>
+
+        {/* Items */}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {items.length === 0 && (
+            <div style={{ padding:"32px", textAlign:"center", color:"var(--ink-faint)", fontSize:13 }}>No items to show</div>
+          )}
+          {items.map((p, i) => (
+            <div key={p.id || i} style={{ padding:"11px 22px",
+              borderBottom: i < items.length-1 ? "1px solid var(--rule-soft,rgba(0,0,0,0.05))" : "none",
+              display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0,
+                background: p.stock <= 0 ? "var(--ember)" : "#d97706" }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
+                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                {(p.colour || p.size) && (
+                  <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>
+                    {[p.colour, p.size].filter(Boolean).join(" · ")}
+                  </div>
+                )}
+                {editing?.id === p.id ? (
+                  <div style={{ display:"flex", gap:6, marginTop:5, alignItems:"center" }}>
+                    <input type="number" min="0" value={editVal}
+                      onChange={e => setEditVal(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && saveEdit()}
+                      style={{ width:80, padding:"5px 8px", borderRadius:8, fontSize:12,
+                        border:"1.5px solid var(--saffron)", outline:"none", background:"#fffbeb" }}
+                      autoFocus />
+                    <button onClick={saveEdit} disabled={saving}
+                      style={{ padding:"5px 12px", borderRadius:8, border:"none",
+                        background:"var(--saffron)", color:"#fff", fontSize:11, fontWeight:700,
+                        cursor:saving?"default":"pointer", opacity:saving?0.7:1 }}>
+                      {saving ? "…" : "Save"}
+                    </button>
+                    <button onClick={() => setEditing(null)}
+                      style={{ padding:"5px 8px", borderRadius:8, border:"1px solid var(--rule)",
+                        background:"transparent", fontSize:11, color:"var(--ink-faint)", cursor:"pointer" }}>✕</button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize:11, fontWeight:600, marginTop:2,
+                    color: p.stock <= 0 ? "var(--ember)" : "#d97706" }}>
+                    {p.stock <= 0 ? "Out of stock" : `${p.stock} left`}
+                    {p.min_stock > 0 && p.stock > 0 && <span style={{ color:"var(--ink-faint)", fontWeight:400 }}> · min {p.min_stock}</span>}
+                  </div>
+                )}
+              </div>
+              {editing?.id !== p.id && p.id && (
+                <button onClick={() => { setEditing(p); setEditVal(String(p.stock)) }}
+                  style={{ padding:"5px 12px", borderRadius:9, border:"1.5px solid var(--rule)",
+                    background:"var(--bg2)", fontSize:11, fontWeight:600, color:"var(--ink)",
+                    cursor:"pointer", flexShrink:0 }}>✏️ Edit</button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding:"10px 22px", borderTop:"1px solid var(--rule)",
+          textAlign:"center", fontSize:11, color:"var(--ink-faint)" }}>
+          {items.length} item{items.length !== 1 ? "s" : ""} shown
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BriefingCard({ data, navigate, onStockClick }) {
   const [open, setOpen] = useState(true)
   if (!data) return null
 
@@ -41,7 +189,7 @@ function BriefingCard({ data, navigate }) {
     items.push({
       icon: "❌", color: "var(--ember)", bg: "var(--ember-bg)",
       text: `${out_of_stock} variant${out_of_stock > 1 ? "s" : ""} OUT of stock`,
-      sub: "Restock immediately", to: "/bangle-inventory",
+      sub: "Restock immediately", stockType: "out_of_stock",
     })
 
   if (low_stock_count > out_of_stock) {
@@ -49,7 +197,7 @@ function BriefingCard({ data, navigate }) {
     items.push({
       icon: "⚠️", color: "var(--brass)", bg: "var(--brass-bg)",
       text: `${extra} variant${extra > 1 ? "s" : ""} running low`,
-      sub: "Check stock levels", to: "/bangle-inventory",
+      sub: "Check stock levels", stockType: "low_stock",
     })
   }
 
@@ -57,7 +205,7 @@ function BriefingCard({ data, navigate }) {
     items.push({
       icon: "💤", color: "#7c5cbf", bg: "rgba(124,92,191,0.1)",
       text: `${dead_stock_count} variant${dead_stock_count > 1 ? "s" : ""} with no sales in 30 days`,
-      sub: "Consider discounting", to: "/bangle-insights",
+      sub: "Consider discounting", stockType: "dead_stock",
     })
 
   if (next_festival && festDays !== null && festDays <= 30)
@@ -104,7 +252,7 @@ function BriefingCard({ data, navigate }) {
       {open && (
         <div style={{ borderTop: "1px solid var(--rule)" }}>
           {items.map((item, i) => (
-            <button key={i} onClick={() => navigate(item.to)}
+            <button key={i} onClick={() => item.stockType ? onStockClick?.(item.stockType) : navigate(item.to || "/bangle-inventory")}
               style={{ width: "100%", background: "none", border: "none", cursor: "pointer",
                 padding: "11px 18px", display: "flex", alignItems: "flex-start", gap: 12,
                 borderBottom: i < items.length - 1 ? "1px solid var(--rule-soft,rgba(0,0,0,0.05))" : "none",
@@ -156,14 +304,20 @@ export default function BangleDashboard() {
   const [loading,      setLoading]      = useState(true)
 
   // ── Day session state ─────────────────────────────────────
-  const [daySession, setDaySession] = useState(undefined)
-  const [dayActing,  setDayActing]  = useState(false)
-  const [dayError,   setDayError]   = useState("")
+  const [daySession,        setDaySession]        = useState(undefined)
+  const [dayActing,         setDayActing]         = useState(false)
+  const [dayError,          setDayError]          = useState("")
+  const [showCloseConfirm,  setShowCloseConfirm]  = useState(false)
+  const [showLowList,       setShowLowList]        = useState(false)
+  const [stockPopup,        setStockPopup]         = useState(null)
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false)
+  const [showAutoClose,     setShowAutoClose]     = useState(false)
+  const [autoCloseSecsLeft, setAutoCloseSecsLeft] = useState(300)
 
   useEffect(() => {
     if (!vendor) { setDaySession(null); return }
     if (isCloud()) {
-      api.get("/day-sessions/today")
+      api.get("/day-sessions/today?store_type=bangle")
         .then(s => setDaySession(s))
         .catch(() => setDaySession(null))
     } else {
@@ -175,7 +329,7 @@ export default function BangleDashboard() {
     setDayActing(true); setDayError("")
     try {
       if (isCloud()) {
-        const s = await api.post("/day-sessions/open", {})
+        const s = await api.post("/day-sessions/open", { store_type: "bangle" })
         setDaySession(s)
       } else {
         const s = { id:"local-day-"+Date.now(), date:new Date().toISOString().slice(0,10),
@@ -187,11 +341,10 @@ export default function BangleDashboard() {
   }
 
   async function closeDay() {
-    if (!window.confirm("Close today's day? This will record your final stock and profits.")) return
     setDayActing(true); setDayError("")
     try {
       if (isCloud()) {
-        const s = await api.post("/day-sessions/close", {})
+        const s = await api.post("/day-sessions/close", { store_type: "bangle" })
         setDaySession(s)
       } else {
         const s = localGetDaySession()
@@ -202,6 +355,94 @@ export default function BangleDashboard() {
       }
     } catch { setDayError("Could not close — try Day Ops page") }
     setDayActing(false)
+  }
+
+  async function reopenDay() {
+    setDayActing(true); setDayError("")
+    try {
+      if (isCloud()) {
+        const s = await api.post("/day-sessions/reopen")
+        setDaySession(s)
+      } else {
+        const s = localGetDaySession()
+        if (s) {
+          const reopened = { ...s, status:"open", closed_at:null, total_sales:null, gross_profit:null }
+          localSetDaySession(reopened); setDaySession(reopened)
+        }
+      }
+    } catch { setDayError("Could not reopen — try again") }
+    setDayActing(false)
+  }
+
+  // ── 1 AM auto-close watchdog ──────────────────────────────
+  useEffect(() => {
+    if (!vendor) return
+    // Calculate ms until next 1:00 AM
+    const now  = new Date()
+    const next1AM = new Date(now)
+    next1AM.setHours(1, 0, 0, 0)
+    if (now >= next1AM) next1AM.setDate(next1AM.getDate() + 1) // already past 1 AM today → next 1 AM
+    const msUntil = next1AM - now
+
+    const warningTimer = setTimeout(() => {
+      // Only trigger if day is still open
+      setDaySession(prev => {
+        if (prev?.status === "open") {
+          setShowAutoClose(true)
+          setAutoCloseSecsLeft(300)
+        }
+        return prev
+      })
+    }, msUntil)
+
+    return () => clearTimeout(warningTimer)
+  }, [vendor?.id])
+
+  // Countdown ticker for auto-close warning
+  useEffect(() => {
+    if (!showAutoClose) return
+    if (autoCloseSecsLeft <= 0) {
+      // Auto-close the day
+      setShowAutoClose(false)
+      closeDay()
+      return
+    }
+    const tick = setTimeout(() => setAutoCloseSecsLeft(s => s - 1), 1000)
+    return () => clearTimeout(tick)
+  }, [showAutoClose, autoCloseSecsLeft])
+
+  function goBilling() { navigate("/bangle-billing") }
+
+  async function openStockPopup(type) {
+    setStockPopup({ type, items: [] })
+    try {
+      // Fetch all low-stock variants (stock < min_stock) from bangle inventory
+      const all = await api.get("/bangle/variants/low-stock").catch(async () => {
+        // Fallback: use briefing low_stock_items
+        return briefing?.low_stock_items || []
+      })
+      if (type === "out_of_stock") {
+        setStockPopup({ type, items: all.filter(v => (v.stock || 0) <= 0) })
+      } else if (type === "low_stock") {
+        setStockPopup({ type, items: all.filter(v => (v.stock || 0) > 0) })
+      } else {
+        // dead_stock — use briefing data (no dedicated endpoint)
+        const items = (briefing?.low_stock_items || []).map(p => ({
+          id: p.id, name: p.name, colour: p.colour, size: p.size,
+          stock: p.stock, min_stock: p.min_stock
+        }))
+        setStockPopup({ type, items })
+      }
+    } catch {
+      setStockPopup({ type, items: [] })
+    }
+  }
+
+  function handleBangleStockUpdate(id, newStock) {
+    setStockPopup(prev => prev ? {
+      ...prev,
+      items: prev.items.map(p => p.id === id ? { ...p, stock: newStock } : p)
+    } : null)
   }
 
   useEffect(() => {
@@ -260,92 +501,260 @@ export default function BangleDashboard() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0, marginLeft: 8 }}>
-          <button onClick={() => navigate("/bangle-billing")} className="btn btn-primary btn-sm">
-            {t("+ New Bill")}
-          </button>
+          {/* Day open/close button in header */}
+          {vendor && daySession !== undefined && (() => {
+            const isOpen   = daySession?.status === "open"
+            const isClosed = daySession?.status === "closed"
+            if (!daySession) return (
+              <button onClick={openDay} disabled={dayActing}
+                style={{ padding:"7px 14px", borderRadius:20, border:"none", fontSize:11, fontWeight:700,
+                  background:"linear-gradient(135deg,#d97706,#b45309)", color:"#fff",
+                  cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1,
+                  boxShadow:"0 2px 8px rgba(217,119,6,0.35)", whiteSpace:"nowrap" }}>
+                {dayActing ? "Opening…" : "▶ Open Day"}
+              </button>
+            )
+            if (isOpen) return (
+              <button onClick={() => setShowCloseConfirm(true)} disabled={dayActing}
+                style={{ padding:"7px 14px", borderRadius:20, border:"1.5px solid rgba(26,122,74,0.4)",
+                  fontSize:11, fontWeight:700, background:"var(--jade-bg,#e8f8f2)",
+                  color:"var(--jade,#1a7a4a)", cursor:dayActing?"default":"pointer",
+                  opacity:dayActing?0.7:1, whiteSpace:"nowrap" }}>
+                {dayActing ? "Closing…" : "■ Close Day"}
+              </button>
+            )
+            if (isClosed) return (
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:10, fontWeight:600, color:"var(--ink-faint)",
+                  padding:"5px 10px", borderRadius:20, border:"1px solid var(--rule)",
+                  background:"var(--bg2)", whiteSpace:"nowrap" }}>
+                  ✓ Day Closed
+                </span>
+                <button onClick={() => setShowReopenConfirm(true)} disabled={dayActing}
+                  style={{ padding:"5px 10px", borderRadius:20, border:"1.5px solid rgba(202,138,4,0.4)",
+                    fontSize:10, fontWeight:700, background:"#fffbeb", color:"#92400e",
+                    cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1, whiteSpace:"nowrap" }}>
+                  ↺ Reopen
+                </button>
+              </div>
+            )
+          })()}
         </div>
       </div>
 
       <div className="page-content" style={{ padding: "16px" }}>
 
-        {/* Hero card */}
-        <div style={{ background: "linear-gradient(135deg,var(--bg2),var(--bg3))",
-          borderRadius: 18, padding: "18px 16px",
-          border: "1px solid rgba(166,124,46,0.25)", marginBottom: 14,
-          boxShadow: "0 12px 24px var(--shadow)", position: "relative", overflow: "hidden" }}>
-          {/* Decorative bangle rings */}
-          <svg viewBox="0 0 200 200" style={{ position: "absolute", top: -40, right: -40,
-            width: 180, height: 180, opacity: 0.12, pointerEvents: "none" }} aria-hidden="true">
-            {[...Array(12)].map((_, i) => (
-              <circle key={i} cx="100" cy="100" r={22 + i * 9}
-                fill="none" stroke="var(--saffron)" strokeWidth="0.8"/>
+        {/* ══ PRIMARY QUICK-ACTION TILES ══════════════════════ */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16, alignItems:"start" }}>
+
+          {/* New Bill — full-width hero CTA */}
+          <button onClick={goBilling}
+            style={{ gridColumn:"1 / -1",
+              background:"linear-gradient(135deg,var(--saffron,#e87722),#d45f00)",
+              border:"none", borderRadius:18, padding:"20px 22px",
+              display:"flex", alignItems:"center", gap:16,
+              cursor:"pointer", boxShadow:"0 8px 24px rgba(232,119,34,0.4)",
+              transition:"transform 0.15s" }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:52, height:52, borderRadius:14, background:"rgba(255,255,255,0.2)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, flexShrink:0 }}>
+              💍
+            </div>
+            <div style={{ textAlign:"left" }}>
+              <div style={{ fontSize:18, fontWeight:900, color:"#fff", lineHeight:1 }}>{t("New Bill")}</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginTop:4 }}>
+                {loading ? "Loading…"
+                  : tod.bills > 0
+                  ? `${tod.bills} bill${tod.bills > 1 ? "s" : ""} today · ${INR(tod.revenue)}`
+                  : "Tap to start billing"}
+              </div>
+            </div>
+            <svg style={{ marginLeft:"auto", flexShrink:0 }} width="20" height="20" fill="none"
+              stroke="rgba(255,255,255,0.8)" strokeWidth="2.5" strokeLinecap="round"
+              strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+
+          {/* Add Stock */}
+          <button onClick={() => navigate("/bangle-inventory")}
+            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
+              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
+              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
+              boxShadow:"0 2px 8px var(--shadow)" }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:44, height:44, borderRadius:12, background:"rgba(166,124,46,0.12)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>💍</div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
+            <div style={{ fontSize:11, color:"var(--brass)", fontWeight:600 }}>
+              {loading ? "—" : stockSummary ? stockSummary.total_pieces + " pcs" : "Inventory"}
+            </div>
+          </button>
+
+          {/* Udhaar */}
+          <button onClick={() => navigate("/bangle-udhar")}
+            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
+              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
+              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
+              boxShadow:"0 2px 8px var(--shadow)" }}
+            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
+            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
+            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
+            <div style={{ width:44, height:44, borderRadius:12, background:"rgba(220,80,60,0.10)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>📒</div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Udhaar")}</div>
+            <div style={{ fontSize:11, fontWeight:600,
+              color: (briefing?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
+              {briefing
+                ? briefing.udhar?.collected_today > 0 ? "Kaata: " + INR(briefing.udhar.collected_today)
+                  : briefing.udhar?.total_due > 0 ? INR(briefing.udhar.total_due) + " due" : "All clear"
+                : "—"}
+            </div>
+          </button>
+
+          {/* Low Stock — expandable inline list */}
+          <div style={{ display:"flex", flexDirection:"column" }}>
+            <button onClick={() => (briefing?.low_stock_count || 0) > 0 ? setShowLowList(v => !v) : null}
+              style={{ background: (briefing?.low_stock_count || 0) > 0 ? "var(--ember-bg,#fff5f5)" : "var(--bg2)",
+                border:`1.5px solid ${(briefing?.low_stock_count || 0) > 0 ? "rgba(192,57,43,0.3)" : "var(--rule)"}`,
+                borderRadius: showLowList ? "18px 18px 0 0" : 18,
+                padding:"18px 16px",
+                display:"flex", flexDirection:"column", alignItems:"flex-start",
+                gap:8, cursor: (briefing?.low_stock_count || 0) > 0 ? "pointer" : "default",
+                transition:"all 0.15s", textAlign:"left",
+                boxShadow:"0 2px 8px var(--shadow)" }}>
+              <div style={{ width:44, height:44, borderRadius:12,
+                background: (briefing?.low_stock_count || 0) > 0 ? "rgba(192,57,43,0.12)" : "rgba(26,122,74,0.10)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:22,
+                position:"relative" }}>
+                {(briefing?.low_stock_count || 0) > 0 ? "⚠️" : "✅"}
+                {(briefing?.low_stock_count || 0) > 0 && (
+                  <div style={{ position:"absolute", top:-6, right:-6, minWidth:18, height:18,
+                    borderRadius:9, padding:"0 4px", background:"var(--ember,#c0392b)", color:"#fff",
+                    fontSize:10, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {briefing.low_stock_count}
+                  </div>
+                )}
+              </div>
+              <div style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Low Stock")}</div>
+                  <div style={{ fontSize:11, fontWeight:600, marginTop:2,
+                    color: (briefing?.low_stock_count || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
+                    {loading ? "—" : (briefing?.low_stock_count || 0) > 0
+                      ? `${briefing.low_stock_count} variants` : t("All stocked")}
+                  </div>
+                </div>
+                {(briefing?.low_stock_count || 0) > 0 && (
+                  <span style={{ fontSize:16, color:"var(--ember)", transition:"transform 0.2s",
+                    transform: showLowList ? "rotate(90deg)" : "none" }}>›</span>
+                )}
+              </div>
+            </button>
+
+            {/* Inline expandable low-stock list */}
+            {showLowList && (briefing?.low_stock_items || []).length > 0 && (
+              <div style={{ background:"var(--ember-bg,#fff5f5)",
+                border:"1.5px solid rgba(192,57,43,0.3)", borderTop:"none",
+                borderRadius:"0 0 18px 18px", overflow:"hidden" }}>
+                {(briefing.low_stock_items).map((v, i) => (
+                  <div key={v.id} onClick={() => navigate("/bangle-inventory")}
+                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                      padding:"9px 16px", cursor:"pointer",
+                      borderTop: i > 0 ? "1px solid rgba(192,57,43,0.1)" : "none" }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)",
+                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {v.name}
+                      </div>
+                      {(v.colour || v.size) && (
+                        <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>
+                          {[v.colour, v.size].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontSize:11, color:"var(--ember)", fontWeight:700, flexShrink:0, marginLeft:8 }}>
+                      {v.stock} / {v.min_stock}
+                    </div>
+                  </div>
+                ))}
+                <div onClick={() => navigate("/bangle-inventory")}
+                  style={{ padding:"9px 16px", borderTop:"1px solid rgba(192,57,43,0.15)",
+                    fontSize:11, fontWeight:700, color:"var(--ember)", cursor:"pointer",
+                    textAlign:"center" }}>
+                  View all in Inventory →
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* ══ END QUICK TILES ══════════════════════════════════ */}
+
+        {/* Today's Takings hero */}
+        <div style={{ background:"linear-gradient(135deg,var(--bg2),var(--bg3))",
+          borderRadius:18, padding:"18px 16px",
+          border:"1px solid rgba(166,124,46,0.25)", marginBottom:14,
+          boxShadow:"0 12px 24px var(--shadow)", position:"relative", overflow:"hidden" }}>
+          <svg viewBox="0 0 200 200" style={{ position:"absolute", top:-40, right:-40,
+            width:180, height:180, opacity:0.12, pointerEvents:"none" }} aria-hidden="true">
+            {[...Array(12)].map((_,i) => (
+              <circle key={i} cx="100" cy="100" r={22+i*9} fill="none" stroke="var(--saffron)" strokeWidth="0.8"/>
             ))}
           </svg>
-          <div style={{ position: "relative" }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "var(--brass-deep)",
-              letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: 6 }}>
+          <div style={{ position:"relative" }}>
+            <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
+              letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>
               {t("Today's Takings — Bangle Store")}
             </div>
-            <div className="hero-revenue" style={{ fontFamily: "'Tiro Devanagari Hindi',serif",
-              fontSize: 48, fontWeight: 800, color: "var(--ink)", lineHeight: 1, letterSpacing: "-1px" }}>
+            <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
+              fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
               {loading ? "—" : INR(tod.revenue)}
             </div>
-
-            {/* Profit clarity */}
             {profit && (
               todProfit.cost_known === false || todProfit.profit === null ? (
-                /* Cost prices not set — show actionable warning instead of fake 100% */
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8,
-                  padding: "7px 12px", borderRadius: 10, width: "fit-content",
-                  background: "#fffbeb", border: "1px solid rgba(202,138,4,0.3)" }}>
-                  <span style={{ fontSize: 14 }}>⚠️</span>
-                  <span style={{ fontSize: 12, color: "#92400e" }}>
-                    Profit unavailable — <b>set cost prices</b> in Inventory to track margins
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:8,
+                  padding:"7px 12px", borderRadius:10, width:"fit-content",
+                  background:"#fffbeb", border:"1px solid rgba(202,138,4,0.3)" }}>
+                  <span style={{ fontSize:14 }}>⚠️</span>
+                  <span style={{ fontSize:12, color:"#92400e" }}>
+                    Profit unavailable — <b>set cost prices</b> in Inventory
                   </span>
                 </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8,
-                  padding: "7px 12px", borderRadius: 10, width: "fit-content",
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:8,
+                  padding:"7px 12px", borderRadius:10, width:"fit-content",
                   background: todProfit.profit >= 0 ? "var(--jade-bg)" : "var(--ember-bg)",
-                  border: `1px solid ${todProfit.profit >= 0 ? "rgba(26,122,74,0.2)" : "rgba(192,57,43,0.2)"}` }}>
-                  <span style={{ fontSize: 14 }}>{todProfit.profit >= 0 ? "📈" : "📉"}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700,
+                  border:`1px solid ${todProfit.profit >= 0 ? "rgba(26,122,74,0.2)" : "rgba(192,57,43,0.2)"}` }}>
+                  <span style={{ fontSize:14 }}>{todProfit.profit >= 0 ? "📈" : "📉"}</span>
+                  <span style={{ fontSize:13, fontWeight:700,
                     color: todProfit.profit >= 0 ? "var(--jade)" : "var(--ember)" }}>
                     {todProfit.profit >= 0 ? "+" : ""}{INR(todProfit.profit)} profit
                   </span>
-                  <span style={{ fontSize: 11, color: "var(--ink-faint)", marginLeft: 4 }}>
+                  <span style={{ fontSize:11, color:"var(--ink-faint)", marginLeft:4 }}>
                     ({todProfit.margin_pct}% margin)
                   </span>
                 </div>
               )
             )}
-
-            <div style={{ display: "flex", gap: 20, marginTop: 10, fontSize: 12, flexWrap: "wrap" }}>
-              <span style={{ color: "var(--jade)", fontWeight: 600 }}>
+            <div style={{ display:"flex", gap:20, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
+              <span style={{ color:"var(--jade)", fontWeight:600 }}>
                 {tod.bills > 0 ? `${tod.bills} bill${tod.bills > 1 ? "s" : ""} today` : "No bills yet"}
               </span>
-              {tod.pieces > 0 && (
-                <span style={{ color: "var(--ink-faint)" }}>{tod.pieces} pieces sold</span>
-              )}
-              {tod.top_colour && (
-                <span style={{ color: "var(--saffron)", fontWeight: 600 }}>
-                  🏆 {tod.top_colour}
-                </span>
-              )}
-              {profit?.month && (
-                <span style={{ color: "var(--ink-faint)" }}>
-                  Monthly: {INR(profit.month.revenue)} · {profit.month.margin_pct}% margin
-                </span>
-              )}
+              {tod.pieces > 0 && <span style={{ color:"var(--ink-faint)" }}>{tod.pieces} pieces sold</span>}
+              {tod.top_colour && <span style={{ color:"var(--saffron)", fontWeight:600 }}>🏆 {tod.top_colour}</span>}
+              {profit?.month && <span style={{ color:"var(--ink-faint)" }}>Monthly: {INR(profit.month.revenue)} · {profit.month.margin_pct}% margin</span>}
             </div>
           </div>
         </div>
 
         {/* ── Day Session Card ─────────────────────────────── */}
         {vendor && daySession !== undefined && (() => {
-          const isOpen    = daySession?.status === "open"
-          const isClosed  = daySession?.status === "closed"
-          const notOpened = !daySession
+          const isOpen   = daySession?.status === "open"
+          const isClosed = daySession?.status === "closed"
           const openedTime = daySession?.opened_at
             ? new Date(daySession.opened_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) : null
           const closedTime = daySession?.closed_at
@@ -353,8 +762,8 @@ export default function BangleDashboard() {
           const cardBg     = isOpen ? "var(--jade-bg,#e8f8f2)" : isClosed ? "var(--bg2)" : "#fffbeb"
           const cardBorder = isOpen ? "rgba(26,122,74,0.25)"   : isClosed ? "var(--rule)" : "rgba(202,138,4,0.35)"
           const dotColor   = isOpen ? "var(--jade)"            : isClosed ? "var(--ink-faint)" : "#d97706"
-          const label      = isOpen ? "Day Open"   : isClosed ? "Day Closed"   : "Day Not Started"
-          const sublabel   = isOpen   ? `Opened at ${openedTime}`
+          const label      = isOpen ? "Day Open" : isClosed ? "Day Closed" : "Day Not Started"
+          const sublabel   = isOpen ? `Opened at ${openedTime}`
                            : isClosed ? `${openedTime} → ${closedTime}`
                            : "Open the day to track stock & profit"
           return (
@@ -385,166 +794,43 @@ export default function BangleDashboard() {
                 )}
                 {dayError && <div style={{ fontSize:10, color:"var(--ember)", marginTop:4 }}>{dayError}</div>}
               </div>
-              {notOpened && (
-                <button onClick={openDay} disabled={dayActing}
-                  style={{ padding:"9px 18px", borderRadius:12, border:"none", flexShrink:0,
-                    background:"linear-gradient(135deg,var(--saffron,#e87722),#d45f00)",
-                    color:"#fff", fontSize:12, fontWeight:700,
-                    cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>
-                  {dayActing ? "Opening…" : "Open Day"}
-                </button>
-              )}
-              {isOpen && (
-                <button onClick={closeDay} disabled={dayActing}
-                  style={{ padding:"9px 18px", borderRadius:12, border:"none", flexShrink:0,
-                    background:"linear-gradient(135deg,#185FA5,#2563eb)",
-                    color:"#fff", fontSize:12, fontWeight:700,
-                    cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>
-                  {dayActing ? "Closing…" : "Close Day"}
-                </button>
-              )}
               {isClosed && (
-                <button onClick={() => navigate("/bangle-day")}
-                  style={{ padding:"9px 18px", borderRadius:12, flexShrink:0,
-                    border:"1.5px solid var(--rule)", background:"transparent",
-                    color:"var(--ink-dim)", fontSize:12, fontWeight:600, cursor:"pointer" }}>
-                  View Report
-                </button>
+                <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                  <button onClick={() => setShowReopenConfirm(true)} disabled={dayActing}
+                    style={{ padding:"7px 14px", borderRadius:12,
+                      border:"1.5px solid rgba(202,138,4,0.4)", background:"#fffbeb",
+                      color:"#92400e", fontSize:11, fontWeight:700,
+                      cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>↺ Reopen</button>
+                  <button onClick={() => navigate("/bangle-day")}
+                    style={{ padding:"7px 14px", borderRadius:12,
+                      border:"1.5px solid var(--rule)", background:"transparent",
+                      color:"var(--ink-dim)", fontSize:11, fontWeight:600, cursor:"pointer" }}>View Report</button>
+                </div>
               )}
             </div>
           )
         })()}
 
-        {/* Briefing */}
-        <BriefingCard data={briefing} navigate={navigate} />
+        {/* Morning Briefing */}
+        <BriefingCard data={briefing} navigate={navigate} onStockClick={openStockPopup} />
 
-        {/* Quick tiles — Add Stock | Udhaar | Low Stock */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
-
-          {/* Add Stock */}
-          <button onClick={() => navigate("/bangle-inventory")}
-            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
-              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
-              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
-              boxShadow:"0 2px 8px var(--shadow)" }}
-            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
-            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
-            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
-            <div style={{ width:44, height:44, borderRadius:12,
-              background:"rgba(166,124,46,0.12)",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>💍</div>
-            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
-            <div style={{ fontSize:11, color:"var(--brass)", fontWeight:600 }}>
-              {loading ? "—" : (stockSummary ? stockSummary.total_pieces + " pcs" : "Inventory")}
-            </div>
-          </button>
-
-          {/* Udhaar */}
-          <button onClick={() => navigate("/bangle-udhar")}
-            style={{ background:"var(--bg2)", border:"1.5px solid var(--rule)", borderRadius:18,
-              padding:"18px 16px", display:"flex", flexDirection:"column", alignItems:"flex-start",
-              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
-              boxShadow:"0 2px 8px var(--shadow)" }}
-            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
-            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
-            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
-            <div style={{ width:44, height:44, borderRadius:12,
-              background:"rgba(220,80,60,0.10)",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>📒</div>
-            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Udhaar")}</div>
-            <div style={{ fontSize:11, fontWeight:600,
-              color: (briefing?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
-              {briefing
-                ? (briefing.udhar.collected_today > 0
-                    ? "Kaata: " + INR(briefing.udhar.collected_today)
-                    : briefing.udhar.total_due > 0
-                      ? INR(briefing.udhar.total_due) + " due"
-                      : "All clear")
-                : "—"}
-            </div>
-          </button>
-
-          {/* Low Stock */}
-          <button onClick={() => navigate("/bangle-inventory")}
-            style={{ background: (briefing?.low_stock_count || 0) > 0 ? "var(--ember-bg,#fff5f5)" : "var(--bg2)",
-              border: `1.5px solid ${(briefing?.low_stock_count || 0) > 0 ? "rgba(192,57,43,0.3)" : "var(--rule)"}`,
-              borderRadius:18, padding:"18px 16px",
-              display:"flex", flexDirection:"column", alignItems:"flex-start",
-              gap:8, cursor:"pointer", transition:"all 0.15s", textAlign:"left",
-              boxShadow:"0 2px 8px var(--shadow)" }}
-            onPointerDown={e => e.currentTarget.style.transform="scale(0.97)"}
-            onPointerUp={e   => e.currentTarget.style.transform="scale(1)"}
-            onPointerLeave={e=> e.currentTarget.style.transform="scale(1)"}>
-            <div style={{ width:44, height:44, borderRadius:12,
-              background: (briefing?.low_stock_count || 0) > 0 ? "rgba(192,57,43,0.12)" : "rgba(26,122,74,0.10)",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
-              {(briefing?.low_stock_count || 0) > 0 ? "⚠️" : "✅"}
-            </div>
-            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Low Stock")}</div>
-            <div style={{ fontSize:11, fontWeight:600,
-              color: (briefing?.low_stock_count || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
-              {loading ? "—"
-                : (briefing?.low_stock_count || 0) > 0
-                  ? briefing.low_stock_count + " variants"
-                  : t("All stocked")}
-            </div>
-          </button>
-        </div>
-
-        {/* Stats row */}
-        <div className="dash-stats-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+        {/* Secondary quick links — same 4-up row as Kirana */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
           {[
-            {
-              label: t("Stock Value"),
-              value: loading ? "—" : stockSummary?.total_investment > 0
-                ? `₹${(stockSummary.total_investment / 1000).toFixed(1)}k`
-                : "—",
-              sub:   stockSummary ? `${stockSummary.total_pieces} pcs` : t("invested"),
-              color: "#7c5cbf", bar: "#7c5cbf",
-            },
-            {
-              label: t("Low Stock"),
-              value: loading ? "—" : briefing?.low_stock_count ?? 0,
-              sub:   briefing?.out_of_stock > 0 ? `${briefing.out_of_stock} ${t("Out of stock")}` : t("variants"),
-              color: briefing?.low_stock_count > 0 ? "var(--ember)" : "var(--jade)",
-              bar:   briefing?.low_stock_count > 0 ? "var(--ember)" : "var(--jade)",
-            },
-          ].map((s, i) => (
-            <div key={i} className="stat-card">
-              <div className="stat-bar" style={{ background: s.bar }}/>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "var(--ink-faint)",
-                textTransform: "uppercase", letterSpacing: "1.2px", marginTop: 4 }}>{s.label}</div>
-              <div style={{ fontFamily: "'Tiro Devanagari Hindi',serif",
-                fontSize: 22, fontWeight: 800, color: "var(--ink)", marginTop: 6, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: s.color, marginTop: 4, fontWeight: 600 }}>{s.sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Quick actions */}
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: "var(--brass-deep)",
-            letterSpacing: "2px", textTransform: "uppercase" }}>{t("QUICK ACTIONS")}</div>
-        </div>
-        <div className="dash-quick-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(72px,1fr))", gap: 8, marginBottom: 20 }}>
-          {[
-            { label: t("New Bill"),  emoji: "🧾", tone: "var(--saffron)", border: "rgba(212,98,31,0.35)",  to: "/bangle-billing" },
-            { label: t("Add Stock"), emoji: "💍", tone: "var(--brass)",   border: "rgba(166,124,46,0.35)", to: "/bangle-inventory" },
-            { label: t("Festivals"), emoji: "🎉", tone: "var(--jade)",    border: "rgba(46,156,122,0.35)", to: "/bangle-festivals" },
-            { label: t("Insights"),  emoji: "📊", tone: "#7c5cbf",        border: "rgba(124,92,191,0.35)", to: "/bangle-insights" },
+            { label:t("Udhaar"),    emoji:"📒", to:"/bangle-udhar" },
+            { label:t("History"),   emoji:"🕑", to:"/bangle-history" },
+            { label:t("Festivals"), emoji:"🎉", to:"/bangle-festivals" },
+            { label:t("Day Ops"),   emoji:"📅", to:"/bangle-day" },
           ].map((qa, i) => (
             <button key={i} onClick={() => navigate(qa.to)}
-              style={{ background: "var(--bg2)", border: "1px solid var(--rule)",
-                borderRadius: 12, padding: "12px 6px", cursor: "pointer",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                transition: "all 0.15s", boxShadow: "0 1px 4px var(--shadow)" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = qa.border }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "var(--rule)" }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9,
-                background: `color-mix(in srgb, ${qa.tone} 18%, transparent)`,
-                border: `1px solid ${qa.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{qa.emoji}</div>
-              <span style={{ fontSize: 10, color: "var(--ink)", fontWeight: 600 }}>{qa.label}</span>
+              style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
+                borderRadius:12, padding:"10px 6px", cursor:"pointer",
+                display:"flex", flexDirection:"column", alignItems:"center", gap:5,
+                transition:"all 0.15s", boxShadow:"0 1px 4px var(--shadow)" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
+              onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
+              <span style={{ fontSize:18 }}>{qa.emoji}</span>
+              <span style={{ fontSize:10, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
             </button>
           ))}
         </div>
@@ -558,7 +844,7 @@ export default function BangleDashboard() {
               <div style={{ fontSize: 11, fontWeight: 800, color: "var(--brass-deep)", letterSpacing: "1.5px", textTransform: "uppercase" }}>
                 {t("Recent Bills")}
               </div>
-              <button onClick={() => navigate("/bangle-billing")}
+              <button onClick={() => navigate("/bangle-history")}
                 style={{ fontSize: 11, color: "var(--saffron)", fontWeight: 600,
                   background: "none", border: "none", cursor: "pointer" }}>{t("View all →")}</button>
             </div>
@@ -624,22 +910,57 @@ export default function BangleDashboard() {
                 <>
                   {/* Summary rows */}
                   {[
-                    { label: t("Out of stock"),     value: briefing?.out_of_stock ?? 0,    icon: "🔴", danger: true },
-                    { label: t("Low Stock"),        value: briefing ? Math.max(0, (briefing.low_stock_count || 0) - (briefing.out_of_stock || 0)) : 0, icon: "🟡", warn: true },
-                    { label: t("Dead stock (30d)"), value: briefing?.dead_stock_count ?? 0, icon: "💤", muted: true },
+                    {
+                      icon: "💰",
+                      label: t("Stock Value"),
+                      value: loading ? "—"
+                        : stockSummary?.total_investment > 0
+                          ? `₹${(stockSummary.total_investment/1000).toFixed(1)}k`
+                          : "₹0",
+                      sub: stockSummary ? `${stockSummary.total_pieces} pcs in inventory` : "Total inventory",
+                      color: "var(--brass)",
+                      bg: "rgba(184,134,11,0.10)",
+                    },
+                    {
+                      icon: "💤",
+                      label: t("Dead Stock (30d)"),
+                      value: loading ? "—" : briefing?.dead_stock_count ?? 0,
+                      sub: briefing?.dead_stock_count > 0 ? "No sales in 30 days" : "All variants selling",
+                      color: briefing?.dead_stock_count > 0 ? "var(--brass)" : "var(--jade)",
+                      bg: briefing?.dead_stock_count > 0 ? "rgba(184,134,11,0.10)" : "rgba(26,122,74,0.10)",
+                      clickType: briefing?.dead_stock_count > 0 ? "dead_stock" : null,
+                    },
+                    {
+                      icon: "📈",
+                      label: t("Monthly Margin"),
+                      value: loading ? "—" : `${profit?.month?.margin_pct ?? 0}%`,
+                      sub: profit?.month
+                        ? `${INR(profit.month.revenue)} revenue`
+                        : "This month",
+                      color: (profit?.month?.margin_pct ?? 0) > 15 ? "var(--jade)" : "var(--ember)",
+                      bg: (profit?.month?.margin_pct ?? 0) > 15
+                        ? "rgba(26,122,74,0.10)" : "var(--ember-bg)",
+                    },
                   ].map((row, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12,
-                      padding: "13px 14px", borderBottom: i < 2 ? "1px solid var(--rule-soft)" : "none" }}>
-                      <span style={{ fontSize: 18 }}>{row.icon}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>{row.label}</div>
+                    <div key={i} onClick={() => row.clickType && openStockPopup(row.clickType)}
+                      style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 16px",
+                        borderBottom: i < 2 ? "1px solid var(--rule-soft,rgba(0,0,0,0.05))" : "none",
+                        cursor: row.clickType ? "pointer" : "default", transition:"background 0.1s" }}
+                      onMouseEnter={e => row.clickType && (e.currentTarget.style.background="rgba(0,0,0,0.03)")}
+                      onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+                      <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
+                        background: row.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                        {row.icon}
                       </div>
-                      <span style={{ fontSize: 16, fontWeight: 800,
-                        color: row.danger && row.value > 0 ? "var(--ember)"
-                             : row.warn   && row.value > 0 ? "var(--brass)"
-                             : "var(--ink-faint)" }}>
-                        {row.value}
-                      </span>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:12, fontWeight:600, color:"var(--ink)" }}>{row.label}</div>
+                        <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>{row.sub}</div>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                        <span style={{ fontSize:16, fontWeight:800, color: row.color }}>{row.value}</span>
+                        {row.clickType && <svg width="12" height="12" fill="none" stroke="var(--ink-faint)"
+                          strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>}
+                      </div>
                     </div>
                   ))}
 
@@ -672,6 +993,235 @@ export default function BangleDashboard() {
 
         <div style={{ height: 24 }}/>
       </div>
+
+      {/* ── Stock Popup ─────────────────────────────────── */}
+      {stockPopup && (
+        <BangleStockPopup
+          type={stockPopup.type}
+          items={stockPopup.items}
+          storeName={vendor?.store_name || "Bangle Store"}
+          onClose={() => setStockPopup(null)}
+          onStockUpdate={handleBangleStockUpdate}
+        />
+      )}
+
+      {/* ── Reopen Day Confirmation Modal ───────────────── */}
+      {showReopenConfirm && (
+        <div style={{ position:"fixed", inset:0, zIndex:300,
+          background:"rgba(0,0,0,0.55)", backdropFilter:"blur(4px)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px" }}
+          onClick={() => setShowReopenConfirm(false)}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width:"100%", maxWidth:440, background:"var(--bg1,#fff)",
+              borderRadius:22, padding:"28px 24px",
+              boxShadow:"0 12px 48px rgba(0,0,0,0.25)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+              <div style={{ width:44, height:44, borderRadius:13, flexShrink:0,
+                background:"#fffbeb", border:"1.5px solid rgba(202,138,4,0.3)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>↺</div>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>Reopen Today's Day?</div>
+                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>This will unlock billing again</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:22 }}>
+              {[
+                { icon:"🔓", title:"Billing will be unlocked", sub:"You can continue making bills after reopening." },
+                { icon:"🔄", title:"Sales will be recalculated on close", sub:"When you close again, all bills from the original open time onwards will be counted." },
+                { icon:"📊", title:"Previous close data will be cleared", sub:"The incorrect totals will be wiped and recalculated fresh on next close." },
+              ].map((item, i) => (
+                <div key={i} style={{ display:"flex", gap:12, alignItems:"flex-start",
+                  background:"var(--bg2,#f7f5f0)", borderRadius:12, padding:"11px 14px" }}>
+                  <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{item.icon}</span>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>{item.title}</div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)", lineHeight:1.5 }}>{item.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {dayError && (
+              <div style={{ background:"#fff5f5", border:"1px solid rgba(220,38,38,0.2)",
+                borderRadius:10, padding:"9px 12px", fontSize:12, color:"#dc2626", marginBottom:14 }}>
+                {dayError}
+              </div>
+            )}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowReopenConfirm(false)}
+                style={{ flex:1, padding:"13px", borderRadius:13,
+                  border:"1.5px solid var(--rule)", background:"transparent",
+                  fontSize:13, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => { setShowReopenConfirm(false); reopenDay() }} disabled={dayActing}
+                style={{ flex:2, padding:"13px", borderRadius:13, border:"none",
+                  background:"linear-gradient(135deg,#d97706,#b45309)", color:"#fff",
+                  fontSize:13, fontWeight:700, cursor:dayActing?"default":"pointer",
+                  opacity:dayActing?0.7:1, boxShadow:"0 4px 14px rgba(217,119,6,0.3)" }}>
+                {dayActing ? "Reopening…" : "↺ Yes, Reopen Day"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Auto-close Warning Modal (fires at 1:00 AM) ─── */}
+      {showAutoClose && (
+        <div style={{ position:"fixed", inset:0, zIndex:400,
+          background:"rgba(0,0,0,0.70)", backdropFilter:"blur(6px)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ width:"100%", maxWidth:420, background:"var(--bg1,#fff)",
+            borderRadius:22, padding:"28px 24px",
+            boxShadow:"0 12px 48px rgba(0,0,0,0.3)" }}>
+
+            {/* Header */}
+            <div style={{ textAlign:"center", marginBottom:20 }}>
+              <div style={{ fontSize:40, marginBottom:10 }}>🌙</div>
+              <div style={{ fontSize:18, fontWeight:800, color:"var(--ink)" }}>Day Still Open!</div>
+              <div style={{ fontSize:13, color:"var(--ink-faint)", marginTop:6, lineHeight:1.5 }}>
+                It's past 1:00 AM and your day session is still open.<br/>
+                Please close it to save today's records.
+              </div>
+            </div>
+
+            {/* Countdown ring */}
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center",
+              marginBottom:22, gap:6 }}>
+              <div style={{ width:80, height:80, borderRadius:"50%",
+                background: autoCloseSecsLeft > 60 ? "rgba(220,38,38,0.08)" : "rgba(220,38,38,0.15)",
+                border:`3px solid ${autoCloseSecsLeft > 60 ? "#f87171" : "#dc2626"}`,
+                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                transition:"all 0.5s" }}>
+                <div style={{ fontSize:22, fontWeight:900, color:"#dc2626", lineHeight:1 }}>
+                  {Math.floor(autoCloseSecsLeft / 60)}:{String(autoCloseSecsLeft % 60).padStart(2,"0")}
+                </div>
+                <div style={{ fontSize:8, color:"#dc2626", fontWeight:700, letterSpacing:"1px" }}>LEFT</div>
+              </div>
+              <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
+                Day will auto-close when timer hits 0:00
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => { setShowAutoClose(false); setAutoCloseSecsLeft(300) }}
+                style={{ flex:1, padding:"12px", borderRadius:13,
+                  border:"1.5px solid var(--rule)", background:"transparent",
+                  fontSize:12, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
+                Keep Open
+              </button>
+              <button onClick={() => { setShowAutoClose(false); closeDay() }}
+                style={{ flex:2, padding:"12px", borderRadius:13, border:"none",
+                  background:"linear-gradient(135deg,#dc2626,#b91c1c)", color:"#fff",
+                  fontSize:13, fontWeight:700, cursor:"pointer",
+                  boxShadow:"0 4px 14px rgba(220,38,38,0.35)" }}>
+                Close Day Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Close Day Confirmation Modal ─────────────────── */}
+      {showCloseConfirm && (
+        <div style={{ position:"fixed", inset:0, zIndex:300,
+          background:"rgba(0,0,0,0.55)", backdropFilter:"blur(4px)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px" }}
+          onClick={() => setShowCloseConfirm(false)}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width:"100%", maxWidth:440, background:"var(--bg1,#fff)",
+              borderRadius:22, padding:"28px 24px",
+              boxShadow:"0 12px 48px rgba(0,0,0,0.25)" }}>
+
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+              <div style={{ width:44, height:44, borderRadius:13, flexShrink:0,
+                background:"#fff7ed", border:"1.5px solid rgba(202,138,4,0.3)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+                ⚠️
+              </div>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>Close Today's Day?</div>
+                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>
+                  Please read before confirming
+                </div>
+              </div>
+            </div>
+
+            {/* What happens list */}
+            <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:22 }}>
+              {[
+                { icon:"📊", title:"Sales & profit will be calculated",
+                  sub:"Only bills made after today's opening time will be counted." },
+                { icon:"📦", title:"Stock snapshot will be taken",
+                  sub:"Current stock levels will be saved as your closing snapshot." },
+                { icon:"🔒", title:"Billing will be locked",
+                  sub:"You won't be able to create new bills after closing. Use ↺ Reopen if needed." },
+                { icon:"📋", title:"A day report will be generated",
+                  sub:"View full summary — bills, revenue, profit, and low stock — in Day Ops." },
+              ].map((item, i) => (
+                <div key={i} style={{ display:"flex", gap:12, alignItems:"flex-start",
+                  background:"var(--bg2,#f7f5f0)", borderRadius:12, padding:"11px 14px" }}>
+                  <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{item.icon}</span>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)", lineHeight:1.5 }}>
+                      {item.sub}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Today's summary preview */}
+            {tod.revenue > 0 && (
+              <div style={{ background:"var(--jade-bg,#e8f8f2)", border:"1px solid rgba(26,122,74,0.2)",
+                borderRadius:12, padding:"10px 14px", marginBottom:20,
+                display:"flex", gap:20 }}>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:"var(--jade)" }}>{INR(tod.revenue)}</div>
+                  <div style={{ fontSize:9, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>TODAY'S SALES</div>
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:"var(--saffron)" }}>{tod.bills}</div>
+                  <div style={{ fontSize:9, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>BILLS</div>
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:"var(--ink)" }}>{tod.pieces}</div>
+                  <div style={{ fontSize:9, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>PIECES</div>
+                </div>
+              </div>
+            )}
+
+            {dayError && (
+              <div style={{ background:"#fff5f5", border:"1px solid rgba(220,38,38,0.2)",
+                borderRadius:10, padding:"9px 12px", fontSize:12, color:"#dc2626", marginBottom:14 }}>
+                {dayError}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowCloseConfirm(false)}
+                style={{ flex:1, padding:"13px", borderRadius:13,
+                  border:"1.5px solid var(--rule)", background:"transparent",
+                  fontSize:13, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => { setShowCloseConfirm(false); closeDay() }}
+                disabled={dayActing}
+                style={{ flex:2, padding:"13px", borderRadius:13, border:"none",
+                  background:"linear-gradient(135deg,#185FA5,#2563eb)", color:"#fff",
+                  fontSize:13, fontWeight:700, cursor:dayActing?"default":"pointer",
+                  opacity:dayActing?0.7:1, boxShadow:"0 4px 14px rgba(37,99,235,0.35)" }}>
+                {dayActing ? "Closing…" : "Yes, Close Day"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

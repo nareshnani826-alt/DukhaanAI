@@ -627,6 +627,9 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
     low_stock    = [p for p in products if 0 < float(p.get("stock") or 0) < float(p.get("min_stock") or 0)]
     out_of_stock = [p for p in products if float(p.get("stock") or 0) <= 0]
 
+    # Total stock value (cost of all inventory on hand)
+    stock_value = round(sum(float(p.get("stock") or 0) * float(p.get("cost_price") or 0) for p in products), 2)
+
     # Dead stock (no sales in 30 days)
     sold_30d_ids = {s["product_id"] for s in sales_90d
                     if (today - date.fromisoformat((s.get("sold_at") or "")[:10] or today_str)).days <= 30}
@@ -678,6 +681,8 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
             "today_revenue": round(t_rev, 2),
             "margin_pct":    today_margin,
         },
+        "stock_value":    stock_value,
+        "total_products": len(products),
         "low_stock": [
             {"name": p["name"], "stock": p["stock"], "min_stock": p["min_stock"], "unit": p.get("unit", "")}
             for p in low_stock[:5]

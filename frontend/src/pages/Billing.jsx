@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { Products, Invoices, Customers } from "../sync/db.js"
+import { useNavigate } from "react-router-dom"
+import { Products, Invoices, Customers, api, isCloud } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
@@ -241,6 +242,20 @@ const CAT_EMOJI = {
 export default function Billing() {
   const { vendor }  = useAuth()
   const { hasFeature } = usePlan()
+  const navigate    = useNavigate()
+  const [dayStatus, setDayStatus] = useState(undefined)
+
+  // Gate: check day session on mount
+  useEffect(() => {
+    if (!vendor) return
+    if (isCloud()) {
+      api.get("/day-sessions/today?store_type=kirana")
+        .then(s => setDayStatus(s?.status || null))
+        .catch(() => setDayStatus(null))
+    } else {
+      setDayStatus("open")
+    }
+  }, [vendor?.id])
 
   // ── core state ────────────────────────────────────────────
   const [products,  setProducts]  = useState([])
@@ -516,6 +531,31 @@ Thank you for shopping! 🙏`
 
   // ── JSX ───────────────────────────────────────────────────
   const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
+
+  // ── Day session gate ─────────────────────────────────────
+  if (dayStatus === undefined) return (
+    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
+      fontSize:13, color:"var(--ink-faint)" }}>Checking day status…</div>
+  )
+  if (dayStatus !== "open") return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", padding:32, textAlign:"center", gap:16, background:"var(--bg0)" }}>
+      <div style={{ fontSize:48 }}>🔒</div>
+      <div style={{ fontSize:18, fontWeight:800, color:"var(--ink)" }}>Day Not Opened</div>
+      <div style={{ fontSize:13, color:"var(--ink-faint)", maxWidth:280, lineHeight:1.6 }}>
+        {dayStatus === "closed"
+          ? "Today's day has been closed. Reopen it from the dashboard to resume billing."
+          : "Open today's day from the dashboard before you can start billing."}
+      </div>
+      <button onClick={() => navigate("/dashboard")}
+        style={{ padding:"12px 28px", borderRadius:14, border:"none",
+          background:"linear-gradient(135deg,#e87722,#d45f00)", color:"#fff",
+          fontSize:14, fontWeight:700, cursor:"pointer",
+          boxShadow:"0 4px 16px rgba(232,119,34,0.35)", marginTop:8 }}>
+        ← Go to Dashboard
+      </button>
+    </div>
+  )
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>

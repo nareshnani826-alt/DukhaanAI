@@ -27,8 +27,166 @@ const QUICK = [
   { label:"Bulk Import", icon:"📥", color:"var(--brass-bg)",   border:"rgba(184,134,11,0.25)",  to:"/bulk-import" },
 ]
 
+// ── Stock Popup ───────────────────────────────────────────────
+function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
+  const [editing,  setEditing]  = useState(null)   // { id, name, stock }
+  const [editVal,  setEditVal]  = useState("")
+  const [saving,   setSaving]   = useState(false)
+
+  const titles = {
+    out_of_stock: { label:"Out of Stock",     icon:"🔴", color:"var(--ember)",   desc:"These items have zero stock. Restock immediately." },
+    low_stock:    { label:"Low Stock",         icon:"🟡", color:"#d97706",        desc:"These items are below their minimum stock level." },
+    dead_stock:   { label:"Dead Stock (30d)",  icon:"💤", color:"var(--brass)",   desc:"No sales in the last 30 days. Consider discounting or returning." },
+  }
+  const meta = titles[type] || titles.low_stock
+
+  function buildWAMessage() {
+    const lines = items.map(p => {
+      if (type === "out_of_stock") return `• ${p.name}: OUT OF STOCK ❌`
+      if (type === "low_stock")    return `• ${p.name}: ${p.stock} ${p.unit || "units"} left (min: ${p.min_stock})`
+      return `• ${p.name}: ${p.stock} ${p.unit || "units"} unsold`
+    }).join("\n")
+    const header = type === "out_of_stock"
+      ? `🚨 *Out of Stock Alert — ${storeName}*\nRestock these items immediately:\n\n`
+      : type === "low_stock"
+      ? `⚠️ *Low Stock Alert — ${storeName}*\nPlease arrange stock for:\n\n`
+      : `📦 *Dead Stock Report — ${storeName}*\nConsider discounting these items:\n\n`
+    return encodeURIComponent(header + lines + "\n\n_Sent from DukhaanAI_")
+  }
+
+  async function saveEdit() {
+    if (!editing) return
+    const newStock = parseFloat(editVal)
+    if (isNaN(newStock) || newStock < 0) return
+    setSaving(true)
+    try {
+      const delta = newStock - editing.stock
+      await api.patch(`/products/${editing.id}/adjust-stock?adjustment=${delta}&reason=manual+update`)
+      onStockUpdate(editing.id, newStock)
+      setEditing(null)
+    } catch {}
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:350, background:"rgba(0,0,0,0.55)",
+      backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center",
+      padding:"24px 16px" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width:"100%", maxWidth:460, background:"var(--bg1,#fff)", borderRadius:22,
+          boxShadow:"0 12px 48px rgba(0,0,0,0.25)", display:"flex", flexDirection:"column",
+          maxHeight:"80vh", overflow:"hidden" }}>
+
+        {/* Header */}
+        <div style={{ padding:"20px 22px 16px", borderBottom:"1px solid var(--rule)",
+          display:"flex", alignItems:"flex-start", gap:12 }}>
+          <div style={{ width:42, height:42, borderRadius:12, flexShrink:0,
+            background: type === "out_of_stock" ? "rgba(192,57,43,0.10)" : type === "low_stock" ? "rgba(217,119,6,0.10)" : "rgba(184,134,11,0.10)",
+            display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>
+            {meta.icon}
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>{meta.label}</div>
+            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:3, lineHeight:1.5 }}>{meta.desc}</div>
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
+            fontSize:18, color:"var(--ink-faint)", flexShrink:0, padding:4 }}>✕</button>
+        </div>
+
+        {/* WhatsApp CTA */}
+        <div style={{ padding:"10px 22px", borderBottom:"1px solid var(--rule)", background:"rgba(37,211,102,0.06)" }}>
+          <a href={`https://wa.me/?text=${buildWAMessage()}`} target="_blank" rel="noreferrer"
+            style={{ display:"flex", alignItems:"center", gap:10, textDecoration:"none" }}>
+            <div style={{ width:34, height:34, borderRadius:10, background:"#25D366",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>📲</div>
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#128C7E" }}>Send WhatsApp Stock Alert</div>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>Share this list with your supplier or staff</div>
+            </div>
+            <svg style={{ marginLeft:"auto", flexShrink:0 }} width="14" height="14" fill="none"
+              stroke="#128C7E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </a>
+        </div>
+
+        {/* Item list */}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {items.length === 0 && (
+            <div style={{ padding:"32px 22px", textAlign:"center", color:"var(--ink-faint)", fontSize:13 }}>
+              No items to show
+            </div>
+          )}
+          {items.map((p, i) => (
+            <div key={p.id || i} style={{ padding:"11px 22px",
+              borderBottom: i < items.length-1 ? "1px solid var(--rule-soft,rgba(0,0,0,0.05))" : "none",
+              display:"flex", alignItems:"center", gap:12 }}>
+
+              {/* Status dot */}
+              <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0,
+                background: p.stock <= 0 ? "var(--ember)" : "#d97706" }}/>
+
+              {/* Name + stock */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
+                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                {editing?.id === p.id ? (
+                  <div style={{ display:"flex", gap:6, marginTop:5, alignItems:"center" }}>
+                    <input type="number" min="0" value={editVal}
+                      onChange={e => setEditVal(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && saveEdit()}
+                      style={{ width:80, padding:"5px 8px", borderRadius:8, fontSize:12,
+                        border:"1.5px solid var(--saffron)", outline:"none", background:"#fffbeb" }}
+                      autoFocus />
+                    <span style={{ fontSize:11, color:"var(--ink-faint)" }}>{p.unit || "units"}</span>
+                    <button onClick={saveEdit} disabled={saving}
+                      style={{ padding:"5px 12px", borderRadius:8, border:"none",
+                        background:"var(--saffron)", color:"#fff", fontSize:11, fontWeight:700,
+                        cursor:saving?"default":"pointer", opacity:saving?0.7:1 }}>
+                      {saving ? "…" : "Save"}
+                    </button>
+                    <button onClick={() => setEditing(null)}
+                      style={{ padding:"5px 8px", borderRadius:8, border:"1px solid var(--rule)",
+                        background:"transparent", fontSize:11, color:"var(--ink-faint)", cursor:"pointer" }}>
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize:11, color: p.stock <= 0 ? "var(--ember)" : "#d97706",
+                    fontWeight:600, marginTop:2 }}>
+                    {p.stock <= 0 ? "Out of stock" : `${p.stock} ${p.unit || "units"} left`}
+                    {p.min_stock > 0 && p.stock > 0 && (
+                      <span style={{ color:"var(--ink-faint)", fontWeight:400 }}> · min {p.min_stock}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Edit button */}
+              {editing?.id !== p.id && p.id && (
+                <button onClick={() => { setEditing(p); setEditVal(String(p.stock)) }}
+                  style={{ padding:"5px 12px", borderRadius:9, border:"1.5px solid var(--rule)",
+                    background:"var(--bg2)", fontSize:11, fontWeight:600,
+                    color:"var(--ink)", cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>
+                  ✏️ Edit
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Footer count */}
+        <div style={{ padding:"10px 22px", borderTop:"1px solid var(--rule)", textAlign:"center",
+          fontSize:11, color:"var(--ink-faint)" }}>
+          {items.length} item{items.length !== 1 ? "s" : ""} shown
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Morning Briefing card ─────────────────────────────────────
-function BriefingCard({ briefing, navigate }) {
+function BriefingCard({ briefing, navigate, onStockClick }) {
   const [open, setOpen] = useState(true)
   if (!briefing) return null
 
@@ -57,7 +215,7 @@ function BriefingCard({ briefing, navigate }) {
       sub:   out_of_stock.slice(0, 3).map(p => p.name).join(", "),
       color: "var(--ember)",
       bg:    "var(--ember-bg)",
-      to:    "/inventory",
+      stockType: "out_of_stock",
     })
   }
 
@@ -71,7 +229,7 @@ function BriefingCard({ briefing, navigate }) {
       sub:   lowExtra.slice(0, 3).map(p => p.name).join(", "),
       color: "var(--brass)",
       bg:    "var(--brass-bg)",
-      to:    "/inventory",
+      stockType: "low_stock",
     })
   }
 
@@ -83,7 +241,7 @@ function BriefingCard({ briefing, navigate }) {
       sub:   `${dead_stock.count} item${dead_stock.count > 1 ? "s" : ""} unsold for 30+ days${dead_stock.items?.length ? " · " + dead_stock.items.slice(0,2).map(p=>p.name).join(", ") : ""}`,
       color: "var(--brass)",
       bg:    "rgba(184,134,11,0.07)",
-      to:    "/inventory",
+      stockType: "dead_stock",
     })
   }
 
@@ -148,7 +306,7 @@ function BriefingCard({ briefing, navigate }) {
       {open && (
         <div style={{ borderTop:"1px solid var(--rule)" }}>
           {items.map((item, i) => (
-            <button key={i} onClick={() => navigate(item.to)}
+            <button key={i} onClick={() => item.stockType ? onStockClick?.(item.stockType) : navigate(item.to || "/inventory")}
               style={{ width:"100%", background:"none", border:"none", cursor:"pointer",
                 padding:"11px 18px", display:"flex", alignItems:"flex-start", gap:12,
                 borderBottom: i < items.length - 1 ? "1px solid var(--rule-soft, rgba(0,0,0,0.05))" : "none",
@@ -211,9 +369,14 @@ export default function Dashboard() {
   const [stockToast,   setStockToast]   = useState(false)
 
   // ── Day session state ─────────────────────────────────────
-  const [daySession,  setDaySession]  = useState(undefined) // undefined = loading
-  const [dayActing,   setDayActing]   = useState(false)
-  const [dayError,    setDayError]    = useState("")
+  const [daySession,        setDaySession]        = useState(undefined)
+  const [dayActing,         setDayActing]         = useState(false)
+  const [dayError,          setDayError]          = useState("")
+  const [showCloseConfirm,  setShowCloseConfirm]  = useState(false)
+  const [stockPopup,        setStockPopup]        = useState(null) // { type, items }
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false)
+  const [showAutoClose,     setShowAutoClose]     = useState(false)
+  const [autoCloseSecsLeft, setAutoCloseSecsLeft] = useState(300)
 
   useEffect(() => {
     // Use Invoices.today() for revenue — it captures voice bills that have no
@@ -264,11 +427,10 @@ export default function Dashboard() {
   }
 
   async function closeDay() {
-    if (!window.confirm("Close today's day? This will record your final stock and profits.")) return
     setDayActing(true); setDayError("")
     try {
       if (isCloud()) {
-        const s = await api.post("/day-sessions/close", {})
+        const s = await api.post("/day-sessions/close", { store_type: "kirana" })
         setDaySession(s)
       } else {
         const s = localGetDaySession()
@@ -280,6 +442,81 @@ export default function Dashboard() {
     } catch { setDayError("Could not close — try Day Ops page") }
     setDayActing(false)
   }
+
+  async function reopenDay() {
+    setDayActing(true); setDayError("")
+    try {
+      if (isCloud()) {
+        const s = await api.post("/day-sessions/reopen")
+        setDaySession(s)
+      } else {
+        const s = localGetDaySession()
+        if (s) {
+          const reopened = { ...s, status:"open", closed_at:null, total_sales:null, gross_profit:null }
+          localSetDaySession(reopened); setDaySession(reopened)
+        }
+      }
+    } catch { setDayError("Could not reopen — try again") }
+    setDayActing(false)
+  }
+
+  function goBilling() { navigate("/billing") }
+
+  async function openStockPopup(type) {
+    setStockPopup({ type, items: [], loading: true })
+    try {
+      if (type === "dead_stock") {
+        // Use briefing dead stock items (already fetched)
+        const items = (briefing?.dead_stock?.items || []).map(p => ({
+          id: p.id, name: p.name, stock: p.stock, unit: p.unit || ""
+        }))
+        setStockPopup({ type, items })
+      } else {
+        // Fetch low-stock endpoint — returns all items with stock < min_stock
+        const all = await api.get("/products/low-stock")
+        const items = type === "out_of_stock"
+          ? all.filter(p => (p.stock || 0) <= 0)
+          : all.filter(p => (p.stock || 0) > 0)
+        setStockPopup({ type, items })
+      }
+    } catch {
+      setStockPopup({ type, items: [] })
+    }
+  }
+
+  function handleStockUpdate(id, newStock) {
+    // Update local low/out lists
+    setLow(prev => prev.map(p => p.id === id ? { ...p, stock: newStock } : p)
+      .filter(p => p.stock < p.min_stock))
+    // Update popup items live
+    setStockPopup(prev => prev ? {
+      ...prev,
+      items: prev.items.map(p => p.id === id ? { ...p, stock: newStock } : p)
+    } : null)
+  }
+
+  // ── 1 AM auto-close watchdog ──────────────────────────────
+  useEffect(() => {
+    if (!vendor) return
+    const now = new Date()
+    const next1AM = new Date(now)
+    next1AM.setHours(1, 0, 0, 0)
+    if (now >= next1AM) next1AM.setDate(next1AM.getDate() + 1)
+    const warningTimer = setTimeout(() => {
+      setDaySession(prev => {
+        if (prev?.status === "open") { setShowAutoClose(true); setAutoCloseSecsLeft(300) }
+        return prev
+      })
+    }, next1AM - now)
+    return () => clearTimeout(warningTimer)
+  }, [vendor?.id])
+
+  useEffect(() => {
+    if (!showAutoClose) return
+    if (autoCloseSecsLeft <= 0) { setShowAutoClose(false); closeDay(); return }
+    const tick = setTimeout(() => setAutoCloseSecsLeft(s => s - 1), 1000)
+    return () => clearTimeout(tick)
+  }, [showAutoClose, autoCloseSecsLeft])
 
   const avgInv = today.count > 0 ? Math.round(today.total / today.count) : 0
   const profit  = briefing?.profit
@@ -320,6 +557,44 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        {/* Day open/close in header */}
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0, marginLeft:8 }}>
+          {vendor && daySession !== undefined && (() => {
+            const isOpen   = daySession?.status === "open"
+            const isClosed = daySession?.status === "closed"
+            if (!daySession) return (
+              <button onClick={openDay} disabled={dayActing}
+                style={{ padding:"7px 14px", borderRadius:20, border:"none", fontSize:11, fontWeight:700,
+                  background:"linear-gradient(135deg,#d97706,#b45309)", color:"#fff",
+                  cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1,
+                  boxShadow:"0 2px 8px rgba(217,119,6,0.35)", whiteSpace:"nowrap" }}>
+                {dayActing ? "Opening…" : "▶ Open Day"}
+              </button>
+            )
+            if (isOpen) return (
+              <button onClick={() => setShowCloseConfirm(true)} disabled={dayActing}
+                style={{ padding:"7px 14px", borderRadius:20, border:"1.5px solid rgba(26,122,74,0.4)",
+                  fontSize:11, fontWeight:700, background:"var(--jade-bg,#e8f8f2)",
+                  color:"var(--jade,#1a7a4a)", cursor:dayActing?"default":"pointer",
+                  opacity:dayActing?0.7:1, whiteSpace:"nowrap" }}>
+                {dayActing ? "Closing…" : "■ Close Day"}
+              </button>
+            )
+            if (isClosed) return (
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:10, fontWeight:600, color:"var(--ink-faint)",
+                  padding:"5px 10px", borderRadius:20, border:"1px solid var(--rule)",
+                  background:"var(--bg2)", whiteSpace:"nowrap" }}>✓ Day Closed</span>
+                <button onClick={() => setShowReopenConfirm(true)} disabled={dayActing}
+                  style={{ padding:"5px 10px", borderRadius:20, border:"1.5px solid rgba(202,138,4,0.4)",
+                    fontSize:10, fontWeight:700, background:"#fffbeb", color:"#92400e",
+                    cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1, whiteSpace:"nowrap" }}>
+                  ↺ Reopen
+                </button>
+              </div>
+            )
+          })()}
+        </div>
       </div>
 
       <div className="page-content" style={{ padding:"16px" }}>
@@ -328,7 +603,7 @@ export default function Dashboard() {
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
 
           {/* 1 — New Bill (primary CTA) */}
-          <button onClick={() => navigate("/billing")}
+          <button onClick={goBilling}
             style={{ gridColumn:"1 / -1",          /* full width */
               background:"linear-gradient(135deg,var(--saffron,#e87722),#d45f00)",
               border:"none", borderRadius:18, padding:"20px 22px",
@@ -615,41 +890,29 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Action button */}
-              {notOpened && (
-                <button onClick={openDay} disabled={dayActing}
-                  style={{ padding:"9px 18px", borderRadius:12, border:"none", flexShrink:0,
-                    background:"linear-gradient(135deg,var(--saffron,#e87722),#d45f00)",
-                    color:"#fff", fontSize:12, fontWeight:700,
-                    cursor: dayActing ? "default" : "pointer", opacity: dayActing ? 0.7 : 1 }}>
-                  {dayActing ? "Opening…" : "Open Day"}
-                </button>
-              )}
-              {isOpen && (
+              {isClosed && (
                 <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-                  <button onClick={closeDay} disabled={dayActing}
-                    style={{ padding:"9px 18px", borderRadius:12, border:"none",
-                      background:"linear-gradient(135deg,#185FA5,#2563eb)",
-                      color:"#fff", fontSize:12, fontWeight:700,
-                      cursor: dayActing ? "default" : "pointer", opacity: dayActing ? 0.7 : 1 }}>
-                    {dayActing ? "Closing…" : "Close Day"}
+                  <button onClick={() => setShowReopenConfirm(true)} disabled={dayActing}
+                    style={{ padding:"7px 14px", borderRadius:12,
+                      border:"1.5px solid rgba(202,138,4,0.4)", background:"#fffbeb",
+                      color:"#92400e", fontSize:11, fontWeight:700,
+                      cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>
+                    ↺ Reopen
+                  </button>
+                  <button onClick={() => navigate("/day")}
+                    style={{ padding:"7px 14px", borderRadius:12,
+                      border:"1.5px solid var(--rule)", background:"transparent",
+                      color:"var(--ink-dim)", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+                    View Report
                   </button>
                 </div>
-              )}
-              {isClosed && (
-                <button onClick={() => navigate("/day")}
-                  style={{ padding:"9px 18px", borderRadius:12, flexShrink:0,
-                    border:"1.5px solid var(--rule)", background:"transparent",
-                    color:"var(--ink-dim)", fontSize:12, fontWeight:600, cursor:"pointer" }}>
-                  View Report
-                </button>
               )}
             </div>
           )
         })()}
 
         {/* Morning Briefing */}
-        <BriefingCard briefing={briefing} navigate={navigate} />
+        <BriefingCard briefing={briefing} navigate={navigate} onStockClick={openStockPopup} />
 
         {/* Secondary quick links row */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
@@ -715,73 +978,73 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Low stock / Reorder */}
+          {/* Stock Health — inventory snapshot (complements briefing) */}
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
               <div style={{ fontSize:11, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>
-                {briefing?.stockout_predictions?.length > 0 ? "⏱ Stockout" : low.length > 0 ? "⚠ Low Stock" : "Stock Health"}
+                Stock Health
               </div>
               <button onClick={() => navigate("/inventory")}
                 style={{ fontSize:11, color:"var(--saffron)", fontWeight:600,
                   background:"none", border:"none", cursor:"pointer" }}>View all →</button>
             </div>
-            <div style={{ background:"var(--bg2)", borderRadius:14,
-              border:"1px solid var(--rule)", overflow:"hidden",
-              boxShadow:"0 4px 10px var(--shadow)" }}>
-              {loading ? [1,2,3].map(i => (
-                <div key={i} style={{ height:54, borderBottom:"1px solid var(--rule-soft)",
-                  background:"var(--bg2)", margin:"2px 0" }}/>
-              )) : briefing?.stockout_predictions?.length > 0 ? (
-                briefing.stockout_predictions.slice(0, 5).map((p, i) => (
-                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
-                    padding:"12px 14px", borderBottom: i < 4 ? "1px solid var(--rule-soft)" : "none" }}>
-                    <div style={{ width:34, height:34, borderRadius:10, flexShrink:0,
-                      background: p.days_left < 1 ? "var(--ember-bg)" : "rgba(217,119,6,0.1)",
-                      display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>
-                      {p.days_left < 1 ? "🔴" : "🟠"}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
-                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
-                      <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-                        {p.daily_rate} {p.unit}/day · {p.days_left}d left
-                      </div>
-                    </div>
-                    <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:999,
-                      textTransform:"uppercase", letterSpacing:"0.8px",
-                      background: p.days_left < 1 ? "var(--ember-bg)" : "rgba(217,119,6,0.12)",
-                      color: p.days_left < 1 ? "var(--ember)" : "#b45309",
-                      border: `1px solid ${p.days_left < 1 ? "rgba(192,57,43,0.3)" : "rgba(180,83,9,0.3)"}` }}>
-                      {p.days_left < 1 ? "TODAY" : `${p.days_left}d`}
-                    </span>
+            <div style={{ background:"var(--bg2)", borderRadius:14, border:"1px solid var(--rule)",
+              overflow:"hidden", boxShadow:"0 4px 10px var(--shadow)" }}>
+              {[
+                {
+                  icon: "💰",
+                  label: "Stock Value",
+                  value: loading || !briefing ? "—"
+                    : briefing.stock_value > 0
+                      ? `₹${(briefing.stock_value/1000).toFixed(1)}k`
+                      : "₹0",
+                  sub: loading ? "" : `${briefing?.total_products ?? total} products`,
+                  color: "var(--brass)",
+                  bg: "rgba(184,134,11,0.10)",
+                },
+                {
+                  icon: "💤",
+                  label: "Dead Stock",
+                  value: loading || !briefing ? "—" : briefing.dead_stock?.count ?? 0,
+                  sub: briefing?.dead_stock?.blocked_value > 0
+                    ? `₹${(briefing.dead_stock.blocked_value/1000).toFixed(1)}k blocked`
+                    : "No dead stock",
+                  color: briefing?.dead_stock?.count > 0 ? "var(--brass)" : "var(--jade)",
+                  bg: briefing?.dead_stock?.count > 0 ? "rgba(184,134,11,0.10)" : "rgba(26,122,74,0.10)",
+                  clickType: briefing?.dead_stock?.count > 0 ? "dead_stock" : null,
+                },
+                {
+                  icon: "📈",
+                  label: "Monthly Margin",
+                  value: loading || !briefing ? "—"
+                    : `${briefing.profit?.month?.margin_pct ?? 0}%`,
+                  sub: briefing?.profit?.month
+                    ? `${INR(briefing.profit.month.profit || 0)} profit`
+                    : "This month",
+                  color: (briefing?.profit?.month?.margin_pct ?? 0) > 15 ? "var(--jade)" : "var(--ember)",
+                  bg: (briefing?.profit?.month?.margin_pct ?? 0) > 15
+                    ? "rgba(26,122,74,0.10)" : "var(--ember-bg)",
+                },
+              ].map((row, i) => (
+                <div key={i} onClick={() => row.clickType && openStockPopup(row.clickType)}
+                  style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 16px",
+                    borderBottom: i < 2 ? "1px solid var(--rule-soft,rgba(0,0,0,0.05))" : "none",
+                    cursor: row.clickType ? "pointer" : "default", transition:"background 0.1s" }}
+                  onMouseEnter={e => row.clickType && (e.currentTarget.style.background="rgba(0,0,0,0.03)")}
+                  onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+                  <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
+                    background: row.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                    {row.icon}
                   </div>
-                ))
-              ) : low.length === 0 ? (
-                <div style={{ padding:"28px 16px", textAlign:"center",
-                  color:"var(--ink-faint)", fontSize:13 }}>
-                  <div style={{ fontSize:32, marginBottom:8 }}>✅</div>
-                  All stock levels healthy!
-                </div>
-              ) : low.slice(0, 5).map((p, i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
-                  padding:"12px 14px", borderBottom: i < 4 ? "1px solid var(--rule-soft)" : "none" }}>
-                  <div style={{ width:34, height:34, borderRadius:10, flexShrink:0,
-                    background: p.stock <= 0 ? "var(--ember-bg)" : "var(--brass-bg)",
-                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>
-                    {p.stock <= 0 ? "🔴" : "🟡"}
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, fontWeight:600, color:"var(--ink)" }}>{row.label}</div>
+                    <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>{row.sub}</div>
                   </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
-                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
-                    <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Min: {p.min_stock} · Left: {p.stock}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    <span style={{ fontSize:16, fontWeight:800, color: row.color }}>{row.value}</span>
+                    {row.clickType && <svg width="12" height="12" fill="none" stroke="var(--ink-faint)"
+                      strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>}
                   </div>
-                  <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:999,
-                    textTransform:"uppercase", letterSpacing:"0.8px",
-                    background: p.stock <= 0 ? "var(--ember-bg)" : "var(--brass-bg)",
-                    color: p.stock <= 0 ? "var(--ember)" : "var(--brass)",
-                    border: `1px solid ${p.stock <= 0 ? "rgba(192,57,43,0.3)" : "rgba(184,134,11,0.3)"}` }}>
-                    {p.stock <= 0 ? "OUT!" : "LOW"}
-                  </span>
                 </div>
               ))}
             </div>
@@ -790,6 +1053,179 @@ export default function Dashboard() {
 
         <div style={{ height:24 }}/>
       </div>
+
+      {/* ── Stock Popup ─────────────────────────────────── */}
+      {stockPopup && (
+        <StockPopup
+          type={stockPopup.type}
+          items={stockPopup.items}
+          storeName={vendor?.store_name || "Store"}
+          onClose={() => setStockPopup(null)}
+          onStockUpdate={handleStockUpdate}
+        />
+      )}
+
+      {/* ── Reopen Confirm Modal ─────────────────────────── */}
+      {showReopenConfirm && (
+        <div style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(0,0,0,0.55)",
+          backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px" }}
+          onClick={() => setShowReopenConfirm(false)}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width:"100%", maxWidth:440, background:"var(--bg1,#fff)", borderRadius:22,
+              padding:"28px 24px", boxShadow:"0 12px 48px rgba(0,0,0,0.25)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+              <div style={{ width:44, height:44, borderRadius:13, flexShrink:0, background:"#fffbeb",
+                border:"1.5px solid rgba(202,138,4,0.3)", display:"flex", alignItems:"center",
+                justifyContent:"center", fontSize:22 }}>↺</div>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>Reopen Today's Day?</div>
+                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>This will unlock billing again</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:22 }}>
+              {[
+                { icon:"🔓", title:"Billing will be unlocked", sub:"You can continue making bills after reopening." },
+                { icon:"🔄", title:"Sales will be recalculated on close", sub:"All bills from the original open time will be counted." },
+                { icon:"📊", title:"Previous close data will be cleared", sub:"Incorrect totals will be wiped and recalculated fresh." },
+              ].map((item, i) => (
+                <div key={i} style={{ display:"flex", gap:12, alignItems:"flex-start",
+                  background:"var(--bg2,#f7f5f0)", borderRadius:12, padding:"11px 14px" }}>
+                  <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{item.icon}</span>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>{item.title}</div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)", lineHeight:1.5 }}>{item.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {dayError && <div style={{ background:"#fff5f5", border:"1px solid rgba(220,38,38,0.2)",
+              borderRadius:10, padding:"9px 12px", fontSize:12, color:"#dc2626", marginBottom:14 }}>{dayError}</div>}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowReopenConfirm(false)}
+                style={{ flex:1, padding:"13px", borderRadius:13, border:"1.5px solid var(--rule)",
+                  background:"transparent", fontSize:13, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => { setShowReopenConfirm(false); reopenDay() }} disabled={dayActing}
+                style={{ flex:2, padding:"13px", borderRadius:13, border:"none",
+                  background:"linear-gradient(135deg,#d97706,#b45309)", color:"#fff",
+                  fontSize:13, fontWeight:700, cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1,
+                  boxShadow:"0 4px 14px rgba(217,119,6,0.3)" }}>
+                {dayActing ? "Reopening…" : "↺ Yes, Reopen Day"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Close Day Confirm Modal ──────────────────────── */}
+      {showCloseConfirm && (
+        <div style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(0,0,0,0.55)",
+          backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px" }}
+          onClick={() => setShowCloseConfirm(false)}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width:"100%", maxWidth:440, background:"var(--bg1,#fff)", borderRadius:22,
+              padding:"28px 24px", boxShadow:"0 12px 48px rgba(0,0,0,0.25)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+              <div style={{ width:44, height:44, borderRadius:13, flexShrink:0, background:"#fff7ed",
+                border:"1.5px solid rgba(202,138,4,0.3)", display:"flex", alignItems:"center",
+                justifyContent:"center", fontSize:22 }}>⚠️</div>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>Close Today's Day?</div>
+                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>Please read before confirming</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:22 }}>
+              {[
+                { icon:"📊", title:"Sales & profit will be calculated", sub:"Only bills made after today's opening time will be counted." },
+                { icon:"📦", title:"Stock snapshot will be taken", sub:"Current stock levels saved as your closing snapshot." },
+                { icon:"🔒", title:"Billing will be locked", sub:"You won't be able to create new bills. Use ↺ Reopen if needed." },
+                { icon:"📋", title:"A day report will be generated", sub:"View full summary in Day Ops." },
+              ].map((item, i) => (
+                <div key={i} style={{ display:"flex", gap:12, alignItems:"flex-start",
+                  background:"var(--bg2,#f7f5f0)", borderRadius:12, padding:"11px 14px" }}>
+                  <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{item.icon}</span>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>{item.title}</div>
+                    <div style={{ fontSize:11, color:"var(--ink-faint)", lineHeight:1.5 }}>{item.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {today.total > 0 && (
+              <div style={{ background:"var(--jade-bg,#e8f8f2)", border:"1px solid rgba(26,122,74,0.2)",
+                borderRadius:12, padding:"10px 14px", marginBottom:20, display:"flex", gap:20 }}>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:"var(--jade)" }}>{INR(today.total)}</div>
+                  <div style={{ fontSize:9, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>TODAY'S SALES</div>
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:"var(--saffron)" }}>{today.count}</div>
+                  <div style={{ fontSize:9, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>BILLS</div>
+                </div>
+              </div>
+            )}
+            {dayError && <div style={{ background:"#fff5f5", border:"1px solid rgba(220,38,38,0.2)",
+              borderRadius:10, padding:"9px 12px", fontSize:12, color:"#dc2626", marginBottom:14 }}>{dayError}</div>}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowCloseConfirm(false)}
+                style={{ flex:1, padding:"13px", borderRadius:13, border:"1.5px solid var(--rule)",
+                  background:"transparent", fontSize:13, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => { setShowCloseConfirm(false); closeDay() }} disabled={dayActing}
+                style={{ flex:2, padding:"13px", borderRadius:13, border:"none",
+                  background:"linear-gradient(135deg,#185FA5,#2563eb)", color:"#fff",
+                  fontSize:13, fontWeight:700, cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1,
+                  boxShadow:"0 4px 14px rgba(37,99,235,0.35)" }}>
+                {dayActing ? "Closing…" : "Yes, Close Day"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 1AM Auto-close Warning ───────────────────────── */}
+      {showAutoClose && (
+        <div style={{ position:"fixed", inset:0, zIndex:400, background:"rgba(0,0,0,0.70)",
+          backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ width:"100%", maxWidth:420, background:"var(--bg1,#fff)", borderRadius:22,
+            padding:"28px 24px", boxShadow:"0 12px 48px rgba(0,0,0,0.3)" }}>
+            <div style={{ textAlign:"center", marginBottom:20 }}>
+              <div style={{ fontSize:40, marginBottom:10 }}>🌙</div>
+              <div style={{ fontSize:18, fontWeight:800, color:"var(--ink)" }}>Day Still Open!</div>
+              <div style={{ fontSize:13, color:"var(--ink-faint)", marginTop:6, lineHeight:1.5 }}>
+                It's past 1:00 AM and your day session is still open.<br/>Please close it to save today's records.
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:22, gap:6 }}>
+              <div style={{ width:80, height:80, borderRadius:"50%",
+                background: autoCloseSecsLeft > 60 ? "rgba(220,38,38,0.08)" : "rgba(220,38,38,0.15)",
+                border:`3px solid ${autoCloseSecsLeft > 60 ? "#f87171" : "#dc2626"}`,
+                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", transition:"all 0.5s" }}>
+                <div style={{ fontSize:22, fontWeight:900, color:"#dc2626", lineHeight:1 }}>
+                  {Math.floor(autoCloseSecsLeft/60)}:{String(autoCloseSecsLeft%60).padStart(2,"0")}
+                </div>
+                <div style={{ fontSize:8, color:"#dc2626", fontWeight:700, letterSpacing:"1px" }}>LEFT</div>
+              </div>
+              <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Day will auto-close when timer hits 0:00</div>
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => { setShowAutoClose(false); setAutoCloseSecsLeft(300) }}
+                style={{ flex:1, padding:"12px", borderRadius:13, border:"1.5px solid var(--rule)",
+                  background:"transparent", fontSize:12, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
+                Keep Open
+              </button>
+              <button onClick={() => { setShowAutoClose(false); closeDay() }}
+                style={{ flex:2, padding:"12px", borderRadius:13, border:"none",
+                  background:"linear-gradient(135deg,#dc2626,#b91c1c)", color:"#fff",
+                  fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 14px rgba(220,38,38,0.35)" }}>
+                Close Day Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

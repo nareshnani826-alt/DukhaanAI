@@ -31,8 +31,8 @@ async def list_customers(
         .limit(limit)
     )
     if search:
-        # Supabase: filter by name or phone using or_
-        q = q.or_(f"name.ilike.%{search}%,phone.ilike.%{search}%")
+        safe = "".join(c for c in search if c.isalnum() or c in " -+.")
+        q = q.or_(f"name.ilike.%{safe}%,phone.ilike.%{safe}%")
 
     return q.execute().data
 

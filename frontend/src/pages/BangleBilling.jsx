@@ -1,7 +1,9 @@
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { Capacitor } from '@capacitor/core';
 import { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { api, isCloud } from "../sync/db"
 import { BangleProducts, BangleSales, BangleSync } from "../sync/bangleDb"
 import InvoiceView from "../components/InvoiceView"
 import { useLang, LangToggle } from "../hooks/useLang"
@@ -2793,6 +2795,8 @@ function BangleReviewModal({ cart, onClose, onConfirm }) {
 export default function BangleBilling() {
   const { vendor } = useAuth()
   const { t }      = useLang()
+  const navigate   = useNavigate()
+  const [dayStatus, setDayStatus] = useState(undefined) // undefined=loading, null=none, "open"|"closed"
   const [products,     setProducts]     = useState([])
   const [loading,      setLoading]      = useState(true)
   const [cart,         setCart]         = useState([])
@@ -2897,6 +2901,18 @@ export default function BangleBilling() {
         setShowScanner(true);
       }
     };
+
+  // Gate: check day session before allowing billing
+  useEffect(() => {
+    if (!vendor) return
+    if (isCloud()) {
+      api.get("/day-sessions/today?store_type=bangle")
+        .then(s => setDayStatus(s?.status || null))
+        .catch(() => setDayStatus(null))
+    } else {
+      setDayStatus("open") // local mode — no gate
+    }
+  }, [vendor?.id])
 
   useEffect(() => {
     Promise.all([
@@ -3102,6 +3118,32 @@ export default function BangleBilling() {
     "Soap":"🫧","Talcum Powder":"✨","Hair Color":"🎨","Other":"📦" }
 
   const INRb = n => "₹" + Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:0,maximumFractionDigits:2})
+
+  // ── Day session gate ─────────────────────────────────────────
+  if (dayStatus === undefined) return (
+    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
+      fontSize:13, color:"var(--ink-faint)" }}>Checking day status…</div>
+  )
+  if (dayStatus !== "open") return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", padding:32, textAlign:"center", gap:16,
+      background:"var(--bg0)" }}>
+      <div style={{ fontSize:48 }}>🔒</div>
+      <div style={{ fontSize:18, fontWeight:800, color:"var(--ink)" }}>Day Not Opened</div>
+      <div style={{ fontSize:13, color:"var(--ink-faint)", maxWidth:280, lineHeight:1.6 }}>
+        {dayStatus === "closed"
+          ? "Today's day has been closed. Reopen it from the dashboard to resume billing."
+          : "Open today's day from the dashboard before you can start billing."}
+      </div>
+      <button onClick={() => navigate("/bangle-dashboard")}
+        style={{ padding:"12px 28px", borderRadius:14, border:"none",
+          background:"linear-gradient(135deg,#e87722,#d45f00)", color:"#fff",
+          fontSize:14, fontWeight:700, cursor:"pointer",
+          boxShadow:"0 4px 16px rgba(232,119,34,0.35)", marginTop:8 }}>
+        ← Go to Dashboard
+      </button>
+    </div>
+  )
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>

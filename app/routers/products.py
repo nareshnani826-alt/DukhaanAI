@@ -178,7 +178,7 @@ async def update_product(
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
-    result = db.table("products").update(updates).eq("id", product_id).execute()
+    result = db.table("products").update(updates).eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
     _bust(vendor["id"])
     return result.data[0]
 

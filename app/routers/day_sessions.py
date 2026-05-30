@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone, date, timedelta
@@ -22,22 +22,43 @@ def _stock_snapshot(db, vendor_id: str) -> list:
     return result.data or []
 
 
-def _today_sales(db, vendor_id: str) -> dict:
-    """Get today's sales summary."""
-    today_start = datetime.now(timezone.utc).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ).isoformat()
+def _today_sales(db, vendor_id: str, store_type: str = "kirana",
+                 opened_at: str = None, closed_at: str = None) -> dict:
+    """Get sales scoped strictly to the day session window (opened_at → closed_at)."""
+    # Use the actual session open time — never midnight — so pre-session sales are excluded
+    if not opened_at:
+        opened_at = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).isoformat()
 
-    sales = (
-        db.table("sales")
-        .select("*")
-        .eq("vendor_id", vendor_id)
-        .gte("sold_at", today_start)
-        .execute()
-    )
-    data = sales.data or []
-    total = sum(s["total"] for s in data)
-    return {"total_sales": round(total, 2), "count": len(data), "sales": data}
+    if store_type == "bangle":
+        q = (
+            db.table("bangle_sales")
+            .select("*")
+            .eq("vendor_id", vendor_id)
+            .gte("sale_date", opened_at)
+        )
+        if closed_at:
+            q = q.lte("sale_date", closed_at)
+        data = q.execute().data or []
+        total = sum(s["total"] for s in data)
+        items = []
+        for s in data:
+            for it in (s.get("items") or []):
+                items.append({"product_id": it.get("variant_id") or it.get("product_id"), "qty": it.get("qty", 1)})
+        return {"total_sales": round(total, 2), "count": len(data), "sales": items}
+    else:
+        q = (
+            db.table("sales")
+            .select("*")
+            .eq("vendor_id", vendor_id)
+            .gte("sold_at", opened_at)
+        )
+        if closed_at:
+            q = q.lte("sold_at", closed_at)
+        data = q.execute().data or []
+        total = sum(s["total"] for s in data)
+        return {"total_sales": round(total, 2), "count": len(data), "sales": data}
 
 
 def _calc_profit(snapshot_open, snapshot_close, sales_data) -> float:
@@ -54,7 +75,10 @@ def _calc_profit(snapshot_open, snapshot_close, sales_data) -> float:
 
 
 @router.get("/today")
-async def get_today_session(vendor=Depends(get_current_vendor)):
+async def get_today_session(
+    store_type: str = Query("kirana"),
+    vendor=Depends(get_current_vendor),
+):
     """Get today's session — returns None if not opened yet."""
     db = get_db()
     today = date.today().isoformat()
@@ -69,12 +93,16 @@ async def get_today_session(vendor=Depends(get_current_vendor)):
 
 
 @router.post("/open")
-async def open_day(vendor=Depends(get_current_vendor)):
+async def open_day(
+    body: dict = Body(default={}),
+    vendor=Depends(get_current_vendor),
+):
     """Open the day — take opening stock snapshot."""
     db = get_db()
     today = date.today().isoformat()
+    store_type = body.get("store_type", "kirana")
 
-    # Check if already opened
+    # One session per vendor per day — return existing if already opened
     existing = (
         db.table("day_sessions")
         .select("*")
@@ -83,7 +111,7 @@ async def open_day(vendor=Depends(get_current_vendor)):
         .execute()
     )
     if existing.data:
-        return existing.data[0]  # already open, return it
+        return existing.data[0]
 
     snapshot = _stock_snapshot(db, vendor["id"])
     total_stock_value = sum(
@@ -93,6 +121,7 @@ async def open_day(vendor=Depends(get_current_vendor)):
     session = db.table("day_sessions").insert({
         "vendor_id":     vendor["id"],
         "date":          today,
+        "store_type":    store_type,
         "opening_stock": snapshot,
         "status":        "open",
         "notes":         f"Opened at {datetime.now(timezone.utc).strftime('%I:%M %p')} IST",
@@ -106,12 +135,16 @@ async def open_day(vendor=Depends(get_current_vendor)):
 
 
 @router.post("/close")
-async def close_day(vendor=Depends(get_current_vendor)):
+async def close_day(
+    body: dict = Body(default={}),
+    vendor=Depends(get_current_vendor),
+):
     """Close the day — take closing snapshot, calculate profit, find low stock."""
     db = get_db()
     today = date.today().isoformat()
+    store_type = body.get("store_type", "kirana")
 
-    # Get today's session
+    # Get today's session (one per vendor per day)
     existing = (
         db.table("day_sessions")
         .select("*")
@@ -126,9 +159,16 @@ async def close_day(vendor=Depends(get_current_vendor)):
     if session["status"] == "closed":
         return session  # already closed
 
-    # Take closing snapshot
+    # Prefer the store_type from the request body (dashboard knows which store is closing)
+    # Fall back to what was stored on the session
+    store_type = store_type or session.get("store_type") or "kirana"
+
+    # Snapshot the close time now, then scope sales to [opened_at, closed_at]
+    closed_at        = datetime.now(timezone.utc).isoformat()
     closing_snapshot = _stock_snapshot(db, vendor["id"])
-    sales_data       = _today_sales(db, vendor["id"])
+    sales_data       = _today_sales(db, vendor["id"], store_type,
+                                    opened_at=session.get("opened_at"),
+                                    closed_at=closed_at)
     profit           = _calc_profit(session.get("opening_stock"), closing_snapshot, sales_data)
 
     # Find low stock items
@@ -139,7 +179,7 @@ async def close_day(vendor=Depends(get_current_vendor)):
 
     # Update session
     updated = db.table("day_sessions").update({
-        "closed_at":     datetime.now(timezone.utc).isoformat(),
+        "closed_at":     closed_at,
         "closing_stock": closing_snapshot,
         "total_sales":   sales_data["total_sales"],
         "total_invoices":sales_data["count"],
@@ -153,6 +193,39 @@ async def close_day(vendor=Depends(get_current_vendor)):
         "low_stock_count": len(low_stock),
         "low_stock_items": low_stock,
     }
+
+
+@router.post("/reopen")
+async def reopen_day(vendor=Depends(get_current_vendor)):
+    """Reopen a closed day session — clears totals so close recalculates fresh."""
+    db = get_db()
+    today = date.today().isoformat()
+
+    existing = (
+        db.table("day_sessions")
+        .select("*")
+        .eq("vendor_id", vendor["id"])
+        .eq("date", today)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=400, detail="No session found for today.")
+
+    session = existing.data[0]
+    if session["status"] == "open":
+        return session  # already open
+
+    updated = db.table("day_sessions").update({
+        "status":        "open",
+        "closed_at":     None,
+        "total_sales":   None,
+        "total_invoices": None,
+        "gross_profit":  None,
+        "closing_stock": None,
+        "low_stock_items": None,
+    }).eq("id", session["id"]).execute().data[0]
+
+    return updated
 
 
 @router.get("/pending")

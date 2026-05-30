@@ -971,7 +971,6 @@ function AIChatWidget() {
         const dashboardRoute = storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard"
         const newBillFabVisible = location.pathname !== billingRoute
           && location.pathname !== dashboardRoute
-          && !showAuth
         // Stack above the New Bill FAB when both are visible; else sit just above the tab bar
         const bubbleBottom = newBillFabVisible ? 130 : 84
         return (

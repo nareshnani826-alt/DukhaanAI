@@ -595,6 +595,55 @@ async def update_variant(variant_id: str, body: VariantUpdate, vendor=Depends(ge
     return result.data[0]
 
 
+@router.get("/variants/low-stock")
+async def bangle_low_stock_variants(vendor=Depends(get_current_vendor)):
+    """All active variants with stock < min_stock, joined with product name."""
+    db = get_db()
+    variants = (
+        db.table("bangle_variants").select("id,product_id,colour,size,stock,min_stock")
+        .eq("vendor_id", vendor["id"]).eq("is_active", True).execute()
+    ).data or []
+    low = [v for v in variants if (v.get("stock") or 0) < (v.get("min_stock") or 0)]
+
+    pids = list({v["product_id"] for v in low if v.get("product_id")})
+    names: dict = {}
+    if pids:
+        prows = db.table("bangle_products").select("id,name") \
+            .in_("id", pids).execute().data or []
+        names = {p["id"]: p["name"] for p in prows}
+
+    return [
+        {
+            "id":        v["id"],
+            "name":      names.get(v.get("product_id",""), "Unknown"),
+            "colour":    v.get("colour",""),
+            "size":      v.get("size",""),
+            "stock":     v["stock"],
+            "min_stock": v["min_stock"],
+        }
+        for v in low
+    ]
+
+
+@router.patch("/variants/{variant_id}/stock")
+async def adjust_variant_stock(
+    variant_id: str,
+    adjustment: float = Query(..., description="Positive = add, negative = remove"),
+    reason: str = Query("manual update"),
+    vendor=Depends(get_current_vendor),
+):
+    db = get_db()
+    row = db.table("bangle_variants").select("stock").eq("id", variant_id) \
+        .eq("vendor_id", vendor["id"]).execute().data
+    if not row:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    new_stock = max(0, float(row[0]["stock"] or 0) + adjustment)
+    updated = db.table("bangle_variants").update({"stock": new_stock}) \
+        .eq("id", variant_id).execute().data[0]
+    _bust_bangle(vendor["id"])
+    return updated
+
+
 @router.delete("/variants/{variant_id}")
 async def delete_variant(variant_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
@@ -920,32 +969,42 @@ async def list_sales(
         )
 
         # ── Build variant→cost map with product-level fallback ───
-        # Matches exactly what the Inventory page uses so numbers agree.
+        # Categories sold per piece (cost_price = per unit).
+        # All others (Bangles, Jewellery, etc.) are per dozen → divide by 12.
+        PIECE_CATS = {
+            "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact",
+            "Skin Care","Shampoo","Hair Oil","Body Lotion","Soap",
+            "Talcum Powder","Hair Color","Other",
+        }
+
         all_variant_ids = list({
             i["variant_id"] for r in rows for i in (r.get("items") or [])
             if i.get("variant_id")
         })
-        variant_costs: dict = {}
+        variant_costs: dict   = {}
+        variant_divisor: dict = {}   # 1 for piece-priced, 12 for per-dozen
+
         if all_variant_ids:
             vcrows = db.table("bangle_variants") \
                 .select("id,product_id,cost_price") \
                 .in_("id", all_variant_ids).execute().data or []
 
-            # Fetch product-level cost_price fallback for variants with no variant cost
-            null_product_ids = list({
-                v["product_id"] for v in vcrows
-                if not v.get("cost_price") and v.get("product_id")
-            })
-            prod_cost: dict = {}
-            if null_product_ids:
-                prows = db.table("bangle_products").select("id,cost_price") \
-                    .in_("id", null_product_ids).execute().data or []
-                prod_cost = {p["id"]: float(p.get("cost_price") or 0) for p in prows}
+            # Fetch ALL referenced products to get category + cost fallback
+            all_product_ids = list({v["product_id"] for v in vcrows if v.get("product_id")})
+            prod_data: dict = {}
+            if all_product_ids:
+                prows = db.table("bangle_products").select("id,cost_price,category") \
+                    .in_("id", all_product_ids).execute().data or []
+                prod_data = {p["id"]: p for p in prows}
 
             for v in vcrows:
+                pid      = v.get("product_id", "")
+                prod     = prod_data.get(pid, {})
                 cost_val = float(v.get("cost_price") or 0) \
-                           or prod_cost.get(v.get("product_id", ""), 0)
-                variant_costs[v["id"]] = cost_val
+                           or float(prod.get("cost_price") or 0)
+                category = prod.get("category", "")
+                variant_costs[v["id"]]   = cost_val
+                variant_divisor[v["id"]] = 1 if category in PIECE_CATS else 12
 
         # Count coverage after fallback
         all_items   = [i for r in rows for i in (r.get("items") or [])]
@@ -956,7 +1015,9 @@ async def list_sales(
         coverage = items_with_cost / len(all_items) if all_items else 0
 
         cost = round(sum(
-            float(i.get("pieces") or 0) * variant_costs.get(i.get("variant_id", ""), 0) / 12
+            float(i.get("pieces") or 0)
+            * variant_costs.get(i.get("variant_id", ""), 0)
+            / variant_divisor.get(i.get("variant_id", ""), 12)
             for i in all_items
         ), 2)
 
@@ -1129,27 +1190,45 @@ async def bangle_profit(vendor=Depends(get_current_vendor)):
         .eq("vendor_id", vendor["id"]).gte("sale_date", month_start).execute()
     ).data or []
 
-    # Fetch cost_price for all variants referenced in sales
+    PIECE_CATS = {
+        "Nail Polish","Kajal","Lipstick","Mehendi","Perfume","Compact",
+        "Skin Care","Shampoo","Hair Oil","Body Lotion","Soap",
+        "Talcum Powder","Hair Color","Other",
+    }
+
+    # Fetch cost_price + category for all variants referenced in sales
     all_variant_ids = list({
         item["variant_id"]
         for sale in sales for item in (sale.get("items") or [])
         if item.get("variant_id")
     })
-    variant_costs: dict = {}
+    variant_costs: dict   = {}
+    variant_divisor: dict = {}
     if all_variant_ids:
-        rows = db.table("bangle_variants").select("id,cost_price") \
+        vrows = db.table("bangle_variants").select("id,product_id,cost_price") \
             .in_("id", all_variant_ids).execute().data or []
-        variant_costs = {r["id"]: float(r.get("cost_price") or 0) for r in rows}
+        all_pids = list({v["product_id"] for v in vrows if v.get("product_id")})
+        prod_data: dict = {}
+        if all_pids:
+            prows = db.table("bangle_products").select("id,cost_price,category") \
+                .in_("id", all_pids).execute().data or []
+            prod_data = {p["id"]: p for p in prows}
+        for v in vrows:
+            pid      = v.get("product_id", "")
+            prod     = prod_data.get(pid, {})
+            cost_val = float(v.get("cost_price") or 0) or float(prod.get("cost_price") or 0)
+            category = prod.get("category", "")
+            variant_costs[v["id"]]   = cost_val
+            variant_divisor[v["id"]] = 1 if category in PIECE_CATS else 12
 
     def calc(sale_list):
         rev  = sum(float(s["total"]) for s in sale_list)
-        # cost_price is stored per-dozen; divide by 12 to get per-piece cost
         cost = sum(
-            float(item.get("pieces") or 0) * variant_costs.get(item.get("variant_id", ""), 0) / 12
+            float(item.get("pieces") or 0)
+            * variant_costs.get(item.get("variant_id", ""), 0)
+            / variant_divisor.get(item.get("variant_id", ""), 12)
             for s in sale_list for item in (s.get("items") or [])
         )
-        # cost_known = True only when at least one variant has a non-zero cost price.
-        # If all cost prices are 0, profit numbers are meaningless (misleading 100% margin).
         cost_known = cost > 0
         profit = rev - cost
         margin = (profit / rev * 100) if rev > 0 and cost_known else 0
@@ -1245,13 +1324,33 @@ async def bangle_briefing(vendor=Depends(get_current_vendor)):
                 colour_map[item["colour"]] += int(item.get("pieces", 0))
     top_colour = max(colour_map, key=lambda k: colour_map[k]) if colour_map else None
 
-    # Low stock variants
-    low_stock = (
-        db.table("bangle_variants").select("id,colour,size,stock,min_stock")
+    # Low stock variants — join with product names for dashboard list
+    all_vars = (
+        db.table("bangle_variants").select("id,product_id,colour,size,stock,min_stock")
         .eq("vendor_id", vendor["id"]).eq("is_active", True).execute()
     ).data or []
-    low_stock = [v for v in low_stock if v["stock"] < v["min_stock"]]
+    low_stock = [v for v in all_vars if v["stock"] < v["min_stock"]]
     out_stock = [v for v in low_stock if v["stock"] == 0]
+
+    # Fetch product names for low-stock variants (top 10 for dashboard)
+    low_pids = list({v["product_id"] for v in low_stock[:10] if v.get("product_id")})
+    prod_names: dict = {}
+    if low_pids:
+        pname_rows = db.table("bangle_products").select("id,name") \
+            .in_("id", low_pids).execute().data or []
+        prod_names = {p["id"]: p["name"] for p in pname_rows}
+
+    low_stock_items = [
+        {
+            "id":       v["id"],
+            "name":     prod_names.get(v.get("product_id",""), "Unknown"),
+            "colour":   v.get("colour",""),
+            "size":     v.get("size",""),
+            "stock":    v["stock"],
+            "min_stock": v["min_stock"],
+        }
+        for v in low_stock[:10]
+    ]
 
     # Dead stock (30 days)
     sold_ids: set = set()
@@ -1300,6 +1399,7 @@ async def bangle_briefing(vendor=Depends(get_current_vendor)):
         },
         "low_stock_count":  len(low_stock),
         "out_of_stock":     len(out_stock),
+        "low_stock_items":  low_stock_items,
         "dead_stock_count": dead_count,
         "next_festival":    next_fest,
         "udhar": {

@@ -1,7 +1,6 @@
 import { useAuth } from "../context/AuthContext.jsx"
 import PrinterButton from "./PrinterButton.jsx"
-import UPIQRCode    from "./UPIQRCode.jsx"
-import { getUPIVpa } from "./UPIQRCode.jsx"
+import UPIQRCode from "./UPIQRCode.jsx"
 
 /* ── helpers ─────────────────────────────────────────────────── */
 function toWords(amount) {
@@ -301,11 +300,9 @@ export default function InvoiceView({ invoice, customerPhone }) {
 
       {/* ══ UPI QR + PRINT ══════════════════════════════════════ */}
       <div style={{ borderTop: "1px solid #f0f0f0", background: "#fafafa" }}>
-        {getUPIVpa() && (
-          <div style={{ padding: "14px 24px 0" }}>
-            <UPIQRCode invoice={invoice} storeName={vendor?.store_name} compact={true} />
-          </div>
-        )}
+        <div style={{ padding: "14px 24px 0" }}>
+          <UPIQRCode invoice={invoice} storeName={vendor?.store_name} compact={true} />
+        </div>
         <div style={{
           padding: "12px 24px 14px",
           display: "flex", justifyContent: "center",
