@@ -80,6 +80,13 @@ function lid(d) { const id = "local-" + d.nextId++; localWrite(d); return id }
 
 // ── Products ──────────────────────────────────────────────
 export const Products = {
+  async count() {
+    if (isCloud()) {
+      const r = await api.get("/products/count")
+      return r.count ?? 0
+    }
+    return localRead().products.filter(x => x.is_active !== false).length
+  },
   async list(f = {}) {
     if (isCloud()) {
       const q = new URLSearchParams()

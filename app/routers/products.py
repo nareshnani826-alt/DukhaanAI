@@ -130,6 +130,19 @@ async def low_stock_alerts(vendor=Depends(get_current_vendor)):
     return await asyncio.to_thread(_query)
 
 
+@router.get("/count")
+async def count_products(vendor=Depends(get_current_vendor)):
+    """Lightweight count — avoids fetching full product list just for a number."""
+    result = (
+        get_db().table("products")
+        .select("id", count="exact")
+        .eq("vendor_id", vendor["id"])
+        .eq("is_active", True)
+        .execute()
+    )
+    return {"count": result.count or 0}
+
+
 @router.get("/categories")
 async def list_categories(vendor=Depends(get_current_vendor)):
     db = get_db()

@@ -2,6 +2,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 import hashlib
 import secrets
+from functools import lru_cache
+import time
 
 import bcrypt
 from jose import JWTError, jwt
@@ -10,6 +12,25 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.core.config import settings
 from app.core.database import get_db
+
+# ── Vendor cache ──────────────────────────────────────────────
+# Avoids a DB round-trip on every authenticated endpoint.
+# TTL = 5 minutes; entries evicted on logout via bust_vendor_cache().
+_vendor_cache: dict[str, tuple[dict, float]] = {}
+_VENDOR_TTL = 300  # seconds
+
+def _cache_get(vendor_id: str) -> dict | None:
+    entry = _vendor_cache.get(vendor_id)
+    if entry and time.monotonic() - entry[1] < _VENDOR_TTL:
+        return entry[0]
+    _vendor_cache.pop(vendor_id, None)
+    return None
+
+def _cache_set(vendor_id: str, vendor: dict) -> None:
+    _vendor_cache[vendor_id] = (vendor, time.monotonic())
+
+def bust_vendor_cache(vendor_id: str) -> None:
+    _vendor_cache.pop(vendor_id, None)
 
 bearer_scheme = HTTPBearer()
 
@@ -62,10 +83,15 @@ async def get_current_vendor(
     if not vendor_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
+    # Cache hit — skip the DB round-trip for repeated calls within TTL
+    cached = _cache_get(vendor_id)
+    if cached:
+        return cached
+
     def _fetch():
         db = get_db()
         return db.table("vendors").select(
-            "id,email,store_name,gstin,phone,address,plan,plan_expires_at,is_active,is_admin,created_at,updated_at"
+            "id,email,store_name,gstin,phone,address,plan,modules,plan_expires_at,is_active,is_admin"
         ).eq("id", vendor_id).single().execute()
 
     result = await asyncio.to_thread(_fetch)
@@ -74,6 +100,7 @@ async def get_current_vendor(
     vendor = result.data
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
+    _cache_set(vendor_id, vendor)
     return vendor
 
 

@@ -365,10 +365,12 @@ async def refresh(body: RefreshRequest):
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(body: RefreshRequest):
+async def logout(body: RefreshRequest, vendor=Depends(get_current_vendor)):
+    from app.core.security import bust_vendor_cache
     db = get_db()
     token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
     db.table("refresh_tokens").delete().eq("token_hash", token_hash).execute()
+    bust_vendor_cache(vendor["id"])
     return MessageResponse(message="Logged out successfully")
 
 

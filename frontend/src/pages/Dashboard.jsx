@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Products, Sales, Invoices, api, isCloud } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
@@ -385,12 +385,12 @@ export default function Dashboard() {
       Invoices.today().catch(() => null),
       Sales.summary({ days:30 }).catch(() => null),
       Products.lowStock().catch(() => []),
-      Products.list().catch(() => []),
-    ]).then(([t, s, l, p]) => {
+      Products.count().catch(() => 0),
+    ]).then(([t, s, l, count]) => {
       if (t) setToday({ ...t, sales: t.invoices || t.sales || [] })
       if (s) setSummary(s)
       setLow(Array.isArray(l) ? l : [])
-      setTotal(Array.isArray(p) ? p.length : 0)
+      setTotal(typeof count === "number" ? count : 0)
     }).finally(() => setLoading(false))
 
     // Briefing only for authenticated (cloud) users
@@ -518,8 +518,11 @@ export default function Dashboard() {
     return () => clearTimeout(tick)
   }, [showAutoClose, autoCloseSecsLeft])
 
-  const avgInv = today.count > 0 ? Math.round(today.total / today.count) : 0
-  const profit  = briefing?.profit
+  const avgInv = useMemo(
+    () => today.count > 0 ? Math.round(today.total / today.count) : 0,
+    [today.total, today.count]
+  )
+  const profit = useMemo(() => briefing?.profit, [briefing])
 
   return (
     <div style={{ flex:1, overflowY:"auto", background:"var(--bg0)" }}>
