@@ -1239,40 +1239,60 @@ async def lookup_barcode(
         if rows:
             return {"source": "inventory", "product": rows[0]}
 
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.get(
-                f"https://world.openfoodfacts.org/api/v2/product/{code}.json",
-                headers={"User-Agent": "DukaanAI/1.0 (+https://dukaanai.app)"},
-            )
-        if resp.status_code == 200:
-            d = resp.json()
-            if d.get("status") == 1:
-                p      = d["product"]
-                name   = (
-                    p.get("product_name_en")
-                    or p.get("product_name")
-                    or p.get("abbreviated_product_name")
-                    or ""
-                ).strip()
-                brands = p.get("brands", "")
-                if brands and name and brands.lower() not in name.lower():
-                    name = f"{brands} {name}".strip()
-                cats = p.get("categories_tags") or []
-                cat  = cats[0].replace("en:", "").replace("-", " ").title() if cats else "Other"
-                return {
-                    "source": "openfoodfacts",
-                    "product": {
-                        "name":     name,
-                        "category": cat,
-                        "unit":     "pc",
-                        "mrp":      0,
-                        "barcode":  code,
-                        "qty_hint": p.get("quantity", ""),
-                    },
-                }
-    except Exception as e:
-        logger.warning("Open Food Facts failed for %s: %s", code, e)
+    def _extract_off_product(d: dict, source: str, code: str) -> dict | None:
+        """Parse a product dict from any Open*Facts API response."""
+        if d.get("status") != 1:
+            return None
+        p     = d["product"]
+        name  = (
+            p.get("product_name_en")
+            or p.get("product_name")
+            or p.get("abbreviated_product_name")
+            or ""
+        ).strip()
+        if not name:
+            return None
+        brands = p.get("brands", "")
+        if brands and brands.lower() not in name.lower():
+            name = f"{brands} {name}".strip()
+        cats = p.get("categories_tags") or []
+        cat  = cats[0].replace("en:", "").replace("-", " ").title() if cats else "Other"
+        return {
+            "source": source,
+            "product": {
+                "name":     name,
+                "category": cat,
+                "unit":     "pc",
+                "mrp":      0,
+                "barcode":  code,
+                "qty_hint": p.get("quantity", ""),
+            },
+        }
+
+    # Try all three Open*Facts databases in parallel — covers food, beauty, and
+    # general household products (insecticides, cleaning, etc.)
+    OFF_URLS = [
+        ("https://world.openfoodfacts.org/api/v2/product/{code}.json",    "openfoodfacts"),
+        ("https://world.openbeautyfacts.org/api/v2/product/{code}.json",  "openbeautyfacts"),
+        ("https://world.openproductsfacts.org/api/v2/product/{code}.json","openproductsfacts"),
+    ]
+    ua = {"User-Agent": "DukaanAI/1.0 (+https://dukaanai.app)"}
+
+    async def _fetch_off(url: str, source: str):
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                resp = await client.get(url.format(code=code), headers=ua)
+            if resp.status_code == 200:
+                return _extract_off_product(resp.json(), source, code)
+        except Exception as e:
+            logger.debug("Barcode lookup %s failed for %s: %s", source, code, e)
+        return None
+
+    import asyncio
+    results = await asyncio.gather(*[_fetch_off(url, src) for url, src in OFF_URLS])
+    for res in results:
+        if res:
+            return res
 
     return {"source": "not_found", "product": None}
 

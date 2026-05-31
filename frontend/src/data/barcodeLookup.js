@@ -1,11 +1,12 @@
 // Shared barcode → product lookup used by both Kirana (Inventory.jsx) and
 // Bangle (BangleInventory.jsx) Add Product flows.
 //
-// Tries multiple free public databases in order:
+// Tries multiple sources in order:
 //   1. UPCItemDB trial   — general retail / electronics / household
 //   2. OpenFoodFacts     — packaged food & beverages
 //   3. OpenBeautyFacts   — cosmetics & personal care
-//   4. OpenProductsFacts — general non-food
+//   4. OpenProductsFacts — general non-food (household, cleaning, insecticides)
+//   5. Gemini AI         — final fallback for Indian brands (Allout, Good Knight, etc.)
 //
 // Returns { name, brand, barcode, category, mrp, diag } — name is empty
 // if nothing was found. `diag` is a short string useful for debugging.
@@ -122,6 +123,49 @@ export async function lookupBarcode(barcode, storeType = "kirana") {
         }
       }
     } catch (e) { diag.push(`opf-err:${e.message}`) }
+  }
+
+  // 5) Gemini AI — final fallback for popular Indian brands not in any public DB
+  if (!result.found) {
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+      if (apiKey) {
+        const isIndian = barcode.startsWith("890")
+        const prompt = `You are a product lookup assistant for Indian retail stores.
+Barcode scanned: ${barcode}${isIndian ? " (Indian EAN-13, prefix 890)" : ""}
+
+Identify this product if it is a well-known Indian consumer brand (examples: All Out, Good Knight, HIT, Mortein, Dettol, Savlon, Disprin, Crocin, Surf Excel, Ariel, Harpic, Lizol, Vim, Rin, Tide, Nirma, Colgate, Pepsodent, Oral-B, Lux, Dove, Lifebuoy, Head & Shoulders, Pantene, Clinic Plus, Sunsilk, Parachute, Maggi, Top Ramen, Parle-G, Britannia, Amul, Mother Dairy, Haldirams, Lay's, Kurkure, Bisleri, etc.).
+
+Return ONLY valid JSON, no explanation:
+{"name": "product name", "brand": "brand name", "category": "one of: Staples/Dairy/Oils/Beverages/Snacks/Personal Care/Other"}
+If you cannot identify this specific barcode, return: {"name": "", "brand": "", "category": "Other"}`
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          { method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({
+              contents:[{ parts:[{ text: prompt }] }],
+              generationConfig:{ temperature:0.1, maxOutputTokens:80 }
+            }) }
+        )
+        diag.push(`gemini:${res.status}`)
+        if (res.ok) {
+          const gd  = await res.json()
+          const raw = gd.candidates?.[0]?.content?.parts?.[0]?.text || ""
+          const obj = JSON.parse(raw.replace(/```json?|```/g, "").trim())
+          if (obj?.name) {
+            result = {
+              name:     obj.name,
+              brand:    obj.brand || "",
+              barcode,
+              category: mapCat([obj.category || "", obj.name, obj.brand || ""]),
+              mrp:      "",
+              found:    true,
+            }
+          } else diag.push("gemini:no-match")
+        }
+      }
+    } catch (e) { diag.push(`gemini-err:${e.message}`) }
   }
 
   result.diag = diag.join(" | ")
