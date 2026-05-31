@@ -21,6 +21,17 @@ export const setVendor  = (v) => localStorage.setItem(VND, JSON.stringify(v))
 export const getPlan    = () => getVendor()?.plan || "free"
 export const isCloud    = () => !!getToken() && ["pro","wholesale"].includes(getPlan())
 
+// Returns true if the JWT access token is present and not expired (client-side check).
+// Prevents LoginHome from redirecting to dashboard with a stale cached session.
+export function isTokenValid() {
+  const t = getToken()
+  if (!t) return false
+  try {
+    const payload = JSON.parse(atob(t.split(".")[1]))
+    return payload.exp > Date.now() / 1000
+  } catch { return false }
+}
+
 export async function tryRefresh() {
   const r = getRefresh(); if (!r) return false
   try {

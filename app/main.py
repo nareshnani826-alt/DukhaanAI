@@ -131,7 +131,16 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logging.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": str(exc) or "Internal server error"})
+    response = JSONResponse(status_code=500, content={"detail": str(exc) or "Internal server error"})
+    # Manually inject CORS headers so the browser can read the error body.
+    # Without this, ServerErrorMiddleware intercepts 500s before CORSMiddleware
+    # can add Access-Control-Allow-Origin, causing opaque network errors on the client.
+    origin = request.headers.get("origin", "")
+    if origin in _cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+    return response
 
 # ── Routers ──────────────────────────────────────────────────
 app.include_router(auth.router)

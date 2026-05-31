@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { isTokenValid, clearAuth } from "../sync/db"
 
 const isValidEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 const isValidPhone = v => /^(\+91|0|91)?[6-9]\d{9}$/.test(v.replace(/\s/g, ""))
@@ -1351,6 +1352,8 @@ export default function LoginHome() {
 
   useEffect(() => {
     if (!vendor) return
+    // If token is expired, clear the stale session and show login form
+    if (!isTokenValid()) { clearAuth(); return }
     const saved   = localStorage.getItem("storeMode")
     const mods    = vendor.modules || ["kirana"]
     const hasBangle = mods.includes("bangle_fancy")
