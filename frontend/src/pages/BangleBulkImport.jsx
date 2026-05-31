@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import * as XLSX from "xlsx"
 import { getToken } from "../sync/db.js"
+import { useLang } from "../hooks/useLang"
 import { BANGLE_CATALOG as CATALOG, BANGLE_CATALOG_CATS } from "../data/bangleCatalog.js"
 import BangleInvoiceScanTab from "./BangleInvoiceScanTab.jsx"
 
@@ -167,6 +168,7 @@ function Chip({ label, active, onClick, colour }) {
 
 export default function BangleBulkImport() {
   const navigate = useNavigate()
+  const { t } = useLang()
   const [tab, setTab] = useState("catalog") // catalog | csv | restock | scan
 
   // ── Catalog tab state ─────────────────────────────────────
@@ -445,10 +447,10 @@ export default function BangleBulkImport() {
         borderBottom:"1px solid var(--rule)", flexShrink:0}}>
         <div>
           <div style={{fontSize:15, fontWeight:700, color:"var(--ink)"}}>
-            💍 Bangle Bulk Import
+            💍 {t("Bangle Bulk Import")}
           </div>
           <div style={{fontSize:11, color:"var(--ink-faint)"}}>
-            Add products with variants or restock existing inventory
+            {t("Add products with variants or restock existing inventory")}
           </div>
         </div>
         {tab === "catalog" && selectedCount > 0 && (
@@ -457,7 +459,7 @@ export default function BangleBulkImport() {
               color:"#fff", border:"none", borderRadius:10, padding:"9px 20px",
               fontSize:12, fontWeight:600, cursor:"pointer",
               opacity: importing ? 0.7 : 1}}>
-            {importing ? "Importing..." : `✓ Import ${selectedCount} Products`}
+            {importing ? t("Importing...") : `✓ ${t("Import")} ${selectedCount} ${t("Products")}`}
           </button>
         )}
       </div>
@@ -466,20 +468,20 @@ export default function BangleBulkImport() {
       <div style={{background:"var(--bg1)", borderBottom:"1px solid var(--rule)",
         display:"flex", padding:"0 12px", flexShrink:0, overflowX:"auto"}}>
         {[
-          {id:"restock", label:"♻️ Restock Variants",   sub:"Update stock after delivery"},
-          {id:"scan",    label:"📸 AI Invoice Scan",    sub:"Photo / PDF → auto stock update"},
+          {id:"restock", label:"♻️ Restock Variants",   sub:t("Update stock after delivery")},
+          {id:"scan",    label:"📸 AI Invoice Scan",    sub:t("Photo / PDF → auto stock update")},
           {id:"catalog", label:"💍 Product Catalog",    sub:`${CATALOG.length}+ market products`},
-          {id:"csv",     label:"📊 CSV / Excel Import", sub:"Upload your stock file"},
-        ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          {id:"csv",     label:"📊 CSV / Excel Import", sub:t("Upload your stock file")},
+        ].map(tb => (
+          <button key={tb.id} onClick={() => setTab(tb.id)}
             style={{padding:"12px 16px 10px", border:"none", background:"none",
               cursor:"pointer", textAlign:"left", marginRight:2, flexShrink:0,
-              borderBottom: tab===t.id ? "2px solid var(--saffron)" : "2px solid transparent"}}>
+              borderBottom: tab===tb.id ? "2px solid var(--saffron)" : "2px solid transparent"}}>
             <div style={{fontSize:11, fontWeight:600,
-              color: tab===t.id ? "var(--saffron)" : "var(--ink-dim)"}}>
-              {t.label}
+              color: tab===tb.id ? "var(--saffron)" : "var(--ink-dim)"}}>
+              {t(tb.label.replace(/^[^\s]+\s/, ""))}
             </div>
-            <div style={{fontSize:9, color:"var(--ink-faint)", marginTop:1}}>{t.sub}</div>
+            <div style={{fontSize:9, color:"var(--ink-faint)", marginTop:1}}>{tb.sub}</div>
           </button>
         ))}
       </div>
@@ -534,13 +536,13 @@ export default function BangleBulkImport() {
           <div style={{flex:1, overflowY:"auto", padding:"12px 16px"}}>
             {restockLoading ? (
               <div style={{textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13}}>
-                Loading inventory...
+                {t("Loading inventory...")}
               </div>
             ) : filteredProducts.length === 0 ? (
               <div style={{textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13}}>
                 {products.length === 0
-                  ? "No products yet. Use Catalog or CSV Import to add products first."
-                  : "No products match this filter."}
+                  ? t("No products yet. Use Catalog or CSV Import to add products first.")
+                  : t("No products match this filter.")}
               </div>
             ) : filteredProducts.map(product => (
               <div key={product.id} style={{background:"var(--bg1)", borderRadius:14,
@@ -643,7 +645,7 @@ export default function BangleBulkImport() {
                     color:"#fff", border:"none", borderRadius:12,
                     padding:"12px 28px", fontSize:13, fontWeight:700,
                     cursor:"pointer", opacity: restockSaving ? 0.7 : 1}}>
-                  {restockSaving ? "Saving..." : `Save Restock (${pendingCount})`}
+                  {restockSaving ? t("Saving...") : `${t("Save Restock")} (${pendingCount})`}
                 </button>
               </div>
             </div>
@@ -907,7 +909,7 @@ export default function BangleBulkImport() {
                 onMouseLeave={e => e.currentTarget.style.borderColor="#fde68a"}>
                 <div style={{fontSize:48, marginBottom:12}}>📊</div>
                 <div style={{fontSize:16, fontWeight:700, color:"var(--saffron)", marginBottom:6}}>
-                  Upload your stock file
+                  {t("Upload your stock file")}
                 </div>
                 <div style={{fontSize:12, color:"var(--ink-faint)", marginBottom:16}}>
                   CSV (.csv) or Excel (.xlsx, .xls) — one row per product-variant
@@ -957,7 +959,7 @@ export default function BangleBulkImport() {
                   border:"1.5px solid var(--saffron)", borderRadius:10,
                   padding:"10px 20px", fontSize:12, fontWeight:600,
                   cursor:"pointer", display:"flex", alignItems:"center", gap:8}}>
-                ⬇ Download Template CSV
+                ⬇ {t("Download Template CSV")}
               </button>
             </div>
           ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Udhar } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
+import { useLang } from "../hooks/useLang"
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 const fmt = iso => {
@@ -24,6 +25,7 @@ const dueColor = due => due > 5000 ? "#E24B4A" : due > 1000 ? "#e87722" : "#1D9E
 
 export default function BangleUdhar() {
   const { vendor } = useAuth()
+  const { t } = useLang()
   const [customers, setCustomers] = useState([])
   const [summary,   setSummary]   = useState({ total_due:0, overdue_count:0, customer_count:0 })
   const [selected,  setSelected]  = useState(null)
@@ -243,10 +245,10 @@ _Powered by DukaanAI_ 💍`
           <div className="bg-white rounded-2xl p-5 shadow-xl animate-slide-up" style={{ width:384, maxWidth:"95vw" }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-semibold">
-                {modal==="add-customer"  ? "Add Customer" :
-                 modal==="edit-customer" ? "Edit Customer" :
-                 modal==="credit"        ? "Add Udhar — " + selected?.name :
-                                          "Record Payment — " + selected?.name}
+                {modal==="add-customer"  ? t("Add Customer") :
+                 modal==="edit-customer" ? t("Edit Customer") :
+                 modal==="credit"        ? t("Add Udhar") + " — " + selected?.name :
+                                          t("Record Payment") + " — " + selected?.name}
               </h3>
               <button onClick={()=>setModal(null)} className="text-gray-300 hover:text-gray-500 text-xl">×</button>
             </div>
@@ -313,13 +315,13 @@ _Powered by DukaanAI_ 💍`
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Udhaar Khata 💍</h1>
-          <p className="text-[10px] text-gray-400">Credit book for bangle store customers</p>
+          <h1 className="text-sm font-semibold">{t("Udhaar Khata")} 💍</h1>
+          <p className="text-[10px] text-gray-400">{t("Credit book for bangle store customers")}</p>
         </div>
         <button onClick={() => openModal("add-customer")}
           className="btn btn-sm text-white border-none"
           style={{ background: ACCENT }}>
-          + Add Customer
+          + {t("Add Customer")}
         </button>
       </div>
 
@@ -328,23 +330,23 @@ _Powered by DukaanAI_ 💍`
         <div className="stat-card">
           <div className="stat-bar" style={{ background:"#E24B4A" }}/>
           <div className="stat-icon-box" style={{ background:"#FCEBEB" }}>💸</div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Total Due</div>
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{t("Total Due")}</div>
           <div className="text-xl font-bold" style={{ color:"#E24B4A" }}>{INR(summary.total_due)}</div>
-          <div className="text-[10px] text-gray-400">To collect</div>
+          <div className="text-[10px] text-gray-400">{t("To collect")}</div>
         </div>
         <div className="stat-card">
           <div className="stat-bar" style={{ background: ACCENT }}/>
           <div className="stat-icon-box" style={{ background: ACCENT_BG }}>👥</div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Pending</div>
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{t("Pending")}</div>
           <div className="text-xl font-bold text-gray-800">{summary.overdue_count}</div>
-          <div className="text-[10px] text-gray-400">Customers with balance</div>
+          <div className="text-[10px] text-gray-400">{t("Customers with balance")}</div>
         </div>
         <div className="stat-card">
           <div className="stat-bar" style={{ background: ACCENT }}/>
           <div className="stat-icon-box" style={{ background: ACCENT_BG }}>💍</div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Total</div>
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{t("Total")}</div>
           <div className="text-xl font-bold text-gray-800">{summary.customer_count}</div>
-          <div className="text-[10px] text-gray-400">Customers in khata</div>
+          <div className="text-[10px] text-gray-400">{t("Customers in khata")}</div>
         </div>
       </div>
 
@@ -365,15 +367,15 @@ _Powered by DukaanAI_ 💍`
             ) : customers.length === 0 ? (
               <div className="p-6 text-center">
                 <div className="text-4xl mb-3">💍</div>
-                <div className="text-xs font-medium text-gray-500 mb-1">No customers yet</div>
+                <div className="text-xs font-medium text-gray-500 mb-1">{t("No customers yet")}</div>
                 <div className="text-[10px] text-gray-400 mb-4">
-                  {search ? "No match found" : "Add customers who buy bangles on credit"}
+                  {search ? t("No match found") : t("Add customers who buy bangles on credit")}
                 </div>
                 {!search && (
                   <button onClick={()=>openModal("add-customer")}
                     className="btn btn-sm text-white border-none"
                     style={{ background: ACCENT }}>
-                    + Add first customer
+                    + {t("Add first customer")}
                   </button>
                 )}
               </div>
@@ -417,15 +419,15 @@ _Powered by DukaanAI_ 💍`
               style={{ display:"flex", alignItems:"center", gap:6, color: ACCENT,
                 fontSize:12, fontWeight:500, padding:"8px 0", marginBottom:8,
                 background:"none", border:"none", cursor:"pointer" }}>
-              ← Back to customers
+              {t("← Back to customers")}
             </button>
           )}
           {!selected ? (
             <div className="card h-64 flex items-center justify-center flex-col gap-3 text-center">
               <div className="text-5xl">💍</div>
-              <div className="text-sm font-medium text-gray-400">Select a customer</div>
+              <div className="text-sm font-medium text-gray-400">{t("Select a customer")}</div>
               <div className="text-xs text-gray-300 max-w-xs">
-                Click any customer to see their full udhar history and collect payment
+                {t("Click any customer to see their full udhar history and collect payment")}
               </div>
             </div>
           ) : (
@@ -470,12 +472,12 @@ _Powered by DukaanAI_ 💍`
                   <button onClick={() => openModal("credit", selected)}
                     className="py-2.5 rounded-xl text-xs font-semibold transition-all"
                     style={{ background: ACCENT_BG, color:"#92400e", border:"1px solid rgba(232,119,34,0.35)" }}>
-                    + Add Udhar (Credit)
+                    + {t("Add Udhar (Credit)")}
                   </button>
                   <button onClick={() => openModal("payment", selected)}
                     className="py-2.5 rounded-xl text-xs font-semibold text-white border-none transition-all"
                     style={{ background:"#1D9E75" }}>
-                    ✓ Record Payment
+                    ✓ {t("Record Payment")}
                   </button>
                 </div>
 
@@ -484,12 +486,12 @@ _Powered by DukaanAI_ 💍`
                   <button onClick={() => sendReminder(selected)}
                     className="py-2 rounded-xl text-[10px] font-medium transition-all"
                     style={{ background:"#25D366", color:"#fff", border:"none" }}>
-                    Send Reminder on WhatsApp
+                    {t("Send Reminder on WhatsApp")}
                   </button>
                   <button onClick={() => sendStatement(selected, txns)}
                     className="py-2 rounded-xl text-[10px] font-medium transition-all"
                     style={{ background:"#128C7E", color:"#fff", border:"none" }}>
-                    Send Full Statement
+                    {t("Send Full Statement")}
                   </button>
                 </div>
 
@@ -509,18 +511,18 @@ _Powered by DukaanAI_ 💍`
               {/* Transaction history */}
               <div className="card">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-xs font-semibold text-gray-700">Transaction History</div>
+                  <div className="text-xs font-semibold text-gray-700">{t("Transaction History")}</div>
                   {txns.length > 0 && (
-                    <span className="badge badge-blue">{txns.length} entries</span>
+                    <span className="badge badge-blue">{txns.length} {t("entries")}</span>
                   )}
                 </div>
 
                 {txns.length === 0 ? (
                   <div className="text-center py-6">
                     <div className="text-2xl mb-2">💍</div>
-                    <div className="text-xs text-gray-400">No transactions yet</div>
+                    <div className="text-xs text-gray-400">{t("No transactions yet")}</div>
                     <div className="text-[10px] text-gray-300 mt-1">
-                      Add udhar or record a payment to start tracking
+                      {t("Add udhar or record a payment to start tracking")}
                     </div>
                   </div>
                 ) : txns.map((txn, i) => (
@@ -537,7 +539,7 @@ _Powered by DukaanAI_ 💍`
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-semibold"
                         style={{ color: txn.type==="credit" ? "#92400e" : "#085041" }}>
-                        {txn.type === "credit" ? "Udhar diya" : "Payment mila"}
+                        {txn.type === "credit" ? t("Udhar given") : t("Payment received")}
                       </div>
                       <div className="text-[10px] text-gray-500">
                         {fmtTime(txn.created_at)}

@@ -1,54 +1,65 @@
 import { useState, useEffect } from "react"
-import { TE } from "../i18n/teluguStrings"
+import { BANGLE } from "../i18n/bangleStrings"
 
-const LANG_KEY    = "dk_bangle_lang"
-const LANG_EVENT  = "dk:lang"
+// Unified language key — same as Layout.jsx / voice system
+const LANG_KEY = "dk_voice_lang"
 
-// Returns the stored language, defaulting to "en"
 function storedLang() {
-  try { return localStorage.getItem(LANG_KEY) || "en" } catch { return "en" }
+  try { return localStorage.getItem(LANG_KEY) || "en-IN" } catch { return "en-IN" }
 }
 
 export function useLang() {
   const [lang, setLangState] = useState(storedLang)
 
-  // Stay in sync across all bangle components on the same page
   useEffect(() => {
-    const handler = (e) => setLangState(e.detail)
-    window.addEventListener(LANG_EVENT, handler)
-    return () => window.removeEventListener(LANG_EVENT, handler)
+    const handler = () => {
+      try { setLangState(localStorage.getItem(LANG_KEY) || "en-IN") } catch {}
+    }
+    // Layout.jsx fires both "storage" and "dk:voice-lang" on language change
+    window.addEventListener("storage", handler)
+    window.addEventListener("dk:voice-lang", handler)
+    return () => {
+      window.removeEventListener("storage", handler)
+      window.removeEventListener("dk:voice-lang", handler)
+    }
   }, [])
 
+  /** Translate a key. Returns the key unchanged for English or missing translations. */
+  function t(key) {
+    if (!key || lang === "en-IN") return key
+    return BANGLE[lang]?.[key] ?? key
+  }
+
+  /** setLang is kept for backward compat (LangToggle); prefer the layout language picker */
   function setLang(l) {
     try { localStorage.setItem(LANG_KEY, l) } catch {}
-    window.dispatchEvent(new CustomEvent(LANG_EVENT, { detail: l }))
+    setLangState(l)
+    window.dispatchEvent(new Event("storage"))
   }
 
-  // t("English text") → Telugu if active, else returns the English text unchanged
-  function t(english) {
-    if (lang !== "te") return english
-    return TE[english] ?? english
-  }
-
-  return { lang, setLang, t, isTelugu: lang === "te" }
+  return { lang, setLang, t, isTelugu: lang === "te-IN" }
 }
 
-// Standalone toggle component — drop into any bangle page header
+/** Standalone language toggle — shows current language, cycles through available options */
 export function LangToggle({ style }) {
   const { lang, setLang } = useLang()
+  const CYCLE = ["en-IN", "te-IN", "hi-IN", "ta-IN", "kn-IN", "ml-IN", "mr-IN", "bn-IN"]
+  const LABELS = { "en-IN":"EN","te-IN":"తె","hi-IN":"हि","ta-IN":"த","kn-IN":"ಕ","ml-IN":"മ","mr-IN":"म","bn-IN":"বাং" }
+  function next() {
+    const idx = CYCLE.indexOf(lang)
+    setLang(CYCLE[(idx + 1) % CYCLE.length])
+  }
   return (
-    <button
-      onClick={() => setLang(lang === "te" ? "en" : "te")}
-      title={lang === "te" ? "Switch to English" : "తెలుగులో చూడండి"}
+    <button onClick={next} title="Change language"
       style={{
         padding: "4px 10px", borderRadius: 8, border: "1.5px solid",
         fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.12s",
-        background:  lang === "te" ? "rgba(212,98,31,0.12)" : "var(--bg2)",
-        color:       lang === "te" ? "var(--saffron)"       : "var(--ink-dim)",
-        borderColor: lang === "te" ? "rgba(212,98,31,0.35)" : "var(--rule)",
+        background: lang !== "en-IN" ? "rgba(212,98,31,0.12)" : "var(--bg2)",
+        color:      lang !== "en-IN" ? "var(--saffron)"       : "var(--ink-dim)",
+        borderColor:lang !== "en-IN" ? "rgba(212,98,31,0.35)" : "var(--rule)",
         ...style,
       }}>
-      {lang === "te" ? "EN" : "తె"}
+      {LABELS[lang] || "EN"}
     </button>
   )
 }

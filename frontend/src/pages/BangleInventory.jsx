@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react"
 import JsBarcode from "jsbarcode"
 import { useNavigate } from "react-router-dom"
 import { getToken } from "../sync/db"
+import { useLang } from "../hooks/useLang"
 import { BangleProducts, BangleSuppliers } from "../sync/bangleDb"
 import { VOICE_LANGS } from "../voice/useProductVoice.js"
 import { getSavedLang } from "../voice/i18n.js"
@@ -1980,6 +1981,7 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated, 
 // ── Main Page ──────────────────────────────────────────────
 export default function BangleInventory() {
   const navigate = useNavigate()
+  const { t } = useLang()
   const [products,   setProducts]   = useState([])
   const [loading,    setLoading]    = useState(true)
   const [category,   setCategory]   = useState("All")
@@ -1992,6 +1994,7 @@ export default function BangleInventory() {
   const [suppliers,  setSuppliers]  = useState([])
 
   useEffect(() => {
+    if (!getToken()) return
     loadProducts()
     BangleSuppliers.list().then(setSuppliers).catch(() => {})
   }, [])
@@ -2068,17 +2071,17 @@ export default function BangleInventory() {
       {/* Header */}
       <div style={{background:"var(--bg1)",padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid var(--rule)",flexShrink:0}}>
         <div>
-          <div style={{fontSize:15,fontWeight:700,color:"var(--ink)"}}>💍 Bangle Inventory</div>
-          <div style={{fontSize:11,color:"var(--ink-faint)"}}>Variants by colour, size &amp; design</div>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--ink)"}}>💍 {t("Bangle Inventory")}</div>
+          <div style={{fontSize:11,color:"var(--ink-faint)"}}>{t("Variants by colour, size & design")}</div>
         </div>
         <div className="inv-header-actions" style={{display:"flex",gap:8}}>
           <button className="inv-bulk-btn" onClick={()=>navigate("/bangle-bulk-import")}
             style={{background:"var(--bg2)",color:"var(--ink-dim)",border:"none",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-            📦 Bulk Import
+            📦 {t("Bulk Import")}
           </button>
           <button className="inv-add-btn" onClick={()=>setShowAdd(true)}
             style={{background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-            + Add Product
+            + {t("Add Product")}
           </button>
         </div>
       </div>
@@ -2087,12 +2090,12 @@ export default function BangleInventory() {
       {summary && (
         <div className="bangle-summary-strip" style={{display:"flex",gap:1,background:"var(--rule)",flexShrink:0}}>
           {[
-            {label:"Products",  value:products.length,                           color:"var(--jade)"},
-            {label:"Variants",  value:summary.total_variants,                    color:"var(--jade)"},
-            {label:"Pieces",    value:summary.total_pieces,                      color:"var(--ink)"},
-            {label:"Invested",  value:summary.total_investment > 0 ? `₹${Math.round(summary.total_investment/1000)}k` : "—", color:"#7c5cbf"},
-            {label:"Low Stock", value:summary.low_stock,                         color:"#d97706"},
-            {label:"Out",       value:summary.out_of_stock,                      color:"#dc2626"},
+            {label:t("Products"),  value:products.length,                           color:"var(--jade)"},
+            {label:t("Variants"),  value:summary.total_variants,                    color:"var(--jade)"},
+            {label:t("Pieces"),    value:summary.total_pieces,                      color:"var(--ink)"},
+            {label:t("Invested"),  value:summary.total_investment > 0 ? `₹${Math.round(summary.total_investment/1000)}k` : "—", color:"#7c5cbf"},
+            {label:t("Low Stock"), value:summary.low_stock,                         color:"#d97706"},
+            {label:t("Out"),       value:summary.out_of_stock,                      color:"#dc2626"},
           ].map(s => (
             <div key={s.label} style={{flex:1,padding:"10px 6px",textAlign:"center",background:"var(--bg1)"}}>
               <div style={{fontSize:14,fontWeight:800,color:s.color}}>{s.value}</div>
@@ -2105,7 +2108,7 @@ export default function BangleInventory() {
       {/* Filters */}
       <div ref={filterRef} style={{background:"var(--bg1)",padding:"10px 16px",borderBottom:"1px solid var(--rule)",flexShrink:0}}>
         <input value={search} onChange={e=>setSearch(e.target.value)}
-          placeholder="Search products..."
+          placeholder={t("Search products...")}
           style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:10,padding:"7px 12px",fontSize:12,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
 
         {/* Grouped category filter */}
@@ -2174,20 +2177,20 @@ export default function BangleInventory() {
       {/* Product list */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
         {loading ? (
-          <div style={{textAlign:"center",padding:48,color:"var(--ink-faint)",fontSize:13}}>Loading inventory...</div>
+          <div style={{textAlign:"center",padding:48,color:"var(--ink-faint)",fontSize:13}}>{t("Loading inventory...")}</div>
         ) : filtered.length === 0 ? (
           <div style={{textAlign:"center",padding:48}}>
             <div style={{fontSize:48,marginBottom:12}}>💍</div>
             <div style={{fontSize:15,fontWeight:700,color:"var(--ink)",marginBottom:6}}>
-              {products.length===0 ? "No products yet" : "No matches"}
+              {products.length===0 ? t("No products yet") : t("No matches")}
             </div>
             <div style={{fontSize:12,color:"var(--ink-faint)",marginBottom:20}}>
-              {products.length===0 ? "Add your first bangle product to get started" : "Try a different search or category"}
+              {products.length===0 ? t("Add your first bangle product to get started") : t("Try a different search or category")}
             </div>
             {products.length===0 && (
               <button onClick={()=>setShowAdd(true)}
                 style={{background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",color:"#fff",border:"none",borderRadius:12,padding:"12px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                + Add First Product
+                + {t("Add First Product")}
               </button>
             )}
           </div>

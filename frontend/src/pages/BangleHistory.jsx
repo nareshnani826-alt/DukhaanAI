@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useAuth } from "../context/AuthContext"
 import { useNavigate } from "react-router-dom"
 import InvoiceView from "../components/InvoiceView"
+import { useLang } from "../hooks/useLang"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -46,6 +47,7 @@ const PAY_LABEL = { cash: "Cash", upi: "UPI", credit: "Credit", cheque: "Cheque"
 
 // ── Bill card ─────────────────────────────────────────────────
 function BillCard({ sale, onView }) {
+  const { t } = useLang()
   const [open, setOpen] = useState(false)
   const items = sale.items || []
   const shortId = (sale.id || "").slice(-8).toUpperCase()
@@ -142,7 +144,7 @@ function BillCard({ sale, onView }) {
               style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none",
                 background: "linear-gradient(135deg,#e87722,#c25500)",
                 color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              View Invoice
+              {t("View Invoice")}
             </button>
             <button
               onClick={() => {
@@ -175,6 +177,7 @@ function BillCard({ sale, onView }) {
 export default function BangleHistory() {
   const { vendor }  = useAuth()
   const navigate    = useNavigate()
+  const { t, isTelugu } = useLang()
 
   const [sales,    setSales]    = useState([])
   const [total,    setTotal]    = useState(0)
@@ -288,8 +291,8 @@ export default function BangleHistory() {
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between gap-2 flex-wrap mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Bill History · Bangle Store</h1>
-          <p className="text-[11px] text-gray-400 mt-0.5">Search, filter and view all past bills</p>
+          <h1 className="text-sm font-semibold">{t("Bill History")} · {t("Bangle Store")}</h1>
+          <p className="text-[11px] text-gray-400 mt-0.5">{t("Search, filter and view all past bills")}</p>
         </div>
       </div>
 
@@ -331,7 +334,7 @@ export default function BangleHistory() {
               borderRadius: 14, padding: "14px 16px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)",
                 textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>
-                Total Sales
+                {t("Total Sales")}
               </div>
               <div style={{ fontSize: 20, fontWeight: 900, color: "var(--saffron)", lineHeight: 1 }}>
                 {INR(summary.revenue)}
@@ -351,7 +354,7 @@ export default function BangleHistory() {
             }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)",
                 textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>
-                Profit
+                {t("Profit")}
               </div>
               {summary.cost_known ? (
                 <>
@@ -386,7 +389,7 @@ export default function BangleHistory() {
             }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)",
                 textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>
-                Stock Value
+                {t("Stock Value")}
               </div>
               <div style={{ fontSize: 20, fontWeight: 900, color: "var(--ink)", lineHeight: 1 }}>
                 {summary.stock_value > 0 ? INR(summary.stock_value) : "—"}
@@ -439,7 +442,7 @@ export default function BangleHistory() {
               background: dateOpt === idx ? "var(--saffron)" : "var(--bg2)",
               color: dateOpt === idx ? "#fff" : "var(--ink-dim)",
               cursor: "pointer" }}>
-            {opt.label}
+            {t(opt.label)}
           </button>
         ))}
       </div>
@@ -469,7 +472,7 @@ export default function BangleHistory() {
                 background: payMode === p ? "var(--jade)" : "var(--bg2)",
                 color: payMode === p ? "#fff" : "var(--ink-dim)",
                 cursor: "pointer" }}>
-              {p === "All" ? "All payments" : PAY_LABEL[p]}
+              {p === "All" ? t("All payments") : t(PAY_LABEL[p])}
             </button>
           ))}
         </div>
@@ -482,7 +485,7 @@ export default function BangleHistory() {
           style={{ border: "1px solid var(--rule)", borderRadius: 8, padding: "5px 10px",
             fontSize: 11, background: "var(--bg2)", color: "var(--ink)", outline: "none",
             cursor: "pointer" }}>
-          {SORT_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          {SORT_OPTS.map(s => <option key={s.value} value={s.value}>{t(s.label)}</option>)}
         </select>
       </div>
 
@@ -503,7 +506,7 @@ export default function BangleHistory() {
       {/* ── Content ───────────────────────────────────────── */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ink-faint)", fontSize: 13 }}>
-          Loading bills…
+          {t("Loading bills…")}
         </div>
       ) : error ? (
         <div style={{ textAlign: "center", padding: "40px 0", color: "#dc2626", fontSize: 13 }}>
@@ -512,15 +515,15 @@ export default function BangleHistory() {
           <button onClick={fetchSales}
             style={{ marginTop: 10, padding: "6px 16px", borderRadius: 8, border: "none",
               background: "var(--saffron)", color: "#fff", fontSize: 12, cursor: "pointer" }}>
-            Retry
+            {t("Retry")}
           </button>
         </div>
       ) : sales.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ink-faint)" }}>
           <div style={{ fontSize: 42, marginBottom: 12 }}>🧾</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No bills found</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>{t("No bills found")}</div>
           <div style={{ fontSize: 12 }}>
-            {dSearch ? `No results for "${dSearch}"` : "Try a different date range or filter"}
+            {dSearch ? `No results for "${dSearch}"` : t("Try a different date range or filter")}
           </div>
         </div>
       ) : (
@@ -555,7 +558,7 @@ export default function BangleHistory() {
                   background: offset === 0 ? "var(--bg2)" : "var(--bg1)",
                   color: offset === 0 ? "var(--ink-faint)" : "var(--ink)",
                   fontSize: 12, fontWeight: 600, cursor: offset === 0 ? "default" : "pointer" }}>
-                ← Previous
+                {t("← Previous")}
               </button>
               <span style={{ fontSize: 12, color: "var(--ink-faint)", alignSelf: "center" }}>
                 {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
@@ -566,7 +569,7 @@ export default function BangleHistory() {
                   background: offset + LIMIT >= total ? "var(--bg2)" : "var(--bg1)",
                   color: offset + LIMIT >= total ? "var(--ink-faint)" : "var(--ink)",
                   fontSize: 12, fontWeight: 600, cursor: offset + LIMIT >= total ? "default" : "pointer" }}>
-                Next →
+                {t("Next →")}
               </button>
             </div>
           )}

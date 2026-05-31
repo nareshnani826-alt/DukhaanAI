@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { getToken } from "../sync/db"
+import { useLang } from "../hooks/useLang"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -114,12 +115,14 @@ function BriefingCard({ data, loading }) {
 
 // ── Velocity tab ───────────────────────────────────────────────
 function VelocityTab() {
+  const { t } = useLang()
   const [data, setData]     = useState(null)
   const [days, setDays]     = useState(30)
   const [loading, setLoading] = useState(true)
   const [err, setErr]       = useState("")
 
   useEffect(() => {
+    if (!getToken()) return
     setLoading(true); setErr("")
     apiFetch(`/bangle/insights/velocity?days=${days}`)
       .then(setData).catch(e => setErr(e.message)).finally(() => setLoading(false))
@@ -159,10 +162,10 @@ function VelocityTab() {
           <div style={{ background: "var(--bg0)", border: "1px solid var(--rule)",
             borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 12 }}>
-              🎨 Top Colours
+              🎨 {t("Top Colours")}
             </div>
             {data.top_colours.length === 0
-              ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>No sales data yet</div>
+              ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>{t("No sales data yet")}</div>
               : data.top_colours.map(r => (
                   <Bar key={r.label} label={r.label} value={r.pieces}
                     max={maxColour} colour="var(--saffron)" />
@@ -174,10 +177,10 @@ function VelocityTab() {
           <div style={{ background: "var(--bg0)", border: "1px solid var(--rule)",
             borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 12 }}>
-              📐 Top Sizes
+              📐 {t("Top Sizes")}
             </div>
             {data.top_sizes.length === 0
-              ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>No sales data yet</div>
+              ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>{t("No sales data yet")}</div>
               : data.top_sizes.map(r => (
                   <Bar key={r.label} label={r.label} value={r.pieces}
                     max={maxSize} colour="#7c5cbf" />
@@ -189,10 +192,10 @@ function VelocityTab() {
           <div style={{ background: "var(--bg0)", border: "1px solid var(--rule)",
             borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 12 }}>
-              ✨ Top Designs
+              ✨ {t("Top Designs")}
             </div>
             {data.top_designs.length === 0
-              ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>No sales data yet</div>
+              ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>{t("No sales data yet")}</div>
               : data.top_designs.map(r => (
                   <Bar key={r.label} label={r.label} value={r.pieces}
                     max={maxDesign} colour="#2b9e6e" />
@@ -462,6 +465,7 @@ function TrendsTab() {
   const [imgLoading, setImgLoading] = useState(false)
 
   useEffect(() => {
+    if (!getToken()) return
     setLoading(true); setErr("")
     Promise.all([
       apiFetch(`/bangle/trends/community?days=${days}`),
@@ -943,6 +947,7 @@ function CategoryTab() {
 const TABS = ["Velocity", "Dead Stock", "Profit", "Category", "Trends"]
 
 export default function BangleInsights() {
+  const { t } = useLang()
   const [briefing, setBriefing]     = useState(null)
   const [briefLoading, setBriefLoad] = useState(true)
   const [tab, setTab]               = useState(0)
@@ -958,7 +963,7 @@ export default function BangleInsights() {
       <div className="page-sticky-header" style={{ display: "flex", alignItems: "center",
         justifyContent: "space-between", marginBottom: 16 }}>
         <h1 style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", margin: 0 }}>
-          💍 Bangle Insights
+          💍 {t("Bangle Insights")}
         </h1>
       </div>
 
@@ -966,14 +971,14 @@ export default function BangleInsights() {
 
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-        {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)}
+        {TABS.map((label, i) => (
+          <button key={label} onClick={() => setTab(i)}
             style={{ padding: "7px 16px", borderRadius: 20, border: "1px solid",
               fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s",
               background: tab === i ? "var(--saffron)" : "var(--bg2)",
               color:       tab === i ? "#fff"          : "var(--ink-dim)",
               borderColor: tab === i ? "var(--saffron)": "var(--rule)" }}>
-            {t}
+            {t(label)}
           </button>
         ))}
       </div>

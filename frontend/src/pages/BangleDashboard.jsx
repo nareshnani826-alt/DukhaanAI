@@ -175,6 +175,7 @@ function BangleStockPopup({ type, items, storeName, onClose, onStockUpdate }) {
 }
 
 function BriefingCard({ data, navigate, onStockClick }) {
+  const { t, isTelugu } = useLang()
   const [open, setOpen] = useState(true)
   if (!data) return null
 
@@ -188,31 +189,39 @@ function BriefingCard({ data, navigate, onStockClick }) {
   if (out_of_stock > 0)
     items.push({
       icon: "❌", color: "var(--ember)", bg: "var(--ember-bg)",
-      text: `${out_of_stock} variant${out_of_stock > 1 ? "s" : ""} OUT of stock`,
-      sub: "Restock immediately", stockType: "out_of_stock",
+      text: isTelugu
+        ? `${out_of_stock} వేరియంట్లు స్టాక్ అయిపోయాయి`
+        : `${out_of_stock} variant${out_of_stock > 1 ? "s" : ""} OUT of stock`,
+      sub: t("Restock immediately"), stockType: "out_of_stock",
     })
 
   if (low_stock_count > out_of_stock) {
     const extra = low_stock_count - out_of_stock
     items.push({
       icon: "⚠️", color: "var(--brass)", bg: "var(--brass-bg)",
-      text: `${extra} variant${extra > 1 ? "s" : ""} running low`,
-      sub: "Check stock levels", stockType: "low_stock",
+      text: isTelugu
+        ? `${extra} వేరియంట్లు తక్కువగా ఉన్నాయి`
+        : `${extra} variant${extra > 1 ? "s" : ""} running low`,
+      sub: t("Check stock levels"), stockType: "low_stock",
     })
   }
 
   if (dead_stock_count > 0)
     items.push({
       icon: "💤", color: "#7c5cbf", bg: "rgba(124,92,191,0.1)",
-      text: `${dead_stock_count} variant${dead_stock_count > 1 ? "s" : ""} with no sales in 30 days`,
-      sub: "Consider discounting", stockType: "dead_stock",
+      text: isTelugu
+        ? `${dead_stock_count} వేరియంట్లు 30 రోజుల్లో అమ్ముడు కాలేదు`
+        : `${dead_stock_count} variant${dead_stock_count > 1 ? "s" : ""} with no sales in 30 days`,
+      sub: t("Consider discounting"), stockType: "dead_stock",
     })
 
   if (next_festival && festDays !== null && festDays <= 30)
     items.push({
       icon: "🎉", color: "var(--saffron)", bg: "var(--saffron-bg)",
-      text: `${next_festival.name} in ${festDays} day${festDays !== 1 ? "s" : ""}`,
-      sub: `Stock up on festival colours & designs`, to: "/bangle-festivals",
+      text: isTelugu
+        ? `${festDays} రోజుల్లో ${next_festival.name}`
+        : `${next_festival.name} in ${festDays} day${festDays !== 1 ? "s" : ""}`,
+      sub: t("Stock up on festival colours & designs"), to: "/bangle-festivals",
     })
 
   if (items.length === 0)
@@ -222,9 +231,9 @@ function BriefingCard({ data, navigate, onStockClick }) {
         display: "flex", alignItems: "center", gap: 14 }}>
         <span style={{ fontSize: 28 }}>✅</span>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>All clear today!</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>{t("All clear today!")}</div>
           <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>
-            Stock healthy · No alerts · Ready to sell
+            {t("Stock healthy · No alerts · Ready to sell")}
           </div>
         </div>
       </div>
@@ -238,9 +247,11 @@ function BriefingCard({ data, navigate, onStockClick }) {
           padding: "13px 18px", display: "flex", alignItems: "center", gap: 10, textAlign: "left" }}>
         <span style={{ fontSize: 18 }}>🌅</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>Today's Briefing</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>{t("Today's Briefing")}</div>
           <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 1 }}>
-            {items.length} action item{items.length !== 1 ? "s" : ""} need attention
+            {isTelugu
+              ? `${items.length} అంశాలకు శ్రద్ధ అవసరం`
+              : `${items.length} action item${items.length !== 1 ? "s" : ""} need attention`}
           </div>
         </div>
         <svg width="14" height="14" fill="none" stroke="var(--ink-faint)" strokeWidth="2" viewBox="0 0 24 24"
@@ -295,7 +306,7 @@ function localSetDaySession(s) {
 export default function BangleDashboard() {
   const { vendor, cloud } = useAuth()
   const navigate = useNavigate()
-  const { t } = useLang()
+  const { t, isTelugu } = useLang()
 
   const [briefing,     setBriefing]     = useState(null)
   const [profit,       setProfit]       = useState(null)
@@ -446,6 +457,7 @@ export default function BangleDashboard() {
   }
 
   useEffect(() => {
+    if (!getToken()) return
     const today = new Date().toISOString().slice(0, 10)
     Promise.all([
       apiFetch("/bangle/insights/briefing"),
@@ -567,8 +579,8 @@ export default function BangleDashboard() {
               <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginTop:4 }}>
                 {loading ? "Loading…"
                   : tod.bills > 0
-                  ? `${tod.bills} bill${tod.bills > 1 ? "s" : ""} today · ${INR(tod.revenue)}`
-                  : "Tap to start billing"}
+                  ? `${tod.bills} ${isTelugu ? "బిల్లులు" : `bill${tod.bills > 1 ? "s" : ""}`} · ${INR(tod.revenue)}`
+                  : t("Tap to start billing")}
               </div>
             </div>
             <svg style={{ marginLeft:"auto", flexShrink:0 }} width="20" height="20" fill="none"
@@ -686,7 +698,7 @@ export default function BangleDashboard() {
                   style={{ padding:"9px 16px", borderTop:"1px solid rgba(192,57,43,0.15)",
                     fontSize:11, fontWeight:700, color:"var(--ember)", cursor:"pointer",
                     textAlign:"center" }}>
-                  View all in Inventory →
+                  {t("View all in Inventory →")}
                 </div>
               </div>
             )}
@@ -742,7 +754,9 @@ export default function BangleDashboard() {
             )}
             <div style={{ display:"flex", gap:20, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
               <span style={{ color:"var(--jade)", fontWeight:600 }}>
-                {tod.bills > 0 ? `${tod.bills} bill${tod.bills > 1 ? "s" : ""} today` : "No bills yet"}
+                {tod.bills > 0
+                ? isTelugu ? `ఈరోజు ${tod.bills} బిల్లులు` : `${tod.bills} bill${tod.bills > 1 ? "s" : ""} today`
+                : t("No bills yet")}
               </span>
               {tod.pieces > 0 && <span style={{ color:"var(--ink-faint)" }}>{tod.pieces} pieces sold</span>}
               {tod.top_colour && <span style={{ color:"var(--saffron)", fontWeight:600 }}>🏆 {tod.top_colour}</span>}
@@ -762,10 +776,10 @@ export default function BangleDashboard() {
           const cardBg     = isOpen ? "var(--jade-bg,#e8f8f2)" : isClosed ? "var(--bg2)" : "#fffbeb"
           const cardBorder = isOpen ? "rgba(26,122,74,0.25)"   : isClosed ? "var(--rule)" : "rgba(202,138,4,0.35)"
           const dotColor   = isOpen ? "var(--jade)"            : isClosed ? "var(--ink-faint)" : "#d97706"
-          const label      = isOpen ? "Day Open" : isClosed ? "Day Closed" : "Day Not Started"
-          const sublabel   = isOpen ? `Opened at ${openedTime}`
+          const label      = isOpen ? t("Day Open") : isClosed ? t("Day Closed") : t("Day Not Started")
+          const sublabel   = isOpen ? `${t("Opened at")} ${openedTime}`
                            : isClosed ? `${openedTime} → ${closedTime}`
-                           : "Open the day to track stock & profit"
+                           : t("Open the day to track stock & profit")
           return (
             <div style={{ background:cardBg, border:`1px solid ${cardBorder}`,
               borderRadius:16, padding:"12px 16px", marginBottom:14,
@@ -917,7 +931,9 @@ export default function BangleDashboard() {
                         : stockSummary?.total_investment > 0
                           ? `₹${(stockSummary.total_investment/1000).toFixed(1)}k`
                           : "₹0",
-                      sub: stockSummary ? `${stockSummary.total_pieces} pcs in inventory` : "Total inventory",
+                      sub: stockSummary
+                        ? isTelugu ? `${stockSummary.total_pieces} పీసులు స్టాక్‌లో` : `${stockSummary.total_pieces} pcs in inventory`
+                        : t("Total inventory"),
                       color: "var(--brass)",
                       bg: "rgba(184,134,11,0.10)",
                     },
@@ -925,7 +941,7 @@ export default function BangleDashboard() {
                       icon: "💤",
                       label: t("Dead Stock (30d)"),
                       value: loading ? "—" : briefing?.dead_stock_count ?? 0,
-                      sub: briefing?.dead_stock_count > 0 ? "No sales in 30 days" : "All variants selling",
+                      sub: briefing?.dead_stock_count > 0 ? t("No sales in 30 days") : t("All variants selling"),
                       color: briefing?.dead_stock_count > 0 ? "var(--brass)" : "var(--jade)",
                       bg: briefing?.dead_stock_count > 0 ? "rgba(184,134,11,0.10)" : "rgba(26,122,74,0.10)",
                       clickType: briefing?.dead_stock_count > 0 ? "dead_stock" : null,
@@ -935,8 +951,8 @@ export default function BangleDashboard() {
                       label: t("Monthly Margin"),
                       value: loading ? "—" : `${profit?.month?.margin_pct ?? 0}%`,
                       sub: profit?.month
-                        ? `${INR(profit.month.revenue)} revenue`
-                        : "This month",
+                        ? isTelugu ? `${INR(profit.month.revenue)} ఆదాయం` : `${INR(profit.month.revenue)} revenue`
+                        : t("This month"),
                       color: (profit?.month?.margin_pct ?? 0) > 15 ? "var(--jade)" : "var(--ember)",
                       bg: (profit?.month?.margin_pct ?? 0) > 15
                         ? "rgba(26,122,74,0.10)" : "var(--ember-bg)",
@@ -977,7 +993,9 @@ export default function BangleDashboard() {
                           {briefing.next_festival.name}
                         </div>
                         <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>
-                          {Math.round((new Date(briefing.next_festival.date) - new Date()) / 86400000)}d away · Check stock readiness
+                          {isTelugu
+                            ? `${Math.round((new Date(briefing.next_festival.date) - new Date()) / 86400000)} రోజుల్లో · స్టాక్ సంసిద్ధత చూడండి`
+                            : `${Math.round((new Date(briefing.next_festival.date) - new Date()) / 86400000)}d away · Check stock readiness`}
                         </div>
                       </div>
                       <svg width="12" height="12" fill="none" stroke="var(--saffron)" strokeWidth="2" viewBox="0 0 24 24">

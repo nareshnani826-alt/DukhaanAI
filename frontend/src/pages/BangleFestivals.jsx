@@ -456,6 +456,7 @@ export default function BangleFestivals() {
   const [view,      setView]      = useState("upcoming") // upcoming / all / reorder
 
   useEffect(() => {
+    if (!getToken()) return
     Promise.all([
       fetch(`${API}/bangle/products`, { headers: authHeaders() }).then(r => r.json()),
       fetch(`${API}/bangle/insights/velocity?days=30`, { headers: authHeaders() }).then(r => r.json()).catch(() => null),

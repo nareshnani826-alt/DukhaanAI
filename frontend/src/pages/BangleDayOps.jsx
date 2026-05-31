@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "../context/AuthContext.jsx"
 import { BangleProducts, BangleSales } from "../sync/bangleDb.js"
+import { useLang } from "../hooks/useLang"
 
 const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 const LOCAL_KEY = "dk_bangle_day_session"
@@ -129,6 +130,7 @@ _Sent from DukaanAI_`
 // ── Main component ────────────────────────────────────────────
 export default function BangleDayOps() {
   const { vendor } = useAuth()
+  const { t, isTelugu } = useLang()
   const [session,      setSession]      = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [acting,       setActing]       = useState(false)
@@ -240,7 +242,7 @@ export default function BangleDayOps() {
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="page-sticky-header flex items-center justify-between gap-2 flex-wrap mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Day Operations · Bangle Store</h1>
+          <h1 className="text-sm font-semibold">{t("Day Operations")} · {t("Bangle Store")}</h1>
           <p className="text-[10px] text-gray-400">{fmtDate()}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -270,12 +272,12 @@ export default function BangleDayOps() {
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700,
                   color: isClosed ? "var(--ink-dim)" : isOpen ? "var(--jade)" : "#d97706" }}>
-                  {isClosed ? "Day Closed" : isOpen ? "Day is Open" : "Day Not Started"}
+                  {isClosed ? t("Day Closed") : isOpen ? t("Day is Open") : t("Day Not Started")}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 3 }}>
-                  {isClosed  ? `Opened ${fmt(session.opened_at)} · Closed ${fmt(session.closed_at)}` :
-                   isOpen    ? `Opened at ${fmt(session.opened_at)}` :
-                               "Tap 'Open Day' to start tracking"}
+                  {isClosed  ? `${t("Opened")} ${fmt(session.opened_at)} · ${t("Closed")} ${fmt(session.closed_at)}` :
+                   isOpen    ? `${t("Opened at")} ${fmt(session.opened_at)}` :
+                               t("Tap 'Open Day' to start tracking")}
                 </div>
               </div>
 
@@ -287,7 +289,7 @@ export default function BangleDayOps() {
                     color: "#fff", fontSize: 12, fontWeight: 700,
                     cursor: acting ? "default" : "pointer", opacity: acting ? 0.7 : 1,
                   }}>
-                    {acting ? "Opening…" : "Open Day"}
+                    {acting ? t("Opening…") : t("Open Day")}
                   </button>
                 )}
                 {isOpen && (
@@ -299,7 +301,7 @@ export default function BangleDayOps() {
                       color: "#fff", fontSize: 12, fontWeight: 700,
                       cursor: acting ? "default" : "pointer", opacity: acting ? 0.7 : 1,
                     }}>
-                      {acting ? "Closing…" : "Close Day"}
+                      {acting ? t("Closing…") : t("Close Day")}
                     </button>
                   </>
                 )}
@@ -310,7 +312,7 @@ export default function BangleDayOps() {
                     padding: "9px 16px", borderRadius: 12, border: "none",
                     background: "#25D366", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer",
                   }}>
-                    Share Report
+                    {t("Share Report")}
                   </button>
                 )}
               </div>
@@ -319,15 +321,15 @@ export default function BangleDayOps() {
             {(isOpen || isClosed) && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8 }}>
                 {[
-                  { label: "Opening Stock Value", value: INR(openingValue),
-                    sub: `${session?.opening_stock?.length || allVariants.length} variants` },
-                  { label: "Today's Revenue",     value: INR(todayRevenue),
-                    sub: `${todayBills} bills · ${todayPieces} pcs`, green: true },
-                  { label: "Gross Profit",         value: INR(session?.gross_profit || 0),
-                    sub: `${profitPct}% margin`, green: (session?.gross_profit || 0) > 0 },
-                  { label: isClosed ? "Closing Stock Value" : "Current Stock Value",
+                  { label: t("Opening Stock Value"), value: INR(openingValue),
+                    sub: isTelugu ? `${session?.opening_stock?.length || allVariants.length} వేరియంట్లు` : `${session?.opening_stock?.length || allVariants.length} variants` },
+                  { label: t("Today's Revenue"),     value: INR(todayRevenue),
+                    sub: isTelugu ? `${todayBills} బిల్లులు · ${todayPieces} పీసులు` : `${todayBills} bills · ${todayPieces} pcs`, green: true },
+                  { label: t("Gross Profit"),         value: INR(session?.gross_profit || 0),
+                    sub: `${profitPct}% ${t("margin")}`, green: (session?.gross_profit || 0) > 0 },
+                  { label: isClosed ? t("Closing Stock Value") : t("Current Stock Value"),
                     value: INR(closingValue ?? openingValue),
-                    sub: isClosed ? "end of day" : "live" },
+                    sub: isClosed ? t("end of day") : t("live") },
                 ].map(s => (
                   <div key={s.label} style={{ background: "rgba(255,255,255,0.7)", borderRadius: 12,
                     padding: 12, textAlign: "center" }}>
@@ -364,7 +366,7 @@ export default function BangleDayOps() {
                   padding: "7px 14px", borderRadius: 10, border: "none",
                   background: "#25D366", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer",
                 }}>
-                  Send Reorder on WhatsApp
+                  {t("Send Reorder on WhatsApp")}
                 </button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -395,24 +397,24 @@ export default function BangleDayOps() {
             <div className="card">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-dim)" }}>
-                  Opening Stock Snapshot
+                  {t("Opening Stock Snapshot")}
                   <span className="badge badge-green" style={{ marginLeft: 8 }}>
-                    {session.opening_stock.length} variants
+                    {isTelugu ? `${session.opening_stock.length} వేరియంట్లు` : `${session.opening_stock.length} variants`}
                   </span>
                 </div>
-                <span style={{ fontSize: 10, color: "var(--ink-faint)" }}>Taken at {fmt(session.opened_at)}</span>
+                <span style={{ fontSize: 10, color: "var(--ink-faint)" }}>{t("Taken at")} {fmt(session.opened_at)}</span>
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="w-full" style={{ minWidth: 520 }}>
                   <thead>
                     <tr>
-                      <th className="th">Product</th>
-                      <th className="th">Color</th>
-                      <th className="th">Size</th>
-                      <th className="th text-right">Opening</th>
-                      <th className="th text-right">Current</th>
-                      <th className="th text-right">Sold</th>
-                      <th className="th text-right">Value</th>
+                      <th className="th">{t("Product")}</th>
+                      <th className="th">{t("Color")}</th>
+                      <th className="th">{t("Size")}</th>
+                      <th className="th text-right">{t("Opening")}</th>
+                      <th className="th text-right">{t("Current")}</th>
+                      <th className="th text-right">{t("Sold")}</th>
+                      <th className="th text-right">{t("Value")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -449,22 +451,22 @@ export default function BangleDayOps() {
             <div className="card">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-dim)" }}>
-                  Day Close Summary
-                  <span className="badge badge-blue" style={{ marginLeft: 8 }}>Final</span>
+                  {t("Day Close Summary")}
+                  <span className="badge badge-blue" style={{ marginLeft: 8 }}>{t("Final")}</span>
                 </div>
-                <span style={{ fontSize: 10, color: "var(--ink-faint)" }}>Closed at {fmt(session.closed_at)}</span>
+                <span style={{ fontSize: 10, color: "var(--ink-faint)" }}>{t("Closed at")} {fmt(session.closed_at)}</span>
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="w-full" style={{ minWidth: 500 }}>
                   <thead>
                     <tr>
-                      <th className="th">Product</th>
-                      <th className="th">Color</th>
-                      <th className="th">Size</th>
-                      <th className="th text-right">Opening</th>
-                      <th className="th text-right">Closing</th>
-                      <th className="th text-right">Sold</th>
-                      <th className="th text-right">Status</th>
+                      <th className="th">{t("Product")}</th>
+                      <th className="th">{t("Color")}</th>
+                      <th className="th">{t("Size")}</th>
+                      <th className="th text-right">{t("Opening")}</th>
+                      <th className="th text-right">{t("Closing")}</th>
+                      <th className="th text-right">{t("Sold")}</th>
+                      <th className="th text-right">{t("Status")}</th>
                     </tr>
                   </thead>
                   <tbody>

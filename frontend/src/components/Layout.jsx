@@ -1052,10 +1052,7 @@ export default function Layout({ children }) {
   function setAppLang(code) {
     try {
       localStorage.setItem("dk_voice_lang", code)
-      // Keep bangle useLang hook in sync (it uses "te" / "en" shortcodes)
-      const bangShort = code.startsWith("te") ? "te" : "en"
-      localStorage.setItem("dk_bangle_lang", bangShort)
-      window.dispatchEvent(new CustomEvent("dk:lang", { detail: bangShort }))
+      window.dispatchEvent(new CustomEvent("dk:voice-lang", { detail: code }))
     } catch {}
     setUiLang(code)
     window.dispatchEvent(new Event("storage"))
@@ -1113,7 +1110,7 @@ export default function Layout({ children }) {
 
   const NAV      = storeMode === "bangle_fancy" ? BANGLE_NAV : KIRANA_NAV
   const MOB_TABS_ACTIVE = storeMode === "bangle_fancy" ? BANGLE_MOB_TABS : MOB_TABS
-  const storeLabel = !loggedIn ? "Retail POS" : (storeMode === "bangle_fancy" ? "Bangle Store" : "Kirana POS")
+  const storeLabel = storeMode === "bangle_fancy" ? "Bangle Store" : "Kirana POS"
 
   const { planLabel } = usePlan()
   const { theme, toggleTheme, isDark } = useTheme()
@@ -1148,7 +1145,11 @@ export default function Layout({ children }) {
       <aside className="app-sidebar">
         <div className="sidebar-logo">
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <Logo size={38} storeLabel={storeLabel} />
+            <button onClick={() => navigate(storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard")}
+              style={{ background:"none", border:"none", padding:0, cursor:"pointer",
+                display:"flex", alignItems:"center", gap:10 }}>
+              <Logo size={38} storeLabel={storeLabel} />
+            </button>
           </div>
           {loggedIn && (
             <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:4,
@@ -1183,7 +1184,7 @@ export default function Layout({ children }) {
 
         <nav className="sidebar-nav">
           <div style={{ fontSize:9, fontWeight:700, color:"var(--ink-faint)",
-            letterSpacing:"1.5px", padding:"10px 16px 4px", textTransform:"uppercase" }}>Menu</div>
+            letterSpacing:"1.5px", padding:"10px 16px 4px", textTransform:"uppercase" }}>{tNav("Menu")}</div>
           {NAV.map(nav => {
             const active = isActive(nav)
             const isOpen = expanded === nav.label
@@ -1201,7 +1202,7 @@ export default function Layout({ children }) {
                   <span style={{ width:16, height:16, display:"flex", alignItems:"center",
                     justifyContent:"center", flexShrink:0,
                     color: active ? "var(--saffron)" : "var(--ink-faint)" }}>{nav.icon}</span>
-                  <span style={{ flex:1, fontSize:13, fontWeight: active ? 700 : 500 }}>{nav.label}</span>
+                  <span style={{ flex:1, fontSize:13, fontWeight: active ? 700 : 500 }}>{tNav(nav.label)}</span>
                   {hasSub && (
                     <svg width="10" height="10" fill="none" stroke="var(--ink-faint)" strokeWidth="2" viewBox="0 0 24 24"
                       style={{ transform: isOpen?"rotate(90deg)":"none", transition:"0.2s" }}>
@@ -1226,7 +1227,7 @@ export default function Layout({ children }) {
                           onMouseLeave={e => { if(!on) e.currentTarget.style.color="var(--ink-dim)" }}>
                           <div style={{ width:5, height:5, borderRadius:"50%",
                             background: on ? "var(--saffron)" : "var(--ink-faint)", flexShrink:0 }}/>
-                          {s.label}
+                          {tNav(s.label)}
                         </div>
                       )
                     })}
