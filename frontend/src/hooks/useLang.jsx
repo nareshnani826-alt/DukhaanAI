@@ -43,8 +43,8 @@ export function useLang() {
 /** Standalone language toggle — shows current language, cycles through available options */
 export function LangToggle({ style }) {
   const { lang, setLang } = useLang()
-  const CYCLE = ["en-IN", "te-IN", "hi-IN", "ta-IN", "kn-IN", "ml-IN", "mr-IN", "bn-IN"]
-  const LABELS = { "en-IN":"EN","te-IN":"తె","hi-IN":"हि","ta-IN":"த","kn-IN":"ಕ","ml-IN":"മ","mr-IN":"म","bn-IN":"বাং" }
+  const CYCLE = ["en-IN", "te-IN", "hi-IN", "ta-IN", "kn-IN", "ml-IN", "mr-IN", "bn-IN", "gu-IN", "pa-IN"]
+  const LABELS = { "en-IN":"EN","te-IN":"తె","hi-IN":"हि","ta-IN":"த","kn-IN":"ಕ","ml-IN":"മ","mr-IN":"म","bn-IN":"বাং","gu-IN":"ગુ","pa-IN":"ਪੰ" }
   function next() {
     const idx = CYCLE.indexOf(lang)
     setLang(CYCLE[(idx + 1) % CYCLE.length])

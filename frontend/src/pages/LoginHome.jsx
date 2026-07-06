@@ -2,6 +2,13 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { isTokenValid, clearAuth } from "../sync/db"
+import { tr } from "../i18n/kiranaStrings"
+
+// Language is picked during onboarding, before this page is ever shown
+// (see FirstRunGuard in App.jsx), so it's already in localStorage here.
+function currentLang() {
+  try { return localStorage.getItem("dk_voice_lang") || "en-IN" } catch { return "en-IN" }
+}
 
 const isValidEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 const isValidPhone = v => /^(\+91|0|91)?[6-9]\d{9}$/.test(v.replace(/\s/g, ""))
@@ -1129,6 +1136,8 @@ function AnimatedShowcase() {
 // ── Auth form ─────────────────────────────────────────────────
 function AuthForm({ onSuccess, onLocalMode }) {
   const { login, register, registerConfirm, loading, error, setError } = useAuth()
+  const lang = currentLang()
+  const t = k => tr(k, lang)
   const [tab,      setTab]      = useState("login")
   const [form,     setForm]     = useState({ identifier:"", password:"", store_name:"" })
   const [modules,  setModules]  = useState(["kirana"])
@@ -1147,14 +1156,14 @@ function AuthForm({ onSuccess, onLocalMode }) {
   async function submit(e) {
     e.preventDefault()
     const errs = {}
-    if (!form.identifier) errs.identifier = "Required"
+    if (!form.identifier) errs.identifier = t("Required")
     else if (tab === "login" && !isValidEmail(form.identifier) && !isValidPhone(form.identifier))
-      errs.identifier = "Valid email or 10-digit phone"
+      errs.identifier = t("Valid email or 10-digit phone")
     else if (tab === "register" && !isValidEmail(form.identifier))
-      errs.identifier = "Valid email required"
-    if (!form.password) errs.password = "Required"
-    else if (tab === "register" && form.password.length < 8) errs.password = "Min 8 characters"
-    if (tab === "register" && !form.store_name) errs.store_name = "Required"
+      errs.identifier = t("Valid email required")
+    if (!form.password) errs.password = t("Required")
+    else if (tab === "register" && form.password.length < 8) errs.password = t("Min 8 characters")
+    if (tab === "register" && !form.store_name) errs.store_name = t("Required")
     if (Object.keys(errs).length) { setFieldErr(errs); return }
     try {
       if (tab === "login") {
@@ -1170,7 +1179,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
 
   async function confirmOtp(e) {
     e.preventDefault(); setOtpErr("")
-    if (!otpCode || otpCode.length !== 6) { setOtpErr("Enter 6-digit OTP"); return }
+    if (!otpCode || otpCode.length !== 6) { setOtpErr(t("Enter 6-digit OTP")); return }
     try { const d = await registerConfirm(pendingTok, otpCode); onSuccess(d.modules || modules) }
     catch(err) { setOtpErr(err.message) }
   }
@@ -1185,9 +1194,9 @@ function AuthForm({ onSuccess, onLocalMode }) {
     <form onSubmit={confirmOtp} style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ textAlign:"center", marginBottom:4 }}>
         <div style={{ fontSize:36, marginBottom:10 }}>📧</div>
-        <div style={{ fontWeight:700, fontSize:16, color:"#111" }}>Check your email</div>
+        <div style={{ fontWeight:700, fontSize:16, color:"#111" }}>{t("Check your email")}</div>
         <div style={{ fontSize:12, color:"#888", marginTop:6 }}>
-          OTP sent to <strong>{form.identifier}</strong>
+          {t("OTP sent to")} <strong>{form.identifier}</strong>
         </div>
       </div>
       <div>
@@ -1200,11 +1209,11 @@ function AuthForm({ onSuccess, onLocalMode }) {
       <button type="submit" disabled={loading} style={{ width:"100%", padding:"13px",
         borderRadius:11, border:"none", background:"linear-gradient(135deg,#e87722,#c25500)",
         color:"#fff", fontSize:14, fontWeight:700, cursor:loading?"default":"pointer", opacity:loading?0.7:1 }}>
-        {loading ? "Verifying…" : "Confirm & Enter →"}
+        {loading ? t("Verifying…") : t("Confirm & Enter →")}
       </button>
       <button type="button" onClick={() => setOtpStep(false)}
         style={{ background:"none", border:"none", color:"#aaa", fontSize:12, cursor:"pointer" }}>
-        ← Back
+        {t("← Back")}
       </button>
     </form>
   )
@@ -1214,22 +1223,22 @@ function AuthForm({ onSuccess, onLocalMode }) {
 
       {/* Tab row */}
       <div style={{ display:"flex", background:"#f3f4f6", borderRadius:10, padding:3, gap:2, marginBottom:6 }}>
-        {[["login","Sign In"],["register","Create Account"]].map(([t, lbl]) => (
-          <button key={t} type="button" onClick={() => switchTab(t)}
+        {[["login","Sign In"],["register","Create Account"]].map(([tabKey, lbl]) => (
+          <button key={tabKey} type="button" onClick={() => switchTab(tabKey)}
             style={{ flex:1, padding:"9px 8px", borderRadius:8, border:"none", fontSize:12,
               fontWeight:700, cursor:"pointer", transition:"all 0.15s",
-              background: tab===t ? "#fff" : "transparent",
-              color: tab===t ? "#111" : "#888",
-              boxShadow: tab===t ? "0 1px 4px rgba(0,0,0,0.10)" : "none" }}>
-            {lbl}
+              background: tab===tabKey ? "#fff" : "transparent",
+              color: tab===tabKey ? "#111" : "#888",
+              boxShadow: tab===tabKey ? "0 1px 4px rgba(0,0,0,0.10)" : "none" }}>
+            {t(lbl)}
           </button>
         ))}
       </div>
 
       {tab === "register" && (
         <div>
-          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>Store Name</label>
-          <input style={inp} placeholder="Raju General Store"
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Store Name")}</label>
+          <input style={inp} placeholder={t("Raju General Store")}
             value={form.store_name} onChange={e => set("store_name", e.target.value)}
             onFocus={inpFocus} onBlur={inpBlur} />
           {fieldErr.store_name && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.store_name}</p>}
@@ -1238,7 +1247,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
 
       <div>
         <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>
-          {tab === "login" ? "Email or Phone" : "Email"}
+          {tab === "login" ? t("Email or Phone") : t("Email")}
         </label>
         <input style={inp} placeholder={tab === "login" ? "email@example.com or 9876543210" : "email@example.com"}
           value={form.identifier} onChange={e => set("identifier", e.target.value)}
@@ -1247,8 +1256,8 @@ function AuthForm({ onSuccess, onLocalMode }) {
       </div>
 
       <div>
-        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>Password</label>
-        <input style={inp} type="password" placeholder={tab==="register" ? "Min 8 characters" : "••••••••"}
+        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Password")}</label>
+        <input style={inp} type="password" placeholder={tab==="register" ? t("Min 8 characters") : "••••••••"}
           value={form.password} onChange={e => set("password", e.target.value)}
           onFocus={inpFocus} onBlur={inpBlur} autoComplete={tab==="login"?"current-password":"new-password"} />
         {fieldErr.password && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.password}</p>}
@@ -1256,7 +1265,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
 
       {tab === "register" && (
         <div>
-          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:8 }}>Store Type</label>
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:8 }}>{t("Store Type")}</label>
           <div style={{ display:"flex", gap:8 }}>
             {MODULES.map(m => (
               <button key={m.id} type="button" onClick={() => toggleModule(m.id)}
@@ -1266,7 +1275,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
                   transition:"all 0.15s" }}>
                 <div style={{ fontSize:22, marginBottom:5 }}>{m.emoji}</div>
                 <div style={{ fontSize:10, fontWeight:700, color:"#333", lineHeight:1.3 }}>
-                  {m.id === "kirana" ? "Kirana Store" : "Bangle Store"}
+                  {m.id === "kirana" ? t("Kirana Store") : t("Bangle Store")}
                 </div>
               </button>
             ))}
@@ -1287,14 +1296,14 @@ function AuthForm({ onSuccess, onLocalMode }) {
           fontSize:14, fontWeight:700, cursor:loading?"default":"pointer",
           opacity:loading?0.7:1, marginTop:4,
           boxShadow:"0 4px 16px rgba(232,119,34,0.35)", transition:"opacity 0.2s" }}>
-        {loading ? "Please wait…" : tab==="login" ? "Sign In →" : "Create Account →"}
+        {loading ? t("Please wait…") : tab==="login" ? t("Sign In →") : t("Create Account →")}
       </button>
 
       <div style={{ textAlign:"center" }}>
         <button type="button" onClick={onLocalMode}
           style={{ background:"none", border:"none", color:"#aaa", fontSize:11,
             cursor:"pointer", textDecoration:"underline" }}>
-          Use without account (local only)
+          {t("Use without account (local only)")}
         </button>
       </div>
     </form>

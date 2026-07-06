@@ -73,7 +73,7 @@ export default function App() {
             </div>
           }>
           <Routes>
-            <Route path="/" element={<LoginHome />} />
+            <Route path="/" element={<FirstRunGuard><LoginHome /></FirstRunGuard>} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/hero-loop" element={<HeroLoop />} />

@@ -10,15 +10,29 @@ const DONE_KEY = "dk_onboarding_done"
 const LANG_KEY = "dk_voice_lang"   // same key used by voice agent
 
 const LANGUAGES = [
-  { code: "te-IN", label: "తెలుగు",  name: "Telugu",    flag: "🏳️" },
-  { code: "hi-IN", label: "हिंदी",    name: "Hindi",     flag: "🏳️" },
-  { code: "ta-IN", label: "தமிழ்",   name: "Tamil",     flag: "🏳️" },
-  { code: "kn-IN", label: "ಕನ್ನಡ",   name: "Kannada",   flag: "🏳️" },
-  { code: "ml-IN", label: "മലയാളം", name: "Malayalam", flag: "🏳️" },
-  { code: "mr-IN", label: "मराठी",   name: "Marathi",   flag: "🏳️" },
-  { code: "bn-IN", label: "বাংলা",   name: "Bengali",   flag: "🏳️" },
-  { code: "en-IN", label: "English", name: "English",   flag: "🏳️" },
+  { code: "te-IN", label: "తెలుగు",   name: "Telugu",    flag: "🏳️" },
+  { code: "hi-IN", label: "हिंदी",     name: "Hindi",     flag: "🏳️" },
+  { code: "ta-IN", label: "தமிழ்",    name: "Tamil",     flag: "🏳️" },
+  { code: "kn-IN", label: "ಕನ್ನಡ",    name: "Kannada",   flag: "🏳️" },
+  { code: "ml-IN", label: "മലയാളം",  name: "Malayalam", flag: "🏳️" },
+  { code: "mr-IN", label: "मराठी",    name: "Marathi",   flag: "🏳️" },
+  { code: "bn-IN", label: "বাংলা",    name: "Bengali",   flag: "🏳️" },
+  { code: "gu-IN", label: "ગુજરાતી", name: "Gujarati",  flag: "🏳️" },
+  { code: "pa-IN", label: "ਪੰਜਾਬੀ",  name: "Punjabi",   flag: "🏳️" },
+  { code: "en-IN", label: "English",  name: "English",   flag: "🏳️" },
 ]
+
+// Best-effort match from the device/browser locale to one of our
+// supported onboarding languages, so the picker doesn't always land
+// on an arbitrary default regardless of the user's actual phone language.
+function detectDefaultLang() {
+  try {
+    const raw = (navigator.language || navigator.languages?.[0] || "").toLowerCase()
+    const prefix = raw.split("-")[0]
+    const match = LANGUAGES.find(l => l.code.toLowerCase().startsWith(prefix))
+    return match ? match.code : "hi-IN"
+  } catch { return "hi-IN" }
+}
 
 // Greeting text per language for the welcome line
 const GREET = {
@@ -29,14 +43,16 @@ const GREET = {
   "ml-IN": "നമസ്കാരം! നിങ്ങളുടെ കടയിലേക്ക് സ്വാഗതം",
   "mr-IN": "नमस्कार! आपल्या दुकानात स्वागत आहे",
   "bn-IN": "নমস্কার! আপনার দোকানে স্বাগতম",
+  "gu-IN": "નમસ્તે! તમારી દુકાનમાં તમારું સ્વાગત છે",
+  "pa-IN": "ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਤੁਹਾਡੀ ਦੁਕਾਨ ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ",
   "en-IN": "Welcome to your store!",
 }
 
 const STEP_LABELS = {
-  next:    { "te-IN": "తదుపరి", "hi-IN": "अगला", "ta-IN": "அடுத்து", "kn-IN": "ಮುಂದೆ", "ml-IN": "അടുത്തത്", "mr-IN": "पुढे", "bn-IN": "পরবর্তী", "en-IN": "Next" },
-  enter:   { "te-IN": "దుకాణం తెరవండి →", "hi-IN": "दुकान खोलें →", "ta-IN": "கடை திறக்கவும் →", "kn-IN": "ಅಂಗಡಿ ತೆರೆಯಿರಿ →", "ml-IN": "കട തുറക്കുക →", "mr-IN": "दुकान उघडा →", "bn-IN": "দোকান খুলুন →", "en-IN": "Enter your store →" },
-  skip:    { "te-IN": "దాటవేయి", "hi-IN": "छोड़ें", "ta-IN": "தவிர்", "kn-IN": "ಬಿಟ್ಟುಬಿಡಿ", "ml-IN": "ഒഴിവാക്കുക", "mr-IN": "वगळा", "bn-IN": "এড়িয়ে যান", "en-IN": "Skip" },
-  storePh: { "te-IN": "ఉదా: రాజు కిరాణా స్టోర్", "hi-IN": "जैसे: राजू किराना स्टोर", "ta-IN": "எ.கா: ராஜு கிரானா ஸ்டோர்", "kn-IN": "ಉದಾ: ರಾಜು ಕಿರಾಣ ಸ್ಟೋರ್", "ml-IN": "ഉദാ: രാജു കിരാണ സ്റ്റോർ", "mr-IN": "उदा: राजू किराणा स्टोर", "bn-IN": "যেমন: রাজু কিরানা স্টোর", "en-IN": "e.g. Raju Kirana Store" },
+  next:    { "te-IN": "తదుపరి", "hi-IN": "अगला", "ta-IN": "அடுத்து", "kn-IN": "ಮುಂದೆ", "ml-IN": "അടുത്തത്", "mr-IN": "पुढे", "bn-IN": "পরবর্তী", "gu-IN": "આગળ", "pa-IN": "ਅੱਗੇ", "en-IN": "Next" },
+  enter:   { "te-IN": "దుకాణం తెరవండి →", "hi-IN": "दुकान खोलें →", "ta-IN": "கடை திறக்கவும் →", "kn-IN": "ಅಂಗಡಿ ತೆರೆಯಿರಿ →", "ml-IN": "കട തുറക്കുക →", "mr-IN": "दुकान उघडा →", "bn-IN": "দোকান খুলুন →", "gu-IN": "દુકાન ખોલો →", "pa-IN": "ਦੁਕਾਨ ਖੋਲ੍ਹੋ →", "en-IN": "Enter your store →" },
+  skip:    { "te-IN": "దాటవేయి", "hi-IN": "छोड़ें", "ta-IN": "தவிர்", "kn-IN": "ಬಿಟ್ಟುಬಿಡಿ", "ml-IN": "ഒഴിവാക്കുക", "mr-IN": "वगळा", "bn-IN": "এড়িয়ে যান", "gu-IN": "છોડો", "pa-IN": "ਛੱਡੋ", "en-IN": "Skip" },
+  storePh: { "te-IN": "ఉదా: రాజు కిరాణా స్టోర్", "hi-IN": "जैसे: राजू किराना स्टोर", "ta-IN": "எ.கா: ராஜு கிரானா ஸ்டோர்", "kn-IN": "ಉದಾ: ರಾಜು ಕಿರಾಣ ಸ್ಟೋರ್", "ml-IN": "ഉദാ: രാജു കിരാണ സ്റ്റോർ", "mr-IN": "उदा: राजू किराणा स्टोर", "bn-IN": "যেমন: রাজু কিরানা স্টোর", "gu-IN": "દા.ત.: રાજુ કરિયાણા સ્ટોર", "pa-IN": "ਜਿਵੇਂ: ਰਾਜੂ ਕਿਰਾਣਾ ਸਟੋਰ", "en-IN": "e.g. Raju Kirana Store" },
 }
 
 function lbl(key, lang) {
@@ -46,21 +62,25 @@ function lbl(key, lang) {
 export default function Onboarding() {
   const navigate    = useNavigate()
   const [step,      setStep]      = useState(1)
-  const [lang,      setLang]      = useState("te-IN")
+  const [lang,      setLang]      = useState(detectDefaultLang)
   const [storeName, setStoreName] = useState("")
 
+  // Onboarding now runs before login/signup (see FirstRunGuard in App.jsx),
+  // so "/" is the right next stop either way: LoginHome shows the auth form
+  // for a fresh visitor, or auto-redirects straight to the dashboard for
+  // anyone who already has a valid session.
   function finish() {
     try {
       localStorage.setItem(LANG_KEY, lang)
       localStorage.setItem(DONE_KEY, "1")
       if (storeName.trim()) localStorage.setItem("dk_store_name_hint", storeName.trim())
     } catch {}
-    navigate("/dashboard")
+    navigate("/")
   }
 
   function skip() {
     try { localStorage.setItem(DONE_KEY, "1") } catch {}
-    navigate("/dashboard")
+    navigate("/")
   }
 
   // ── Step 1: Language selection ───────────────────────────

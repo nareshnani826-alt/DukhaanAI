@@ -179,7 +179,7 @@ export default function InstallGuide() {
             <div className="text-xs font-semibold text-primary-dark">
               {device.isIOS ? "iPhone detected" : "Android detected"}
             </div>
-            <div className="text-[10px] text-gray-500 mt-0.5">
+            <div className="text-xs text-gray-500 mt-0.5">
               {device.isIOS
                 ? "Follow Safari steps below"
                 : "Follow Chrome steps below"}
@@ -203,7 +203,7 @@ export default function InstallGuide() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-bold text-gray-800">{s.title}</span>
                 </div>
-                <div className="text-[11px] text-gray-500">{s.desc}</div>
+                <div className="text-xs text-gray-500">{s.desc}</div>
                 {s.highlight && (
                   <div className="mt-2 bg-gray-900 text-green-400 rounded-lg px-3 py-2 font-mono text-xs">
                     {s.highlight}
@@ -211,7 +211,7 @@ export default function InstallGuide() {
                 )}
                 {step === i && (
                   <div className="mt-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                    <div className="text-[10px] text-amber-700">💡 {s.tip}</div>
+                    <div className="text-xs text-amber-700">💡 {s.tip}</div>
                   </div>
                 )}
               </div>
@@ -265,7 +265,7 @@ export default function InstallGuide() {
           style={{ background:"#25D366" }}>
           📲 Share on WhatsApp
         </button>
-        <p className="text-[10px] text-gray-400 text-center mt-2">
+        <p className="text-xs text-gray-400 text-center mt-2">
           DukaanAI is free for all vendors — help others by sharing!
         </p>
       </div>

@@ -123,7 +123,7 @@ input, select, textarea, button {
   .input::placeholder { color: var(--ink-faint); }
 
   .label {
-    display: block; font-size: 10px; font-weight: 700;
+    display: block; font-size: 11px; font-weight: 700;
     color: var(--ink-faint); text-transform: uppercase;
     letter-spacing: 1.2px; margin-bottom: 5px;
   }
@@ -131,7 +131,7 @@ input, select, textarea, button {
   .badge {
     display: inline-flex; align-items: center;
     padding: 2px 8px; border-radius: 999px;
-    font-size: 9px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
   }
   .badge-green { background: var(--jade-bg); color: var(--jade); border: 1px solid rgba(26,122,74,0.25); }
   .badge-red   { background: var(--ember-bg); color: var(--ember); border: 1px solid rgba(192,57,43,0.25); }
@@ -146,7 +146,7 @@ input, select, textarea, button {
 
   .th {
     text-align: left; padding: 10px 14px;
-    font-size: 10px; color: var(--ink-faint); font-weight: 700;
+    font-size: 11px; color: var(--ink-faint); font-weight: 700;
     text-transform: uppercase; letter-spacing: 1.2px;
     border-bottom: 1px solid var(--rule);
     background: var(--bg2);
@@ -262,9 +262,10 @@ input, select, textarea, button {
   /* Inputs — prevent iOS zoom on focus */
   input, select, textarea { font-size: 16px !important; }
 
-  /* Buttons */
-  .btn { min-height: 40px; }
-  .btn-sm { min-height: 34px; padding: 6px 12px !important; }
+  /* Buttons — 44px is the common minimum tap-target guideline;
+     .btn-sm sits in dense rows so it gets a smaller (but still improved) floor. */
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 40px; padding: 6px 12px !important; }
   .btn-lg { min-height: 48px; }
 
   /* Cards */
@@ -398,7 +399,7 @@ input, select, textarea, button {
 /* ── Touch targets: always at least 44px tall ──────────── */
 @media (max-width: 768px) {
   /* Qty +/- buttons in scan-bill and cart get bigger hit area */
-  .qty-btn { min-width: 40px !important; min-height: 40px !important; }
+  .qty-btn { min-width: 44px !important; min-height: 44px !important; }
   /* Modal close × gets padding */
-  .modal-close-btn { padding: 8px !important; min-width: 40px !important; min-height: 40px !important; }
+  .modal-close-btn { padding: 8px !important; min-width: 44px !important; min-height: 44px !important; }
 }

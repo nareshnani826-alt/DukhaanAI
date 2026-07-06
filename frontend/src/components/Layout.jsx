@@ -1068,6 +1068,8 @@ export default function Layout({ children }) {
     { code:"ml-IN", label:"Malayalam",native:"മ"   },
     { code:"mr-IN", label:"Marathi", native:"म"    },
     { code:"bn-IN", label:"Bengali", native:"বাং"  },
+    { code:"gu-IN", label:"Gujarati",native:"ગુ"   },
+    { code:"pa-IN", label:"Punjabi", native:"ਪੰ"   },
   ]
   const currentLangNative = LANG_OPTIONS.find(l => l.code === uiLang)?.native || "EN"
 

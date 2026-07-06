@@ -1,4 +1,6 @@
 // ── API Client ────────────────────────────────────────────
+import { tr } from "../i18n/kiranaStrings"
+
 const BASE = import.meta.env.VITE_API_URL ?? ""
 const LS   = "dukaanai_data"
 const TOK  = "dk_access"
@@ -40,6 +42,29 @@ export async function tryRefresh() {
   } catch { return false }
 }
 
+function currentLang() {
+  try { return localStorage.getItem("dk_voice_lang") || "en-IN" } catch { return "en-IN" }
+}
+
+// Turns a backend error into something a shopkeeper can actually read.
+// FastAPI sends `detail` as a plain string for most handler-raised errors
+// (already human language, e.g. "Insufficient stock"), but as an ARRAY of
+// {msg, loc, type} objects for pydantic validation (422) failures — passing
+// that straight to `new Error()` used to render as "[object Object]". When
+// there's no detail at all (network blip, 500 with no body), fall back to a
+// translated generic message instead of a bare "HTTP 500".
+function friendlyErrorMessage(detail, status) {
+  if (typeof detail === "string" && detail) return detail
+  if (Array.isArray(detail) && detail.length) {
+    const msg = detail[0]?.msg || ""
+    return msg.replace(/^Value error,\s*/i, "") || tr("Something went wrong. Please try again.", currentLang())
+  }
+  if (status === 401 || status === 403) return tr("Session expired. Please sign in again.", currentLang())
+  if (status === 429) return tr("Too many attempts. Please wait a moment and try again.", currentLang())
+  if (status >= 500) return tr("Server is having trouble. Please try again shortly.", currentLang())
+  return tr("Something went wrong. Please try again.", currentLang())
+}
+
 export async function call(method, path, body = null, retry = true) {
   const headers = { "Content-Type": "application/json" }
   const token = getToken()
@@ -55,8 +80,8 @@ export async function call(method, path, body = null, retry = true) {
     if (hadSession) { clearAuth(); window.location.href = "/" }
   }
   if (!res.ok) {
-    const e = await res.json().catch(() => ({ detail: "Unknown error" }))
-    throw new Error(e.detail || "HTTP " + res.status)
+    const e = await res.json().catch(() => ({}))
+    throw new Error(friendlyErrorMessage(e.detail, res.status))
   }
   if (res.status === 204) return null
   return res.json()
