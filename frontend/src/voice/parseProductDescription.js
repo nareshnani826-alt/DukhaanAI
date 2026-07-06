@@ -23,7 +23,7 @@ const CATS_MAP = {
   "choker":"Necklace","layered":"Necklace","multi layer":"Necklace",
   // Maang Tikka
   "maang tikka":"Maang Tikka","mang tikka":"Maang Tikka","tikka":"Maang Tikka",
-  "maang tika":"Maang Tikka","tika":"Maang Tikka",
+  "maang tika":"Maang Tikka",
   // Anklet
   "anklet":"Anklet","anklets":"Anklet","payal":"Anklet","payals":"Anklet",
   "bichiya":"Anklet","pajeb":"Anklet","nupur":"Anklet",
@@ -63,7 +63,7 @@ const CATS_MAP = {
   // Compact / Face products
   "compact":"Compact","face powder":"Compact","pressed powder":"Compact",
   "loose powder":"Compact","foundation":"Compact","blush":"Compact",
-  "bronzer":"Compact","highlighter":"Compact","bb cream":"Compact",
+  "bronzer":"Compact","highlighter":"Compact",
   // Skin Care
   "skin care":"Skin Care","skincare":"Skin Care","face wash":"Skin Care",
   "moisturizer":"Skin Care","moisturiser":"Skin Care","face cream":"Skin Care",

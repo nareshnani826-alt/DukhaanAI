@@ -115,7 +115,6 @@ export const GROCERY_ALIASES = {
   "gingelly oil":      "sesame oil", // Tamil name
   "palm oil":          "palm oil",
   "vanaspati":         "vanaspati",
-  "dalda":             "vanaspati",
 
   // ══════════════════════════════════════════════════════
   // SUGAR / SALT / SPICES
@@ -128,7 +127,6 @@ export const GROCERY_ALIASES = {
   "brown sugar":       "jaggery",
 
   "uppu":              "salt",       // Telugu/Tamil
-  "uppu":              "salt",
   "namak":             "salt",       // Hindi
   "melagu":            "pepper",     // Tamil
   "miriyalu":          "pepper",     // Telugu
@@ -215,17 +213,17 @@ export const GROCERY_ALIASES = {
   // ══════════════════════════════════════════════════════
   "palu":              "milk",       // Telugu
   "paal":              "milk",       // Tamil
-  "doodh":             "milk",       // Hindi
+  "doodh":             "milk",       // Hindi/Gujarati
   "milk":              "milk",
   "aavin milk":        "aavin milk",
 
   "perugu":            "curd",       // Telugu
   "thayir":            "curd",       // Tamil
-  "dahi":              "curd",       // Hindi
+  "dahi":              "curd",       // Hindi/Gujarati/Marathi
   "curd":              "curd",
   "yogurt":            "curd",
 
-  "venna":             "butter",     // Telugu
+  "venna":             "butter",     // Telugu/Malayalam
   "vennai":            "butter",     // Tamil
   "makhan":            "butter",     // Hindi
   "butter":            "butter",
@@ -272,9 +270,6 @@ export const GROCERY_ALIASES = {
   "pepsodent":         "pepsodent",
 
   "detergent":         "detergent",
-  "surf":              "surf excel",
-  "ariel":             "ariel",
-  "rin":               "rin",
   "washing powder":    "washing powder",
 
   // ══════════════════════════════════════════════════════
@@ -313,8 +308,6 @@ export const GROCERY_ALIASES = {
   "bhaat":             "rice",       // Gujarati
   "rotlo":             "wheat flour",// Gujarati
   "ghau no lot":       "wheat flour",// Gujarati
-  "doodh":             "milk",       // shared Hindi/Gujarati
-  "dahi":              "curd",       // shared Hindi/Gujarati
   "maka":              "maize",      // Gujarati
   "kanda":             "onion",      // Gujarati/Marathi
   "bateta":            "potato",     // Gujarati
@@ -325,7 +318,7 @@ export const GROCERY_ALIASES = {
   "tel":               "oil",        // Gujarati/Telugu shared
   "khaand":            "sugar",      // Gujarati
   "meth":              "fenugreek",  // Gujarati
-  "methi":             "fenugreek",  // Gujarati/Hindi
+  "methi":             "fenugreek",  // Gujarati/Hindi/Rajasthani
   "dhana":             "coriander",  // Gujarati
   "jeeru":             "cumin",      // Gujarati
 
@@ -334,13 +327,11 @@ export const GROCERY_ALIASES = {
   // ══════════════════════════════════════════════════════
   "sarson":            "mustard seeds",// Punjabi/Hindi
   "makki di roti":     "maize flour",  // Punjabi
-  "makki":             "maize flour",  // Punjabi
   "sarson da saag":    "spinach",      // Punjabi
   "shakkhar":          "sugar",        // Punjabi
   "gehun":             "wheat",        // Punjabi/Hindi
   "makkhan":           "butter",       // Punjabi
   "lassi":             "curd",         // Punjabi
-  "chawal":            "rice",         // Punjabi/Hindi (already mapped above, safe duplicate)
   "kanak":             "wheat",        // Punjabi
 
   // ══════════════════════════════════════════════════════
@@ -352,24 +343,20 @@ export const GROCERY_ALIASES = {
   "gavhache pith":     "wheat flour",  // Marathi
   "kaanda":            "onion",        // Marathi
   "batata":            "potato",       // Marathi
-  "tomato":            "tomato",       // universal
   "mirchi pud":        "chilli powder",// Marathi
   "halad":             "turmeric",     // Marathi
   "kothimbir":         "coriander",    // Marathi
-  "jeera":             "cumin",        // shared
   "mohari":            "mustard seeds",// Marathi
   "hing":              "asafoetida",   // shared
   "shengdana":         "groundnut",    // Marathi
   "khobra":            "coconut",      // Marathi
   "narali":            "coconut",      // Marathi
-  "dahi":              "curd",         // shared
   "takka":             "curd",         // Marathi (thin curd/buttermilk)
 
   // ══════════════════════════════════════════════════════
   // BENGALI
   // ══════════════════════════════════════════════════════
   "chaal":             "rice",         // Bengali
-  "aata":              "wheat flour",  // Bengali/Hindi
   "daal":              "lentils",      // Bengali
   "musur dal":         "masoor dal",   // Bengali
   "moong dal":         "moong dal",    // universal
@@ -385,38 +372,30 @@ export const GROCERY_ALIASES = {
   "sorisha":           "mustard seeds",// Bengali
   "dudh":              "milk",         // Bengali
   "doi":               "curd",         // Bengali
-  "ghee":              "ghee",         // universal
 
   // ══════════════════════════════════════════════════════
   // MALAYALAM
   // ══════════════════════════════════════════════════════
   "ari":               "rice",         // Malayalam
-  "gothambu podi":     "wheat flour",  // Malayalam (already above, safe)
   "payar":             "lentils",      // Malayalam
   "uzhunnu":           "urad dal",     // Malayalam
   "cherupayar":        "moong dal",    // Malayalam
   "kadala":            "chana",        // Malayalam
   "urulakkizhangu":    "potato",       // Malayalam
   "savola":            "onion",        // Malayalam
-  "thakkali":          "tomato",       // Malayalam (also Tamil)
   "paav":              "bread",        // Malayalam/Marathi
   "ellum kaya":        "coconut",      // Malayalam
-  "venna":             "butter",       // Malayalam/Telugu (already mapped)
   "thenga enna":       "coconut oil",  // Malayalam
   "kaduku":            "mustard seeds",// Malayalam
   "jeerakam":          "cumin",        // Malayalam
   "malli":             "coriander",    // Malayalam
   "manjapu":           "turmeric",     // Malayalam
   "mulaku podi":       "chilli powder",// Malayalam
-  "paal":              "milk",         // Malayalam (already above, safe)
-  "thayir":            "curd",         // Malayalam/Tamil (already above, safe)
 
   // ══════════════════════════════════════════════════════
   // PERSONAL CARE & HOUSEHOLD (spoken brand/product names)
   // ══════════════════════════════════════════════════════
-  "paste":             "toothpaste",
   "brush":             "toothbrush",
-  "sabun":             "soap",
   "kapda dhone ka":    "washing powder",
   "bartan dhone ka":   "dishwash",
   "jhadu":             "broom",
@@ -498,15 +477,12 @@ export const GROCERY_ALIASES = {
   "bajra":             "bajra",
   "jawar":             "jowar",          // sorghum
   "juwar":             "jowar",
-  "gehun":             "wheat",
   "gaehun":            "wheat",
   "makki":             "corn flour",     // Punjabi/Rajasthani
   "makai ka atta":     "corn flour",
   "besan":             "besan",          // already mapped probably — safe to re-add
   "chana atta":        "besan",
-  "methi":             "fenugreek",
   "ajwain":            "carom seeds",
-  "jeera":             "cumin",
   "zeera":             "cumin",          // common mispronunciation
   "dhaniya":           "coriander",
   "laal mirchi":       "red chilli",
@@ -517,14 +493,10 @@ export const GROCERY_ALIASES = {
   // ══════════════════════════════════════════════════════
   "chaula":            "rice",           // Odia
   "dali":              "dal",            // Odia (generic dal)
-  "tamatar":           "tomato",         // Hindi variant
-  "aloo":              "potato",         // Hindi (already common)
-  "palak":             "spinach",
   "gobhi":             "cauliflower",
   "phool gobhi":       "cauliflower",
   "bund gobhi":        "cabbage",
   "patta gobhi":       "cabbage",
-  "bhindi":            "okra",
   "lady finger":       "okra",
   "tinda":             "tinda",
   "kaddu":             "pumpkin",
@@ -629,7 +601,6 @@ export const GROCERY_ALIASES = {
   "mishri":            "rock sugar",
   "saunf":             "fennel seeds",
   "sabut dhania":      "coriander seeds",
-  "kali mirch":        "black pepper",
   "elaichi":           "cardamom",
   "lavang":            "cloves",
   "dalchini":          "cinnamon",

@@ -22,9 +22,9 @@ export const NUMBER_WORDS = {
   "tees":30,"chaalees":40,"pachaas":50,"saath":60,"sattar":70,"assi":80,"nabbe":90,"sau":100,
   // Telugu
   "okati":1,"rendu":2,"moodu":3,"naalugu":4,"aidu":5,"aaru":6,"edu":7,"enimidi":8,"tommidi":9,"padi":10,
-  "padakondu":11,"pannendu":12,"padinmoodu":13,"padinalugu":14,"padihenu":15,"padaaru":16,"padihenu":17,"padhenimidi":18,"pandommidi":19,"iyyi":20,
+  "padakondu":11,"pannendu":12,"padinmoodu":13,"padinalugu":14,"padihenu":15,"padaaru":16,"padihedu":17,"padhenimidi":18,"pandommidi":19,"iyyi":20,
   // Tamil
-  "onnu":1,"rendu":2,"moonu":3,"naangu":4,"anju":5,"aaru":6,"ezhu":7,"ettu":8,"ombodu":9,"pathu":10,
+  "onnu":1,"moonu":3,"naangu":4,"anju":5,"ezhu":7,"ettu":8,"ombodu":9,"pathu":10,
   "pathionnu":11,"pannrendu":12,
   // Common
   "half":0.5,"quarter":0.25,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,
@@ -41,7 +41,7 @@ export const UNIT_ALIASES = {
   "ग्राम":   "g", "గ్రాము": "g",
   // litre variants
   "l":       "L", "ltr":    "L", "litre":  "L","litres": "L","liter":"L","liters":"L",
-  "litre":   "L", "లీటర్": "L", "லிட்டர்":"L",
+  "లీటర్": "L", "லிட்டர்":"L",
   // ml variants
   "ml":      "ml","milliliter":"ml","millilitre":"ml",
   // piece variants
@@ -55,7 +55,7 @@ export const UNIT_ALIASES = {
   // set variants (bangle billing — set = 6 pcs)
   "set":     "set","sets":   "set",
   // Hindi
-  "पैकेट":   "pkt","बोतल":  "btl","डिब्बा": "box","किलो":  "kg",
+  "पैकेट":   "pkt","बोतल":  "btl","डिब्बा": "box",
   // Telugu
   "పాకెట్": "pkt","బాటిల్":"btl","పెట్టె": "box",
 }
