@@ -11,8 +11,27 @@ mock_db = MagicMock()
 
 with patch("app.core.database.create_client", return_value=mock_db):
     from app.main import app
+    import app.core.database as database
+    import app.core.security as security
+
+# get_db() lazily creates and caches its client on first call, which
+# happens inside a request — well after the `patch` context above has
+# exited. Seed the cache directly so every request reuses mock_db
+# instead of falling through to a real Supabase client.
+database._client = mock_db
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _clear_vendor_cache():
+    """get_current_vendor caches vendor lookups for 5 minutes keyed by
+    vendor_id. Every test authenticates as the same fake vendor-uuid-001,
+    so without clearing this between tests, whichever test runs first
+    poisons the cache for every test after it — later tests' mock_table
+    setups for the vendor lookup are silently ignored."""
+    security._vendor_cache.clear()
+    yield
 
 
 # ── Helpers ──────────────────────────────────────────────────
@@ -58,16 +77,52 @@ def test_health():
 # ── Auth ─────────────────────────────────────────────────────
 
 def test_register_success():
+    """Registration is a two-step OTP flow: POST /auth/register only sends
+    an email OTP and returns a pending_token; the account is created by
+    POST /auth/register/confirm once the OTP is verified."""
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+
     mock_table = MagicMock()
     mock_db.table.return_value = mock_table
-    mock_table.select.return_value.eq.return_value.execute.return_value.data = []
+    mock_table.select.return_value.eq.return_value.execute.return_value.data = []  # no existing email
+
+    captured = {}
+    def fake_send_otp(to_email, store_name, otp):
+        captured["otp"] = otp
+        return True
+
+    with patch("app.routers.auth._send_otp_email", side_effect=fake_send_otp):
+        r = client.post("/auth/register", json={
+            "email": "new@shop.com",
+            "password": "securepass123",
+            "store_name": "New Shop",
+        })
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "otp_required"
+    pending_token = data["pending_token"]
+
+    otp_hash = hashlib.sha256(captured["otp"].encode()).hexdigest()
+    otp_record = {
+        "phone": "new@shop.com",
+        "code_hash": otp_hash,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "attempts": 0,
+    }
     new_vendor = make_vendor()
+    # register_confirm makes two .select().eq(...).execute() calls in sequence
+    # (OTP lookup, then a duplicate-email recheck) — same mock chain shape,
+    # so use side_effect to return a different result per call.
+    mock_table.select.return_value.eq.return_value.execute.side_effect = [
+        MagicMock(data=[otp_record]),
+        MagicMock(data=[]),
+    ]
     mock_table.insert.return_value.execute.return_value.data = [new_vendor]
 
-    r = client.post("/auth/register", json={
-        "email": "new@shop.com",
-        "password": "securepass123",
-        "store_name": "New Shop",
+    r = client.post("/auth/register/confirm", json={
+        "pending_token": pending_token,
+        "otp": captured["otp"],
     })
     assert r.status_code == 201
     data = r.json()
@@ -107,7 +162,7 @@ def test_login_wrong_password():
     mock_table.select.return_value.eq.return_value.execute.return_value.data = [vendor]
 
     r = client.post("/auth/login", json={
-        "email": "test@sharma.com",
+        "identifier": "test@sharma.com",
         "password": "wrongpassword",
     })
     assert r.status_code == 401
@@ -123,8 +178,9 @@ def test_list_products_requires_auth():
 def test_list_products_authenticated():
     mock_table = MagicMock()
     mock_db.table.return_value = mock_table
-    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [make_vendor()]
-    mock_table.select.return_value.eq.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = []
+    # get_current_vendor does .eq("id", ...).single().execute() → .data is a dict, not a list
+    mock_table.select.return_value.eq.return_value.single.return_value.execute.return_value.data = make_vendor()
+    mock_table.select.return_value.eq.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value.data = []
 
     r = client.get("/products", headers=auth_headers())
     assert r.status_code == 200
@@ -134,12 +190,14 @@ def test_list_products_authenticated():
 def test_create_product():
     mock_table = MagicMock()
     mock_db.table.return_value = mock_table
-    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [make_vendor()]
-    mock_table.select.return_value.eq.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
+    # get_current_vendor does .eq("id", ...).single().execute() → .data is a dict, not a list
+    mock_table.select.return_value.eq.return_value.single.return_value.execute.return_value.data = make_vendor()
+    # create_product's SKU-duplicate check does .eq("vendor_id", ...).eq("sku", ...) — 2 levels
+    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
 
     new_product = {
-        "id": "prod-uuid-001",
-        "vendor_id": "vendor-uuid-001",
+        "id": "22222222-2222-2222-2222-222222222222",
+        "vendor_id": "33333333-3333-3333-3333-333333333333",
         "name": "Tata Salt 1kg",
         "sku": "TS-001",
         "category": "Staples",
@@ -171,7 +229,8 @@ def test_create_product():
 def test_invalid_gst_percent():
     mock_table = MagicMock()
     mock_db.table.return_value = mock_table
-    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [make_vendor()]
+    # get_current_vendor does .eq("id", ...).single().execute() → .data is a dict, not a list
+    mock_table.select.return_value.eq.return_value.single.return_value.execute.return_value.data = make_vendor()
 
     r = client.post("/products", headers=auth_headers(), json={
         "name": "Test Product",
@@ -187,20 +246,21 @@ def test_invalid_gst_percent():
 def test_record_sale_insufficient_stock():
     mock_table = MagicMock()
     mock_db.table.return_value = mock_table
-    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [make_vendor()]
 
+    product_id = "11111111-1111-1111-1111-111111111111"
     product = {
-        "id": "prod-uuid-001",
+        "id": product_id,
         "vendor_id": "vendor-uuid-001",
         "name": "Tata Salt 1kg",
         "stock": 2,
         "mrp": 28.0,
         "is_active": True,
     }
-    mock_table.select.return_value.eq.return_value.eq.return_value.eq.return_value.eq.return_value.execute.return_value.data = [product]
+    # record_sale does .eq("id", ...).eq("vendor_id", ...).eq("is_active", True) — 3 levels
+    mock_table.select.return_value.eq.return_value.eq.return_value.eq.return_value.execute.return_value.data = [product]
 
     r = client.post("/sales", headers=auth_headers(), json={
-        "product_id": "prod-uuid-001",
+        "product_id": product_id,
         "qty": 10,  # more than stock
     })
     assert r.status_code == 400
@@ -224,7 +284,8 @@ def test_list_plans_public():
 def test_invoice_empty_items():
     mock_table = MagicMock()
     mock_db.table.return_value = mock_table
-    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [make_vendor()]
+    # get_current_vendor does .eq("id", ...).single().execute() → .data is a dict, not a list
+    mock_table.select.return_value.eq.return_value.single.return_value.execute.return_value.data = make_vendor()
 
     r = client.post("/invoices", headers=auth_headers(), json={
         "customer_name": "Ravi Kirana",
