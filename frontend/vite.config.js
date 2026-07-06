@@ -1,6 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Routes that exist both as React pages AND as backend API paths.
+// A browser back/forward navigation sends a real HTTP request with
+// Accept: text/html — we must serve index.html in that case, not
+// proxy to the backend (which returns {"detail":"Not authenticated"}).
+const SPA_ROUTES = new Set([
+  "/customers", "/udhar", "/admin", "/sales", "/insights",
+  "/products", "/invoices",
+])
+
+function apiProxy(target = "http://localhost:8000") {
+  return {
+    target,
+    changeOrigin: true,
+    bypass(req) {
+      // Browser page navigation sends "text/html" in Accept.
+      // Fetch/XHR API calls send "application/json" or no html accept.
+      const accept = req.headers["accept"] || ""
+      if (accept.includes("text/html") && SPA_ROUTES.has(req.url?.split("?")[0])) {
+        return "/index.html"   // let React Router handle it
+      }
+      return null              // proxy to backend as normal
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
@@ -13,25 +38,25 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     proxy: {
-      "/auth":              { target: "http://localhost:8000", changeOrigin: true },
-      "/products":          { target: "http://localhost:8000", changeOrigin: true },
-      "/sales":             { target: "http://localhost:8000", changeOrigin: true },
-      "/invoices":          { target: "http://localhost:8000", changeOrigin: true },
-      "/customers":         { target: "http://localhost:8000", changeOrigin: true },
-      "/chat":              { target: "http://localhost:8000", changeOrigin: true },
-      "/insights":          { target: "http://localhost:8000", changeOrigin: true },
-      "/api":               { target: "http://localhost:8000", changeOrigin: true },
-      "/admin":             { target: "http://localhost:8000", changeOrigin: true },
-      "/aai":               { target: "http://localhost:8000", changeOrigin: true },
-      "/community-catalog": { target: "http://localhost:8000", changeOrigin: true },
-      "/day-sessions":      { target: "http://localhost:8000", changeOrigin: true },
-      "/expiry":            { target: "http://localhost:8000", changeOrigin: true },
-      "/invoice-scan":      { target: "http://localhost:8000", changeOrigin: true },
-      "/learning":          { target: "http://localhost:8000", changeOrigin: true },
-      "/subscriptions":     { target: "http://localhost:8000", changeOrigin: true },
-      "/udhar":             { target: "http://localhost:8000", changeOrigin: true },
-      "/wastage":           { target: "http://localhost:8000", changeOrigin: true },
-      "/bangle/":           { target: "http://localhost:8000", changeOrigin: true },
+      "/auth":              apiProxy(),
+      "/products":          apiProxy(),
+      "/sales":             apiProxy(),
+      "/invoices":          apiProxy(),
+      "/customers":         apiProxy(),
+      "/chat":              apiProxy(),
+      "/insights":          apiProxy(),
+      "/api":               apiProxy(),
+      "/admin":             apiProxy(),
+      "/aai":               apiProxy(),
+      "/community-catalog": apiProxy(),
+      "/day-sessions":      apiProxy(),
+      "/expiry":            apiProxy(),
+      "/invoice-scan":      apiProxy(),
+      "/learning":          apiProxy(),
+      "/subscriptions":     apiProxy(),
+      "/udhar":             apiProxy(),
+      "/wastage":           apiProxy(),
+      "/bangle/":           apiProxy(),
     },
   },
   preview: {
