@@ -92,11 +92,13 @@ export function detectUnit(productName) {
   for (const p of UNIT_PATTERNS) {
     const m = name.match(p.regex)
     if (m) {
-      return {
-        unit: p.unit,
-        qty:  p.extract ? parseFloat(m[1]) : null,
-        found: true,
-      }
+      let unit = p.unit
+      const qty = p.extract ? parseFloat(m[1]) : null
+      // "CHANA 50 KG" is a bulk sack sold loose by weight, but "MASOOR DAL
+      // 10 KG" (or less) is normally a sealed packet — only treat it as a
+      // true weight unit above 10kg, otherwise count it as a packet.
+      if (unit === "kg" && qty !== null && qty <= 10) unit = "pack"
+      return { unit, qty, found: true }
     }
   }
 
