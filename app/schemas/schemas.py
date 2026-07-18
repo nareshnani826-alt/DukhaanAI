@@ -113,7 +113,7 @@ class ProductCreate(BaseModel):
     min_stock: float = 10
     mrp: float
     cost_price: float
-    gst_percent: Literal[0, 5, 12, 18, 28] = 5
+    gst_percent: Literal[0, 3, 5, 12, 18, 28] = 5
 
     @field_validator("name")
     @classmethod
@@ -163,7 +163,7 @@ class ProductUpdate(BaseModel):
     min_stock: Optional[float] = None
     mrp: Optional[float] = None
     cost_price: Optional[float] = None
-    gst_percent: Optional[Literal[0, 5, 12, 18, 28]] = None
+    gst_percent: Optional[Literal[0, 3, 5, 12, 18, 28]] = None
     is_active: Optional[bool] = None
 
 
@@ -259,6 +259,7 @@ class InvoiceCreate(BaseModel):
     customer_phone: Optional[str] = None
     customer_gstin: Optional[str] = None
     payment_mode: Literal["Cash", "UPI", "Credit", "Cheque"] = "Cash"
+    apply_gst: bool = False
     items: list[InvoiceLineItem]
 
     @field_validator("items")
@@ -267,6 +268,10 @@ class InvoiceCreate(BaseModel):
         if not v:
             raise ValueError("Invoice must have at least one item")
         return v
+
+
+class SendInvoiceWhatsAppRequest(BaseModel):
+    phone: str
 
 
 class InvoiceOut(BaseModel):
@@ -322,7 +327,7 @@ class BulkImportItem(BaseModel):
     cost_price: float = 0
     stock: float = 0
     min_stock: float = 5
-    gst_percent: Literal[0, 5, 12, 18, 28] = 0
+    gst_percent: Literal[0, 3, 5, 12, 18, 28] = 0
 
     @field_validator("name")
     @classmethod

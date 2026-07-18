@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_vendor
-from app.schemas.schemas import InvoiceCreate, InvoiceOut
+from app.core.whatsapp import send_invoice_notification
+from app.schemas.schemas import InvoiceCreate, InvoiceOut, SendInvoiceWhatsAppRequest, MessageResponse
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -46,7 +48,10 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
 
     for item in body.items:
         item_subtotal = round(item.unit_price * item.qty, 2)
-        item_tax = round(item_subtotal * item.gst_percent / 100, 2)
+        # Many local vendors don't issue GST bills — apply_gst lets them
+        # generate a plain invoice with no tax line, regardless of what
+        # gst_percent each product itself carries.
+        item_tax = round(item_subtotal * item.gst_percent / 100, 2) if body.apply_gst else 0.0
         item_total = round(item_subtotal + item_tax, 2)
         subtotal += item_subtotal
         tax_total += item_tax
@@ -257,6 +262,68 @@ async def today_invoices(vendor=Depends(get_current_vendor)):
         "total": round(sum(inv["total"] for inv in invoices), 2),
         "count": len(invoices),
     }
+
+
+@router.get("/public/{invoice_id}")
+async def get_public_invoice(invoice_id: str):
+    """
+    Unauthenticated invoice view for customers — linked from the WhatsApp
+    bill notification. The invoice UUID itself is the access token (same
+    trust model as any "unlisted share link"); only a minimal, non-sensitive
+    subset of vendor info (store name) is exposed alongside it.
+    """
+    db = get_db()
+    result = db.table("invoices").select("*").eq("id", invoice_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    invoice = result.data[0]
+
+    vendor_row = db.table("vendors").select("store_name").eq("id", invoice["vendor_id"]).execute()
+    store_name = vendor_row.data[0]["store_name"] if vendor_row.data else "DukaanAI"
+
+    return {**invoice, "store_name": store_name}
+
+
+@router.post("/{invoice_id}/send-whatsapp", response_model=MessageResponse)
+async def send_invoice_whatsapp(
+    invoice_id: str, body: SendInvoiceWhatsAppRequest, vendor=Depends(get_current_vendor),
+):
+    """
+    Send a bill-ready notification via WhatsApp (Meta Business API template
+    message — see app/core/whatsapp.py). Requires WHATSAPP_ACCESS_TOKEN and
+    an approved invoice_notification template to be configured.
+    """
+    db = get_db()
+    result = (
+        db.table("invoices")
+        .select("*")
+        .eq("id", invoice_id)
+        .eq("vendor_id", vendor["id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    invoice = result.data[0]
+
+    link = f"{settings.frontend_url}/invoice/{invoice_id}"
+    try:
+        sent = await send_invoice_notification(
+            phone=body.phone,
+            customer_name=invoice["customer_name"],
+            store_name=vendor["store_name"],
+            invoice_no=invoice["invoice_no"],
+            total=invoice["total"],
+            link=link,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to send WhatsApp message: {e}") from e
+
+    if not sent:
+        raise HTTPException(
+            status_code=503,
+            detail="WhatsApp is not configured. Please contact support.",
+        )
+    return MessageResponse(message="Invoice sent via WhatsApp")
 
 
 @router.get("/{invoice_id}", response_model=InvoiceOut)

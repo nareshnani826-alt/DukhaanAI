@@ -62,7 +62,7 @@ function parseCSV(text) {
       ltr:"litre",lts:"litre",ml:"ml",
       box:"box",  doz:"dozen",
     }
-    const GSTS     = [0, 5, 12, 18, 28]
+    const GSTS     = [0, 3, 5, 12, 18, 28]
     const snapGST  = p => GSTS.reduce((b, r) => Math.abs(r - p) < Math.abs(b - p) ? r : b, 0)
 
     const results = []
@@ -983,7 +983,7 @@ export default function BulkImport() {
                                 style={{ border:"1px solid var(--rule)", borderRadius:6,
                                   padding:"4px 5px", fontSize:11, outline:"none",
                                   background:"white", width:58 }}>
-                                {[0,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
+                                {[0,3,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
                               </select>
                             </td>
                             <td style={{ padding:"5px 6px", textAlign:"center" }}>

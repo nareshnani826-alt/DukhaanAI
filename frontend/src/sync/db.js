@@ -81,7 +81,9 @@ export async function call(method, path, body = null, retry = true) {
   }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
-    throw new Error(friendlyErrorMessage(e.detail, res.status))
+    const err = new Error(friendlyErrorMessage(e.detail, res.status))
+    err.status = res.status
+    throw err
   }
   if (res.status === 204) return null
   return res.json()

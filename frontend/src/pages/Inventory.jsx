@@ -11,7 +11,7 @@ import { lookupPrice, getVariants } from "../data/productPrices.js"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 
 const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
-const GSTS = [0,5,12,18,28]
+const GSTS = [0,3,5,12,18,28]  // 3% is the GST slab for gold/silver/jewelry
 const EMPTY = { name:"", sku:"", category:"Staples", unit:"piece",
                 stock:"", min_stock:"10", mrp:"", cost_price:"", gst_percent:5 }
 

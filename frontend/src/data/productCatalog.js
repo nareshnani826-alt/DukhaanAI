@@ -1,6 +1,14 @@
 // ── Master Indian Grocery Product Catalog ─────────────────
 // 500+ products — kirana, wholesale, medical, stationery
 // Fuzzy search aliases included for Hindi/regional names
+//
+// `gst` values are a best-effort default per HSN category (e.g. branded/
+// packaged staples at 5%, salt/sugar at 5%, standard FMCG at 12-18%).
+// GST rates are set by government notification and do change — a few
+// categories are flagged inline below where the rate has shifted across
+// revisions and should be confirmed against the current schedule or a CA
+// rather than trusted blindly. Vendors can always override gst per product
+// in Inventory.
 
 export const CATALOG = [
   // ── Dairy & Eggs ──────────────────────────────────────
@@ -24,46 +32,46 @@ export const CATALOG = [
   { name:"Eggs (6pc)",               category:"Dairy",        unit:"pc",  mrp:38,   cost:33,  gst:0,  aliases:["anda","eggs"] },
 
   // ── Atta & Flour ──────────────────────────────────────
-  { name:"Aashirvaad Atta 1kg",      category:"Staples",      unit:"pc",  mrp:58,   cost:52,  gst:0,  aliases:["atta","wheat flour","gehun"] },
-  { name:"Aashirvaad Atta 5kg",      category:"Staples",      unit:"pc",  mrp:280,  cost:252, gst:0,  aliases:["atta","wheat flour"] },
-  { name:"Aashirvaad Atta 10kg",     category:"Staples",      unit:"pc",  mrp:555,  cost:500, gst:0,  aliases:["atta","wheat flour"] },
-  { name:"Pillsbury Atta 5kg",       category:"Staples",      unit:"pc",  mrp:275,  cost:248, gst:0,  aliases:["atta","wheat"] },
-  { name:"Shakti Bhog Atta 10kg",    category:"Staples",      unit:"pc",  mrp:480,  cost:432, gst:0,  aliases:["atta"] },
-  { name:"Patanjali Atta 5kg",       category:"Staples",      unit:"pc",  mrp:248,  cost:223, gst:0,  aliases:["atta"] },
-  { name:"Maida 1kg",                category:"Staples",      unit:"kg",  mrp:42,   cost:37,  gst:0,  aliases:["maida","all purpose flour","refined flour"] },
-  { name:"Besan 500g",               category:"Staples",      unit:"pc",  mrp:55,   cost:48,  gst:0,  aliases:["besan","gram flour","chana flour"] },
-  { name:"Besan 1kg",                category:"Staples",      unit:"kg",  mrp:108,  cost:96,  gst:0,  aliases:["besan","gram flour"] },
-  { name:"Suji 500g",                category:"Staples",      unit:"pc",  mrp:38,   cost:33,  gst:0,  aliases:["suji","semolina","rava"] },
-  { name:"Poha 500g",                category:"Staples",      unit:"pc",  mrp:42,   cost:37,  gst:0,  aliases:["poha","flattened rice","beaten rice"] },
+  { name:"Aashirvaad Atta 1kg",      category:"Staples",      unit:"pc",  mrp:58,   cost:52,  gst:5,  aliases:["atta","wheat flour","gehun"] },
+  { name:"Aashirvaad Atta 5kg",      category:"Staples",      unit:"pc",  mrp:280,  cost:252, gst:5,  aliases:["atta","wheat flour"] },
+  { name:"Aashirvaad Atta 10kg",     category:"Staples",      unit:"pc",  mrp:555,  cost:500, gst:5,  aliases:["atta","wheat flour"] },
+  { name:"Pillsbury Atta 5kg",       category:"Staples",      unit:"pc",  mrp:275,  cost:248, gst:5,  aliases:["atta","wheat"] },
+  { name:"Shakti Bhog Atta 10kg",    category:"Staples",      unit:"pc",  mrp:480,  cost:432, gst:5,  aliases:["atta"] },
+  { name:"Patanjali Atta 5kg",       category:"Staples",      unit:"pc",  mrp:248,  cost:223, gst:5,  aliases:["atta"] },
+  { name:"Maida 1kg",                category:"Staples",      unit:"kg",  mrp:42,   cost:37,  gst:5,  aliases:["maida","all purpose flour","refined flour"] },
+  { name:"Besan 500g",               category:"Staples",      unit:"pc",  mrp:55,   cost:48,  gst:5,  aliases:["besan","gram flour","chana flour"] },
+  { name:"Besan 1kg",                category:"Staples",      unit:"kg",  mrp:108,  cost:96,  gst:5,  aliases:["besan","gram flour"] },
+  { name:"Suji 500g",                category:"Staples",      unit:"pc",  mrp:38,   cost:33,  gst:5,  aliases:["suji","semolina","rava"] },
+  { name:"Poha 500g",                category:"Staples",      unit:"pc",  mrp:42,   cost:37,  gst:5,  aliases:["poha","flattened rice","beaten rice"] },
 
   // ── Rice ──────────────────────────────────────────────
-  { name:"Sona Masoori Rice 1kg",    category:"Rice",         unit:"kg",  mrp:55,   cost:48,  gst:0,  aliases:["chawal","rice","sona masuri"] },
-  { name:"Sona Masoori Rice 5kg",    category:"Rice",         unit:"pc",  mrp:270,  cost:240, gst:0,  aliases:["chawal","rice"] },
-  { name:"Sona Masoori Rice 25kg",   category:"Rice",         unit:"pc",  mrp:1300, cost:1150,gst:0,  aliases:["chawal","rice"] },
-  { name:"India Gate Basmati 1kg",   category:"Rice",         unit:"kg",  mrp:95,   cost:85,  gst:0,  aliases:["basmati","chawal","rice"] },
-  { name:"India Gate Basmati 5kg",   category:"Rice",         unit:"pc",  mrp:460,  cost:415, gst:0,  aliases:["basmati","chawal"] },
-  { name:"Daawat Basmati 1kg",       category:"Rice",         unit:"kg",  mrp:88,   cost:79,  gst:0,  aliases:["basmati","rice"] },
-  { name:"Ponni Rice 5kg",           category:"Rice",         unit:"pc",  mrp:255,  cost:225, gst:0,  aliases:["ponni","rice","chawal"] },
-  { name:"Idli Rice 1kg",            category:"Rice",         unit:"kg",  mrp:48,   cost:42,  gst:0,  aliases:["idli rice","urad","rice"] },
+  { name:"Sona Masoori Rice 1kg",    category:"Rice",         unit:"kg",  mrp:55,   cost:48,  gst:5,  aliases:["chawal","rice","sona masuri"] },
+  { name:"Sona Masoori Rice 5kg",    category:"Rice",         unit:"pc",  mrp:270,  cost:240, gst:5,  aliases:["chawal","rice"] },
+  { name:"Sona Masoori Rice 25kg",   category:"Rice",         unit:"pc",  mrp:1300, cost:1150,gst:5,  aliases:["chawal","rice"] },
+  { name:"India Gate Basmati 1kg",   category:"Rice",         unit:"kg",  mrp:95,   cost:85,  gst:5,  aliases:["basmati","chawal","rice"] },
+  { name:"India Gate Basmati 5kg",   category:"Rice",         unit:"pc",  mrp:460,  cost:415, gst:5,  aliases:["basmati","chawal"] },
+  { name:"Daawat Basmati 1kg",       category:"Rice",         unit:"kg",  mrp:88,   cost:79,  gst:5,  aliases:["basmati","rice"] },
+  { name:"Ponni Rice 5kg",           category:"Rice",         unit:"pc",  mrp:255,  cost:225, gst:5,  aliases:["ponni","rice","chawal"] },
+  { name:"Idli Rice 1kg",            category:"Rice",         unit:"kg",  mrp:48,   cost:42,  gst:5,  aliases:["idli rice","urad","rice"] },
 
   // ── Dal & Pulses ──────────────────────────────────────
-  { name:"Toor Dal 500g",            category:"Pulses",       unit:"pc",  mrp:75,   cost:68,  gst:0,  aliases:["toor","arhar","tuvar dal"] },
-  { name:"Toor Dal 1kg",             category:"Pulses",       unit:"kg",  mrp:148,  cost:133, gst:0,  aliases:["toor","arhar dal"] },
-  { name:"Moong Dal 1kg",            category:"Pulses",       unit:"kg",  mrp:128,  cost:115, gst:0,  aliases:["moong","mung dal","green gram"] },
-  { name:"Chana Dal 1kg",            category:"Pulses",       unit:"kg",  mrp:112,  cost:100, gst:0,  aliases:["chana dal","bengal gram"] },
-  { name:"Urad Dal 1kg",             category:"Pulses",       unit:"kg",  mrp:122,  cost:110, gst:0,  aliases:["urad","black gram","urid dal"] },
-  { name:"Masoor Dal 1kg",           category:"Pulses",       unit:"kg",  mrp:105,  cost:94,  gst:0,  aliases:["masoor","red lentil","lal dal"] },
-  { name:"Rajma 1kg",                category:"Pulses",       unit:"kg",  mrp:135,  cost:120, gst:0,  aliases:["rajma","kidney beans"] },
-  { name:"Kabuli Chana 1kg",         category:"Pulses",       unit:"kg",  mrp:110,  cost:98,  gst:0,  aliases:["chana","chickpeas","chole"] },
-  { name:"Moth Dal 500g",            category:"Pulses",       unit:"pc",  mrp:58,   cost:52,  gst:0,  aliases:["moth","matki"] },
+  { name:"Toor Dal 500g",            category:"Pulses",       unit:"pc",  mrp:75,   cost:68,  gst:5,  aliases:["toor","arhar","tuvar dal"] },
+  { name:"Toor Dal 1kg",             category:"Pulses",       unit:"kg",  mrp:148,  cost:133, gst:5,  aliases:["toor","arhar dal"] },
+  { name:"Moong Dal 1kg",            category:"Pulses",       unit:"kg",  mrp:128,  cost:115, gst:5,  aliases:["moong","mung dal","green gram"] },
+  { name:"Chana Dal 1kg",            category:"Pulses",       unit:"kg",  mrp:112,  cost:100, gst:5,  aliases:["chana dal","bengal gram"] },
+  { name:"Urad Dal 1kg",             category:"Pulses",       unit:"kg",  mrp:122,  cost:110, gst:5,  aliases:["urad","black gram","urid dal"] },
+  { name:"Masoor Dal 1kg",           category:"Pulses",       unit:"kg",  mrp:105,  cost:94,  gst:5,  aliases:["masoor","red lentil","lal dal"] },
+  { name:"Rajma 1kg",                category:"Pulses",       unit:"kg",  mrp:135,  cost:120, gst:5,  aliases:["rajma","kidney beans"] },
+  { name:"Kabuli Chana 1kg",         category:"Pulses",       unit:"kg",  mrp:110,  cost:98,  gst:5,  aliases:["chana","chickpeas","chole"] },
+  { name:"Moth Dal 500g",            category:"Pulses",       unit:"pc",  mrp:58,   cost:52,  gst:5,  aliases:["moth","matki"] },
 
   // ── Sugar, Salt & Basics ──────────────────────────────
-  { name:"Tata Salt 500g",           category:"Staples",      unit:"pc",  mrp:13,   cost:11,  gst:0,  aliases:["namak","salt","tata"] },
-  { name:"Tata Salt 1kg",            category:"Staples",      unit:"pc",  mrp:24,   cost:21,  gst:0,  aliases:["namak","salt"] },
-  { name:"Tata Salt 2kg",            category:"Staples",      unit:"pc",  mrp:46,   cost:41,  gst:0,  aliases:["namak","salt"] },
-  { name:"Fortune Salt 1kg",         category:"Staples",      unit:"pc",  mrp:22,   cost:19,  gst:0,  aliases:["namak","salt"] },
-  { name:"Sugar 1kg",                category:"Staples",      unit:"kg",  mrp:45,   cost:40,  gst:0,  aliases:["cheeni","sugar","shakkar"] },
-  { name:"Sugar 5kg",                category:"Staples",      unit:"pc",  mrp:220,  cost:198, gst:0,  aliases:["cheeni","sugar"] },
+  { name:"Tata Salt 500g",           category:"Staples",      unit:"pc",  mrp:13,   cost:11,  gst:5,  aliases:["namak","salt","tata"] },
+  { name:"Tata Salt 1kg",            category:"Staples",      unit:"pc",  mrp:24,   cost:21,  gst:5,  aliases:["namak","salt"] },
+  { name:"Tata Salt 2kg",            category:"Staples",      unit:"pc",  mrp:46,   cost:41,  gst:5,  aliases:["namak","salt"] },
+  { name:"Fortune Salt 1kg",         category:"Staples",      unit:"pc",  mrp:22,   cost:19,  gst:5,  aliases:["namak","salt"] },
+  { name:"Sugar 1kg",                category:"Staples",      unit:"kg",  mrp:45,   cost:40,  gst:5,  aliases:["cheeni","sugar","shakkar"] },
+  { name:"Sugar 5kg",                category:"Staples",      unit:"pc",  mrp:220,  cost:198, gst:5,  aliases:["cheeni","sugar"] },
   { name:"Jaggery 500g",             category:"Staples",      unit:"pc",  mrp:40,   cost:35,  gst:0,  aliases:["gud","jaggery","gur"] },
   { name:"Jaggery 1kg",              category:"Staples",      unit:"kg",  mrp:78,   cost:68,  gst:0,  aliases:["gud","gur","jaggery"] },
 
@@ -104,8 +112,11 @@ export const CATALOG = [
   { name:"Tajmahal Tea 250g",        category:"Beverages",    unit:"pc",  mrp:155,  cost:139, gst:5,  aliases:["chai","tea","tajmahal"] },
   { name:"Bru Coffee 50g",           category:"Beverages",    unit:"pc",  mrp:95,   cost:85,  gst:5,  aliases:["coffee","kaapi","bru"] },
   { name:"Bru Coffee 100g",          category:"Beverages",    unit:"pc",  mrp:185,  cost:166, gst:5,  aliases:["coffee","kaapi"] },
-  { name:"Nescafe Classic 50g",      category:"Beverages",    unit:"pc",  mrp:180,  cost:162, gst:5,  aliases:["coffee","nescafe","instant coffee"] },
-  { name:"Nescafe Classic 100g",     category:"Beverages",    unit:"pc",  mrp:350,  cost:315, gst:5,  aliases:["coffee","nescafe"] },
+  { name:"Nescafe Classic 50g",      category:"Beverages",    unit:"pc",  mrp:180,  cost:162, gst:18, aliases:["coffee","nescafe","instant coffee"] },
+  { name:"Nescafe Classic 100g",     category:"Beverages",    unit:"pc",  mrp:350,  cost:315, gst:18, aliases:["coffee","nescafe"] },
+  // NOTE: malt-based health drink GST has shifted between 12%/18% across
+  // GST Council revisions — verify against the current notification/CA
+  // before relying on these for a filed return.
   { name:"Horlicks 200g",            category:"Beverages",    unit:"pc",  mrp:130,  cost:117, gst:12, aliases:["horlicks","health drink"] },
   { name:"Horlicks 500g",            category:"Beverages",    unit:"pc",  mrp:295,  cost:265, gst:12, aliases:["horlicks","health drink"] },
   { name:"Bournvita 200g",           category:"Beverages",    unit:"pc",  mrp:125,  cost:112, gst:12, aliases:["bournvita","health drink","chocolate drink"] },
@@ -128,6 +139,8 @@ export const CATALOG = [
   { name:"Red Bull 250ml",           category:"Cold Drinks",  unit:"pc",  mrp:125,  cost:110, gst:28, aliases:["red bull","energy drink"] },
 
   // ── Water & Health Drinks ──────────────────────────────
+  // NOTE: packaged drinking water is commonly cited at 18% GST (HSN 2201),
+  // not 12% — worth confirming against the current rate schedule.
   { name:"Bisleri Water 1L",         category:"Water",        unit:"pc",  mrp:20,   cost:16,  gst:12, aliases:["paani","water","bisleri"] },
   { name:"Bisleri Water 500ml",      category:"Water",        unit:"pc",  mrp:15,   cost:12,  gst:12, aliases:["paani","water"] },
   { name:"Kinley Water 1L",          category:"Water",        unit:"pc",  mrp:20,   cost:16,  gst:12, aliases:["paani","water","kinley"] },
@@ -193,6 +206,9 @@ export const CATALOG = [
   { name:"Stayfree Pads",            category:"Personal Care",unit:"pc",  mrp:55,   cost:49,  gst:0,  aliases:["pads","sanitary","stayfree"] },
 
   // ── Household ─────────────────────────────────────────
+  // NOTE: detergents/washing powder are commonly cited at 18% GST, not
+  // 12% — worth confirming against the current rate schedule before relying
+  // on these for a filed return.
   { name:"Surf Excel 500g",          category:"Household",    unit:"pc",  mrp:85,   cost:76,  gst:12, aliases:["washing powder","detergent","surf excel","kapda dhona"] },
   { name:"Surf Excel 1kg",           category:"Household",    unit:"pc",  mrp:168,  cost:151, gst:12, aliases:["washing powder","detergent"] },
   { name:"Ariel 500g",               category:"Household",    unit:"pc",  mrp:90,   cost:81,  gst:12, aliases:["ariel","washing powder","detergent"] },
@@ -211,6 +227,9 @@ export const CATALOG = [
   { name:"Hit Mosquito Spray 200ml", category:"Household",    unit:"pc",  mrp:148,  cost:133, gst:18, aliases:["hit","mosquito spray","machchar spray"] },
   { name:"All Out Refill",           category:"Household",    unit:"pc",  mrp:95,   cost:85,  gst:12, aliases:["all out","mosquito","machchar"] },
   { name:"Candles 6pc",              category:"Household",    unit:"pc",  mrp:35,   cost:30,  gst:12, aliases:["mombatti","candle"] },
+  // NOTE: matches were moved to a unified 12% GST rate in a 2022 GST
+  // Council revision (previously split 5%/18% by handmade vs machine-made)
+  // — this "0%" entry is likely stale; confirm against the current rate.
   { name:"Matchbox 10pc",            category:"Household",    unit:"pc",  mrp:20,   cost:16,  gst:0,  aliases:["matchbox","diyas","maachis"] },
   { name:"Phenyl 500ml",             category:"Household",    unit:"pc",  mrp:45,   cost:39,  gst:18, aliases:["phenyl","floor cleaner"] },
   { name:"Toilet Paper Roll",        category:"Household",    unit:"pc",  mrp:45,   cost:39,  gst:12, aliases:["toilet paper","tissue roll"] },

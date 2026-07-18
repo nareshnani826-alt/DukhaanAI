@@ -5,13 +5,14 @@ import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
 import InvoiceView from "../components/InvoiceView.jsx"
-import UPIQRCode   from "../components/UPIQRCode.jsx"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
+import { MIN_FONT_SIZE } from "../styles/textScale"
+import { getDefaultApplyGst } from "../utils/gstSettings.js"
 
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
 // ── Pre-invoice review modal ──────────────────────────────
-function ReviewModal({ rows, products, onConfirm, onClose }) {
+function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
   const [items, setItems] = useState(() =>
     rows.map(r => {
       const p = products.find(x => x.id === r.prodId)
@@ -39,8 +40,9 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
     : Math.min(+discountVal || 0, subtotal)
   const afterDiscount = Math.round((subtotal - discountAmt) * 100) / 100
 
-  // Distribute discount proportionally across items for GST calc
-  const gstTotal = items.reduce((s, i) => {
+  // Distribute discount proportionally across items for GST calc.
+  // Skipped entirely when the vendor has GST turned off for this bill.
+  const gstTotal = !applyGst ? 0 : items.reduce((s, i) => {
     const itemSub    = Math.round(i.unit_price * i.qty * 100) / 100
     const proportion = subtotal > 0 ? itemSub / subtotal : 0
     const taxable    = Math.round(afterDiscount * proportion * 100) / 100
@@ -81,7 +83,7 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
             <div style={{ fontSize:14, fontWeight:700 }}>Review Invoice</div>
-            <div style={{ fontSize:11, color:"#888", marginTop:2 }}>Edit prices, apply discount, confirm GST</div>
+            <div style={{ fontSize:MIN_FONT_SIZE, color:"#888", marginTop:2 }}>Edit prices, apply discount, confirm GST</div>
           </div>
           <button onClick={onClose} style={{
             background:"#f5f5f5", border:"none", borderRadius:8,
@@ -91,7 +93,7 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
 
         <div style={{ padding:"16px 20px" }}>
           {/* Items table */}
-          <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Items</div>
+          <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, color:"#555", marginBottom:8 }}>Items</div>
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
               <thead>
@@ -105,14 +107,15 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
               </thead>
               <tbody>
                 {items.map((item, i) => {
-                  const total = Math.round(item.unit_price * item.qty * (1 + item.gst_percent / 100) * 100) / 100
+                  const effGst = applyGst ? item.gst_percent : 0
+                  const total = Math.round(item.unit_price * item.qty * (1 + effGst / 100) * 100) / 100
                   const itemProfit = Math.round((item.unit_price - item.cost_price) * item.qty * 100) / 100
                   return (
                     <tr key={i} style={{ borderTop:"1px solid #f0f0f0" }}>
                       <td style={{ padding:"8px 8px" }}>
                         <div style={{ fontWeight:500 }}>{item.name}</div>
                         {item.cost_price > 0 && (
-                          <div style={{ fontSize:10, color: itemProfit >= 0 ? "#16a34a" : "#dc2626", marginTop:2 }}>
+                          <div style={{ fontSize:MIN_FONT_SIZE, color: itemProfit >= 0 ? "#16a34a" : "#dc2626", marginTop:2 }}>
                             {itemProfit >= 0 ? "+" : ""}₹{itemProfit} profit
                           </div>
                         )}
@@ -133,7 +136,7 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
                         <select value={item.gst_percent}
                           onChange={e => setItem(i, "gst_percent", +e.target.value)}
                           style={{ width:56, border:"1px solid #e5e7eb", borderRadius:6,
-                            padding:"4px 2px", fontSize:11 }}>
+                            padding:"4px 2px", fontSize:MIN_FONT_SIZE }}>
                           {[0,3,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
                         </select>
                       </td>
@@ -149,7 +152,7 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
 
           {/* Discount */}
           <div style={{ marginTop:16, padding:"12px", background:"#f9fafb", borderRadius:10 }}>
-            <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Discount</div>
+            <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, color:"#555", marginBottom:8 }}>Discount</div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               <select value={discountType} onChange={e => setDiscountType(e.target.value)}
                 style={{ border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 8px",
@@ -180,15 +183,24 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
                 <span style={{ color:"#dc2626" }}>− ₹{discountAmt}</span>
               </div>
             )}
-            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
-              <span style={{ color:"#888" }}>CGST</span>
-              <span>₹{Math.round(gstTotal / 2 * 100) / 100}</span>
-            </div>
-            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:10,
-              paddingBottom:10, borderBottom:"1px solid #f0f0f0" }}>
-              <span style={{ color:"#888" }}>SGST</span>
-              <span>₹{Math.round((gstTotal - gstTotal / 2) * 100) / 100}</span>
-            </div>
+            {applyGst ? (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+                  <span style={{ color:"#888" }}>CGST</span>
+                  <span>₹{Math.round(gstTotal / 2 * 100) / 100}</span>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:10,
+                  paddingBottom:10, borderBottom:"1px solid #f0f0f0" }}>
+                  <span style={{ color:"#888" }}>SGST</span>
+                  <span>₹{Math.round((gstTotal - gstTotal / 2) * 100) / 100}</span>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize:12, color:"#888", marginBottom:10, paddingBottom:10,
+                borderBottom:"1px solid #f0f0f0" }}>
+                GST not applied to this bill
+              </div>
+            )}
             <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700 }}>
               <span>Grand Total</span>
               <span style={{ color:"#1D9E75" }}>₹{grandTotal}</span>
@@ -207,7 +219,7 @@ function ReviewModal({ rows, products, onConfirm, onClose }) {
               <span style={{ fontSize:13, fontWeight:700, color: profit >= 0 ? "#16a34a" : "#dc2626" }}>
                 {profit >= 0 ? "+" : ""}₹{profit}
                 {profitPct !== null && (
-                  <span style={{ fontSize:11, fontWeight:400, marginLeft:6 }}>({profitPct}%)</span>
+                  <span style={{ fontSize:MIN_FONT_SIZE, fontWeight:400, marginLeft:6 }}>({profitPct}%)</span>
                 )}
               </span>
             </div>
@@ -264,6 +276,9 @@ export default function Billing() {
   const [phone,     setPhone]     = useState("")
   const [gstin,     setGstin]     = useState("")
   const [pay,       setPay]       = useState("Cash")
+  // Most local vendors don't issue GST bills — off by default, vendor opts
+  // in per-bill, or sets a store-wide default in Settings.
+  const [applyGst,  setApplyGst]  = useState(getDefaultApplyGst)
   const [invoice,   setInvoice]   = useState(null)
   const [saving,    setSaving]    = useState(false)
   const [notif,     setNotif]     = useState("")
@@ -373,7 +388,7 @@ export default function Billing() {
   const totals = rows.reduce((acc, row) => {
     const p = getProduct(row.prodId); if (!p) return acc
     const sub = Math.round(p.mrp * row.qty * 100) / 100
-    const tax = Math.round(sub * p.gst_percent / 100 * 100) / 100
+    const tax = applyGst ? Math.round(sub * p.gst_percent / 100 * 100) / 100 : 0
     return { sub: acc.sub + sub, tax: acc.tax + tax }
   }, { sub: 0, tax: 0 })
   const grandTotal = Math.round((totals.sub + totals.tax) * 100) / 100
@@ -396,6 +411,7 @@ export default function Billing() {
         customer_phone: phone || null,
         customer_gstin: gstin || null,
         payment_mode:   pay,
+        apply_gst:      applyGst,
         items:          finalItems,
       })
       setInvoice({ ...inv, customer_phone: phone })
@@ -406,7 +422,10 @@ export default function Billing() {
   }
 
   // ── WhatsApp share ────────────────────────────────────────
-  function shareWhatsApp() {
+  // Opens WhatsApp (Web or app) with the bill pre-typed — requires the
+  // vendor's own WhatsApp to be open/logged in, and a manual tap to send.
+  // Used as a fallback when the server-side send (below) isn't available.
+  function openWhatsAppLink() {
     if (!invoice) return
     const lines = invoice.items.map(i => `  • ${i.name} × ${i.qty} = ₹${i.total}`).join("\n")
     const msg =
@@ -428,6 +447,28 @@ CGST: ₹${invoice.cgst} | SGST: ₹${invoice.sgst}
 Thank you for shopping! 🙏`
     const num = (phone || "").replace(/\D/g, "")
     window.open(`https://wa.me/${num ? "91" + num : ""}?text=${encodeURIComponent(msg)}`, "_blank")
+  }
+
+  // Sends the bill directly via the WhatsApp Business API — no app opens,
+  // no manual tap. This is opt-in infra: until a WhatsApp Business template
+  // is configured (not something we're investing in right now), the backend
+  // returns 503 "not configured" — treat that as the normal/expected case
+  // and fall back to the free wa.me link with no error shown. Any other
+  // failure (a real send attempt that broke) still surfaces to the vendor.
+  async function sendWhatsApp() {
+    if (!invoice) return
+    const num = (phone || "").replace(/\D/g, "")
+    if (num.length !== 10) {
+      showNotif("Enter the customer's 10-digit phone number first")
+      return
+    }
+    try {
+      await api.post(`/invoices/${invoice.id}/send-whatsapp`, { phone: num })
+      showNotif("✓ Bill sent via WhatsApp!")
+    } catch (e) {
+      if (e.status !== 503) showNotif("Couldn't auto-send (" + e.message + ") — opening WhatsApp instead")
+      openWhatsAppLink()
+    }
   }
 
   function clearBill() {
@@ -575,7 +616,7 @@ Thank you for shopping! 🙏`
       )}
 
       {showReview && (
-        <ReviewModal rows={rows} products={products}
+        <ReviewModal rows={rows} products={products} applyGst={applyGst}
           onConfirm={handleReviewConfirm} onClose={() => setShowReview(false)} />
       )}
 
@@ -613,7 +654,7 @@ Thank you for shopping! 🙏`
                     <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>
                       {b.cust || "Walk-in"} · {b.rows.reduce((s,r)=>s+r.qty,0)} items
                     </div>
-                    <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>
                       {INR(t)} · {new Date(b.heldAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
                     </div>
                   </div>
@@ -666,14 +707,21 @@ Thank you for shopping! 🙏`
               paddingBottom:"max(16px, env(safe-area-inset-bottom))",
               display:"flex", flexDirection:"column", gap:10 }}>
 
-              {/* UPI QR — compact mode, shows if UPI ID is configured */}
-              <UPIQRCode
-                invoice={invoice}
-                storeName={vendor?.store_name}
-                compact={true}
-              />
+              {/* UPI QR already shown inside <InvoiceView> above — don't duplicate it here */}
 
-              <button onClick={shareWhatsApp}
+              <div>
+                <label style={{ display:"block", fontSize:MIN_FONT_SIZE, fontWeight:700,
+                  color:"var(--ink-faint)", marginBottom:4 }}>
+                  Customer WhatsApp Number
+                </label>
+                <input value={phone} onChange={e => setPhone(e.target.value)}
+                  placeholder="10-digit mobile number" inputMode="numeric" maxLength={10}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:10,
+                    border:"1.5px solid var(--rule)", fontSize:14, background:"var(--bg2)",
+                    color:"var(--ink)", outline:"none", boxSizing:"border-box" }} />
+              </div>
+
+              <button onClick={sendWhatsApp}
                 style={{ width:"100%", padding:"14px", borderRadius:13, border:"none",
                   background:"#25D366", color:"#fff", fontSize:15, fontWeight:800,
                   cursor:"pointer", display:"flex", alignItems:"center",
@@ -704,19 +752,19 @@ Thank you for shopping! 🙏`
         borderBottom:"1px solid var(--rule)", display:"flex", alignItems:"center",
         gap:10, flexShrink:0 }}>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:11, color:"var(--ink-faint)", letterSpacing:"1px", fontWeight:700 }}>GST BILLING</div>
+          <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", letterSpacing:"1px", fontWeight:700 }}>GST BILLING</div>
           <div style={{ fontSize:14, color:"var(--ink)", fontWeight:800 }}>New Sale</div>
         </div>
         <button onClick={holdBill}
           style={{ background:"var(--bg2)", border:"1px solid var(--rule)", color:"var(--ink)",
-            borderRadius:9, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
+            borderRadius:9, padding:"6px 14px", fontSize:MIN_FONT_SIZE, fontWeight:700, cursor:"pointer" }}>
           Hold
         </button>
         {rows.length > 0 && (
           <button onClick={clearBill}
             style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
               color:"var(--ember)", borderRadius:9, padding:"6px 14px",
-              fontSize:11, fontWeight:700, cursor:"pointer" }}>
+              fontSize:MIN_FONT_SIZE, fontWeight:700, cursor:"pointer" }}>
             Clear
           </button>
         )}
@@ -808,7 +856,7 @@ Thank you for shopping! 🙏`
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)",
                     overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
-                  <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
+                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1 }}>
                     ₹{p.mrp} · {p.stock} {p.unit||"pcs"} in stock
                     {p.gst_percent > 0 && ` · GST ${p.gst_percent}%`}
                   </div>
@@ -829,7 +877,7 @@ Thank you for shopping! 🙏`
                 <div style={{ fontSize:12, color:"var(--ember)", fontWeight:700, marginBottom:6 }}>
                   Not found: "{barcodeResult.code}"
                 </div>
-                {barcodeResult.looking && <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Looking up catalogs…</div>}
+                {barcodeResult.looking && <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>Looking up catalogs…</div>}
                 {!barcodeResult.looking && barcodeResult.ext?.found && (
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                     <div style={{ flex:1, fontSize:12, color:"var(--ink)" }}>
@@ -845,7 +893,7 @@ Thank you for shopping! 🙏`
                 )}
                 {!barcodeResult.looking && !barcodeResult.ext?.found && !quickAdd && (
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
-                    <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Not in public catalogs.</div>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>Not in public catalogs.</div>
                     <button onClick={() => setQuickAdd({ code:barcodeResult.code, name:"", mrp:"", stock:"1", gst_percent:5, category:"Other" })}
                       style={{ padding:"7px 14px", borderRadius:9, border:"none", background:"var(--saffron)",
                         color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>
@@ -878,7 +926,7 @@ Thank you for shopping! 🙏`
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:"var(--jade)" }}>{barcodeResult.name}</div>
-                  <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>
+                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>
                     ₹{barcodeResult.mrp} · Stock: {barcodeResult.stock} · GST {barcodeResult.gst_percent}%
                   </div>
                 </div>
@@ -933,10 +981,10 @@ Thank you for shopping! 🙏`
             </div>
             <div style={{ flex:1, fontSize:13, color: cust ? "var(--ink)" : "var(--ink-faint)", fontWeight:600 }}>
               {cust || "Walk-in customer"}
-              {phone && <span style={{ fontSize:11, color:"var(--ink-faint)", marginLeft:8 }}>{phone}</span>}
+              {phone && <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginLeft:8 }}>{phone}</span>}
             </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <span style={{ fontSize:10, color:"var(--ink-faint)", background:"var(--bg0)",
+              <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", background:"var(--bg0)",
                 padding:"3px 8px", borderRadius:6, border:"1px solid var(--rule)", fontWeight:600 }}>{pay}</span>
               <button onClick={() => setCustExpanded(true)}
                 style={{ background:"transparent", color:"var(--saffron)", border:"none",
@@ -954,7 +1002,7 @@ Thank you for shopping! 🙏`
         {/* Cart items — shown when cart not empty */}
         {rows.length > 0 && (
           <div style={{ padding:"4px 14px 0" }}>
-            <div style={{ fontSize:10, color:"var(--ink-faint)", letterSpacing:"1.5px",
+            <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", letterSpacing:"1.5px",
               fontWeight:800, padding:"10px 4px 8px", textTransform:"uppercase" }}>
               🛒 {rows.length} {rows.length === 1 ? "ITEM" : "ITEMS"} IN CART
             </div>
@@ -976,7 +1024,7 @@ Thank you for shopping! 🙏`
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:800, color:"var(--ink)", lineHeight:1.2,
                       overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
-                    <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
                       ₹{p.mrp}/unit
                     </div>
                   </div>
@@ -1009,13 +1057,13 @@ Thank you for shopping! 🙏`
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
               <button style={{ background:"var(--bg2)", border:"1.5px dashed rgba(184,134,11,0.3)",
                 color:"var(--brass-deep)", borderRadius:12, padding:"10px",
-                fontSize:11, fontWeight:800, cursor:"pointer",
+                fontSize:MIN_FONT_SIZE, fontWeight:800, cursor:"pointer",
                 display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
                 💰 Discount
               </button>
               <button style={{ background:"var(--bg2)", border:"1.5px dashed rgba(184,134,11,0.3)",
                 color:"var(--brass-deep)", borderRadius:12, padding:"10px",
-                fontSize:11, fontWeight:800, cursor:"pointer",
+                fontSize:MIN_FONT_SIZE, fontWeight:800, cursor:"pointer",
                 display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
                 📝 Note
               </button>
@@ -1024,7 +1072,7 @@ Thank you for shopping! 🙏`
             {/* divider */}
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
-              <div style={{ fontSize:10, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", whiteSpace:"nowrap" }}>
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", whiteSpace:"nowrap" }}>
                 ADD MORE ITEMS
               </div>
               <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
@@ -1048,7 +1096,7 @@ Thank you for shopping! 🙏`
                 {cats.map(c => (
                   <button key={c} onClick={() => setCatFilter(c)}
                     style={{ padding:"6px 14px", borderRadius:20, border:"none", cursor:"pointer",
-                      flexShrink:0, fontSize:11, fontWeight:700, transition:"all 0.12s",
+                      flexShrink:0, fontSize:MIN_FONT_SIZE, fontWeight:700, transition:"all 0.12s",
                       background: catFilter === c ? "var(--saffron)" : "var(--bg2)",
                       color:      catFilter === c ? "#fff"          : "var(--ink-dim)",
                       boxShadow:  catFilter === c ? "0 3px 10px rgba(232,119,34,0.3)" : "none" }}>
@@ -1088,7 +1136,7 @@ Thank you for shopping! 🙏`
                           <div style={{ position:"absolute", top:8, right:8,
                             minWidth:20, height:20, padding:"0 6px", borderRadius:10,
                             background:"var(--saffron)", color:"#fff",
-                            fontSize:11, fontWeight:800,
+                            fontSize:MIN_FONT_SIZE, fontWeight:800,
                             display:"flex", alignItems:"center", justifyContent:"center" }}>
                             {inCart.qty}
                           </div>
@@ -1113,7 +1161,7 @@ Thank you for shopping! 🙏`
                             ₹{p.mrp}
                           </div>
                           {outOfStock && (
-                            <div style={{ fontSize:9, color:"var(--ember)", fontWeight:800,
+                            <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ember)", fontWeight:800,
                               letterSpacing:"0.5px", marginTop:2 }}>OUT OF STOCK</div>
                           )}
                         </div>
@@ -1133,14 +1181,25 @@ Thank you for shopping! 🙏`
           borderTop:"2px solid rgba(184,134,11,0.3)",
           boxShadow:"0 -8px 24px rgba(26,12,4,0.1)",
           padding:"12px 14px 14px", flexShrink:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <input type="checkbox" id="kirana-gst-toggle" checked={applyGst}
+              onChange={e => setApplyGst(e.target.checked)}
+              style={{ width:15, height:15, cursor:"pointer", accentColor:"var(--saffron)" }} />
+            <label htmlFor="kirana-gst-toggle"
+              style={{ fontSize:12, color:"var(--ink-dim)", cursor:"pointer" }}>
+              Apply GST
+            </label>
+          </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
             <div>
-              <div style={{ fontSize:11, color:"var(--brass-deep)", letterSpacing:"1.5px",
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--brass-deep)", letterSpacing:"1.5px",
                 fontWeight:800, textTransform:"uppercase" }}>
                 TOTAL · {rows.length} item{rows.length !== 1 ? "s" : ""}
               </div>
-              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>
-                incl. ₹{Math.round(totals.tax * 100) / 100} GST (CGST + SGST)
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>
+                {applyGst
+                  ? `incl. ₹${Math.round(totals.tax * 100) / 100} GST (CGST + SGST)`
+                  : "GST not applied"}
               </div>
             </div>
             <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:38,

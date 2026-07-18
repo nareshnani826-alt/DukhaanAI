@@ -10,6 +10,7 @@ import { useLang, LangToggle } from "../hooks/useLang"
 import { VOICE_LANGS } from "../voice/useProductVoice.js"
 import { getSavedLang } from "../voice/i18n.js"
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
+import { getDefaultApplyGst } from "../utils/gstSettings.js"
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const UNITS = [
@@ -645,7 +646,7 @@ function QuickItemModal({ onAdd, onClose, products = [] }) {
       pieces,
       amount,
       cost_price:          0,
-      gst_percent:         3,
+      gst_percent:         18,
       _id:                 Date.now(),
     })
     onClose()
@@ -1478,6 +1479,9 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
   const dateStr = new Date(sale.created_at).toLocaleString("en-IN", {
     day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
   })
+  const [phone, setPhone] = useState(sale.customer_phone || "")
+  const [sending, setSending] = useState(false)
+  const [waErr, setWaErr] = useState("")
 
   // Normalise Bangle sale → InvoiceView-compatible invoice object
   const invoice = {
@@ -1503,7 +1507,10 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
     })),
   }
 
-  function shareWhatsApp() {
+  // Opens WhatsApp (Web or app) with the bill pre-typed — requires the
+  // vendor's own WhatsApp to be open/logged in, and a manual tap to send.
+  // Used as a fallback when the server-side send (below) isn't available.
+  function openWhatsAppLink() {
     const text = [
       `🧾 *${storeName}*`,
       `Date: ${dateStr}`,
@@ -1517,7 +1524,27 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
       `*Total: ₹${Number(sale.total).toLocaleString("en-IN")}*`,
       `Payment: ${sale.payment_mode.toUpperCase()}`,
     ].filter(l => l !== "").join("\n")
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank")
+    const num = (phone || "").replace(/\D/g, "")
+    window.open(`https://wa.me/${num ? "91" + num : ""}?text=${encodeURIComponent(text)}`, "_blank")
+  }
+
+  // Sends the bill directly via the WhatsApp Business API — no app opens,
+  // no manual tap. Opt-in infra: until a template is configured, the
+  // backend returns 503 and this falls back to the free wa.me link above
+  // with no error shown (the expected state until that's set up).
+  async function sendWhatsApp() {
+    const num = (phone || "").replace(/\D/g, "")
+    if (num.length !== 10) { setWaErr("Enter the customer's 10-digit phone number first"); return }
+    setWaErr("")
+    setSending(true)
+    try {
+      await api.post(`/bangle/sales/${sale.id}/send-whatsapp`, { phone: num })
+    } catch (e) {
+      if (e.status !== 503) setWaErr("Couldn't auto-send (" + e.message + ") — opening WhatsApp instead")
+      openWhatsAppLink()
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -1534,10 +1561,11 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
           <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a", flex: 1 }}>
             ✅ Invoice Generated
           </span>
-          <button onClick={shareWhatsApp}
+          <button onClick={sendWhatsApp} disabled={sending}
             style={{ background: "#25D366", color: "#fff", border: "none",
-              borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-            📲 WhatsApp
+              borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700,
+              cursor: sending ? "default" : "pointer", opacity: sending ? 0.7 : 1 }}>
+            📲 {sending ? "Sending…" : "WhatsApp"}
           </button>
           <button onClick={() => window.print()}
             style={{ background: "transparent", color: "#555", border: "1px solid #e5e7eb",
@@ -1551,6 +1579,18 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
           </button>
         </div>
 
+        {/* WhatsApp phone number */}
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #f0f0f0" }}>
+          <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 4 }}>
+            Customer WhatsApp Number
+          </label>
+          <input value={phone} onChange={e => setPhone(e.target.value)}
+            placeholder="10-digit mobile number" inputMode="numeric" maxLength={10}
+            style={{ width: "100%", padding: "9px 12px", borderRadius: 9,
+              border: "1.5px solid #e5e7eb", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+          {waErr && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{waErr}</div>}
+        </div>
+
         {/* Invoice */}
         <InvoiceView invoice={invoice} />
       </div>
@@ -1562,7 +1602,7 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
 function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
   const [customer,    setCustomer]    = useState({ name: "", phone: "" })
   const [payment,     setPayment]     = useState("cash")
-  const [applyGst,    setApplyGst]    = useState(false)
+  const [applyGst,    setApplyGst]    = useState(getDefaultApplyGst)
   const [discountPct, setDiscountPct] = useState(0)
   const [loading,     setLoading]     = useState(false)
   const [err,         setErr]         = useState("")
@@ -2981,6 +3021,36 @@ export default function BangleBilling() {
     } : prev)
   }
 
+  // Opens WhatsApp (Web or app) with the bill pre-typed — used as a
+  // fallback when the server-side send below isn't available.
+  function openReceiptWhatsAppLink() {
+    const items = (receipt.items||[]).map(i =>
+      `• ${i.product_name}${i.colour?" "+i.colour:""}${i.size?" "+i.size:""} | ${i.unit_qty} ${i.unit} = ₹${Number(i.amount).toLocaleString("en-IN")}`)
+    const msg = [`🧾 *${storeName}*`,"",...items,"",`*Total: ₹${Number(receipt.total||0).toLocaleString("en-IN")}*`,`Payment: ${(receipt.payment_mode||"").toUpperCase()}`].join("\n")
+    const num = (customer.phone || "").replace(/\D/g, "")
+    window.open(`https://wa.me/${num ? "91"+num : ""}?text=${encodeURIComponent(msg)}`, "_blank")
+  }
+
+  const [sendingWa, setSendingWa] = useState(false)
+
+  // Sends the bill directly via the WhatsApp Business API — no app opens.
+  // Opt-in infra: until a template is configured, the backend returns 503
+  // and this falls back to the wa.me link with no error shown.
+  async function sendReceiptWhatsApp() {
+    const num = (customer.phone || "").replace(/\D/g, "")
+    if (num.length !== 10) { showScanToast("Enter the customer's 10-digit phone number first", false); return }
+    setSendingWa(true)
+    try {
+      await api.post(`/bangle/sales/${receipt.id}/send-whatsapp`, { phone: num })
+      showScanToast("✓ Bill sent via WhatsApp!", true)
+    } catch (e) {
+      if (e.status !== 503) showScanToast("Couldn't auto-send — opening WhatsApp instead", false)
+      openReceiptWhatsAppLink()
+    } finally {
+      setSendingWa(false)
+    }
+  }
+
   const storeName = vendor?.store_name || "Bangle Store"
 
   // ── billing-first state ───────────────────────────────────
@@ -2992,7 +3062,7 @@ export default function BangleBilling() {
   const [customer,      setCustomer]      = useState({ name:"", phone:"" })
   const [payMode,       setPayMode]       = useState("cash")
   const [discountPct,   setDiscountPct]   = useState(0)
-  const [applyGst,      setApplyGst]      = useState(false)
+  const [applyGst,      setApplyGst]      = useState(getDefaultApplyGst)
   const [showPaySheet,  setShowPaySheet]  = useState(false)
   const [paying,        setPaying]        = useState(false)
   const [payErr,        setPayErr]        = useState("")
@@ -3201,15 +3271,23 @@ export default function BangleBilling() {
             <div style={{ flexShrink:0, padding:"12px 16px", borderTop:"1px solid var(--rule)",
               paddingBottom:"max(16px,env(safe-area-inset-bottom))",
               background:"var(--bg1)", display:"flex", flexDirection:"column", gap:10 }}>
-              <button onClick={() => {
-                const items = (receipt.items||[]).map(i =>
-                  `• ${i.product_name}${i.colour?" "+i.colour:""}${i.size?" "+i.size:""} | ${i.unit_qty} ${i.unit} = ₹${Number(i.amount).toLocaleString("en-IN")}`)
-                const msg = [`🧾 *${storeName}*`,"",...items,"",`*Total: ₹${Number(receipt.total||0).toLocaleString("en-IN")}*`,`Payment: ${(receipt.payment_mode||"").toUpperCase()}`].join("\n")
-                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank")
-              }} style={{ width:"100%", padding:"14px", borderRadius:13, border:"none",
+              <div>
+                <label style={{ display:"block", fontSize:12, fontWeight:700,
+                  color:"var(--ink-faint)", marginBottom:4 }}>
+                  Customer WhatsApp Number
+                </label>
+                <input value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))}
+                  placeholder="10-digit mobile number" inputMode="numeric" maxLength={10}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:10,
+                    border:"1.5px solid var(--rule)", fontSize:14, background:"var(--bg2)",
+                    color:"var(--ink)", outline:"none", boxSizing:"border-box" }} />
+              </div>
+              <button onClick={sendReceiptWhatsApp} disabled={sendingWa}
+                style={{ width:"100%", padding:"14px", borderRadius:13, border:"none",
                 background:"#25D366", color:"#fff", fontSize:15, fontWeight:800,
-                cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-                📱 Send on WhatsApp
+                cursor: sendingWa ? "default" : "pointer", opacity: sendingWa ? 0.7 : 1,
+                display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                📱 {sendingWa ? "Sending…" : "Send on WhatsApp"}
               </button>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 <button onClick={() => window.print()}

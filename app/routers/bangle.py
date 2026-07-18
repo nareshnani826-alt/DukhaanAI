@@ -10,6 +10,8 @@ from pydantic import BaseModel, field_validator
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_vendor
+from app.core.whatsapp import send_invoice_notification
+from app.schemas.schemas import SendInvoiceWhatsAppRequest, MessageResponse
 
 router = APIRouter(prefix="/bangle", tags=["bangle"])
 
@@ -57,7 +59,7 @@ class ProductCreate(BaseModel):
     barcode: Optional[str] = None
     mrp: float = 0
     cost_price: float = 0
-    gst_percent: int = 3
+    gst_percent: int = 18  # most bangle-store stock is imitation/fashion jewellery (18%), not real gold/silver (3%)
     supplier_id:   Optional[str] = None
     tray_location: Optional[str] = None
 
@@ -659,7 +661,7 @@ class BulkImportRow(BaseModel):
     category: str = "Bangles"
     mrp: float = 0
     cost_price: float = 0
-    gst_percent: int = 3
+    gst_percent: int = 18  # most bangle-store stock is imitation/fashion jewellery (18%), not real gold/silver (3%)
     colour: Optional[str] = None
     size: Optional[str] = None
     design: Optional[str] = None
@@ -843,7 +845,7 @@ class SaleItem(BaseModel):
     unit_price:          float
     pieces:              int = 1
     amount:              float
-    gst_percent:         int = 3
+    gst_percent:         int = 18  # most bangle-store stock is imitation/fashion jewellery (18%), not real gold/silver (3%)
     is_quick_item:       bool = False
 
 
@@ -1071,6 +1073,89 @@ async def list_sales(
         "offset":  offset,
         "summary": summary,
     }
+
+
+@router.get("/sales/public/{sale_id}")
+async def get_public_sale(sale_id: str):
+    """
+    Unauthenticated bill view for customers — linked from the WhatsApp
+    bill notification. Same trust model as invoices.py's public endpoint:
+    the sale UUID itself is the access token.
+    """
+    db = get_db()
+    result = db.table("bangle_sales").select("*").eq("id", sale_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    sale = result.data[0]
+
+    vendor_row = db.table("vendors").select("store_name").eq("id", sale["vendor_id"]).execute()
+    store_name = vendor_row.data[0]["store_name"] if vendor_row.data else "DukaanAI"
+
+    # Normalise bangle sale items into the same shape the public invoice
+    # page already renders for Kirana invoices.
+    items = [
+        {
+            "name": it.get("product_name") or it.get("custom_description") or "Item",
+            "qty": it.get("pieces", 1),
+            "unit_price": it.get("unit_price", 0),
+            "gst_percent": it.get("gst_percent", 0),
+            "total": it.get("amount", 0),
+        }
+        for it in (sale.get("items") or [])
+    ]
+    gst_amount = sale.get("gst_amount", 0) or 0
+
+    return {
+        "store_name": store_name,
+        "invoice_no": f"BL-{sale_id[:8].upper()}",
+        "customer_name": sale.get("customer_name") or "Walk-in",
+        "created_at": sale.get("created_at") or sale.get("sale_date"),
+        "payment_mode": sale.get("payment_mode"),
+        "items": items,
+        "subtotal": sale.get("subtotal", 0),
+        "cgst": round(gst_amount / 2, 2),
+        "sgst": round(gst_amount - round(gst_amount / 2, 2), 2),
+        "total": sale.get("total", 0),
+    }
+
+
+@router.post("/sales/{sale_id}/send-whatsapp", response_model=MessageResponse)
+async def send_sale_whatsapp(
+    sale_id: str, body: SendInvoiceWhatsAppRequest, vendor=Depends(get_current_vendor),
+):
+    """Send a bill-ready WhatsApp notification for a bangle sale — see
+    invoices.py's send_invoice_whatsapp for the same pattern and caveats."""
+    db = get_db()
+    result = (
+        db.table("bangle_sales")
+        .select("*")
+        .eq("id", sale_id)
+        .eq("vendor_id", vendor["id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    sale = result.data[0]
+
+    link = f"{settings.frontend_url}/invoice/{sale_id}"
+    try:
+        sent = await send_invoice_notification(
+            phone=body.phone,
+            customer_name=sale.get("customer_name") or "Customer",
+            store_name=vendor["store_name"],
+            invoice_no=f"BL-{sale_id[:8].upper()}",
+            total=sale["total"],
+            link=link,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to send WhatsApp message: {e}") from e
+
+    if not sent:
+        raise HTTPException(
+            status_code=503,
+            detail="WhatsApp is not configured. Please contact support.",
+        )
+    return MessageResponse(message="Bill sent via WhatsApp")
 
 
 @router.get("/sales/{sale_id}")

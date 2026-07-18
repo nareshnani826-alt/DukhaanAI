@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { Products, Sales, Invoices, api, isCloud } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
 import { tr } from "../i18n/kiranaStrings"
+import { MIN_FONT_SIZE } from "../styles/textScale"
 
 const INR = n => "₹" + (n || 0).toLocaleString("en-IN")
 
@@ -87,7 +88,7 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
           </div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>{meta.label}</div>
-            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:3, lineHeight:1.5 }}>{meta.desc}</div>
+            <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:3, lineHeight:1.5 }}>{meta.desc}</div>
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
             fontSize:18, color:"var(--ink-faint)", flexShrink:0, padding:4 }}>✕</button>
@@ -101,7 +102,7 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
               display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>📲</div>
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:"#128C7E" }}>Send WhatsApp Stock Alert</div>
-              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>Share this list with your supplier or staff</div>
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1 }}>Share this list with your supplier or staff</div>
             </div>
             <svg style={{ marginLeft:"auto", flexShrink:0 }} width="14" height="14" fill="none"
               stroke="#128C7E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -138,21 +139,21 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
                       style={{ width:80, padding:"5px 8px", borderRadius:8, fontSize:12,
                         border:"1.5px solid var(--saffron)", outline:"none", background:"#fffbeb" }}
                       autoFocus />
-                    <span style={{ fontSize:11, color:"var(--ink-faint)" }}>{p.unit || "units"}</span>
+                    <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>{p.unit || "units"}</span>
                     <button onClick={saveEdit} disabled={saving}
                       style={{ padding:"5px 12px", borderRadius:8, border:"none",
-                        background:"var(--saffron)", color:"#fff", fontSize:11, fontWeight:700,
+                        background:"var(--saffron)", color:"#fff", fontSize:MIN_FONT_SIZE, fontWeight:700,
                         cursor:saving?"default":"pointer", opacity:saving?0.7:1 }}>
                       {saving ? "…" : "Save"}
                     </button>
                     <button onClick={() => setEditing(null)}
                       style={{ padding:"5px 8px", borderRadius:8, border:"1px solid var(--rule)",
-                        background:"transparent", fontSize:11, color:"var(--ink-faint)", cursor:"pointer" }}>
+                        background:"transparent", fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", cursor:"pointer" }}>
                       ✕
                     </button>
                   </div>
                 ) : (
-                  <div style={{ fontSize:11, color: p.stock <= 0 ? "var(--ember)" : "#d97706",
+                  <div style={{ fontSize:MIN_FONT_SIZE, color: p.stock <= 0 ? "var(--ember)" : "#d97706",
                     fontWeight:600, marginTop:2 }}>
                     {p.stock <= 0 ? "Out of stock" : `${p.stock} ${p.unit || "units"} left`}
                     {p.min_stock > 0 && p.stock > 0 && (
@@ -166,7 +167,7 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
               {editing?.id !== p.id && p.id && (
                 <button onClick={() => { setEditing(p); setEditVal(String(p.stock)) }}
                   style={{ padding:"5px 12px", borderRadius:9, border:"1.5px solid var(--rule)",
-                    background:"var(--bg2)", fontSize:11, fontWeight:600,
+                    background:"var(--bg2)", fontSize:MIN_FONT_SIZE, fontWeight:600,
                     color:"var(--ink)", cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>
                   ✏️ Edit
                 </button>
@@ -177,7 +178,7 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
 
         {/* Footer count */}
         <div style={{ padding:"10px 22px", borderTop:"1px solid var(--rule)", textAlign:"center",
-          fontSize:11, color:"var(--ink-faint)" }}>
+          fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>
           {items.length} item{items.length !== 1 ? "s" : ""} shown
         </div>
       </div>
@@ -277,7 +278,7 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
         <span style={{ fontSize:28 }}>✅</span>
         <div>
           <div style={{ fontWeight:700, fontSize:13, color:"var(--ink)" }}>All clear today!</div>
-          <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>Stock healthy · No pending udhar · Margins good</div>
+          <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>Stock healthy · No pending udhar · Margins good</div>
         </div>
       </div>
     )
@@ -293,7 +294,7 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
         <span style={{ fontSize:18 }}>🌅</span>
         <div style={{ flex:1 }}>
           <div style={{ fontWeight:700, fontSize:13, color:"var(--ink)" }}>Today's Briefing</div>
-          <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>
+          <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1 }}>
             {items.length} action item{items.length !== 1 ? "s" : ""} need attention
           </div>
         </div>
@@ -319,7 +320,7 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:12, fontWeight:600, color: item.color, lineHeight:1.3 }}>{item.text}</div>
-                <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:3,
+                <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:3,
                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.sub}</div>
               </div>
               <svg width="12" height="12" fill="none" stroke="var(--ink-faint)" strokeWidth="2"
@@ -547,11 +548,11 @@ export default function Dashboard() {
               overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {t(greeting())}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
             </div>
-            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1,
+            <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1,
               display:"flex", alignItems:"center", gap:6 }}>
               <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
                 maxWidth:120 }}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}</span>
-              <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, flexShrink:0,
+              <span style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, padding:"2px 7px", borderRadius:20, flexShrink:0,
                 background: cloud ? "var(--jade-bg)" : "var(--bg2)",
                 color: cloud ? "var(--jade)" : "var(--ink-faint)",
                 border: `1px solid ${cloud ? "rgba(26,122,74,0.3)" : "var(--rule)"}` }}>
@@ -567,7 +568,7 @@ export default function Dashboard() {
             const isClosed = daySession?.status === "closed"
             if (!daySession) return (
               <button onClick={openDay} disabled={dayActing}
-                style={{ padding:"7px 14px", borderRadius:20, border:"none", fontSize:11, fontWeight:700,
+                style={{ padding:"7px 14px", borderRadius:20, border:"none", fontSize:MIN_FONT_SIZE, fontWeight:700,
                   background:"linear-gradient(135deg,#d97706,#b45309)", color:"#fff",
                   cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1,
                   boxShadow:"0 2px 8px rgba(217,119,6,0.35)", whiteSpace:"nowrap" }}>
@@ -577,7 +578,7 @@ export default function Dashboard() {
             if (isOpen) return (
               <button onClick={() => setShowCloseConfirm(true)} disabled={dayActing}
                 style={{ padding:"7px 14px", borderRadius:20, border:"1.5px solid rgba(26,122,74,0.4)",
-                  fontSize:11, fontWeight:700, background:"var(--jade-bg,#e8f8f2)",
+                  fontSize:MIN_FONT_SIZE, fontWeight:700, background:"var(--jade-bg,#e8f8f2)",
                   color:"var(--jade,#1a7a4a)", cursor:dayActing?"default":"pointer",
                   opacity:dayActing?0.7:1, whiteSpace:"nowrap" }}>
                 {dayActing ? "Closing…" : "■ Close Day"}
@@ -585,12 +586,12 @@ export default function Dashboard() {
             )
             if (isClosed) return (
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <span style={{ fontSize:10, fontWeight:600, color:"var(--ink-faint)",
+                <span style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, color:"var(--ink-faint)",
                   padding:"5px 10px", borderRadius:20, border:"1px solid var(--rule)",
                   background:"var(--bg2)", whiteSpace:"nowrap" }}>✓ Day Closed</span>
                 <button onClick={() => setShowReopenConfirm(true)} disabled={dayActing}
                   style={{ padding:"5px 10px", borderRadius:20, border:"1.5px solid rgba(202,138,4,0.4)",
-                    fontSize:10, fontWeight:700, background:"#fffbeb", color:"#92400e",
+                    fontSize:MIN_FONT_SIZE, fontWeight:700, background:"#fffbeb", color:"#92400e",
                     cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1, whiteSpace:"nowrap" }}>
                   ↺ Reopen
                 </button>
@@ -625,7 +626,7 @@ export default function Dashboard() {
               <div style={{ fontSize:18, fontWeight:900, color:"#fff", lineHeight:1 }}>
                 {t("New Bill")}
               </div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginTop:4 }}>
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"rgba(255,255,255,0.8)", marginTop:4 }}>
                 {loading ? "Loading…"
                   : today.count > 0
                   ? `${today.count} bill${today.count > 1 ? "s" : ""} today · ${INR(today.total)}`
@@ -655,7 +656,7 @@ export default function Dashboard() {
               📦
             </div>
             <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
-            <div style={{ fontSize:11, color:"var(--jade)", fontWeight:600 }}>
+            <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--jade)", fontWeight:600 }}>
               {loading ? "—" : `${total} products`}
             </div>
           </button>
@@ -676,7 +677,7 @@ export default function Dashboard() {
               📒
             </div>
             <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Udhaar")}</div>
-            <div style={{ fontSize:11, fontWeight:600,
+            <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600,
               color: (briefing?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
               {briefing
                 ? (briefing.udhar.collected_today > 0
@@ -712,7 +713,7 @@ export default function Dashboard() {
                   <div style={{ position:"absolute", top:-6, right:-6,
                     minWidth:18, height:18, borderRadius:9, padding:"0 4px",
                     background:"var(--ember,#c0392b)", color:"#fff",
-                    fontSize:10, fontWeight:900,
+                    fontSize:MIN_FONT_SIZE, fontWeight:900,
                     display:"flex", alignItems:"center", justifyContent:"center" }}>
                     {low.length}
                   </div>
@@ -721,7 +722,7 @@ export default function Dashboard() {
               <div style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
                 <div>
                   <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Low Stock")}</div>
-                  <div style={{ fontSize:11, fontWeight:600, marginTop:2,
+                  <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, marginTop:2,
                     color: low.length > 0 ? "var(--ember)" : "var(--jade)" }}>
                     {loading ? "—" : low.length > 0 ? `${low.length} item${low.length>1?"s":""}` : "All stocked"}
                   </div>
@@ -738,7 +739,7 @@ export default function Dashboard() {
                   marginTop: 8, padding: "8px 12px", borderRadius: 10,
                   background: "rgba(26,122,74,0.12)",
                   border: "1px solid rgba(26,122,74,0.25)",
-                  fontSize: 11, fontWeight: 600, color: "var(--jade)",
+                  fontSize: MIN_FONT_SIZE, fontWeight: 600, color: "var(--jade)",
                   display: "flex", alignItems: "center", gap: 6,
                   animation: "fadeIn 0.2s ease",
                 }}>
@@ -757,18 +758,18 @@ export default function Dashboard() {
                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
                       padding:"9px 16px", cursor:"pointer",
                       borderTop: i > 0 ? "1px solid rgba(192,57,43,0.1)" : "none" }}>
-                    <div style={{ fontSize:11, fontWeight:600, color:"var(--ink)",
+                    <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, color:"var(--ink)",
                       overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"60%" }}>
                       {p.name}
                     </div>
-                    <div style={{ fontSize:10, color:"var(--ember)", fontWeight:700, flexShrink:0 }}>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ember)", fontWeight:700, flexShrink:0 }}>
                       {p.stock} / {p.min_stock} {p.unit || ""}
                     </div>
                   </div>
                 ))}
                 <div onClick={() => navigate("/inventory")}
                   style={{ padding:"9px 16px", borderTop:"1px solid rgba(192,57,43,0.15)",
-                    fontSize:11, fontWeight:700, color:"var(--ember)", cursor:"pointer",
+                    fontSize:MIN_FONT_SIZE, fontWeight:700, color:"var(--ember)", cursor:"pointer",
                     textAlign:"center" }}>
                   View all in Inventory →
                 </div>
@@ -794,7 +795,7 @@ export default function Dashboard() {
             ))}
           </svg>
           <div style={{ position:"relative" }}>
-            <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
+            <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)",
               letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>{t("Today's Takings")}</div>
             <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
               fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
@@ -814,7 +815,7 @@ export default function Dashboard() {
                     color: profit.today >= 0 ? "var(--jade)" : "var(--ember)" }}>
                     {profit.today >= 0 ? "+" : ""}{INR(profit.today)} profit
                   </span>
-                  <span style={{ fontSize:11, color:"var(--ink-faint)", marginLeft:6 }}>
+                  <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginLeft:6 }}>
                     ({profit.margin_pct}% margin)
                   </span>
                 </div>
@@ -870,9 +871,9 @@ export default function Dashboard() {
                     flexShrink:0, boxShadow: isOpen ? `0 0 0 3px ${dotColor}22` : "none" }}/>
                   <span style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{label}</span>
                 </div>
-                <div style={{ fontSize:11, color:"var(--ink-faint)" }}>{sublabel}</div>
+                <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>{sublabel}</div>
                 {isClosed && daySession.total_sales > 0 && (
-                  <div style={{ fontSize:11, marginTop:4, display:"flex", gap:12 }}>
+                  <div style={{ fontSize:MIN_FONT_SIZE, marginTop:4, display:"flex", gap:12 }}>
                     <span style={{ color:"var(--jade)", fontWeight:600 }}>
                       {INR(daySession.total_sales)} sales
                     </span>
@@ -884,12 +885,12 @@ export default function Dashboard() {
                   </div>
                 )}
                 {isOpen && today.total > 0 && (
-                  <div style={{ fontSize:11, marginTop:4, color:"var(--jade)", fontWeight:600 }}>
+                  <div style={{ fontSize:MIN_FONT_SIZE, marginTop:4, color:"var(--jade)", fontWeight:600 }}>
                     {INR(today.total)} so far · {today.count} invoices
                   </div>
                 )}
                 {dayError && (
-                  <div style={{ fontSize:10, color:"var(--ember)", marginTop:4 }}>{dayError}</div>
+                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ember)", marginTop:4 }}>{dayError}</div>
                 )}
               </div>
 
@@ -898,14 +899,14 @@ export default function Dashboard() {
                   <button onClick={() => setShowReopenConfirm(true)} disabled={dayActing}
                     style={{ padding:"7px 14px", borderRadius:12,
                       border:"1.5px solid rgba(202,138,4,0.4)", background:"#fffbeb",
-                      color:"#92400e", fontSize:11, fontWeight:700,
+                      color:"#92400e", fontSize:MIN_FONT_SIZE, fontWeight:700,
                       cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>
                     ↺ Reopen
                   </button>
                   <button onClick={() => navigate("/day")}
                     style={{ padding:"7px 14px", borderRadius:12,
                       border:"1.5px solid var(--rule)", background:"transparent",
-                      color:"var(--ink-dim)", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+                      color:"var(--ink-dim)", fontSize:MIN_FONT_SIZE, fontWeight:600, cursor:"pointer" }}>
                     View Report
                   </button>
                 </div>
@@ -933,7 +934,7 @@ export default function Dashboard() {
               onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
               onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
               <span style={{ fontSize:18 }}>{qa.emoji}</span>
-              <span style={{ fontSize:10, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
+              <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
             </button>
           ))}
         </div>
@@ -944,9 +945,9 @@ export default function Dashboard() {
           {/* Recent sales */}
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>{t("RECENT SALES")}</div>
+              <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>{t("RECENT SALES")}</div>
               <button onClick={() => navigate("/billing")}
-                style={{ fontSize:11, color:"var(--saffron)", fontWeight:600,
+                style={{ fontSize:MIN_FONT_SIZE, color:"var(--saffron)", fontWeight:600,
                   background:"none", border:"none", cursor:"pointer" }}>{t("View all →")}</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14,
@@ -971,7 +972,7 @@ export default function Dashboard() {
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
                       overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.customer || "Walk-in"}</div>
-                    <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>
                       {s.qty} items · {new Date(s.sold_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
                     </div>
                   </div>
@@ -984,11 +985,11 @@ export default function Dashboard() {
           {/* Stock Health — inventory snapshot (complements briefing) */}
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>
+              <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>
                 Stock Health
               </div>
               <button onClick={() => navigate("/inventory")}
-                style={{ fontSize:11, color:"var(--saffron)", fontWeight:600,
+                style={{ fontSize:MIN_FONT_SIZE, color:"var(--saffron)", fontWeight:600,
                   background:"none", border:"none", cursor:"pointer" }}>View all →</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14, border:"1px solid var(--rule)",
@@ -1041,7 +1042,7 @@ export default function Dashboard() {
                   </div>
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:12, fontWeight:600, color:"var(--ink)" }}>{row.label}</div>
-                    <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>{row.sub}</div>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>{row.sub}</div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:4 }}>
                     <span style={{ fontSize:16, fontWeight:800, color: row.color }}>{row.value}</span>
@@ -1096,7 +1097,7 @@ export default function Dashboard() {
                   <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{item.icon}</span>
                   <div>
                     <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>{item.title}</div>
-                    <div style={{ fontSize:11, color:"var(--ink-faint)", lineHeight:1.5 }}>{item.sub}</div>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", lineHeight:1.5 }}>{item.sub}</div>
                   </div>
                 </div>
               ))}
@@ -1150,7 +1151,7 @@ export default function Dashboard() {
                   <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{item.icon}</span>
                   <div>
                     <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>{item.title}</div>
-                    <div style={{ fontSize:11, color:"var(--ink-faint)", lineHeight:1.5 }}>{item.sub}</div>
+                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", lineHeight:1.5 }}>{item.sub}</div>
                   </div>
                 </div>
               ))}
@@ -1160,11 +1161,11 @@ export default function Dashboard() {
                 borderRadius:12, padding:"10px 14px", marginBottom:20, display:"flex", gap:20 }}>
                 <div style={{ textAlign:"center" }}>
                   <div style={{ fontSize:15, fontWeight:800, color:"var(--jade)" }}>{INR(today.total)}</div>
-                  <div style={{ fontSize:9, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>TODAY'S SALES</div>
+                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>TODAY'S SALES</div>
                 </div>
                 <div style={{ textAlign:"center" }}>
                   <div style={{ fontSize:15, fontWeight:800, color:"var(--saffron)" }}>{today.count}</div>
-                  <div style={{ fontSize:9, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>BILLS</div>
+                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>BILLS</div>
                 </div>
               </div>
             )}
@@ -1209,9 +1210,9 @@ export default function Dashboard() {
                 <div style={{ fontSize:22, fontWeight:900, color:"#dc2626", lineHeight:1 }}>
                   {Math.floor(autoCloseSecsLeft/60)}:{String(autoCloseSecsLeft%60).padStart(2,"0")}
                 </div>
-                <div style={{ fontSize:8, color:"#dc2626", fontWeight:700, letterSpacing:"1px" }}>LEFT</div>
+                <div style={{ fontSize:MIN_FONT_SIZE, color:"#dc2626", fontWeight:700, letterSpacing:"1px" }}>LEFT</div>
               </div>
-              <div style={{ fontSize:11, color:"var(--ink-faint)" }}>Day will auto-close when timer hits 0:00</div>
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>Day will auto-close when timer hits 0:00</div>
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => { setShowAutoClose(false); setAutoCloseSecsLeft(300) }}

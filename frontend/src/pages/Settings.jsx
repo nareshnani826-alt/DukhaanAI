@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { getUPIVpa, saveUPIVpa } from "../components/UPIQRCode.jsx"
+import { getDefaultApplyGst, setDefaultApplyGst } from "../utils/gstSettings.js"
 import { LANGUAGES } from "../voice/languages.js"
 import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan } from "../context/PlanContext"
@@ -78,6 +79,40 @@ function UPISetting() {
           ✓ UPI active: {vpa}
         </div>
       )}
+    </div>
+  )
+}
+
+function GstDefaultSetting() {
+  const [applyGst, setApplyGst] = useState(getDefaultApplyGst)
+
+  function toggle() {
+    const next = !applyGst
+    setApplyGst(next)
+    setDefaultApplyGst(next)
+  }
+
+  return (
+    <div className="card mb-4" style={{ padding: 14 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+          <span style={{ fontSize:20 }}>🧾</span>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>Apply GST by default</div>
+            <div style={{ fontSize:10, color:"var(--ink-faint)" }}>
+              Turn on if you issue GST invoices. Off by default — most local vendors don't.
+              You can still switch it per bill.
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={toggle}
+          className="flex-shrink-0 w-10 h-6 rounded-full transition-colors relative"
+          style={{ background: applyGst ? "var(--jade)" : "#d1d5db" }}>
+          <span className="absolute top-0.5 transition-all rounded-full bg-white w-5 h-5"
+            style={{ left: applyGst ? "18px" : "2px" }} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -281,6 +316,9 @@ export default function Settings() {
 
       {/* UPI Payment Setting */}
       <UPISetting />
+
+      {/* GST default */}
+      <GstDefaultSetting />
 
       {/* Feature toggles */}
       <div className="card mb-4">

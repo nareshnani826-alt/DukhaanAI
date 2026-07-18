@@ -44,6 +44,7 @@ const BangleHistory     = lazy(() => import("./pages/BangleHistory"))
 const BangleUdhar       = lazy(() => import("./pages/BangleUdhar"))
 const ReorderHub        = lazy(() => import("./pages/ReorderHub"))
 const Onboarding        = lazy(() => import("./pages/Onboarding"))
+const PublicInvoice     = lazy(() => import("./pages/PublicInvoice"))
 // Wrapper that gates a page behind a plan feature
 function Gated({ feature, children }) {
   return <UpgradeWall feature={feature}>{children}</UpgradeWall>
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/hero-loop" element={<HeroLoop />} />
+            <Route path="/invoice/:id" element={<PublicInvoice />} />
             <Route path="/*" element={
               <FirstRunGuard>
               <Layout>

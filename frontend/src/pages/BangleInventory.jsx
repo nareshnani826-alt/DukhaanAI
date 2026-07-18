@@ -291,7 +291,7 @@ function toggleArr(arr, setArr, val) {
 // ── Add Product Modal — 2-step wizard ─────────────────────
 function AddProductModal({ onClose, onSaved }) {
   const [step, setStep]           = useState(1)
-  const [form, setForm]           = useState({ name:"", category:"Bangles", brand:"", mrp:"", cost_price:"", gst_percent:3 })
+  const [form, setForm]           = useState({ name:"", category:"Bangles", brand:"", mrp:"", cost_price:"", gst_percent:18 })
   const [loading, setLoading]     = useState(false)
   const [err, setErr]             = useState("")
   const [voiceLang, setVoiceLang] = useState(() => getSavedLang() || "hi-IN")
@@ -317,7 +317,7 @@ function AddProductModal({ onClose, onSaved }) {
 
   // Scan Builder — full inline variant matrix after scan/parse
   const [scanBuilder,    setScanBuilder]    = useState(null)  // result from scan/parse
-  const [scanForm,       setScanForm]       = useState({ name:"", category:"Bangles", brand:"", barcode:"", mrp:"", cost_price:"", gst_percent:3 })
+  const [scanForm,       setScanForm]       = useState({ name:"", category:"Bangles", brand:"", barcode:"", mrp:"", cost_price:"", gst_percent:18 })
   const [scanSelC,       setScanSelC]       = useState([])
   const [scanSelS,       setScanSelS]       = useState([])
   const [scanSelD,       setScanSelD]       = useState([])

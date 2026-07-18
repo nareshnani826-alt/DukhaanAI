@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     whatsapp_access_token: str = ""      # System user permanent token
     whatsapp_phone_number_id: str = ""   # From API Setup page
     whatsapp_otp_template: str = "otp_authentication"  # Your approved template name
+    whatsapp_invoice_template: str = "invoice_notification"  # Your approved template name
 
     # Email / SMTP (for password reset emails)
     smtp_host: str = ""
