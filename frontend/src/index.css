@@ -197,6 +197,16 @@ input, select, textarea, button {
 .sidebar-logo   { padding: 18px 16px 14px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
 .sidebar-nav    { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }
 .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--rule); flex-shrink: 0; }
+
+/* New Bill FAB is a mobile pattern — the sidebar already covers Billing nav on
+   desktop, so it's redundant clutter floating over page content above ~768px.
+   The chat bubble stays visible on desktop (it has no sidebar equivalent), but
+   its JS-computed "bottom" leaves room for the (now hidden) New Bill FAB above
+   it — pin it to the bottom-right corner on desktop instead. */
+@media (min-width: 769px) {
+  .mob-newbill-fab { display: none !important; }
+  .mob-chat-btn { bottom: 24px !important; }
+}
 .sidebar-nav::-webkit-scrollbar { display: none; }
 
 .mobile-header     { display: none; }

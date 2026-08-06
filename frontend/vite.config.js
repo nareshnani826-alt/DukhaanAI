@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react'
 // proxy to the backend (which returns {"detail":"Not authenticated"}).
 const SPA_ROUTES = new Set([
   "/customers", "/udhar", "/admin", "/sales", "/insights",
-  "/products", "/invoices",
+  "/products", "/invoices", "/expiry", "/wastage",
 ])
 
 function apiProxy(target = "http://localhost:8000") {

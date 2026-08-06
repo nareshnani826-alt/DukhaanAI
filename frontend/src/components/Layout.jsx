@@ -28,7 +28,7 @@ const KIRANA_NAV = [
     sub:[{to:"/voice",label:"Voice Agent"}] },
   { label:"More", to:"/day",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
-    sub:[{to:"/day",label:"Day Ops"},{to:"/insights",label:"Insights"},{to:"/app-screens",label:"App Screens"},{to:"/help",label:"Help"},{to:"/settings",label:"Settings"},{to:"/install",label:"Install App"}] },
+    sub:[{to:"/day",label:"Day Ops"},{to:"/insights",label:"Insights"},{to:"/ai-suggestions",label:"AI Suggestions"},{to:"/app-screens",label:"App Screens"},{to:"/help",label:"Help"},{to:"/settings",label:"Settings"},{to:"/install",label:"Install App"}] },
 ]
 
 const BANGLE_NAV = [
@@ -1089,10 +1089,13 @@ export default function Layout({ children }) {
     setStoreMode(newMode)
 
     const SHARED_ROUTES = ["/voice", "/more", "/settings", "/help", "/install"]
-    const BANGLE_ONLY   = ["/bangle-dashboard", "/bangle-inventory", "/bangle-billing",
-                           "/bangle-festivals", "/bangle-insights", "/bangle-bulk-import", "/reorder"]
     const onShared      = SHARED_ROUTES.some(r => location.pathname.startsWith(r))
-    const onBangleOnly  = BANGLE_ONLY.some(r => location.pathname.startsWith(r))
+    // Every bangle-store route is prefixed "/bangle-" by convention, plus the
+    // one outlier "/reorder" — matching on the prefix (instead of hand-listing
+    // every page) means a newly added bangle-* page can't silently fall through
+    // this guard and get bounced back to /bangle-dashboard the way /bangle-day,
+    // /bangle-history and /bangle-udhar previously did.
+    const onBangleOnly  = location.pathname.startsWith("/bangle-") || location.pathname.startsWith("/reorder")
 
     if (vendor && newMode === "bangle_fancy" && !onBangleOnly && !onShared) {
       // On a kirana-only route while in bangle mode → go to bangle home
@@ -1247,36 +1250,45 @@ export default function Layout({ children }) {
           <div style={{ fontSize:10, color: cloud ? "var(--jade)" : "var(--ink-faint)", marginBottom:10 }}>
             {cloud ? "● Cloud sync ON" : loggedIn ? "● Free plan" : "● Local only"}
           </div>
-          {/* Language button — sidebar */}
-          <button onClick={() => setShowLangPicker(true)}
-            style={{ display:"flex", alignItems:"center", gap:8, width:"100%",
-              background:"var(--bg2)", border:"1px solid var(--rule)",
-              borderRadius:9, padding:"7px 12px", cursor:"pointer",
-              color:"var(--ink-dim)", fontSize:11, fontWeight:600, marginBottom:8,
-              transition:"all 0.15s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
-            onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
-            <span style={{ fontSize:15 }}>🌐</span>
-            Language · <strong style={{ color:"var(--saffron)" }}>{LANG_OPTIONS.find(l=>l.code===uiLang)?.label || "English"}</strong>
-          </button>
-          <button onClick={toggleTheme}
-            style={{ display:"flex", alignItems:"center", gap:8, width:"100%",
-              background:"var(--bg2)", border:"1px solid var(--rule)",
-              borderRadius:9, padding:"7px 12px", cursor:"pointer",
-              color:"var(--ink-dim)", fontSize:11, fontWeight:600, marginBottom:8,
-              transition:"all 0.15s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
-            onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
-            <span style={{ fontSize:15 }}>{isDark ? "☀️" : "🌙"}</span>
-            {isDark ? "Switch to Light" : "Switch to Dark"}
-          </button>
           {!loggedIn
             ? <button onClick={() => setShowAuth(true)} className="btn btn-primary btn-sm" style={{ width:"100%" }}>
                 Login / Register
               </button>
-            : <button onClick={logout}
-                style={{ background:"none", color:"var(--ink-faint)", border:"none",
-                  fontSize:10, cursor:"pointer", padding:0 }}>Logout</button>
+            : (
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <button onClick={() => setShowLangPicker(true)} title={`Language: ${LANG_OPTIONS.find(l=>l.code===uiLang)?.label || "English"}`}
+                  style={{ width:34, height:34, borderRadius:9, flexShrink:0,
+                    background:"var(--bg2)", border:"1px solid var(--rule)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    cursor:"pointer", fontSize:15, transition:"all 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
+                  🌐
+                </button>
+                <button onClick={toggleTheme} title={isDark ? "Switch to Light" : "Switch to Dark"}
+                  style={{ width:34, height:34, borderRadius:9, flexShrink:0,
+                    background:"var(--bg2)", border:"1px solid var(--rule)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    cursor:"pointer", fontSize:15, transition:"all 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
+                  {isDark ? "☀️" : "🌙"}
+                </button>
+                <button onClick={logout} title="Logout"
+                  style={{ width:34, height:34, borderRadius:9, flexShrink:0,
+                    background:"var(--bg2)", border:"1px solid var(--rule)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    cursor:"pointer", color:"var(--ink-faint)", transition:"all 0.15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor="var(--ember,#c0392b)"; e.currentTarget.style.color="var(--ember,#c0392b)" }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor="var(--rule)"; e.currentTarget.style.color="var(--ink-faint)" }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                </button>
+              </div>
+            )
           }
         </div>
       </aside>
@@ -1460,6 +1472,7 @@ export default function Layout({ children }) {
         return (
           <button
             onClick={() => navigate(billingRoute)}
+            className="mob-newbill-fab"
             style={{
               position: "fixed", bottom: 74, right: 16, zIndex: 98,
               background: "linear-gradient(135deg, var(--saffron), var(--saffron-hot))",
