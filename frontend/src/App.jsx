@@ -43,6 +43,7 @@ const BangleDayOps      = lazy(() => import("./pages/BangleDayOps"))
 const BangleHistory     = lazy(() => import("./pages/BangleHistory"))
 const BangleUdhar       = lazy(() => import("./pages/BangleUdhar"))
 const ReorderHub        = lazy(() => import("./pages/ReorderHub"))
+const AgentSuggestions  = lazy(() => import("./pages/AgentSuggestions"))
 const Onboarding        = lazy(() => import("./pages/Onboarding"))
 const PublicInvoice     = lazy(() => import("./pages/PublicInvoice"))
 // Wrapper that gates a page behind a plan feature
@@ -101,6 +102,7 @@ export default function App() {
                   <Route path="/customers"  element={<Gated feature="customer_history"><Customers /></Gated>} />
                   <Route path="/day"        element={<Gated feature="day_ops"><DayOps /></Gated>} />
                   <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
+                  <Route path="/ai-suggestions" element={<Gated feature="insights"><AgentSuggestions /></Gated>} />
                   <Route path="/more"             element={<More />} />
                   <Route path="/bangle-inventory"  element={<BangleInventory />} />
                   <Route path="/bangle-billing"    element={<BangleBilling />} />

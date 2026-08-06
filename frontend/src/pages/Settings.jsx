@@ -5,6 +5,7 @@ import { LANGUAGES } from "../voice/languages.js"
 import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan } from "../context/PlanContext"
 import { useAuth } from "../context/AuthContext"
+import AddChildUser from "../components/AddChildUser"
 import { useTheme } from "../context/ThemeContext"
 import { useAppMode, APP_MODES } from "../context/AppModeContext"
 import { useNavigate } from "react-router-dom"
@@ -428,6 +429,10 @@ export default function Settings() {
             <span className="font-medium text-gray-400">DukaanAI v1.0</span>
           </div>
         </div>
+        {/* Add Child User UI for admins/owners */}
+        {vendor?.plan === "wholesale" && (
+          <AddChildUser />
+        )}
       </div>
 
       {/* Danger zone */}

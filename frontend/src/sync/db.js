@@ -517,6 +517,14 @@ export const Wastage = {
   }
 }
 
+// ── Daily Ops Agent (AI-generated reorder/festival/margin suggestions) ──
+export const Agent = {
+  run:     ()               => api.post("/agent/run"),
+  list:    (status="pending") => api.get(`/agent/suggestions?status=${status}`),
+  approve: (id)              => api.post(`/agent/suggestions/${id}/approve`),
+  dismiss: (id)              => api.post(`/agent/suggestions/${id}/dismiss`),
+}
+
 // ── Learning Patterns (cross-device sync) ─────────────────
 export const Learning = {
   async load() {

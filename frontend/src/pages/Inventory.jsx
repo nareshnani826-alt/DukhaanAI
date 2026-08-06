@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Products } from "../sync/db.js"
 import BarcodeGenerator from "../components/BarcodeGenerator.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
@@ -452,9 +453,13 @@ function RestockModal({ product, onConfirm, onClose }) {
 
 // ── Main Inventory page ───────────────────────────────────
 export default function Inventory() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkQuery  = searchParams.get("q") || ""
+  const deepLinkHandled = useRef(false)
+
   const [products, setProducts] = useState([])
   const [loading,  setLoading]  = useState(true)
-  const [search,   setSearch]   = useState("")
+  const [search,   setSearch]   = useState(deepLinkQuery)
   const [cat,      setCat]      = useState("")
   const [modal,    setModal]    = useState(false)
   const [editId,   setEditId]   = useState(null)
@@ -496,6 +501,16 @@ export default function Inventory() {
   }
 
   useEffect(() => { load(0, false) }, [debouncedSearch, cat])
+
+  // Deep-link from AI Suggestions (?q=<product name>) — auto-open the matched product's edit modal once.
+  useEffect(() => {
+    if (!deepLinkQuery || deepLinkHandled.current || loading || products.length === 0) return
+    deepLinkHandled.current = true
+    const match = products.find(p => p.name.toLowerCase() === deepLinkQuery.toLowerCase()) || products[0]
+    openEdit(match)
+    searchParams.delete("q")
+    setSearchParams(searchParams, { replace: true })
+  }, [products, loading, deepLinkQuery])
 
   function showNotif(msg) { setNotif(msg); setTimeout(() => setNotif(""), 2500) }
 
