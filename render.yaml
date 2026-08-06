@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: dukaanai-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: DukaanAI
+      - key: FRONTEND_URL
+        value: https://dukhaan-ai.vercel.app
+      - key: ALLOWED_ORIGINS
+        value: https://dukhaan-ai.vercel.app
+      - key: ADMIN_SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: JWT_REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: RAZORPAY_PRO_MONTHLY_PLAN_ID
+        sync: false
+      - key: RAZORPAY_PRO_YEARLY_PLAN_ID
+        sync: false
+      - key: RAZORPAY_WHOLESALE_MONTHLY_PLAN_ID
+        sync: false
+      - key: RAZORPAY_WHOLESALE_YEARLY_PLAN_ID
+        sync: false
