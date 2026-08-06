@@ -47,3 +47,8 @@ deploy-railway.sh
 
 # Claude
 .claude/
+
+# Playwright E2E — auth state contains a live JWT, reports/results are local artifacts
+frontend/e2e/.auth/
+frontend/playwright-report/
+frontend/test-results/
