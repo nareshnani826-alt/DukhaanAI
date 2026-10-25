@@ -228,7 +228,7 @@ export class VoiceEngine {
     catch(e) {
       // If recognition fails in APK WebView, show helpful message
       if (this.isCapacitor) {
-        this.onError?.("Voice works best in Chrome browser. Open dukhaan-ai.vercel.app in Chrome for voice features.")
+        this.onError?.("Voice works best in Chrome browser. Open dukhaanai.in in Chrome for voice features.")
       } else {
         this.onError?.("Could not start voice: " + e.message)
       }

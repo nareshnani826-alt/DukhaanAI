@@ -1,8 +1,9 @@
 services:
   - type: web
-    name: dukaanai-backend
+    name: dukhaanai-api
     env: docker
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
     plan: free
     envVars:
       - key: APP_ENV
@@ -10,9 +11,9 @@ services:
       - key: APP_NAME
         value: DukaanAI
       - key: FRONTEND_URL
-        value: https://dukhaan-ai.vercel.app
+        value: https://dukhaanai.in
       - key: ALLOWED_ORIGINS
-        value: https://dukhaan-ai.vercel.app
+        value: https://dukhaanai.in,https://www.dukhaanai.in,https://dukhaan-ai.vercel.app
       - key: ADMIN_SECRET_KEY
         sync: false
       - key: JWT_SECRET_KEY

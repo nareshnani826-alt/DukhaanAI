@@ -13,5 +13,6 @@ slowapi==0.1.9
 pdfplumber==0.11.9
 openpyxl==3.1.5
 pillow==12.2.0
-easyocr
+# easyocr  — optional local OCR for invoice scan; pulls PyTorch (~2 GB, >512 MB RAM).
+#            Left out so the backend fits Render free tier; invoice scan falls back to Gemini Vision.
 numpy

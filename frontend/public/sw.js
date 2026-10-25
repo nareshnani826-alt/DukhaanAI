@@ -1,4 +1,4 @@
-const CACHE = "dukaanai-v2"
+const CACHE = "dukaanai-v3"
 const STATIC = ["/", "/index.html", "/manifest.json"]
 
 self.addEventListener("install", e => {
@@ -14,9 +14,9 @@ self.addEventListener("activate", e => {
 })
 
 self.addEventListener("fetch", e => {
-  // Never intercept API calls
+  // Never intercept API calls — only cache the app's own static files
   const url = new URL(e.request.url)
-  if (url.hostname.includes("railway.app") || url.hostname.includes("supabase.co")) return
+  if (url.origin !== self.location.origin) return
   if (e.request.method !== "GET") return
 
   // Cache static assets only

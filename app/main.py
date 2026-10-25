@@ -104,8 +104,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 _cors_origins = [settings.frontend_url]
 if settings.allowed_origins:
     _cors_origins += [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
-# Always allow the production Vercel deployment regardless of env-var state
+# Always allow the production website (Hostinger) and the legacy Vercel deployment
 _cors_origins += [
+    "https://dukhaanai.in",
+    "https://www.dukhaanai.in",
     "https://dukhaan-ai.vercel.app",
     "https://dukhaan-ai-git-master-nareshnani826-alts-projects.vercel.app",
 ]

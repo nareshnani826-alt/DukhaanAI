@@ -1777,3 +1777,67 @@ async def scan_product_image(
             continue
 
     raise HTTPException(status_code=503, detail=last_err or "Image scan failed")
+
+
+# ── Smart text parse (Gemini text) ────────────────────────────────────────────
+# Moved server-side from frontend/src/voice/geminiParse.js so the key isn't in the APK.
+
+class ParseTextRequest(BaseModel):
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def _limit(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) > 1000:
+            raise ValueError("text must be 1–1000 characters")
+        return v
+
+
+_PARSE_TEXT_PROMPT = """You are a product catalog assistant for an Indian jewellery/accessories store.
+Extract product details from the description below. Return ONLY valid JSON — no explanation, no markdown.
+
+VALID VALUES:
+- category: Bangles | Earrings | Necklace | Anklet | Hair Clip | Bindi | Rings | Other
+- colours: Red, Pink, Maroon, Green, Blue, Navy, Gold, Rose Gold, Silver, White, Black, Orange, Yellow, Purple, Peach, Multi
+- designs: Plain, Kundan, Meenakari, Stone Work, Mirror Work, Lac, Metal, Glass, Pearl, Crystal, Thread, Oxidized, Zari, Antique
+- sizes for Bangles: 2.2 2.4 2.6 2.8 2.10 2.12 2.14 Free Size
+- sizes for Rings: 6 7 8 9 10 11 12 Free Size
+- sizes for others: Small Medium Large Free Size (and type-specific)
+- mrp / cost_price: numbers only (Indian rupees)
+- gst_percent: 0, 3, 5, 12, or 18 only
+
+Description: "{text}"
+
+JSON schema (use null for missing, empty arrays for none):
+{{
+  "name": null,
+  "category": null,
+  "mrp": null,
+  "cost_price": null,
+  "gst_percent": null,
+  "colours": [],
+  "sizes": [],
+  "designs": []
+}}"""
+
+
+@router.post("/parse-text")
+async def parse_product_text(body: ParseTextRequest, vendor=Depends(get_current_vendor)):
+    from app.core.gemini import gemini_json
+    p = await gemini_json(_PARSE_TEXT_PROMPT.format(text=body.text.replace('"', "'")))
+    def _str(v):  return v if isinstance(v, str) and v else None
+    def _num(v):  return v if isinstance(v, (int, float)) and v > 0 else None
+    def _arr(v):  return [x for x in v if x] if isinstance(v, list) else []
+    return {
+        "name":        _str(p.get("name")),
+        "category":    _str(p.get("category")),
+        "mrp":         _num(p.get("mrp")),
+        "cost_price":  _num(p.get("cost_price")),
+        "gst_percent": p.get("gst_percent") if isinstance(p.get("gst_percent"), (int, float)) else None,
+        "colours":     _arr(p.get("colours", [])),
+        "sizes":       _arr(p.get("sizes", [])),
+        "designs":     _arr(p.get("designs", [])),
+        "confidence":  0.9,
+        "source":      "gemini",
+    }

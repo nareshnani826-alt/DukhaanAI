@@ -23,7 +23,7 @@ export default function InstallGuide() {
   }, [])
 
   function copyLink() {
-    navigator.clipboard.writeText("https://dukhaan-ai.vercel.app")
+    navigator.clipboard.writeText("https://dukhaanai.in")
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -33,7 +33,7 @@ export default function InstallGuide() {
       navigator.share({
         title: "DukaanAI — Inventory & Billing",
         text: "Kirana shop ke liye best free app! Voice mein inventory manage karo.",
-        url: "https://dukhaan-ai.vercel.app"
+        url: "https://dukhaanai.in"
       })
     } else {
       copyLink()
@@ -52,7 +52,7 @@ export default function InstallGuide() {
       icon: "2️⃣",
       title: "Open DukaanAI website",
       desc: "Type this in Chrome address bar:",
-      highlight: "dukhaan-ai.vercel.app",
+      highlight: "dukhaanai.in",
       tip: "Or tap the Share button below to send the link to yourself on WhatsApp",
       img: "🔗"
     },
@@ -91,7 +91,7 @@ export default function InstallGuide() {
       icon: "2️⃣",
       title: "Open DukaanAI website",
       desc: "Type this in Safari address bar:",
-      highlight: "dukhaan-ai.vercel.app",
+      highlight: "dukhaanai.in",
       tip: "Or tap Share below to send the link to yourself",
       img: "🔗"
     },
@@ -144,7 +144,7 @@ export default function InstallGuide() {
           <div className="card text-left">
             <div className="text-xs font-semibold text-gray-700 mb-2">App link</div>
             <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-3">
-              <span className="text-xs text-gray-600 flex-1">dukhaan-ai.vercel.app</span>
+              <span className="text-xs text-gray-600 flex-1">dukhaanai.in</span>
               <button onClick={copyLink}
                 className="text-xs font-medium text-primary">
                 {copied ? "✓ Copied!" : "Copy"}
@@ -253,7 +253,7 @@ export default function InstallGuide() {
         </div>
         <div className="flex gap-2 mb-3">
           <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2.5 text-xs text-gray-600 font-mono">
-            dukhaan-ai.vercel.app
+            dukhaanai.in
           </div>
           <button onClick={copyLink}
             className="btn btn-sm px-3 py-2">

@@ -262,7 +262,7 @@ export default function Voice() {
   function showNotif(msg) { setNotif(msg); setTimeout(() => setNotif(""), 3000) }
 
   function openInChrome() {
-    const url = "https://dukhaan-ai.vercel.app/voice"
+    const url = "https://dukhaanai.in/voice"
     try {
       window.open(`intent://${url.replace("https://","")}#Intent;scheme=https;package=com.android.chrome;end`, "_blank")
     } catch { window.open(url, "_blank") }

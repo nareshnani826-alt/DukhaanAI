@@ -37,6 +37,8 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
+    // Gradle writes/locks files under android/ during builds — watching them crashes Vite (EBUSY)
+    watch: { ignored: ["**/android/**"] },
     proxy: {
       "/auth":              apiProxy(),
       "/products":          apiProxy(),

@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS only: the backend (Render) and Supabase are both TLS. -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">web-production-0dbe4.up.railway.app</domain>
-        <domain includeSubdomains="true">supabase.co</domain>
-    </domain-config>
     <base-config cleartextTrafficPermitted="false" />
 </network-security-config>

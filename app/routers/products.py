@@ -157,6 +157,30 @@ async def list_categories(vendor=Depends(get_current_vendor)):
     return {"categories": cats}
 
 
+# Gemini fallback for barcodes missing from public DBs.
+# Moved server-side from frontend/src/data/barcodeLookup.js so the key isn't in the APK.
+@router.get("/barcode-ai/{barcode}")
+async def barcode_ai_lookup(barcode: str, vendor=Depends(get_current_vendor)):
+    from app.core.gemini import gemini_json
+    if not barcode.isdigit() or not 6 <= len(barcode) <= 14:
+        raise HTTPException(status_code=422, detail="Invalid barcode")
+    is_indian = barcode.startswith("890")
+    prompt = f"""You are a product lookup assistant for Indian retail stores.
+Barcode scanned: {barcode}{" (Indian EAN-13, prefix 890)" if is_indian else ""}
+
+Identify this product if it is a well-known Indian consumer brand (examples: All Out, Good Knight, HIT, Mortein, Dettol, Savlon, Disprin, Crocin, Surf Excel, Ariel, Harpic, Lizol, Vim, Rin, Tide, Nirma, Colgate, Pepsodent, Oral-B, Lux, Dove, Lifebuoy, Head & Shoulders, Pantene, Clinic Plus, Sunsilk, Parachute, Maggi, Top Ramen, Parle-G, Britannia, Amul, Mother Dairy, Haldirams, Lay's, Kurkure, Bisleri, etc.).
+
+Return ONLY valid JSON, no explanation:
+{{"name": "product name", "brand": "brand name", "category": "one of: Staples/Dairy/Oils/Beverages/Snacks/Personal Care/Other"}}
+If you cannot identify this specific barcode, return: {{"name": "", "brand": "", "category": "Other"}}"""
+    p = await gemini_json(prompt, max_tokens=80)
+    return {
+        "name":     p.get("name") or "",
+        "brand":    p.get("brand") or "",
+        "category": p.get("category") or "Other",
+    }
+
+
 @router.get("/{product_id}", response_model=ProductOut)
 async def get_product(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
