@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
-import { Invoices, isCloud } from "../sync/db"
+import { Invoices, Products, isCloud } from "../sync/db"
 import InvoiceView from "../components/InvoiceView"
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -264,15 +264,29 @@ export default function History() {
         }
         if (payMode !== "All") rows = rows.filter(r => r.payment_mode === payMode)
         setInvoices(rows); setTotal(rows.length)
-        // Basic local summary
-        const paid = rows.filter(r => r.status !== "cancelled")
+        // Local summary — computed from local products so profit/stock value work
+        // without a server (previously hard-coded to "No cost prices set").
+        const paid     = rows.filter(r => r.status !== "cancelled")
+        const products = await Products.list().catch(() => [])
+        const byId     = new Map(products.map(p => [String(p.id), p]))
+        const withCost = products.filter(p => +p.cost_price > 0)
+        const coverage = products.length ? Math.round(withCost.length / products.length * 100) : 0
+        let profit = 0
+        for (const inv of paid) for (const it of (inv.items || [])) {
+          const prod = byId.get(String(it.product_id))
+          const cost = +(it.cost_price ?? prod?.cost_price ?? 0)
+          if (cost > 0) profit += (+it.subtotal || (+it.unit_price || 0) * (+it.qty || 0)) - cost * (+it.qty || 0)
+        }
+        const revenue = paid.reduce((s, r) => s + (r.total || 0), 0)
         setSummary({
-          revenue:      paid.reduce((s, r) => s + (r.total || 0), 0),
-          total_bills:  paid.length,
-          profit:       null,
-          cost_known:   false,
-          partial_cost: false,
-          stock_value:  0,
+          revenue,
+          total_bills:   paid.length,
+          profit:        withCost.length ? Math.round(profit * 100) / 100 : null,
+          margin_pct:    withCost.length && revenue > 0 ? Math.round(profit / revenue * 100) : 0,
+          cost_known:    withCost.length > 0,
+          partial_cost:  withCost.length > 0 && coverage < 100,
+          cost_coverage: coverage,
+          stock_value:   products.reduce((s, p) => s + (+p.stock || 0) * (+p.cost_price || 0), 0),
         })
       }
     } catch (e) { setError(e.message) }

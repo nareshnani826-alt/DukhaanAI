@@ -12,6 +12,7 @@ import { scanImageForProduct, fileToBase64 } from "../voice/geminiVision.js"
 import { learnProduct, suggestMRP } from "../voice/productLearner.js"
 import { BarcodeScanner as MLKitBarcodeScanner } from "@capacitor-mlkit/barcode-scanning"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
+import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 
 const isNativeApp = () =>
   typeof window !== "undefined" &&
@@ -435,7 +436,7 @@ function AddProductModal({ onClose, onSaved }) {
   }
 
   function startSmartVoice() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) { setSmartErr("Voice not supported in this browser. Use Chrome."); return }
     setSmartListening(true); setSmartErr("")
     const rec = new SR()

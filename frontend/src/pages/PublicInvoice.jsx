@@ -14,6 +14,11 @@ export default function PublicInvoice() {
   const [error,   setError]   = useState("")
 
   useEffect(() => {
+    // Malformed links can never match — say so without a server round-trip
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "")) {
+      setError("This bill link is invalid or has expired. Please ask the shop to send it again.")
+      return
+    }
     // The id is a UUID from one of two separate tables (Kirana invoices vs
     // Bangle sales) — try Kirana first, fall back to Bangle on a 404.
     api.get(`/invoices/public/${id}`)
@@ -22,7 +27,11 @@ export default function PublicInvoice() {
         throw e
       })
       .then(setInvoice)
-      .catch(e => setError(e.message || "Could not load this invoice"))
+      .catch(e => setError(
+        [400, 404, 422].includes(e.status)
+          ? "This bill link is invalid or has expired. Please ask the shop to send it again."
+          : "Couldn't load your bill. Check your internet connection and try again."
+      ))
   }, [id])
 
   if (error) return (

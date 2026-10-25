@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
+import logging
 import secrets
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -142,7 +143,10 @@ def _send_otp_email(to_email: str, store_name: str, otp: str) -> bool:
             s.login(settings.smtp_user, settings.smtp_pass)
             s.sendmail(settings.smtp_from, to_email, msg.as_string())
         return True
-    except Exception:
+    except Exception as e:
+        # Previously swallowed silently, so a wrong password/host looked like a random 502
+        logging.error("OTP email to %s failed via %s:%s — %s: %s",
+                      to_email, settings.smtp_host, settings.smtp_port, type(e).__name__, e)
         return False
 
 
@@ -157,10 +161,14 @@ async def register(request: Request, body: VendorRegister):
     db = get_db()
     email = str(body.email)
 
-    if not settings.smtp_host:
+    # Production must send real emails. In local development without SMTP, the OTP is
+    # printed to the backend console instead so sign-up can still be tested.
+    dev_otp_to_console = not settings.smtp_host and settings.app_env != "production"
+    if not settings.smtp_host and not dev_otp_to_console:
+        logging.error("Registration blocked: SMTP_HOST is not set in the server environment")
         raise HTTPException(
             status_code=503,
-            detail="Email service is not configured. Please contact support."
+            detail="Sign-up is temporarily unavailable. Please try again later."
         )
 
     # Reject duplicate email up front
@@ -189,7 +197,11 @@ async def register(request: Request, body: VendorRegister):
 
     # Send OTP email (run sync SMTP in thread pool)
     import asyncio
-    sent = await asyncio.to_thread(_send_otp_email, email, body.store_name, otp)
+    if dev_otp_to_console:
+        print(f"\n[DEV] SMTP not configured — sign-up OTP for {email}: {otp}\n", flush=True)
+        sent = True
+    else:
+        sent = await asyncio.to_thread(_send_otp_email, email, body.store_name, otp)
     if not sent:
         raise HTTPException(status_code=502, detail="Failed to send verification email. Please try again.")
 

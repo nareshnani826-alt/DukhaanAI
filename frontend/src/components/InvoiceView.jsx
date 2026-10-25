@@ -1,6 +1,7 @@
 import { useAuth } from "../context/AuthContext.jsx"
 import PrinterButton from "./PrinterButton.jsx"
 import UPIQRCode from "./UPIQRCode.jsx"
+import { getStoreName } from "../sync/db.js"
 
 /* ── helpers ─────────────────────────────────────────────────── */
 function toWords(amount) {
@@ -95,7 +96,7 @@ export default function InvoiceView({ invoice, customerPhone }) {
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, color: SAFFRON2, letterSpacing: "-0.3px", lineHeight: 1.15 }}>
-                {vendor?.store_name || "DukaanAI"}
+                {getStoreName(vendor) || "DukhaanAI"}
               </div>
               {vendor?.gstin && (
                 <div style={{ fontSize: 9, color: "#777", marginTop: 1 }}>
@@ -278,7 +279,7 @@ export default function InvoiceView({ invoice, customerPhone }) {
           <div style={{ borderTop: `1.5px solid ${INK}`, paddingTop: 5, width: 160 }}>
             <div style={{ fontSize: 9, color: "#888", letterSpacing: "0.5px" }}>Authorised Signatory</div>
             <div style={{ fontSize: 11, fontWeight: 700, color: INK, marginTop: 2 }}>
-              {vendor?.store_name || "DukaanAI"}
+              {getStoreName(vendor) || "DukhaanAI"}
             </div>
           </div>
         </div>
@@ -301,7 +302,7 @@ export default function InvoiceView({ invoice, customerPhone }) {
       {/* ══ UPI QR + PRINT ══════════════════════════════════════ */}
       <div style={{ borderTop: "1px solid #f0f0f0", background: "#fafafa" }}>
         <div style={{ padding: "14px 24px 0" }}>
-          <UPIQRCode invoice={invoice} storeName={vendor?.store_name} compact={true} />
+          <UPIQRCode invoice={invoice} storeName={getStoreName(vendor)} compact={true} />
         </div>
         <div style={{
           padding: "12px 24px 14px",

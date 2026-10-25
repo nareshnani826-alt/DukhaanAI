@@ -1,7 +1,8 @@
 // useProductVoice.js — Voice input hook for the Add Product form
 // Continuous speech recognition with auto field-fill and multilingual support
 import { useState, useRef, useEffect } from "react"
-import { translateToEnglish, detectPlatform } from "./engine.js"
+import { translateToEnglish } from "./engine.js"
+import { getSpeechRecognition } from "./nativeSpeech.js"
 
 // ── Lookup maps ───────────────────────────────────────────────
 const CATS_MAP = {
@@ -220,13 +221,13 @@ export function useProductVoice({ onField, lang = "hi-IN" }) {
   useEffect(() => { langRef.current = lang }, [lang])
 
   useEffect(() => {
-    const { hasSpeechAPI } = detectPlatform()
-    setSupported(hasSpeechAPI)
+    // Native APK uses Android STT via getSpeechRecognition(), even though WebView lacks the Web Speech API
+    setSupported(!!getSpeechRecognition())
     return () => { try { recRef.current?.stop() } catch {} }
   }, [])
 
   function startListening() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) { setSupported(false); return }
 
     setError(""); setTranscript(""); setLastHit(null)

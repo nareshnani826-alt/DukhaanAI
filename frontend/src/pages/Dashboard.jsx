@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { Products, Sales, Invoices, api, isCloud } from "../sync/db"
+import { Products, Sales, Invoices, api, isCloud, getStoreName } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
 import { tr } from "../i18n/kiranaStrings"
 import { MIN_FONT_SIZE } from "../styles/textScale"
@@ -541,12 +541,12 @@ export default function Dashboard() {
             display:"flex", alignItems:"center", justifyContent:"center",
             fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:17, color:"#fff",
             boxShadow:"0 2px 8px rgba(232,119,34,0.3)" }}>
-            {vendor?.store_name?.charAt(0) || "न"}
+            {getStoreName(vendor).charAt(0) || "न"}
           </div>
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)",
               overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {t(greeting())}, {vendor?.store_name?.split(" ")[0] || "ji"} 👋
+              {t(greeting())}, {getStoreName(vendor).split(" ")[0] || "ji"} 👋
             </div>
             <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1,
               display:"flex", alignItems:"center", gap:6 }}>
@@ -1063,7 +1063,7 @@ export default function Dashboard() {
         <StockPopup
           type={stockPopup.type}
           items={stockPopup.items}
-          storeName={vendor?.store_name || "Store"}
+          storeName={getStoreName(vendor) || "Store"}
           onClose={() => setStockPopup(null)}
           onStockUpdate={handleStockUpdate}
         />

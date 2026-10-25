@@ -118,7 +118,7 @@ export default function DemandIntelligence() {
   const allAlerts = [
     ...urgentAlerts.map(f => ({
       type:    "festival_low_stock",
-      title:   `⚠ ${f.name} in ${f.daysAway} days — low stock on key items`,
+      title:   `⚠ ${f.name} ${f.daysAway === 0 ? "is today" : f.daysAway === 1 ? "is tomorrow" : `in ${f.daysAway} days`} — low stock on key items`,
       body:    `Stock up: ${f.lowItems.join(", ")}`,
       tip:     f.tip,
       color:   urgencyColor(f.daysAway),

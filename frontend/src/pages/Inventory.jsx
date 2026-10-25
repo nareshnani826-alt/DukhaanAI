@@ -6,8 +6,11 @@ import BarcodeScanner from "../components/BarcodeScanner.jsx"
 import BulkBarcodeManager from "../components/BulkBarcodeManager.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import { useVoiceField, MicButton } from "../voice/useVoiceField.jsx"
-import { detectUnit, parseSpokenQty, UNIT_TYPES } from "../voice/unitDetector.js"
+import { detectUnit, guessCategory, parseSpokenQty, UNIT_TYPES } from "../voice/unitDetector.js"
 import { LANGUAGES } from "../voice/languages.js"
+
+// Language chosen in onboarding / header (falls back to Hindi only if nothing saved)
+const savedVoiceLang = () => { try { return localStorage.getItem("dk_voice_lang") || "hi-IN" } catch { return "hi-IN" } }
 import { lookupPrice, getVariants } from "../data/productPrices.js"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 
@@ -66,12 +69,17 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
   const [form,         setForm]         = useState(initialForm)
   const [saving,       setSaving]       = useState(false)
   const [notif,        setNotif]        = useState("")
+  const [lossConfirmed, setLossConfirmed] = useState(false)  // cost > MRP needs a second tap
+  const catTouched = useRef(!!editId)  // don't auto-change category once the user picks one / when editing
   const [unitDetected, setUnitDetected] = useState(false)
-  const [lang,         setLang]         = useState(initialLang || "hi-IN")
+  const [lang,         setLang]         = useState(initialLang || savedVoiceLang)
   const [priceLookup,  setPriceLookup]  = useState(null)  // auto-price suggestion
   const [variants,     setVariants]     = useState([])    // size variants
 
-  function set(k, v) { setForm(f => ({...f, [k]: v})) }
+  function set(k, v) {
+    if (k === "mrp" || k === "cost_price") setLossConfirmed(false)
+    setForm(f => ({...f, [k]: v}))
+  }
 
   // On open: if unit is still "piece", try to detect from existing name
   useEffect(() => {
@@ -93,6 +101,10 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
       if (detected.found) {
         set("unit", detected.unit)
         setUnitDetected(true)
+      }
+      if (!catTouched.current) {
+        const cat = guessCategory(name)
+        if (cat) set("category", cat)
       }
 
       // Price lookup from database
@@ -168,8 +180,9 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
     if (mrp < 0) return setNotif("MRP cannot be negative")
     if (cost < 0) return setNotif("Cost price cannot be negative")
     if (stock < 0) return setNotif("Stock cannot be negative")
-    if (cost > mrp && mrp > 0) {
-      setNotif("Warning: cost price is higher than MRP — low margin product")
+    if (cost > mrp && mrp > 0 && !lossConfirmed) {
+      setLossConfirmed(true)
+      return setNotif(`Cost price (₹${cost}) is higher than MRP (₹${mrp}) — you will lose money on every sale. Check the prices, or tap the button again to keep them.`)
     }
     setSaving(true)
     try {
@@ -219,7 +232,11 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
 
         <div className="p-5 space-y-3">
           {notif && (
-            <div className="bg-primary-light text-primary-dark text-[10px] px-3 py-2 rounded-lg">
+            <div role="alert" className={
+              /^✓|^Prices updated/.test(notif)
+                ? "bg-primary-light text-primary-dark text-[10px] px-3 py-2 rounded-lg"
+                : "bg-red-50 text-red-700 border border-red-200 text-[11px] px-3 py-2 rounded-lg"
+            }>
               {notif}
             </div>
           )}
@@ -301,7 +318,7 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
             <div>
               <label className="label">Category</label>
               <select className="input" value={form.category}
-                onChange={e => set("category", e.target.value)}>
+                onChange={e => { catTouched.current = true; set("category", e.target.value) }}>
                 {CATS.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
@@ -469,7 +486,7 @@ export default function Inventory() {
   const [showScanner,  setShowScanner]  = useState(false)
   const [showBulkBarcodes, setShowBulkBarcodes] = useState(false)
   const [restockTarget, setRestockTarget] = useState(null)
-  const [voiceLang,   setVoiceLang]   = useState("hi-IN")
+  const [voiceLang,   setVoiceLang]   = useState(savedVoiceLang)
   const [dateFilter,  setDateFilter]  = useState("all")
   const { hasFeature } = usePlan()
 

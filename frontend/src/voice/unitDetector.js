@@ -98,6 +98,14 @@ export function detectUnit(productName) {
       // 10 KG" (or less) is normally a sealed packet — only treat it as a
       // true weight unit above 10kg, otherwise count it as a packet.
       if (unit === "kg" && qty !== null && qty <= 10) unit = "pack"
+      // Same rule for every size written in the name: "Salt 500g", "Milk 500ml",
+      // "Oil 1L" are sealed items counted per packet/bottle, not stocked in g/ml.
+      // (Previously "Rice 1kg" became pack but "Milk 500ml" became ml, so
+      // 10 packets showed as "10 ml" of stock.)
+      if (unit === "g" && qty !== null) unit = "pack"
+      if ((unit === "ml" || (unit === "litre" && qty !== null && qty <= 5)) && qty !== null) {
+        unit = /\b(milk|doodh|curd|dahi|buttermilk|lassi)\b/.test(name) ? "pack" : "bottle"
+      }
       return { unit, qty, found: true }
     }
   }
@@ -128,5 +136,23 @@ export function parseSpokenQty(text) {
   // Just a number?
   const num = t.match(/(\d+\.?\d*)/)
   if (num) return { qty: parseFloat(num[1]), unit: null }
+  return null
+}
+
+// Best-guess category from the product name (matches Inventory's category list).
+// Returns null when nothing matches so the form keeps whatever was selected.
+const CATEGORY_HINTS = [
+  ["Dairy",         ["milk","doodh","palu","paal","curd","dahi","paneer","butter","cheese","ghee","lassi","buttermilk","amul","nandini","heritage","vijaya"]],
+  ["Oils",          ["oil","nune","fortune","saffola","dhara","gemini","freedom"]],
+  ["Beverages",     ["tea","chai","coffee","juice","cold drink","soft drink","soda","pepsi","coca","thums","sprite","horlicks","bournvita","boost","complan","water"]],
+  ["Snacks",        ["biscuit","parle","britannia","maggi","noodle","chips","kurkure","lays","namkeen","haldiram","bingo","chocolate","cadbury","wafer","popcorn"]],
+  ["Personal Care", ["soap","sabun","shampoo","toothpaste","colgate","pepsodent","facewash","lotion","cream","dettol","lifebuoy","lux","dove","detergent","surf","vim","harpic"]],
+  ["Staples",       ["atta","maida","rice","chawal","biyyam","wheat","sugar","cheeni","dal","salt","namak","uppu","besan","sooji","rawa","poha","jaggery","gud","bellam","toor","moong","chana","masoor","urad","rajma"]],
+]
+export function guessCategory(productName) {
+  const name = (productName || "").toLowerCase()
+  for (const [cat, words] of CATEGORY_HINTS) {
+    if (words.some(w => new RegExp(`\\b${w}`).test(name))) return cat
+  }
   return null
 }

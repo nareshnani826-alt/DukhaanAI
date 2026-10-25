@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { Products, Sales, Invoices, Udhar, Wastage, Customers, getToken } from "../sync/db"
+import { Products, Sales, Invoices, Udhar, Wastage, Customers, getToken, API_BASE } from "../sync/db"
 import { BangleProducts } from "../sync/bangleDb.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
@@ -346,7 +346,7 @@ async function buildStoreContext(userQuestion = "", storeMode = "kirana") {
 
 // ── Call AI via backend (Groq Llama 3.3 — free) ─────────
 async function askAI(messages, storeContext, lang = "en-IN") {
-  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8000"
+  const apiBase = API_BASE
   const token   = getToken()   // uses "dk_access" key — same as the rest of the app
 
   // Last message is the user question; prior messages are history
@@ -661,12 +661,13 @@ Ask me anything!`,
       addMsg("ai", answer)
     } catch(e) {
       const msg = e.message || ""
+      // Config problems are for the developer (console), not the shopkeeper.
+      console.error("[Agent] AI request failed:", msg)
       const errMsg = msg.includes("Invalid Groq") || msg.includes("API key")
-        ? "Invalid Groq API key. Go to Railway → Variables → check GROQ_API_KEY."
+        || msg.includes("AI not configured") || msg.includes("not configured")
+        ? "AI assistant is temporarily unavailable. Please try again later."
         : msg.includes("quota") || msg.includes("429") || msg.includes("rate")
         ? "Too many requests — please wait a moment and try again."
-        : msg.includes("AI not configured") || msg.includes("not configured")
-        ? "GROQ_API_KEY not set. Add it in Railway → Variables."
         : msg.includes("401") || msg.includes("Session expired")
         ? "Session expired. Please log in again."
         : msg.includes("AI error:")
@@ -812,7 +813,7 @@ Ask me anything!`,
               lang === "pa-IN" ? "ਕੋਈ ਵੀ ਉਤਪਾਦ, ਸਟਾਕ, ਕੀਮਤ ਪੁੱਛੋ…" :
               "Ask about any product, stock, price…"
             }
-            disabled={loading || ctxLoading}
+            disabled={loading}
             style={{
               flex:1, padding:"11px 14px", borderRadius:12,
               border:"1.5px solid var(--rule)",
@@ -852,7 +853,7 @@ Ask me anything!`,
           </button>
 
           <button onClick={() => send()}
-            disabled={!input.trim() || loading || ctxLoading}
+            disabled={!input.trim() || loading}
             style={{
               width:44, height:44, borderRadius:12, border:"none",
               background: input.trim() && !loading

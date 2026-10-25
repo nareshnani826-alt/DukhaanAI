@@ -118,6 +118,8 @@ export default function Onboarding() {
         {LANGUAGES.map(l => (
           <button key={l.code}
             onClick={() => setLang(l.code)}
+            aria-label={`${l.name} (${l.label})`}
+            aria-pressed={lang === l.code}
             style={{
               padding: "14px 12px", borderRadius: 14, cursor: "pointer",
               border: lang === l.code ? "2px solid #e87722" : "2px solid #2a2a2a",
@@ -173,13 +175,18 @@ export default function Onboarding() {
           border: "2px solid #333", background: "#1a1a1a", color: "#fff",
           fontSize: 15, fontWeight: 600, outline: "none", marginBottom: 20,
           boxSizing: "border-box" }}
-        onKeyDown={e => e.key === "Enter" && setStep(3)}
+        aria-label="Store name"
+        maxLength={60}
+        onKeyDown={e => e.key === "Enter" && storeName.trim() && setStep(3)}
       />
 
-      <button onClick={() => setStep(3)}
+      <button onClick={() => storeName.trim() && setStep(3)}
+        disabled={!storeName.trim()}
         style={{ width: "100%", maxWidth: 380, padding: "15px", borderRadius: 14, border: "none",
           background: "linear-gradient(135deg,#e87722,#d45f00)",
-          color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer",
+          color: "#fff", fontSize: 15, fontWeight: 800,
+          cursor: storeName.trim() ? "pointer" : "not-allowed",
+          opacity: storeName.trim() ? 1 : 0.45,
           marginBottom: 12 }}>
         {lbl("next", lang)} →
       </button>

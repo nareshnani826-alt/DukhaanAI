@@ -1,7 +1,10 @@
 // ── API Client ────────────────────────────────────────────
 import { tr } from "../i18n/kiranaStrings"
 
-const BASE = import.meta.env.VITE_API_URL ?? ""
+// In dev, always go through the Vite proxy (same origin) so a changed LAN IP or a
+// machine-level VITE_API_URL can't break login. Production builds use .env.production.
+export const API_BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ?? "")
+const BASE = API_BASE
 const LS   = "dukaanai_data"
 const TOK  = "dk_access"
 const REF  = "dk_refresh"
@@ -21,6 +24,11 @@ export const clearAuth  = () => {
 export const getVendor  = () => { try { return JSON.parse(localStorage.getItem(VND)) } catch { return null } }
 export const setVendor  = (v) => localStorage.setItem(VND, JSON.stringify(v))
 export const getPlan    = () => getVendor()?.plan || "free"
+// Account store name, else the name typed during onboarding (local-only users have no vendor)
+export const getStoreName = (vendor = getVendor()) => {
+  if (vendor?.store_name) return vendor.store_name
+  try { return localStorage.getItem("dk_store_name_hint") || "" } catch { return "" }
+}
 export const isCloud    = () => !!getToken() && ["pro","wholesale"].includes(getPlan())
 
 // Returns true if the JWT access token is present and not expired (client-side check).
@@ -246,12 +254,14 @@ export const Invoices = {
     const invs = localRead().invoices.filter(i => i.status === "paid" && new Date(i.created_at) >= start)
     return { invoices: invs, total: Math.round(invs.reduce((s,i) => s+i.total,0)*100)/100, count: invs.length }
   },
-  async generate({ customer_name, customer_phone, customer_gstin, payment_mode="Cash", items }) {
-    if (isCloud()) return api.post("/invoices", { customer_name, customer_phone, customer_gstin, payment_mode, items })
+  async generate({ customer_name, customer_phone, customer_gstin, payment_mode="Cash", apply_gst=false, items }) {
+    // apply_gst was previously dropped here: cloud bills never got GST even with the
+    // toggle on, and local bills always got it even with the toggle off.
+    if (isCloud()) return api.post("/invoices", { customer_name, customer_phone, customer_gstin, payment_mode, apply_gst, items })
     const d = localRead(); let sub=0, tax=0
     const lineItems = items.map(item => {
       const s = Math.round(item.unit_price*item.qty*100)/100
-      const t = Math.round(s*item.gst_percent/100*100)/100
+      const t = apply_gst ? Math.round(s*item.gst_percent/100*100)/100 : 0
       sub+=s; tax+=t
       return { ...item, subtotal:s, tax:t, total:Math.round((s+t)*100)/100 }
     })
@@ -259,6 +269,14 @@ export const Invoices = {
     const cgst=Math.round(tax/2*100)/100, sgst=Math.round((tax-cgst)*100)/100
     const invNo = "INV-" + String(d.nextInvNo++).padStart(4,"0")
     const inv = { id:lid(d), vendor_id:"local", invoice_no:invNo, customer_name, customer_phone:customer_phone||null, customer_gstin:customer_gstin||null, payment_mode, subtotal:sub, cgst, sgst, total:Math.round((sub+tax)*100)/100, items:lineItems, status:"paid", created_at:new Date().toISOString() }
+    // Deduct stock locally, same rule as the backend (never below zero)
+    for (const item of items) {
+      const prod = d.products.find(p => String(p.id) === String(item.product_id))
+      if (prod) {
+        prod.stock = Math.max(0, Math.round(((+prod.stock || 0) - (+item.qty || 0)) * 10000) / 10000)
+        prod.updated_at = new Date().toISOString()
+      }
+    }
     d.invoices.push(inv); localWrite(d); return inv
   },
   async list() {

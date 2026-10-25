@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.config import settings
@@ -272,6 +273,12 @@ async def get_public_invoice(invoice_id: str):
     trust model as any "unlisted share link"); only a minimal, non-sensitive
     subset of vendor info (store name) is exposed alongside it.
     """
+    # A malformed link used to reach Postgres and come back as a 500 that echoed
+    # the raw database error to the public. Treat it as "not found" instead.
+    try:
+        UUID(invoice_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Invoice not found")
     db = get_db()
     result = db.table("invoices").select("*").eq("id", invoice_id).execute()
     if not result.data:

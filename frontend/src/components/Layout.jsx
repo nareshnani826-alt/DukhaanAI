@@ -7,11 +7,12 @@ import { useAppMode } from "../context/AppModeContext"
 import { useState, useEffect, useRef } from "react"
 import AuthModal from "./AuthModal"
 import { LANG_KEY, getSavedLang } from "../voice/i18n"
-import { getToken, Products, Sales, Invoices, Udhar } from "../sync/db"
+import { getToken, getStoreName, Products, Sales, Invoices, Udhar } from "../sync/db"
 import { BangleProducts } from "../sync/bangleDb.js"
 import { VocabDB, preloadVocab } from "../sync/vocabDb.js"
 import DaySessionGate from "./DaySessionGate.jsx"
 import { tr } from "../i18n/kiranaStrings.js"
+import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 
 const KIRANA_NAV = [
   { label:"Home", to:"/dashboard",
@@ -714,7 +715,7 @@ function AIChatWidget() {
     // Toggle: if already listening, stop
     if (micActive) { stopMic(); return }
 
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) return
     const rec = new SR()
     recRef.current = rec
@@ -978,7 +979,7 @@ function AIChatWidget() {
         className="mob-chat-btn"
         style={{ position:"fixed", bottom: bubbleBottom, right:24, zIndex:201,
           width:52, height:52, borderRadius:"50%",
-          display: location.pathname === "/voice" ? "none" : "flex",
+          display: ["/voice", "/agent"].includes(location.pathname) ? "none" : "flex",
           background: open ? "var(--ink, #333)" : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
           border:"3px solid var(--bg1, #fff)",
           boxShadow:"0 4px 20px rgba(232,119,34,0.45)",
@@ -1245,7 +1246,7 @@ export default function Layout({ children }) {
 
         <div className="sidebar-footer">
           <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)", marginBottom:2 }}>
-            {vendor?.store_name || "DukaanAI"}
+            {getStoreName(vendor) || "DukhaanAI"}
           </div>
           <div style={{ fontSize:10, color: cloud ? "var(--jade)" : "var(--ink-faint)", marginBottom:10 }}>
             {cloud ? "● Cloud sync ON" : loggedIn ? "● Free plan" : "● Local only"}

@@ -4,13 +4,14 @@
 
 import { useState, useCallback } from "react"
 import { translateToEnglish } from "./engine.js"
+import { getSpeechRecognition } from "./nativeSpeech.js"
 
 export function useVoiceField(lang = "hi-IN", onResult) {
   const [listening, setListening] = useState(false)
   const [error,     setError]     = useState("")
 
   const startVoice = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) { setError("Voice not supported — use Chrome/Edge"); return }
 
     const rec = new SR()

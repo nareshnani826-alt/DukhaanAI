@@ -57,6 +57,19 @@ function FirstRunGuard({ children }) {
   return children
 }
 
+// Unknown URLs used to render an empty page inside the layout
+function NotFound() {
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", gap:12, padding:32, textAlign:"center", color:"var(--ink)" }}>
+      <div style={{ fontSize:44 }}>🧭</div>
+      <div style={{ fontSize:18, fontWeight:800 }}>Page not found</div>
+      <div style={{ fontSize:13, color:"var(--ink-faint)" }}>This page doesn't exist or has moved.</div>
+      <a href="/dashboard" className="btn btn-primary btn-sm" style={{ marginTop:8 }}>Go to Home</a>
+    </div>
+  )
+}
+
 export default function App() {
   useEffect(() => { initializeSeedTraining() }, [])
 
@@ -115,6 +128,7 @@ export default function App() {
                   <Route path="/bangle-udhar"       element={<BangleUdhar />} />
                   <Route path="/reorder"           element={<ReorderHub />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
+                  <Route path="*" element={<NotFound />} />
                 </Routes>
               </Layout>
             </FirstRunGuard>} />

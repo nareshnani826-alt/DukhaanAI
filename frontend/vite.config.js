@@ -26,8 +26,14 @@ function apiProxy(target = "http://localhost:8000") {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+  // Dev server: force same-origin API calls through the proxy below. A machine-level
+  // VITE_API_URL (e.g. an old LAN IP like 192.168.x.x) otherwise leaks into every
+  // fetch and breaks login/AI the moment the laptop's IP changes.
+  ...(command === "serve" && {
+    define: { "import.meta.env.VITE_API_URL": JSON.stringify("") },
+  }),
   optimizeDeps: {
     // Capacitor plugins use native bridges — exclude from Vite's pre-bundler
     // so the web build doesn't choke on them. Dynamic imports load them only
@@ -66,4 +72,4 @@ export default defineConfig({
     port: process.env.PORT || 4173,
     allowedHosts: 'all'
   }
-})
+}))

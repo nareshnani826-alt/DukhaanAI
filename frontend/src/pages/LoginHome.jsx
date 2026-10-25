@@ -1320,7 +1320,7 @@ function ModulePicker({ allowedModules, onPick }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ marginBottom:4 }}>
         <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"1.5px",
-          textTransform:"uppercase", marginBottom:6 }}>Welcome back</div>
+          textTransform:"uppercase", marginBottom:6 }}>Choose your store</div>
         <div style={{ fontSize:20, fontWeight:800, color:"#111", lineHeight:1.25 }}>
           Which store are you<br/>opening today?
         </div>
@@ -1391,8 +1391,8 @@ export default function LoginHome() {
       {/* Right panel — light warm */}
       <div className="lh-right" style={{ flex:1, display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"center",
-        padding:"48px 32px", minHeight:"100dvh", overflowY:"auto",
-        position:"relative", overflow:"hidden",
+        padding:"48px 32px", minHeight:"100dvh",
+        position:"relative", overflowX:"hidden", overflowY:"auto",
         background:"linear-gradient(160deg,#fffaf5 0%,#fff4e8 45%,#ffefd4 100%)" }}>
 
         {/* Scattered language scripts */}
@@ -1442,7 +1442,8 @@ export default function LoginHome() {
 
         {/* Content */}
         <div style={{ position:"relative", zIndex:1, width:"100%", maxWidth:400,
-          display:"flex", flexDirection:"column", alignItems:"center" }}>
+          display:"flex", flexDirection:"column", alignItems:"center",
+          marginTop:"auto", marginBottom:"auto" /* centres when it fits, never clips the top */ }}>
 
           {/* Logo */}
           <div className="lh-logo-wrap" style={{ textAlign:"center", marginBottom:28 }}>

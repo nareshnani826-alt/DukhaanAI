@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Products, Invoices, Customers, api, isCloud } from "../sync/db.js"
+import { Products, Invoices, Customers, api, isCloud, getStoreName } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
@@ -8,6 +8,7 @@ import InvoiceView from "../components/InvoiceView.jsx"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { MIN_FONT_SIZE } from "../styles/textScale"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
+import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
@@ -259,13 +260,13 @@ export default function Billing() {
 
   // Gate: check day session on mount
   useEffect(() => {
+    // Local-only users have no vendor object; they never need a server day session.
+    if (!isCloud()) { setDayStatus("open"); return }
     if (!vendor) return
-    if (isCloud()) {
+    {
       api.get("/day-sessions/today?store_type=kirana")
         .then(s => setDayStatus(s?.status || null))
         .catch(() => setDayStatus(null))
-    } else {
-      setDayStatus("open")
     }
   }, [vendor?.id])
 
@@ -430,7 +431,7 @@ export default function Billing() {
     const lines = invoice.items.map(i => `  • ${i.name} × ${i.qty} = ₹${i.total}`).join("\n")
     const msg =
 `🧾 *Invoice ${invoice.invoice_no}*
-Store: ${vendor?.store_name || "DukaanAI"}
+Store: ${getStoreName(vendor) || "DukhaanAI"}
 GSTIN: ${vendor?.gstin || "—"}
 Date: ${new Date(invoice.created_at).toLocaleDateString("en-IN")}
 
@@ -492,7 +493,7 @@ Thank you for shopping! 🙏`
     : []
 
   function startVoiceSearch() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) { showNotif("Voice not supported — use Chrome or Edge"); return }
     setVoiceActive(true)
     const rec = new SR()
@@ -1010,7 +1011,7 @@ Thank you for shopping! 🙏`
             {rows.map((row, i) => {
               const p = getProduct(row.prodId)
               if (!p) return null
-              const rowTotal = Math.round(p.mrp * row.qty * (1 + p.gst_percent / 100) * 100) / 100
+              const rowTotal = Math.round(p.mrp * row.qty * (1 + (applyGst ? p.gst_percent : 0) / 100) * 100) / 100
               const inCartCount = rows.find(r => r.prodId === p.id)?.qty || 0
               return (
                 <div key={i} style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px",

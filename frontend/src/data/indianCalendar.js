@@ -174,19 +174,56 @@ export const SEASONS = [
     tip:"Pre-summer — start stocking beverages now" },
 ]
 
+// Lunar festivals move every year, so the fixed month/days above are only a last
+// resort. Real dates per year (month, [days]) — extend this table each year.
+// Sources: bankbazaar.com Hindu festivals 2026, hindupad.com Hindu festivals 2027.
+const LUNAR_DATES = {
+  2026: {
+    "Holi":                               [3, [3, 4]],
+    "Ugadi / Tamil New Year / Baisakhi":  [3, [19]],
+    "Raksha Bandhan":                     [8, [28]],
+    "Janmashtami":                        [9, [4]],
+    "Ganesh Chaturthi":                   [9, [14,15,16,17,18,19,20,21,22,23,24]],
+    "Navratri":                           [10, [11,12,13,14,15,16,17,18,19]],
+    "Dussehra week":                      [10, [20]],
+    "Diwali":                             [11, [8]],
+  },
+  2027: {
+    "Makar Sankranti / Pongal":           [1, [14, 15]],
+    "Holi":                               [3, [21, 22]],
+    "Ugadi / Tamil New Year / Baisakhi":  [4, [7]],
+    "Raksha Bandhan":                     [8, [17]],
+    "Janmashtami":                        [8, [25]],
+    "Ganesh Chaturthi":                   [9, [4,5,6,7,8,9,10,11,12,13,14]],
+    "Navratri":                           [9, [30]],
+    "Dussehra week":                      [10, [9]],
+    "Diwali":                             [10, [29]],
+  },
+}
+
+function festivalDatesFor(fest, year) {
+  const o = LUNAR_DATES[year]?.[fest.name]
+  return o ? { month: o[0], days: o[1] } : { month: fest.month, days: fest.days || [] }
+}
+
 // ── Static fallback (synchronous) ────────────────────────
 export function getUpcomingFestivals(days = 45) {
   const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const upcoming = []
   for (const fest of FESTIVALS) {
-    for (const day of (fest.days || [])) {
-      const festDate = new Date(now.getFullYear(), fest.month - 1, day)
-      const diff     = Math.ceil((festDate - now) / 86400000)
-      if (diff >= 0 && diff <= days) {
-        upcoming.push({ ...fest, daysAway: diff, date: festDate })
-        break
+    // Check this year and next, so late-December lookups still see January festivals
+    let found = null
+    for (const year of [today.getFullYear(), today.getFullYear() + 1]) {
+      const { month, days: dayList } = festivalDatesFor(fest, year)
+      for (const day of dayList) {
+        const festDate = new Date(year, month - 1, day)
+        const diff     = Math.round((festDate - today) / 86400000)
+        if (diff >= 0 && diff <= days) { found = { ...fest, month, days: dayList, daysAway: diff, date: festDate }; break }
       }
+      if (found) break
     }
+    if (found) upcoming.push(found)
   }
   return upcoming.sort((a, b) => a.daysAway - b.daysAway)
 }

@@ -11,6 +11,7 @@ import { VOICE_LANGS } from "../voice/useProductVoice.js"
 import { getSavedLang } from "../voice/i18n.js"
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
+import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const UNITS = [
@@ -906,7 +907,7 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
 
 
   function startVoice() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) { setVoiceMsg("Voice not supported — use Chrome"); return }
     voiceAddedRef.current  = 0
     voiceActiveRef.current = true
@@ -3156,7 +3157,7 @@ export default function BangleBilling() {
 
   // cat emoji for bangle products
   function startBangleVoice() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) { alert("Voice not supported — use Chrome or Edge"); return }
     setBangleVoiceActive(true)
     const rec = new SR()

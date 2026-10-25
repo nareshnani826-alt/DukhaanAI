@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { api } from "../sync/db"
+import { api, isCloud, Products } from "../sync/db"
 import { getSavedLang, LANG_KEY } from "../voice/i18n"
 
 // ── Shelf-life rules ───────────────────────────────────────────
@@ -481,11 +481,14 @@ export default function ExpiryIntelligence() {
   const fetchData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
+      // Local-only users have no server: skip straight to the on-device calculation
+      if (!isCloud()) throw new Error("local")
       // api.get() automatically attaches the auth token and handles token refresh
       setData(await api.get("/expiry/dashboard"))
     } catch {
       try {
-        const prods = (await api.get("/products?is_active=true"))
+        // Products.list() reads the server when signed in to cloud, else localStorage
+        const prods = (await Products.list({ limit: 500 }))
           .filter(p => parseFloat(p.stock||0)>0)
         const enriched = prods.map(enrichProduct)
         const groups  = {likely_expired:[],high_risk:[],attention:[],safe:[]}
