@@ -1,10 +1,12 @@
 services:
   - type: web
-    name: dukhaanai-api
+    name: dukhaanai-api-sg
+    # Singapore: nearest Render region to India users and the Supabase DB (Tokyo, ap-northeast-1)
+    region: singapore
     env: docker
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
-    plan: free
+    plan: starter
     envVars:
       - key: APP_ENV
         value: production
