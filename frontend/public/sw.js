@@ -1,4 +1,4 @@
-const CACHE = "dukaanai-v3"
+const CACHE = "dukaanai-v4"
 const STATIC = ["/", "/index.html", "/manifest.json"]
 
 self.addEventListener("install", e => {
@@ -18,6 +18,8 @@ self.addEventListener("fetch", e => {
   const url = new URL(e.request.url)
   if (url.origin !== self.location.origin) return
   if (e.request.method !== "GET") return
+  // App download: always fetch fresh (a cached copy would hide new releases)
+  if (url.pathname.startsWith("/download/")) return
 
   // Cache static assets only
   e.respondWith(

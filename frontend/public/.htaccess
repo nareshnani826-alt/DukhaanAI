@@ -19,3 +19,10 @@
 <FilesMatch "^(sw\.js|index\.html)$">
   Header set Cache-Control "no-cache, no-store, must-revalidate"
 </FilesMatch>
+
+# Android app download (public_html/download/dukaanai.apk)
+AddType application/vnd.android.package-archive .apk
+<FilesMatch "\.apk$">
+  Header set Content-Disposition "attachment"
+  Header set Cache-Control "no-cache"
+</FilesMatch>
