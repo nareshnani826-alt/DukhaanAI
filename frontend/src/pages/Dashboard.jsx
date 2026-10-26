@@ -629,7 +629,7 @@ export default function Dashboard() {
               <div style={{ fontSize:MIN_FONT_SIZE, color:"rgba(255,255,255,0.8)", marginTop:4 }}>
                 {loading ? "Loading…"
                   : today.count > 0
-                  ? `${today.count} bill${today.count > 1 ? "s" : ""} today · ${INR(today.total)}`
+                  ? `${t("Today")}: ${today.count} ${t("bills")} · ${INR(today.total)}`
                   : t("Tap to start billing")}
               </div>
             </div>
@@ -967,12 +967,19 @@ export default function Dashboard() {
                   <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0,
                     background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
                     color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
-                    fontWeight:800, fontSize:13 }}>{(s.customer || "W").charAt(0).toUpperCase()}</div>
+                    fontWeight:800, fontSize:13 }}>{(s.customer || s.customer_name || "W").charAt(0).toUpperCase()}</div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)",
-                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.customer || "Walk-in"}</div>
+                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.customer || s.customer_name || "Walk-in"}</div>
                     <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>
-                      {s.qty} items · {new Date(s.sold_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
+                      {(() => {
+                        const qty = s.qty ?? (Array.isArray(s.items) ? s.items.reduce((n, it) => n + (+it.qty || 0), 0) : null)
+                        const when = new Date(s.sold_at || s.created_at)
+                        return [
+                          qty != null ? `${qty} ${t("items")}` : null,
+                          isNaN(when) ? null : when.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" }),
+                        ].filter(Boolean).join(" · ")
+                      })()}
                     </div>
                   </div>
                   <div style={{ fontSize:14, fontWeight:700, color:"var(--saffron)" }}>{INR(s.total)}</div>
@@ -985,11 +992,11 @@ export default function Dashboard() {
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
               <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>
-                Stock Health
+                {t("Stock Health")}
               </div>
               <button onClick={() => navigate("/inventory")}
                 style={{ fontSize:MIN_FONT_SIZE, color:"var(--saffron)", fontWeight:600,
-                  background:"none", border:"none", cursor:"pointer" }}>View all →</button>
+                  background:"none", border:"none", cursor:"pointer" }}>{t("View all →")}</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14, border:"1px solid var(--rule)",
               overflow:"hidden", boxShadow:"0 4px 10px var(--shadow)" }}>

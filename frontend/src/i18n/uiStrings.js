@@ -6,6 +6,7 @@
  */
 export const UI_STRINGS = {
   "te-IN": {
+    "Today": "ఈరోజు", "bills": "బిల్లులు", "Stock Health": "స్టాక్ పరిస్థితి",
     "Easy": "సులభ బిల్", "Full mode": "పూర్తి స్క్రీన్", "Speak": "మాట్లాడండి", "PAID": "పూర్తి", "Tap a picture to add": "బొమ్మ నొక్కితే జోడిస్తుంది", "Bill saved": "బిల్ సేవ్ అయింది", "Next customer": "తర్వాతి కస్టమర్", "See bill": "బిల్ చూడండి", "Print": "ప్రింట్",
     "Only": "కేవలం", "in stock": "స్టాక్‌లో ఉన్నాయి",
     "Your Store": "మీ దుకాణం", "Free": "ఉచిత", "Plan": "ప్లాన్", "● Local only": "● ఈ ఫోన్‌లో మాత్రమే", "● Cloud sync": "● ఆన్‌లైన్", "Only billing, stock, khata and past bills": "బిల్, స్టాక్, ఖాతా, పాత బిల్లులు మాత్రమే", "Adds customers, day close, damaged goods and more": "కస్టమర్లు, రోజు ముగింపు, పాడైన సరుకు మొదలైనవి కూడా", "Every feature, including reports and AI insights": "అన్ని ఫీచర్లు — రిపోర్టులు, AI సూచనలతో సహా", "Add to home screen for offline use": "ఆఫ్‌లైన్ కోసం హోమ్ స్క్రీన్‌కు జోడించండి",
@@ -44,6 +45,7 @@ export const UI_STRINGS = {
     "Start and end the day": "రోజు మొదలు, ముగింపు", "Shop details, language": "దుకాణం వివరాలు, భాష", "How to use the app": "యాప్ ఎలా వాడాలి",
   },
   "hi-IN": {
+    "Today": "आज", "bills": "बिल", "Stock Health": "स्टॉक की स्थिति",
     "Easy": "आसान बिल", "Full mode": "पूरी स्क्रीन", "Speak": "बोलिए", "PAID": "पैसे मिले", "Tap a picture to add": "तस्वीर दबाएँ, सामान जुड़ेगा", "Bill saved": "बिल सेव हो गया", "Next customer": "अगला ग्राहक", "See bill": "बिल देखें", "Print": "प्रिंट",
     "Only": "सिर्फ़", "in stock": "स्टॉक में हैं",
     "Your Store": "आपकी दुकान", "Free": "मुफ़्त", "Plan": "प्लान", "● Local only": "● सिर्फ़ इस फ़ोन पर", "● Cloud sync": "● ऑनलाइन", "Only billing, stock, khata and past bills": "सिर्फ़ बिल, स्टॉक, खाता और पुराने बिल", "Adds customers, day close, damaged goods and more": "साथ में ग्राहक, दिन बंद, ख़राब माल और भी", "Every feature, including reports and AI insights": "सारे फ़ीचर — रिपोर्ट और AI सुझाव सहित", "Add to home screen for offline use": "ऑफ़लाइन के लिए होम स्क्रीन पर जोड़ें",
@@ -82,6 +84,7 @@ export const UI_STRINGS = {
     "Start and end the day": "दिन शुरू और ख़त्म करें", "Shop details, language": "दुकान की जानकारी, भाषा", "How to use the app": "ऐप कैसे चलाएँ",
   },
   "ta-IN": {
+    "Today": "இன்று", "bills": "பில்கள்", "Stock Health": "சரக்கு நிலை",
     "Easy": "எளிய பில்", "Full mode": "முழு திரை", "Speak": "பேசுங்கள்", "PAID": "பணம் வந்தது", "Tap a picture to add": "படத்தைத் தட்டினால் சேரும்", "Bill saved": "பில் சேமிக்கப்பட்டது", "Next customer": "அடுத்த வாடிக்கையாளர்", "See bill": "பில் பார்", "Print": "அச்சிடு",
     "Only": "மட்டும்", "in stock": "சரக்கில் உள்ளது",
     "Staples": "அத்தியாவசியம்", "Dairy": "பால் பொருட்கள்", "Oils": "எண்ணெய்", "Beverages": "பானங்கள்", "Snacks": "தின்பண்டங்கள்", "Personal Care": "தனிநபர் பராமரிப்பு", "Other": "மற்றவை", "Cash": "ரொக்கம்",
@@ -106,6 +109,7 @@ export const UI_STRINGS = {
     "Show more": "மேலும் காட்டு", "Nothing matches.": "எதுவும் கிடைக்கவில்லை.", "Saving…": "சேமிக்கிறது…",
   },
   "kn-IN": {
+    "Today": "ಇಂದು", "bills": "ಬಿಲ್‌ಗಳು", "Stock Health": "ಸ್ಟಾಕ್ ಸ್ಥಿತಿ",
     "Easy": "ಸುಲಭ ಬಿಲ್", "Full mode": "ಪೂರ್ಣ ಪರದೆ", "Speak": "ಮಾತನಾಡಿ", "PAID": "ಹಣ ಬಂತು", "Tap a picture to add": "ಚಿತ್ರ ಒತ್ತಿದರೆ ಸೇರುತ್ತದೆ", "Bill saved": "ಬಿಲ್ ಉಳಿಸಲಾಗಿದೆ", "Next customer": "ಮುಂದಿನ ಗ್ರಾಹಕ", "See bill": "ಬಿಲ್ ನೋಡಿ", "Print": "ಮುದ್ರಿಸಿ",
     "Only": "ಕೇವಲ", "in stock": "ಸ್ಟಾಕ್‌ನಲ್ಲಿದೆ",
     "Staples": "ದಿನಸಿ", "Dairy": "ಹಾಲಿನ ಉತ್ಪನ್ನ", "Oils": "ಎಣ್ಣೆ", "Beverages": "ಪಾನೀಯ", "Snacks": "ತಿಂಡಿ", "Personal Care": "ವೈಯಕ್ತಿಕ ಆರೈಕೆ", "Other": "ಇತರೆ", "Cash": "ನಗದು",
@@ -130,6 +134,7 @@ export const UI_STRINGS = {
     "Show more": "ಇನ್ನಷ್ಟು ತೋರಿಸಿ", "Nothing matches.": "ಏನೂ ಸಿಗಲಿಲ್ಲ.", "Saving…": "ಉಳಿಸಲಾಗುತ್ತಿದೆ…",
   },
   "ml-IN": {
+    "Today": "ഇന്ന്", "bills": "ബില്ലുകൾ", "Stock Health": "സ്റ്റോക്ക് നില",
     "Easy": "എളുപ്പ ബിൽ", "Full mode": "പൂർണ്ണ സ്ക്രീൻ", "Speak": "സംസാരിക്കൂ", "PAID": "പണം കിട്ടി", "Tap a picture to add": "ചിത്രം തൊട്ടാൽ ചേർക്കും", "Bill saved": "ബിൽ സേവ് ചെയ്തു", "Next customer": "അടുത്ത ഉപഭോക്താവ്", "See bill": "ബിൽ കാണുക", "Print": "പ്രിന്റ്",
     "Only": "വെറും", "in stock": "സ്റ്റോക്കിൽ ഉണ്ട്",
     "Staples": "പലവ്യഞ്ജനം", "Dairy": "പാൽ ഉൽപ്പന്നങ്ങൾ", "Oils": "എണ്ണ", "Beverages": "പാനീയങ്ങൾ", "Snacks": "ലഘുഭക്ഷണം", "Personal Care": "വ്യക്തിഗത പരിചരണം", "Other": "മറ്റുള്ളവ", "Cash": "പണം",
@@ -154,6 +159,7 @@ export const UI_STRINGS = {
     "Show more": "കൂടുതൽ കാണിക്കുക", "Nothing matches.": "ഒന്നും കിട്ടിയില്ല.", "Saving…": "സേവ് ചെയ്യുന്നു…",
   },
   "mr-IN": {
+    "Today": "आज", "bills": "बिले", "Stock Health": "स्टॉक स्थिती",
     "Easy": "सोपे बिल", "Full mode": "पूर्ण स्क्रीन", "Speak": "बोला", "PAID": "पैसे मिळाले", "Tap a picture to add": "चित्र दाबा, वस्तू जोडली जाईल", "Bill saved": "बिल सेव्ह झाले", "Next customer": "पुढचा ग्राहक", "See bill": "बिल पहा", "Print": "प्रिंट",
     "Only": "फक्त", "in stock": "स्टॉकमध्ये आहेत",
     "Staples": "किराणा", "Dairy": "दुग्धजन्य", "Oils": "तेल", "Beverages": "पेये", "Snacks": "खाऊ", "Personal Care": "वैयक्तिक काळजी", "Other": "इतर", "Cash": "रोख",
@@ -178,6 +184,7 @@ export const UI_STRINGS = {
     "Show more": "अधिक दाखवा", "Nothing matches.": "काहीही सापडले नाही.", "Saving…": "सेव्ह होत आहे…",
   },
   "bn-IN": {
+    "Today": "আজ", "bills": "বিল", "Stock Health": "স্টকের অবস্থা",
     "Easy": "সহজ বিল", "Full mode": "পুরো স্ক্রিন", "Speak": "বলুন", "PAID": "টাকা পেয়েছি", "Tap a picture to add": "ছবিতে চাপুন, যোগ হবে", "Bill saved": "বিল সেভ হয়েছে", "Next customer": "পরের ক্রেতা", "See bill": "বিল দেখুন", "Print": "প্রিন্ট",
     "Only": "মাত্র", "in stock": "স্টকে আছে",
     "Staples": "মুদি", "Dairy": "দুগ্ধজাত", "Oils": "তেল", "Beverages": "পানীয়", "Snacks": "স্ন্যাকস", "Personal Care": "ব্যক্তিগত যত্ন", "Other": "অন্যান্য", "Cash": "নগদ",
@@ -202,6 +209,7 @@ export const UI_STRINGS = {
     "Show more": "আরও দেখান", "Nothing matches.": "কিছু পাওয়া যায়নি।", "Saving…": "সেভ হচ্ছে…",
   },
   "gu-IN": {
+    "Today": "આજે", "bills": "બિલ", "Stock Health": "સ્ટોક સ્થિતિ",
     "Easy": "સરળ બિલ", "Full mode": "પૂર્ણ સ્ક્રીન", "Speak": "બોલો", "PAID": "પૈસા મળ્યા", "Tap a picture to add": "ચિત્ર દબાવો, વસ્તુ ઉમેરાશે", "Bill saved": "બિલ સેવ થયું", "Next customer": "આગળનો ગ્રાહક", "See bill": "બિલ જુઓ", "Print": "પ્રિન્ટ",
     "Only": "ફક્ત", "in stock": "સ્ટોકમાં છે",
     "Staples": "કરિયાણું", "Dairy": "ડેરી", "Oils": "તેલ", "Beverages": "પીણાં", "Snacks": "નાસ્તો", "Personal Care": "વ્યક્તિગત સંભાળ", "Other": "અન્ય", "Cash": "રોકડ",
@@ -226,6 +234,7 @@ export const UI_STRINGS = {
     "Show more": "વધુ બતાવો", "Nothing matches.": "કંઈ મળ્યું નથી.", "Saving…": "સેવ થઈ રહ્યું છે…",
   },
   "pa-IN": {
+    "Today": "ਅੱਜ", "bills": "ਬਿੱਲ", "Stock Health": "ਸਟਾਕ ਦੀ ਹਾਲਤ",
     "Easy": "ਆਸਾਨ ਬਿੱਲ", "Full mode": "ਪੂਰੀ ਸਕ੍ਰੀਨ", "Speak": "ਬੋਲੋ", "PAID": "ਪੈਸੇ ਮਿਲ ਗਏ", "Tap a picture to add": "ਤਸਵੀਰ ਦਬਾਓ, ਸਾਮਾਨ ਜੁੜੇਗਾ", "Bill saved": "ਬਿੱਲ ਸੇਵ ਹੋ ਗਿਆ", "Next customer": "ਅਗਲਾ ਗਾਹਕ", "See bill": "ਬਿੱਲ ਵੇਖੋ", "Print": "ਪ੍ਰਿੰਟ",
     "Only": "ਸਿਰਫ਼", "in stock": "ਸਟਾਕ ਵਿੱਚ ਹਨ",
     "Staples": "ਰਾਸ਼ਨ", "Dairy": "ਡੇਅਰੀ", "Oils": "ਤੇਲ", "Beverages": "ਪੀਣ ਵਾਲੇ", "Snacks": "ਸਨੈਕਸ", "Personal Care": "ਨਿੱਜੀ ਦੇਖਭਾਲ", "Other": "ਹੋਰ", "Cash": "ਨਕਦ",
