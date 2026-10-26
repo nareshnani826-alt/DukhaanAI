@@ -317,7 +317,7 @@ export default function Billing() {
 
   // ── Barcode lookup (manual + camera) ─────────────────────
   async function lookupBarcode(code) {
-    const q = (code || barcodeInput).trim()
+    const q = (code || "").trim()
     if (!q) return
     const matched = products.find(p =>
       p.barcode === q ||
@@ -373,7 +373,7 @@ export default function Billing() {
       }
       return [...rows, { prodId: product.id, qty: 1 }]
     })
-    setBarcodeInput("")
+    setSearchQ("")
     setBarcodeResult(null)
     showNotif(`✓ ${product.name} added to bill`)
     barcodeRef.current?.focus()
@@ -381,7 +381,7 @@ export default function Billing() {
 
   function handleCameraBarcode(code) {
     setScanner(false)
-    setBarcodeInput(code)
+    setSearchQ(code)   // show the scanned code where a typed barcode would go
     lookupBarcode(code)
   }
 
