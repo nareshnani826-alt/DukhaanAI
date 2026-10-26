@@ -630,7 +630,7 @@ export default function Dashboard() {
                 {loading ? "Loading…"
                   : today.count > 0
                   ? `${today.count} bill${today.count > 1 ? "s" : ""} today · ${INR(today.total)}`
-                  : "Tap to start billing"}
+                  : t("Tap to start billing")}
               </div>
             </div>
             <svg style={{ marginLeft:"auto", flexShrink:0 }} width="20" height="20" fill="none"
@@ -657,7 +657,7 @@ export default function Dashboard() {
             </div>
             <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
             <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--jade)", fontWeight:600 }}>
-              {loading ? "—" : `${total} products`}
+              {loading ? "—" : `${total} ${t("products")}`}
             </div>
           </button>
 
@@ -724,7 +724,7 @@ export default function Dashboard() {
                   <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Low Stock")}</div>
                   <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, marginTop:2,
                     color: low.length > 0 ? "var(--ember)" : "var(--jade)" }}>
-                    {loading ? "—" : low.length > 0 ? `${low.length} item${low.length>1?"s":""}` : "All stocked"}
+                    {loading ? "—" : low.length > 0 ? `${low.length} ${t("items")}` : t("All stocked")}
                   </div>
                 </div>
                 {low.length > 0 && (
@@ -827,7 +827,7 @@ export default function Dashboard() {
                 {today.count > 0 ? `${today.count} ${t(today.count===1?"invoice today":"invoices today")}` : t("No sales yet")}
               </span>
               <span style={{ color:"var(--ink-faint)" }}>
-                {INR(avgInv)} avg · {INR(summary.total_revenue || 0)} this month
+                {INR(avgInv)} {t("avg")} · {INR(summary.total_revenue || 0)} {t("this month")}
               </span>
               {profit && (
                 <span style={{ color:"var(--ink-faint)" }}>
@@ -919,9 +919,8 @@ export default function Dashboard() {
         <BriefingCard briefing={briefing} navigate={navigate} onStockClick={openStockPopup} />
 
         {/* Secondary quick links row */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:20 }}>
           {[
-            { label:t("Udhaar"),     emoji:"📒", to:"/udhar" },
             { label:t("History"),    emoji:"🕑", to:"/history" },
             { label:t("Voice"),      emoji:"🎤", to:"/voice" },
             { label:t("Day Ops"),    emoji:"📅", to:"/day" },
@@ -933,8 +932,8 @@ export default function Dashboard() {
                 transition:"all 0.15s", boxShadow:"0 1px 4px var(--shadow)" }}
               onMouseEnter={e => e.currentTarget.style.borderColor="var(--saffron)"}
               onMouseLeave={e => e.currentTarget.style.borderColor="var(--rule)"}>
-              <span style={{ fontSize:18 }}>{qa.emoji}</span>
-              <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink)", fontWeight:600 }}>{qa.label}</span>
+              <span style={{ fontSize:20 }}>{qa.emoji}</span>
+              <span style={{ fontSize:13, color:"var(--ink)", fontWeight:700, textAlign:"center", lineHeight:1.2 }}>{qa.label}</span>
             </button>
           ))}
         </div>
@@ -960,7 +959,7 @@ export default function Dashboard() {
                 <div style={{ padding:"28px 16px", textAlign:"center",
                   color:"var(--ink-faint)", fontSize:13 }}>
                   <div style={{ fontSize:32, marginBottom:8 }}>🎤</div>
-                  Start your first sale!
+                  {t("Start your first sale!")}
                 </div>
               ) : today.sales.slice(0, 5).map((s, i) => (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10,

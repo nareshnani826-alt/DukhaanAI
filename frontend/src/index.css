@@ -203,6 +203,8 @@ input, select, textarea, button {
    The chat bubble stays visible on desktop (it has no sidebar equivalent), but
    its JS-computed "bottom" leaves room for the (now hidden) New Bill FAB above
    it — pin it to the bottom-right corner on desktop instead. */
+.mob-chat-btn.chat-hide-billing { display: none !important; }
+
 @media (min-width: 769px) {
   .mob-newbill-fab { display: none !important; }
   .mob-chat-btn { bottom: 24px !important; }
@@ -244,7 +246,7 @@ input, select, textarea, button {
   /* Bottom nav */
   .mobile-bottom-nav {
     display: flex !important;
-    height: 64px;
+    height: 68px;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .mobile-bottom-nav button { min-height: 44px; }
@@ -253,7 +255,7 @@ input, select, textarea, button {
   .app-main {
     order: 1; flex: 1;
     overflow-y: auto !important; overflow-x: hidden !important;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
     min-width: 0; width: 100%;
     -webkit-overflow-scrolling: touch;
   }
@@ -261,8 +263,8 @@ input, select, textarea, button {
   /* Layout top bar — not sticky on mobile, pages have their own headers */
   .mobile-header {
     display: flex !important;
-    align-items: center; justify-content: space-between;
-    padding: 10px 16px;
+    align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 14px;
     background: var(--bg1);
     border-bottom: 1px solid var(--rule);
     position: relative;
@@ -309,11 +311,12 @@ input, select, textarea, button {
   /* Voice FAB — redundant on mobile, bottom nav already has mic */
   .mob-voice-fab { display: none !important; }
 
-  /* Chat FAB — lift above bottom nav */
+  /* Chat FAB — lift above bottom nav; only floats on Home (see AIChatWidget) */
   .mob-chat-btn {
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 14px) !important;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 14px) !important;
     right: 16px !important;
   }
+  .mob-chat-btn.mob-chat-offhome { display: none !important; }
 
   /* Chat panel — full-screen overlay on mobile */
   .mob-chat-panel {
@@ -350,7 +353,7 @@ input, select, textarea, button {
 
 @supports (padding: env(safe-area-inset-bottom)) {
   @media (max-width: 768px) {
-    .app-main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    .app-main { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
   }
 }
 

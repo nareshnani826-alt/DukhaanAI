@@ -11,8 +11,11 @@ import { LANGUAGES } from "../voice/languages.js"
 
 // Language chosen in onboarding / header (falls back to Hindi only if nothing saved)
 const savedVoiceLang = () => { try { return localStorage.getItem("dk_voice_lang") || "hi-IN" } catch { return "hi-IN" } }
+// UI text in the shop's language (falls back to English)
+const L = k => tr(k, uiLang())
 import { lookupPrice, getVariants } from "../data/productPrices.js"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
+import { tr, uiLang } from "../i18n/kiranaStrings"
 
 const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
 const GSTS = [0,3,5,12,18,28]  // 3% is the GST slab for gold/silver/jewelry
@@ -65,8 +68,10 @@ function VoiceInput({ label, value, onChange, placeholder, type="text",
 }
 
 // ── Product form modal ────────────────────────────────────
-function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose }) {
+function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose, onDelete }) {
   const [form,         setForm]         = useState(initialForm)
+  // Name, price and stock are enough to start selling; the rest is optional
+  const [showMore,     setShowMore]     = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [notif,        setNotif]        = useState("")
   const [lossConfirmed, setLossConfirmed] = useState(false)  // cost > MRP needs a second tap
@@ -205,204 +210,152 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose 
     ? Math.round((form.mrp - form.cost_price) / form.mrp * 100)
     : 0
 
+  const unitSym = UNIT_TYPES[form.unit]?.symbol || "pc"
+  const big = { fontSize:17, padding:"12px 14px", borderRadius:12 }
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center"
+    <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center"
+      style={{ zIndex:300 }}  // above the phone bottom menu (z 100) so Save is never hidden
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-xl w-[460px] max-w-[95vw] max-h-[90vh] overflow-y-auto">
+      <div className="bg-white shadow-xl w-full md:w-[460px] md:rounded-2xl max-h-[92dvh] overflow-y-auto"
+        style={{ borderRadius:"20px 20px 0 0" }}>
 
         {/* Header */}
-        <div className="flex justify-between items-center px-5 pt-5 pb-3 border-b border-gray-100">
-          <div>
-            <h3 className="text-sm font-medium">{editId ? "Edit Product" : "Add Product"}</h3>
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              Tap 🎤 on any field to speak — works in Telugu, Hindi, Tamil
-            </p>
-          </div>
-
-          {/* Language selector for voice */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-gray-400">Voice lang:</span>
-            <select value={lang} onChange={e => setLang(e.target.value)}
-              className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white cursor-pointer hover:border-primary focus:outline-none focus:border-primary">
-              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.native} ({l.name})</option>)}
-            </select>
-            <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl ml-1">×</button>
-          </div>
+        <div className="flex justify-between items-center px-5 pt-4 pb-3 border-b border-gray-100">
+          <h3 style={{ fontSize:18, fontWeight:800 }}>{L(editId ? "Edit product" : "Add product")}</h3>
+          <button onClick={onClose} aria-label="Close"
+            style={{ width:44, height:44, borderRadius:12, fontSize:22, color:"#9ca3af", background:"#f3f4f6" }}>×</button>
         </div>
 
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-4" style={{ paddingBottom:"max(20px, env(safe-area-inset-bottom))" }}>
           {notif && (
-            <div role="alert" className={
+            <div role="alert" style={{ fontSize:13, padding:"10px 12px", borderRadius:10 }} className={
               /^✓|^Prices updated/.test(notif)
-                ? "bg-primary-light text-primary-dark text-[10px] px-3 py-2 rounded-lg"
-                : "bg-red-50 text-red-700 border border-red-200 text-[11px] px-3 py-2 rounded-lg"
+                ? "bg-primary-light text-primary-dark"
+                : "bg-red-50 text-red-700 border border-red-200"
             }>
               {notif}
             </div>
           )}
 
-          {/* Price lookup suggestion banner */}
-          {priceLookup && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm">🏷️</span>
-                <div className="text-[10px] font-semibold text-blue-700">
-                  Market price found for {priceLookup.productName}
-                </div>
-              </div>
-              <div className="flex gap-3 text-[10px] text-blue-600 mb-2">
-                <span>MRP: <strong>₹{priceLookup.mrp}</strong></span>
-                <span>Wholesale: <strong>₹{priceLookup.wholesale}</strong></span>
-                <span>Margin: <strong>{priceLookup.margin}%</strong></span>
-              </div>
-              {variants.length > 1 && (
-                <div>
-                  <div className="text-[10px] text-blue-500 mb-1">Select size:</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {variants.map(v => (
-                      <button key={v.size}
-                        onClick={() => handleVariantChange(v)}
-                        className="text-[10px] px-2.5 py-1 rounded-lg border transition-all font-medium"
-                        style={{
-                          background: form.mrp == v.mrp ? "var(--jade)" : "var(--bg1)",
-                          color:      form.mrp == v.mrp ? "var(--bg1)"     : "#378ADD",
-                          borderColor:form.mrp == v.mrp ? "var(--jade)"  : "#bfdbfe",
-                        }}>
-                        {v.size} — ₹{v.mrp}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Product name — most important, full width */}
+          {/* 1. Name */}
           <div>
-            <label className="label">Product Name *</label>
+            <label style={{ fontSize:14, fontWeight:700, display:"block", marginBottom:6 }}>{L("Product name")}</label>
             <div className="flex gap-2 items-center">
-              <input className="input flex-1" value={form.name}
+              <input className="input flex-1" style={big} value={form.name}
                 onChange={e => handleNameChange(e.target.value)}
-                placeholder='e.g. "Tata Salt 1kg" or "Amul Milk 500ml"'
-                autoFocus />
-              <MicButton listening={nameListening} onClick={startNameVoice} size={18} />
-            </div>
-            <div className="text-[10px] text-gray-400 mt-1">
-              Unit auto-detected from name · Say product name in your language
+                placeholder="e.g. Tata Salt 1kg"
+                autoFocus={!editId} />
+              <MicButton listening={nameListening} onClick={startNameVoice} size={20} />
             </div>
           </div>
 
-          {/* Unit detection result banner */}
-          {unitDetected && form.unit && (
-            <div className="flex items-center gap-2 bg-primary-light rounded-lg px-3 py-2">
-              <span className="text-[10px] text-primary-dark font-medium">
-                Auto-detected unit:
-              </span>
-              <span className="badge badge-green">{form.unit}</span>
-              <span className="text-[10px] text-primary-dark/60">
-                — change below if needed
-              </span>
+          {/* Size choices from the price list */}
+          {variants.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {variants.map(v => (
+                <button key={v.size} onClick={() => handleVariantChange(v)}
+                  style={{ fontSize:13, padding:"8px 12px", borderRadius:10, fontWeight:700, border:"1.5px solid",
+                    background: form.mrp == v.mrp ? "var(--jade)" : "#fff",
+                    color:      form.mrp == v.mrp ? "#fff" : "var(--jade)",
+                    borderColor:"var(--jade)" }}>
+                  {v.size} · ₹{v.mrp}
+                </button>
+              ))}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            {/* SKU */}
+            {/* 2. Selling price */}
             <div>
-              <label className="label">SKU / Barcode</label>
-              <input className="input" value={form.sku}
-                onChange={e => set("sku", e.target.value)}
-                placeholder="Auto or scan" />
-            </div>
-
-            {/* Category */}
-            <div>
-              <label className="label">Category</label>
-              <select className="input" value={form.category}
-                onChange={e => { catTouched.current = true; set("category", e.target.value) }}>
-                {CATS.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {/* Unit — auto-filled, but editable */}
-            <div>
-              <label className="label">
-                Unit of measure
-                {unitDetected && <span className="text-primary text-[9px] ml-1">auto ✓</span>}
-              </label>
-              <select className="input" value={form.unit}
-                onChange={e => { set("unit", e.target.value); setUnitDetected(false) }}>
-                {Object.entries(UNIT_TYPES).map(([k, v]) => (
-                  <option key={k} value={k}>{v.label} ({v.symbol}) — {v.type}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* GST */}
-            <div>
-              <label className="label">GST %</label>
-              <select className="input" value={form.gst_percent}
-                onChange={e => set("gst_percent", e.target.value)}>
-                {GSTS.map(g => <option key={g} value={g}>{g}%</option>)}
-              </select>
-            </div>
-
-            {/* Stock — with voice */}
-            <div>
-              <label className="label">Current Stock</label>
-              <div className="flex gap-2 items-center">
-                <input className="input flex-1" type="number" value={form.stock}
-                  onChange={e => set("stock", e.target.value)}
-                  placeholder="0" />
-                <MicButton listening={stockListening} onClick={startStockVoice} />
-              </div>
-              {form.unit && (
-                <div className="text-[10px] text-gray-400 mt-1">
-                  In {UNIT_TYPES[form.unit]?.label || "units"}
-                </div>
-              )}
-            </div>
-
-            {/* Min stock */}
-            <div>
-              <label className="label">Min Stock (reorder at)</label>
-              <input className="input" type="number" value={form.min_stock}
-                onChange={e => set("min_stock", e.target.value)}
-                placeholder="10" />
-            </div>
-
-            {/* MRP — with voice */}
-            <div>
-              <label className="label">MRP (₹)</label>
-              <div className="flex gap-2 items-center">
-                <input className="input flex-1" type="number" step="0.01"
-                  value={form.mrp}
-                  onChange={e => set("mrp", e.target.value)}
-                  placeholder="0.00" />
+              <label style={{ fontSize:14, fontWeight:700, display:"block", marginBottom:6 }}>{L("Selling price ₹")}</label>
+              <div className="flex gap-1 items-center">
+                <input className="input flex-1" style={{ ...big, minWidth:0 }} type="number" inputMode="decimal"
+                  value={form.mrp} onChange={e => set("mrp", e.target.value)} placeholder="0" />
                 <MicButton listening={priceListening} onClick={startPriceVoice} />
               </div>
             </div>
 
-            {/* Cost price */}
+            {/* 3. Stock */}
             <div>
-              <label className="label">Cost Price (₹)</label>
-              <input className="input" type="number" step="0.01"
-                value={form.cost_price}
-                onChange={e => set("cost_price", e.target.value)}
-                placeholder="0.00" />
-              {margin > 0 && (
-                <div className={`text-[10px] mt-1 font-medium ${
-                  margin > 20 ? "text-primary" : margin > 10 ? "text-amber-600" : "text-red-500"
-                }`}>
-                  Margin: {margin}% {margin > 20 ? "✓ Good" : margin > 10 ? "⚠ Low" : "✗ Very low"}
-                </div>
-              )}
+              <label style={{ fontSize:14, fontWeight:700, display:"block", marginBottom:6 }}>{L("Stock in shop")} ({unitSym})</label>
+              <div className="flex gap-1 items-center">
+                <input className="input flex-1" style={{ ...big, minWidth:0 }} type="number" inputMode="decimal"
+                  value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="0" />
+                <MicButton listening={stockListening} onClick={startStockVoice} />
+              </div>
             </div>
           </div>
 
-          <button onClick={save} disabled={saving}
-            className="btn btn-primary w-full py-2.5 text-xs font-medium mt-1">
-            {saving ? "Saving..." : editId ? "Update Product" : "Add Product"}
+          {/* Optional details */}
+          <button onClick={() => setShowMore(v => !v)}
+            style={{ width:"100%", padding:"12px", borderRadius:12, border:"1.5px dashed #d1d5db",
+              background:"#fafafa", fontSize:14, fontWeight:700, color:"#4b5563" }}>
+            {showMore ? "▲ " + L("Hide extra details") : "▼ " + L("More details (buying price, category, GST…)")}
           </button>
+
+          {showMore && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Buying price ₹</label>
+                <input className="input" type="number" inputMode="decimal" value={form.cost_price}
+                  onChange={e => set("cost_price", e.target.value)} placeholder="0" />
+                {margin > 0 && (
+                  <div className={`text-xs mt-1 font-semibold ${margin > 20 ? "text-primary" : margin > 10 ? "text-amber-600" : "text-red-500"}`}>
+                    Profit {margin}% {margin > 20 ? "✓" : margin > 10 ? "· low" : "· very low"}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="label">Warn me below</label>
+                <input className="input" type="number" inputMode="numeric" value={form.min_stock}
+                  onChange={e => set("min_stock", e.target.value)} placeholder="10" />
+              </div>
+              <div>
+                <label className="label">Category</label>
+                <select className="input" value={form.category}
+                  onChange={e => { catTouched.current = true; set("category", e.target.value) }}>
+                  {CATS.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Sold by {unitDetected && <span className="text-primary">· auto</span>}</label>
+                <select className="input" value={form.unit}
+                  onChange={e => { set("unit", e.target.value); setUnitDetected(false) }}>
+                  {Object.entries(UNIT_TYPES).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label} ({v.symbol})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">GST</label>
+                <select className="input" value={form.gst_percent}
+                  onChange={e => set("gst_percent", e.target.value)}>
+                  {GSTS.map(g => <option key={g} value={g}>{g}%</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Barcode</label>
+                <input className="input" value={form.sku} inputMode="numeric"
+                  onChange={e => set("sku", e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+          )}
+
+          <button onClick={save} disabled={saving}
+            style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", fontSize:17, fontWeight:800,
+              color:"#fff", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+              opacity: saving ? 0.7 : 1 }}>
+            {L(saving ? "Saving…" : editId ? "Save changes" : "Save product")}
+          </button>
+
+          {editId && onDelete && (
+            <button onClick={() => { onClose(); onDelete(editId) }}
+              style={{ width:"100%", padding:"12px", borderRadius:12, border:"1px solid #fecaca",
+                background:"#fff", color:"#dc2626", fontSize:14, fontWeight:700 }}>
+              {L("Remove this product")}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -425,11 +378,11 @@ function RestockModal({ product, onConfirm, onClose }) {
   return (
     <div style={{
       position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
-      zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16,
+      zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:16,
     }}>
       <div style={{ background:"#fff", borderRadius:16, padding:24, width:"100%", maxWidth:360 }}>
-        <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>Add Stock</div>
-        <div style={{ fontSize:12, color:"#555", marginBottom:16 }}>{product.name}</div>
+        <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>{L("Add stock")}</div>
+        <div style={{ fontSize:14, color:"#555", marginBottom:16 }}>{product.name}</div>
 
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
           <span style={{ fontSize:11, color:"#888", flex:1 }}>Current stock</span>
@@ -439,26 +392,26 @@ function RestockModal({ product, onConfirm, onClose }) {
           <span style={{ fontSize:11, color:"#888", flex:1 }}>Add qty</span>
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             <button onClick={() => setQty(q => String(Math.max(1, +q - 1)))}
-              style={{ width:32, height:32, borderRadius:8, border:"1px solid #e5e7eb",
-                       background:"#f9fafb", fontSize:16, cursor:"pointer" }}>−</button>
+              style={{ width:44, height:44, borderRadius:10, border:"1px solid #e5e7eb",
+                       background:"#f9fafb", fontSize:20, cursor:"pointer" }}>−</button>
             <input type="number" value={qty} onChange={e => setQty(e.target.value)}
               style={{ width:60, textAlign:"center", border:"1px solid #e5e7eb",
                        borderRadius:8, padding:"6px 4px", fontSize:14, fontWeight:600 }} />
             <button onClick={() => setQty(q => String(+q + 1))}
-              style={{ width:32, height:32, borderRadius:8, border:"1px solid #e5e7eb",
-                       background:"#f9fafb", fontSize:16, cursor:"pointer" }}>+</button>
+              style={{ width:44, height:44, borderRadius:10, border:"1px solid #e5e7eb",
+                       background:"#f9fafb", fontSize:20, cursor:"pointer" }}>+</button>
           </div>
         </div>
 
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={onClose}
-            style={{ flex:1, padding:"10px 0", borderRadius:10, border:"1px solid #e5e7eb",
-                     background:"#fff", fontSize:13, cursor:"pointer" }}>
-            Cancel
+            style={{ flex:1, padding:"14px 0", borderRadius:12, border:"1px solid #e5e7eb",
+                     background:"#fff", fontSize:15, cursor:"pointer" }}>
+            {L("Cancel")}
           </button>
           <button onClick={handleConfirm} disabled={saving}
-            style={{ flex:2, padding:"10px 0", borderRadius:10, border:"none",
-                     background:"#1D9E75", color:"#fff", fontSize:13,
+            style={{ flex:2, padding:"14px 0", borderRadius:12, border:"none",
+                     background:"#1D9E75", color:"#fff", fontSize:15,
                      fontWeight:600, cursor:"pointer", opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : `Add ${qty || 0} → ${(product.stock||0) + (+qty||0)} ${product.unit||"pc"}`}
           </button>
@@ -488,6 +441,7 @@ export default function Inventory() {
   const [restockTarget, setRestockTarget] = useState(null)
   const [voiceLang,   setVoiceLang]   = useState(savedVoiceLang)
   const [dateFilter,  setDateFilter]  = useState("all")
+  const [lowOnly,     setLowOnly]     = useState(false)
   const { hasFeature } = usePlan()
 
   const [debouncedSearch, setDebouncedSearch] = useState(search)
@@ -673,6 +627,7 @@ export default function Inventory() {
       : 0
     return products.filter(p => p.updated_at && new Date(p.updated_at).getTime() >= cutoff)
   }, [products, dateFilter])
+  const listProducts = lowOnly ? displayProducts.filter(p => p.stock < (p.min_stock || 0)) : displayProducts
 
   const pct    = p => Math.max(4, Math.min(100, Math.round(p.stock / Math.max(p.min_stock*2,1) * 100)))
   const barCls = p => p.stock < p.min_stock*0.3 ? "bg-red-500" : p.stock < p.min_stock ? "bg-amber-400" : "bg-primary"
@@ -686,7 +641,7 @@ export default function Inventory() {
   const hasBarcode = p => p.sku && /^\d{8,13}$/.test(p.sku)
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex-1 overflow-y-auto p-3 md:p-4">
       <style>{`
         @keyframes mic-pulse-btn {
           0%,100%{box-shadow:0 0 0 0 rgba(29,158,117,0.4)}
@@ -695,7 +650,8 @@ export default function Inventory() {
       `}</style>
 
       {notif && (
-        <div className="fixed top-4 right-4 bg-primary text-white px-3 py-2 rounded-lg text-xs z-50">
+        <div className="fixed bg-primary text-white rounded-full z-50"
+          style={{ bottom:96, left:"50%", transform:"translateX(-50%)", padding:"10px 18px", fontSize:14, fontWeight:700, maxWidth:"90vw" }}>
           {notif}
         </div>
       )}
@@ -707,6 +663,7 @@ export default function Inventory() {
           lang={voiceLang}
           onSave={handleSave}
           onClose={() => setModal(false)}
+          onDelete={del}
         />
       )}
 
@@ -741,8 +698,75 @@ export default function Inventory() {
         />
       )}
 
+      {/* ── Phone: title, add, search, category chips ── */}
+      <div className="md:hidden"><div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ flex:1, fontSize:20, fontWeight:800, color:"var(--ink)" }}>
+            {L("Stock")} <span style={{ fontSize:14, color:"var(--ink-faint)", fontWeight:600 }}>{products.length} {L("items")}</span>
+          </div>
+          <button onClick={() => setShowScanner(true)} aria-label="Scan barcode"
+            style={{ height:46, padding:"0 14px", borderRadius:12, border:"1px solid var(--rule)", background:"var(--bg2)",
+              fontSize:15, fontWeight:700, color:"var(--ink)" }}>📷 {L("Scan")}</button>
+          <button onClick={openAdd}
+            style={{ height:46, padding:"0 16px", borderRadius:12, border:"none", fontSize:15, fontWeight:800, color:"#fff",
+              background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))" }}>{L("+ Add")}</button>
+        </div>
+        <input className="input" style={{ fontSize:16, padding:"12px 14px", borderRadius:12 }} placeholder={"🔍 " + L("Search item…")}
+          value={search} onChange={e => handleSearchChange(e.target.value)} />
+        <div style={{ display:"flex", gap:6, overflowX:"auto", scrollbarWidth:"none" }}>
+          {[["", L("All")], ["__low", "⚠ " + L("Low stock")], ...CATS.map(c => [c, L(c)])].map(([val, label]) => {
+            const on = val === "__low" ? lowOnly : !lowOnly && cat === val
+            return (
+              <button key={val || "all"} onClick={() => { if (val === "__low") { setLowOnly(v => !v) } else { setLowOnly(false); setCat(val) } }}
+                style={{ flexShrink:0, padding:"8px 14px", borderRadius:20, fontSize:13, fontWeight:700, border:"none",
+                  background: on ? "var(--saffron)" : "var(--bg2)", color: on ? "#fff" : "var(--ink-dim)" }}>
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div></div>
+
+      {/* ── Phone: product cards ── */}
+      <div className="md:hidden"><div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {loading ? (
+          <div style={{ textAlign:"center", padding:32, color:"var(--ink-faint)" }}>Loading…</div>
+        ) : listProducts.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"32px 16px", color:"var(--ink-faint)", fontSize:15 }}>
+            {products.length === 0 ? "No products yet. Tap “+ Add” to add your first item." : L("Nothing matches.")}
+          </div>
+        ) : listProducts.map(p => {
+          const unitSym = (UNIT_TYPES[(p.unit && p.unit !== "piece") ? p.unit : resolveUnit(p.name)] || UNIT_TYPES.piece).symbol
+          const out = p.stock <= 0, low = !out && p.stock < (p.min_stock || 0)
+          return (
+            <div key={p.id} style={{ background:"var(--bg2)", border:`1px solid ${out ? "rgba(192,57,43,0.35)" : low ? "rgba(217,119,6,0.4)" : "var(--rule)"}`,
+              borderRadius:14, padding:"12px 12px 12px 14px", display:"flex", alignItems:"center", gap:10 }}>
+              <button onClick={() => openEdit(p)} style={{ flex:1, minWidth:0, textAlign:"left", background:"none", border:"none", padding:0 }}>
+                <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)", lineHeight:1.25,
+                  overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</div>
+                <div style={{ display:"flex", alignItems:"baseline", gap:10, marginTop:4 }}>
+                  <span style={{ fontSize:16, fontWeight:800, color:"var(--brass-deep)" }}>₹{p.mrp}</span>
+                  <span style={{ fontSize:14, fontWeight:800, color: out ? "var(--ember)" : low ? "#b45309" : "var(--jade)" }}>
+                    {out ? L("Out of stock") : `${p.stock} ${unitSym}${low ? " · " + L("low") : ""}`}
+                  </span>
+                </div>
+              </button>
+              <button onClick={() => setRestockTarget(p)} aria-label={"Add stock for " + p.name}
+                style={{ flexShrink:0, height:44, padding:"0 12px", borderRadius:11, border:"none", fontSize:14, fontWeight:800,
+                  background:"var(--jade-bg, #e7f6ee)", color:"var(--jade)" }}>{L("+ Stock")}</button>
+              <button onClick={() => openEdit(p)} aria-label={"Edit " + p.name}
+                style={{ flexShrink:0, width:44, height:44, borderRadius:11, border:"1px solid var(--rule)", fontSize:16,
+                  background:"var(--bg0)", color:"var(--ink-dim)" }}>✏️</button>
+            </div>
+          )
+        })}
+        {hasMore && (
+          <button onClick={() => load(page + 1, true)} className="btn btn-secondary" style={{ marginTop:6 }}>{L("Show more")}</button>
+        )}
+      </div></div>
+
       {/* Header */}
-      <div className="page-sticky-header mb-4">
+      <div className="page-sticky-header mb-4 hidden md:block">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h1 className="text-sm font-semibold">Inventory</h1>
           <div className="flex items-center gap-2 flex-wrap">
@@ -755,7 +779,7 @@ export default function Inventory() {
             <button onClick={() => setShowScanner(true)}
               className="btn btn-sm"
               style={{ display:"flex", alignItems:"center", gap:4 }}>
-              <span>⬛</span> Scan
+              <span>📷</span> Scan
             </button>
             <button onClick={() => setShowBulkBarcodes(true)}
               className="btn btn-sm"
@@ -769,7 +793,7 @@ export default function Inventory() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 mb-3 flex-wrap">
+      <div className="gap-2 mb-3 flex-wrap hidden md:flex">
         <input className="input flex-1" style={{ minWidth: 140 }} placeholder="Search products..."
           value={search} onChange={e => handleSearchChange(e.target.value)} />
         <select className="input" style={{ width: 140 }} value={cat} onChange={e => setCat(e.target.value)}>
@@ -787,7 +811,7 @@ export default function Inventory() {
       </div>
 
       {/* Tip banner */}
-      <div className="bg-primary-light border border-primary/20 rounded-lg px-3 py-2 mb-3 text-[10px] text-primary-dark flex items-center gap-2">
+      <div className="bg-primary-light border border-primary/20 rounded-lg px-3 py-2 mb-3 text-[10px] text-primary-dark items-center gap-2 hidden md:flex">
         <span>🎤</span>
         <span>
           <b>Voice input enabled</b> — Click + Add Product → tap the mic icon on Name, Stock, or Price → speak in {LANGUAGES.find(l=>l.code===voiceLang)?.name}.
@@ -796,7 +820,7 @@ export default function Inventory() {
       </div>
 
       {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
         <table className="w-full" style={{ minWidth: 680 }}>
           <thead>
@@ -823,7 +847,7 @@ export default function Inventory() {
                   ? "No products yet — click \"+Add Product\" and speak or type!"
                   : `No products updated ${DATE_FILTERS.find(f => f.value === dateFilter)?.label.toLowerCase()}`}
               </td></tr>
-            ) : displayProducts.map(p => {
+            ) : listProducts.map(p => {
               const [sc, sl] = status(p)
               const ready    = hasBarcode(p)
               const unitInfo = UNIT_TYPES[(p.unit && p.unit !== "piece") ? p.unit : resolveUnit(p.name)] || UNIT_TYPES.piece

@@ -1,3 +1,5 @@
+import { UI_STRINGS } from "./uiStrings.js"
+
 /**
  * Kirana UI translations keyed by BCP-47 locale (matches dk_voice_lang values).
  * English is the default — only non-English entries need to be listed.
@@ -785,8 +787,20 @@ export const KIRANA = {
   },
 }
 
+// Everyday English for a few keys whose original wording is office jargon.
+// Keys stay the same so the other languages' translations keep working.
+const EN_PLAIN = {
+  "Today's Takings": "Today's sales",
+  "Day Ops":         "Open / close day",
+}
+
 /** Translate a string. Falls back to English if no translation found. */
 export function tr(key, lang) {
-  if (!lang || lang === "en-IN") return key
-  return KIRANA[lang]?.[key] ?? key
+  if (!lang || lang === "en-IN") return EN_PLAIN[key] ?? key
+  return KIRANA[lang]?.[key] ?? UI_STRINGS[lang]?.[key] ?? EN_PLAIN[key] ?? key
+}
+
+/** Current UI language (same setting the header language button changes). */
+export function uiLang() {
+  try { return localStorage.getItem("dk_voice_lang") || "en-IN" } catch { return "en-IN" }
 }

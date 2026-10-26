@@ -50,28 +50,35 @@ const BANGLE_NAV = [
     sub:[{to:"/settings",label:"Settings"},{to:"/help",label:"Help"},{to:"/install",label:"Install App"}] },
 ]
 
+// Mobile bottom menu — the five things a shopkeeper does every day.
+// Held bills live inside Billing; Voice is on Home and in Billing's mic.
 const BANGLE_MOB_TABS = [
-  { to:"/bangle-billing", label:"Bill",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
-  { to:"/bangle-inventory", label:"Stock",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg> },
-  { to:"/voice", label:"", voice:true },
-  { to:"/bangle-history", label:"History",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-4"/><polyline points="3 3 3 7 7 7"/></svg> },
-  { to:"/more", label:"More",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
+  { to:"/bangle-dashboard", label:"Home",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1z"/></svg> },
+  { to:"/bangle-billing",   label:"Bill",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> },
+  { to:"/bangle-inventory", label:"Stock", icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> },
+  { to:"/bangle-udhar",     label:"Khata", icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="7" x2="16" y2="7"/><line x1="9" y1="11" x2="14" y2="11"/></svg> },
+  { to:"/more",             label:"More",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
-// Billing-first 4-tab nav — billing IS home, no dashboard tab
+// Short labels for the five bottom tabs (the general translations are too long for a tab)
+const TAB_LABELS = {
+  "te-IN": { Home:"హోమ్",   Bill:"బిల్",  Stock:"స్టాక్", Khata:"ఖాతా",  More:"మరిన్ని" },
+  "hi-IN": { Home:"होम",    Bill:"बिल",   Stock:"स्टॉक",  Khata:"खाता",  More:"और" },
+  "ta-IN": { Home:"முகப்பு", Bill:"பில்",  Stock:"சரக்கு", Khata:"கணக்கு", More:"மேலும்" },
+  "kn-IN": { Home:"ಮುಖಪುಟ", Bill:"ಬಿಲ್",  Stock:"ಸ್ಟಾಕ್",  Khata:"ಖಾತೆ",  More:"ಇನ್ನಷ್ಟು" },
+  "ml-IN": { Home:"ഹോം",    Bill:"ബിൽ",   Stock:"സ്റ്റോക്ക്", Khata:"കണക്ക്", More:"കൂടുതൽ" },
+  "mr-IN": { Home:"होम",    Bill:"बिल",   Stock:"स्टॉक",  Khata:"खाते",  More:"अधिक" },
+  "bn-IN": { Home:"হোম",    Bill:"বিল",   Stock:"স্টক",   Khata:"খাতা",  More:"আরও" },
+  "gu-IN": { Home:"હોમ",    Bill:"બિલ",   Stock:"સ્ટોક",  Khata:"ખાતું", More:"વધુ" },
+  "pa-IN": { Home:"ਹੋਮ",    Bill:"ਬਿੱਲ",  Stock:"ਸਟਾਕ",  Khata:"ਖਾਤਾ",  More:"ਹੋਰ" },
+}
+
 const MOB_TABS = [
-  { to:"/billing", label:"Bill",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 001.98 1.61h9.72a2 2 0 001.97-1.67L23 6H6"/></svg> },
-  { to:"/billing", label:"Held", held:true,
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> },
-  { to:"/voice", label:"Voice",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> },
-  { to:"/more", label:"More",
-    icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
+  { to:"/dashboard", label:"Home",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1z"/></svg> },
+  { to:"/billing",   label:"Bill",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> },
+  { to:"/inventory", label:"Stock", icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> },
+  { to:"/udhar",     label:"Khata", icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="7" x2="16" y2="7"/><line x1="9" y1="11" x2="14" y2="11"/></svg> },
+  { to:"/more",      label:"More",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
 const API = import.meta.env.VITE_API_URL
@@ -577,6 +584,12 @@ function AIChatWidget() {
   const isBangle = storeMode === "bangle_fancy"
 
   const [open, setOpen]           = useState(false)
+  // More → "Ask AI" opens the panel on phones, where the bubble is only shown on Home
+  useEffect(() => {
+    const openChat = () => setOpen(true)
+    window.addEventListener("dk:open-chat", openChat)
+    return () => window.removeEventListener("dk:open-chat", openChat)
+  }, [])
   const [lang, setLang]           = useState(getSavedLang)
   const t = WIDGET_STRINGS[lang] || WIDGET_STRINGS["en-IN"]
   const [messages, setMessages]   = useState(() => {
@@ -968,16 +981,15 @@ function AIChatWidget() {
 
       {/* Floating bubble button — hidden on Voice page (bill panel already occupies bottom-right) */}
       {(() => {
-        const billingRoute   = storeMode === "bangle_fancy" ? "/bangle-billing" : "/billing"
-        const dashboardRoute = storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard"
-        const newBillFabVisible = location.pathname !== billingRoute
-          && location.pathname !== dashboardRoute
-        // Stack above the New Bill FAB when both are visible; else sit just above the tab bar
-        const bubbleBottom = newBillFabVisible ? 130 : 84
+        // Phones: the bubble only floats on Home, so it never covers Pay / Save buttons.
+        // Elsewhere it opens from More → "Ask AI" (dk:open-chat).
+        const onHome = ["/dashboard", "/bangle-dashboard"].includes(location.pathname)
+        // Billing's Pay button sits bottom-right on every screen size
+        const onBilling = ["/billing", "/bangle-billing"].includes(location.pathname)
         return (
       <button onClick={() => setOpen(o => !o)} title="AI Assistant"
-        className="mob-chat-btn"
-        style={{ position:"fixed", bottom: bubbleBottom, right:24, zIndex:201,
+        className={`mob-chat-btn${onHome || open ? "" : " mob-chat-offhome"}${onBilling && !open ? " chat-hide-billing" : ""}`}
+        style={{ position:"fixed", bottom:84, right:24, zIndex:201,
           width:52, height:52, borderRadius:"50%",
           display: ["/voice", "/agent"].includes(location.pathname) ? "none" : "flex",
           background: open ? "var(--ink, #333)" : "linear-gradient(135deg,var(--saffron, #e87722),#d45f00)",
@@ -1296,23 +1308,23 @@ export default function Layout({ children }) {
 
       <main className="app-main">
         <div className="mobile-header">
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:32, height:32, borderRadius:9, flexShrink:0,
+          <button onClick={() => navigate(storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard")}
+            style={{ display:"flex", alignItems:"center", gap:8, minWidth:0, flex: multiStore ? "0 1 auto" : 1,
+              background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left" }}>
+            <div style={{ width:30, height:30, borderRadius:9, flexShrink:0,
               background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
               display:"flex", alignItems:"center", justifyContent:"center",
-              fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:16, color:"#fff",
-              boxShadow:"0 2px 8px rgba(212,98,31,0.35)" }}>द</div>
-            <div>
-              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:16,
-                color:"var(--ink)", fontWeight:700, lineHeight:1 }}>
-                दुकान<span style={{color:"var(--saffron)"}}>•</span>AI
+              fontFamily:"'Tiro Devanagari Hindi',serif", fontWeight:700, fontSize:15, color:"#fff" }}>द</div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:15, fontWeight:800, color:"var(--ink)", lineHeight:1.15,
+                overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {getStoreName(vendor) || "DukaanAI"}
               </div>
-              <div style={{ fontSize:9, color: cloud ? "var(--jade)" : "var(--ink-faint)",
-                letterSpacing:"0.5px", marginTop:1 }}>
-                {cloud ? "● Cloud sync" : "● Local"}
+              <div style={{ fontSize:10, color: cloud ? "var(--jade)" : "var(--ink-faint)", marginTop:1 }}>
+                {tNav(cloud ? "● Online" : "● On this phone only")}
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Store switcher — only visible when vendor has both modules */}
           {multiStore && (
@@ -1337,87 +1349,45 @@ export default function Layout({ children }) {
             </div>
           )}
 
-          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-            {/* Language picker button */}
-            <button onClick={() => setShowLangPicker(true)}
-              title="Change language"
+          <div style={{ display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
+            <button onClick={() => setShowLangPicker(true)} title="Change language"
               style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
-                borderRadius:8, padding:"5px 10px", cursor:"pointer",
-                fontSize:13, fontWeight:800, color:"var(--ink)",
-                boxShadow:"0 1px 4px var(--shadow)", minWidth:36, textAlign:"center" }}>
-              {currentLangNative}
+                borderRadius:10, minWidth:44, height:36, padding:"0 10px", cursor:"pointer",
+                fontSize:14, fontWeight:800, color:"var(--ink)" }}>
+              🌐 {currentLangNative}
             </button>
-            <button onClick={toggleTheme}
-              style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
-                borderRadius:8, padding:"5px 9px", cursor:"pointer", fontSize:14,
-                boxShadow:"0 1px 4px var(--shadow)" }}>
-              {isDark ? "☀️" : "🌙"}
-            </button>
-            {!loggedIn
-              ? <button onClick={() => setShowAuth(true)} className="btn btn-primary btn-sm">Login</button>
-              : <button onClick={logout}
-                  style={{ background:"var(--bg2)", color:"var(--ink-dim)",
-                    border:"1px solid var(--rule)", borderRadius:8,
-                    padding:"5px 10px", fontSize:10, cursor:"pointer" }}>Logout</button>
-            }
+            {!loggedIn && (
+              <button onClick={() => setShowAuth(true)} className="btn btn-primary btn-sm">{tNav("Login")}</button>
+            )}
           </div>
         </div>
         {children}
       </main>
 
       <nav className="mobile-bottom-nav" style={{
-        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
+        // Below every pop-up (they use z-40 and up) so their Save buttons are never hidden behind the menu
+        position:"fixed", bottom:0, left:0, right:0, zIndex:30,
         background:"var(--bg2)", borderTop:"1px solid var(--rule)",
         display:"none", alignItems:"flex-end", justifyContent:"space-around",
         padding:"8px 4px 12px", boxShadow:"0 -4px 20px var(--shadow)" }}>
-        {(storeMode === "bangle_fancy" ? MOB_TABS_ACTIVE : MOB_TABS).map(tab => {
-          // Held-bills tab: navigate to /billing + dispatch show-held event
-          if (tab.held) {
-            const heldCount = (() => { try { return JSON.parse(localStorage.getItem("dk_held_bills")||"[]").length } catch { return 0 } })()
-            const onBilling = location.pathname === "/billing"
-            return (
-              <button key="held"
-                onClick={() => { navigate("/billing"); window.dispatchEvent(new CustomEvent("dk:show-held")) }}
-                style={{ background:"transparent", border:"none", cursor:"pointer",
-                  display:"flex", flexDirection:"column", alignItems:"center", gap:3,
-                  color:"var(--ink-faint)", padding:"4px 10px",
-                  flex:1, position:"relative" }}>
-                <div style={{ position:"relative", width:22, height:22,
-                  display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  {tab.icon}
-                  {heldCount > 0 && (
-                    <div style={{ position:"absolute", top:-4, right:-6,
-                      minWidth:14, height:14, padding:"0 3px", borderRadius:7,
-                      background:"var(--ember)", color:"#fff",
-                      fontSize:9, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      {heldCount}
-                    </div>
-                  )}
-                </div>
-                <span style={{ fontSize:10, fontWeight:500 }}>{tNav(tab.label)}</span>
-              </button>
-            )
-          }
-
-          const PRIMARY = storeMode === "bangle_fancy"
-            ? ["/bangle-billing", "/bangle-inventory", "/voice", "/bangle-history"]
-            : ["/billing", "/voice"]
+        {MOB_TABS_ACTIVE.map(tab => {
+          const others = MOB_TABS_ACTIVE.filter(t => t.to !== "/more").map(t => t.to)
           const on = tab.to === "/more"
-            ? !PRIMARY.some(p => location.pathname.startsWith(p)) && location.pathname !== "/"
+            ? !others.some(p => location.pathname.startsWith(p))
             : location.pathname.startsWith(tab.to)
           return (
-            <button key={tab.to + tab.label} onClick={() => navigate(tab.to)}
+            <button key={tab.to} onClick={() => navigate(tab.to)}
+              aria-current={on ? "page" : undefined}
               style={{ background:"transparent", border:"none", cursor:"pointer",
                 display:"flex", flexDirection:"column", alignItems:"center", gap:3,
-                color: on ? "var(--saffron)" : "var(--ink-faint)", padding:"4px 10px",
+                color: on ? "var(--saffron)" : "var(--ink-dim)", padding:"4px 2px",
                 flex:1, position:"relative" }}>
-              {on && <div style={{ position:"absolute", top:0, left:"25%", right:"25%",
-                height:2, borderRadius:"0 0 2px 2px", background:"var(--saffron)" }}/>}
-              <div style={{ width:22, height:22,
-                background: on ? "var(--saffron-bg)" : "transparent",
-                borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
-                padding:2 }}>{tab.icon}</div>
-              <span style={{ fontSize:10, fontWeight: on ? 700 : 500 }}>{tNav(tab.label)}</span>
+              {on && <div style={{ position:"absolute", top:-8, left:"22%", right:"22%",
+                height:3, borderRadius:"0 0 3px 3px", background:"var(--saffron)" }}/>}
+              <div style={{ width:24, height:24, display:"flex", alignItems:"center", justifyContent:"center" }}>{tab.icon}</div>
+              <span style={{ fontSize:12, fontWeight: on ? 800 : 600, whiteSpace:"nowrap" }}>
+                {TAB_LABELS[uiLang]?.[tab.label] || tab.label}
+              </span>
             </button>
           )
         })}
@@ -1462,31 +1432,6 @@ export default function Layout({ children }) {
           </div>
         </div>
       )}
-
-      {/* ── Persistent "New Bill" FAB ───────────────── */}
-      {(() => {
-        const billingRoute  = storeMode === "bangle_fancy" ? "/bangle-billing" : "/billing"
-        const dashboardRoute = storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard"
-        if (location.pathname === billingRoute)   return null  // already on billing
-        if (location.pathname === dashboardRoute) return null  // dashboard has its own tile
-        if (showAuth) return null
-        return (
-          <button
-            onClick={() => navigate(billingRoute)}
-            className="mob-newbill-fab"
-            style={{
-              position: "fixed", bottom: 74, right: 16, zIndex: 98,
-              background: "linear-gradient(135deg, var(--saffron), var(--saffron-hot))",
-              color: "#fff", border: "none", borderRadius: 28,
-              padding: "13px 22px", fontSize: 14, fontWeight: 800,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-              boxShadow: "0 6px 24px rgba(232,119,34,0.55)",
-              letterSpacing: "0.2px", whiteSpace: "nowrap",
-            }}>
-            🧾 <span>New Bill</span>
-          </button>
-        )
-      })()}
 
       {/* Groq AI chat bubble — hidden while auth modal is open */}
       {!showAuth && <AIChatWidget />}

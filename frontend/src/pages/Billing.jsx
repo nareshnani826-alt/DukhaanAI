@@ -9,6 +9,10 @@ import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { MIN_FONT_SIZE } from "../styles/textScale"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+// UI text in the shop's language (falls back to English)
+const L = k => tr(k, uiLang())
 
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
@@ -295,6 +299,8 @@ export default function Billing() {
     try { return JSON.parse(localStorage.getItem("dk_held_bills") || "[]") } catch { return [] }
   })
   const [showHeld, setShowHeld] = useState(false)
+  const [showCart, setShowCart] = useState(false)   // bill sheet over the product list (mobile-first)
+  const [openingDay, setOpeningDay] = useState(false)
 
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)   // kept for compat with lookupBarcode
@@ -579,23 +585,40 @@ Thank you for shopping! 🙏`
     <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
       fontSize:13, color:"var(--ink-faint)" }}>Checking day status…</div>
   )
+  async function openDayHere() {
+    setOpeningDay(true)
+    try {
+      const s = dayStatus === "closed"
+        ? await api.post("/day-sessions/reopen")
+        : await api.post("/day-sessions/open", {})
+      setDayStatus(s?.status === "closed" ? "closed" : "open")
+    } catch (e) {
+      showNotif("Could not open the day: " + e.message)
+    } finally {
+      setOpeningDay(false)
+    }
+  }
+
   if (dayStatus !== "open") return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
-      justifyContent:"center", padding:32, textAlign:"center", gap:16, background:"var(--bg0)" }}>
-      <div style={{ fontSize:48 }}>🔒</div>
-      <div style={{ fontSize:18, fontWeight:800, color:"var(--ink)" }}>Day Not Opened</div>
-      <div style={{ fontSize:13, color:"var(--ink-faint)", maxWidth:280, lineHeight:1.6 }}>
-        {dayStatus === "closed"
-          ? "Today's day has been closed. Reopen it from the dashboard to resume billing."
-          : "Open today's day from the dashboard before you can start billing."}
+      justifyContent:"center", padding:32, textAlign:"center", gap:14, background:"var(--bg0)" }}>
+      <div style={{ fontSize:48 }}>{dayStatus === "closed" ? "🌙" : "☀️"}</div>
+      <div style={{ fontSize:20, fontWeight:800, color:"var(--ink)" }}>
+        {L(dayStatus === "closed" ? "Shop is closed for today" : "Good morning! Open the shop")}
       </div>
-      <button onClick={() => navigate("/dashboard")}
-        style={{ padding:"12px 28px", borderRadius:14, border:"none",
+      <div style={{ fontSize:14, color:"var(--ink-dim)", maxWidth:300, lineHeight:1.6 }}>
+        {dayStatus === "closed"
+          ? "You closed today's accounts. Reopen to make more bills today."
+          : "Tap below to start today's sales. Your stock is noted for the day's report."}
+      </div>
+      <button onClick={openDayHere} disabled={openingDay}
+        style={{ padding:"16px 32px", borderRadius:14, border:"none", minWidth:240,
           background:"linear-gradient(135deg,#e87722,#d45f00)", color:"#fff",
-          fontSize:14, fontWeight:700, cursor:"pointer",
-          boxShadow:"0 4px 16px rgba(232,119,34,0.35)", marginTop:8 }}>
-        ← Go to Dashboard
+          fontSize:16, fontWeight:800, cursor:"pointer", opacity: openingDay ? 0.7 : 1,
+          boxShadow:"0 4px 16px rgba(232,119,34,0.35)", marginTop:6 }}>
+        {L(openingDay ? "Opening…" : dayStatus === "closed" ? "Reopen & start billing" : "Open shop & start billing")}
       </button>
+      {notif && <div style={{ fontSize:13, color:"var(--ember)" }}>{notif}</div>}
     </div>
   )
 
@@ -604,9 +627,9 @@ Thank you for shopping! 🙏`
 
       {/* ── Toast notification ───────────────────── */}
       {notif && (
-        <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)",
-          zIndex:300, background:"var(--jade)", color:"#fff",
-          padding:"8px 18px", borderRadius:999, fontSize:12, fontWeight:700,
+        <div style={{ position:"fixed", bottom: rows.length ? 170 : 96, left:"50%", transform:"translateX(-50%)",
+          zIndex:300, background:"var(--jade)", color:"#fff", maxWidth:"90vw", overflow:"hidden", textOverflow:"ellipsis",
+          padding:"10px 18px", borderRadius:999, fontSize:14, fontWeight:700,
           whiteSpace:"nowrap", boxShadow:"0 4px 20px rgba(0,0,0,0.2)", pointerEvents:"none" }}>
           {notif}
         </div>
@@ -748,32 +771,37 @@ Thank you for shopping! 🙏`
         </div>
       )}
 
-      {/* ── COMPACT TOPBAR ───────────────────────── */}
-      <div style={{ padding:"10px 14px", background:"var(--bg0)",
-        borderBottom:"1px solid var(--rule)", display:"flex", alignItems:"center",
-        gap:10, flexShrink:0 }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", letterSpacing:"1px", fontWeight:700 }}>GST BILLING</div>
-          <div style={{ fontSize:14, color:"var(--ink)", fontWeight:800 }}>New Sale</div>
-        </div>
-        <button onClick={holdBill}
-          style={{ background:"var(--bg2)", border:"1px solid var(--rule)", color:"var(--ink)",
-            borderRadius:9, padding:"6px 14px", fontSize:MIN_FONT_SIZE, fontWeight:700, cursor:"pointer" }}>
-          Hold
-        </button>
-        {rows.length > 0 && (
-          <button onClick={clearBill}
-            style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
-              color:"var(--ember)", borderRadius:9, padding:"6px 14px",
-              fontSize:MIN_FONT_SIZE, fontWeight:700, cursor:"pointer" }}>
-            Clear
+      {/* ── TOP ROW: held bills · hold · clear ────── */}
+      <div style={{ padding:"8px 14px", background:"var(--bg0)",
+        display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+        <div style={{ flex:1, fontSize:17, color:"var(--ink)", fontWeight:800 }}>{L("New bill")}</div>
+        {heldBills.length > 0 && (
+          <button onClick={() => setShowHeld(true)}
+            style={{ background:"var(--saffron-bg)", border:"1px solid rgba(232,119,34,0.35)", color:"var(--saffron)",
+              borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:800, cursor:"pointer" }}>
+            ⏸ {L("Held")} ({heldBills.length})
           </button>
+        )}
+        {rows.length > 0 && (
+          <>
+            <button onClick={holdBill}
+              style={{ background:"var(--bg2)", border:"1px solid var(--rule)", color:"var(--ink)",
+                borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+              {L("Hold")}
+            </button>
+            <button onClick={clearBill}
+              style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
+                color:"var(--ember)", borderRadius:10, padding:"8px 12px",
+                fontSize:13, fontWeight:700, cursor:"pointer" }}>
+              {L("Clear")}
+            </button>
+          </>
         )}
       </div>
 
       {/* ── SEARCH + SCAN ────────────────────────── */}
       <style>{`@keyframes micPulse{0%,100%{box-shadow:0 0 0 4px rgba(220,38,38,.25)}50%{box-shadow:0 0 0 8px rgba(220,38,38,.08)}}`}</style>
-      <div style={{ padding:"10px 14px 8px", background:"var(--bg0)", flexShrink:0, position:"relative", zIndex:50 }}>
+      <div style={{ padding:"2px 14px 8px", background:"var(--bg0)", flexShrink:0, position:"relative", zIndex:50 }}>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           {/* Search input */}
           <div style={{
@@ -798,7 +826,7 @@ Thank you for shopping! 🙏`
                 }
                 if (e.key === "Escape") setSearchQ("")
               }}
-              placeholder="Product name or barcode…"
+              placeholder={L("Search item…")}
               style={{ background:"transparent", border:"none", color:"var(--ink)", fontSize:14,
                 outline:"none", flex:1, fontWeight:600, minWidth:0 }}
               autoFocus
@@ -981,50 +1009,50 @@ Thank you for shopping! 🙏`
               {cust ? cust.charAt(0).toUpperCase() : "W"}
             </div>
             <div style={{ flex:1, fontSize:13, color: cust ? "var(--ink)" : "var(--ink-faint)", fontWeight:600 }}>
-              {cust || "Walk-in customer"}
+              {cust || L("Walk-in customer")}
               {phone && <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginLeft:8 }}>{phone}</span>}
             </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               <span style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", background:"var(--bg0)",
-                padding:"3px 8px", borderRadius:6, border:"1px solid var(--rule)", fontWeight:600 }}>{pay}</span>
+                padding:"3px 8px", borderRadius:6, border:"1px solid var(--rule)", fontWeight:600 }}>{L(pay)}</span>
               <button onClick={() => setCustExpanded(true)}
                 style={{ background:"transparent", color:"var(--saffron)", border:"none",
                   fontSize:13, fontWeight:800, cursor:"pointer" }}>
-                {cust ? "Edit" : "+ Add"}
+                {L(cust ? "Edit" : "+ Add")}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── CART + PRODUCT BROWSER ───────────────── */}
-      <div style={{ flex:1, overflowY:"auto", background:"var(--bg1)" }}>
-
-        {/* Cart items — shown when cart not empty */}
-        {rows.length > 0 && (
-          <div style={{ padding:"4px 14px 0" }}>
-            <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", letterSpacing:"1.5px",
-              fontWeight:800, padding:"10px 4px 8px", textTransform:"uppercase" }}>
-              🛒 {rows.length} {rows.length === 1 ? "ITEM" : "ITEMS"} IN CART
+      {/* ── BILL SHEET (tap the bottom bar) ──────── */}
+      {showCart && rows.length > 0 && !invoice && (
+        <div onClick={() => setShowCart(false)}
+          style={{ position:"fixed", inset:0, zIndex:150, background:"rgba(0,0,0,0.4)",
+            display:"flex", alignItems:"flex-end" }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width:"100%", maxHeight:"72dvh", overflowY:"auto", background:"var(--bg1)",
+              borderRadius:"20px 20px 0 0", padding:"14px 14px 168px", boxShadow:"0 -8px 32px rgba(0,0,0,0.2)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div style={{ fontSize:17, fontWeight:800, color:"var(--ink)" }}>
+                {L("Bill")} · {rows.reduce((n, r) => n + (+r.qty || 0), 0)} {L("items")}
+              </div>
+              <button onClick={() => setShowCart(false)} aria-label="Close"
+                style={{ width:40, height:40, borderRadius:10, background:"var(--bg2)", border:"1px solid var(--rule)",
+                  color:"var(--ink-dim)", fontSize:18, cursor:"pointer" }}>✕</button>
             </div>
-
             {rows.map((row, i) => {
               const p = getProduct(row.prodId)
               if (!p) return null
               const rowTotal = Math.round(p.mrp * row.qty * (1 + (applyGst ? p.gst_percent : 0) / 100) * 100) / 100
-              const inCartCount = rows.find(r => r.prodId === p.id)?.qty || 0
               return (
                 <div key={i} style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px",
                   marginBottom:8, border:"1px solid var(--rule)",
                   display:"flex", alignItems:"center", gap:12 }}>
-                  <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
-                    background:"var(--bg0)", border:"1px solid var(--rule)",
-                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>
-                    {CAT_EMOJI[p.category] || "📦"}
-                  </div>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"var(--ink)", lineHeight:1.2,
-                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                    <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)", lineHeight:1.25,
+                      overflow:"hidden", textOverflow:"ellipsis",
+                      display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</div>
                     <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
                       ₹{p.mrp}/unit
                     </div>
@@ -1032,7 +1060,8 @@ Thank you for shopping! 🙏`
                   <div style={{ display:"flex", alignItems:"center", gap:4,
                     background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
                     <button onClick={() => row.qty <= 1 ? delRow(i) : setRow(i, "qty", row.qty - 1)}
-                      style={{ width:30, height:30, borderRadius:8, background:"var(--bg2)",
+                      aria-label={row.qty <= 1 ? "Remove" : "Less"}
+                      style={{ width:40, height:40, borderRadius:9, background:"var(--bg2)",
                         color: row.qty <= 1 ? "var(--ember)" : "var(--brass-deep)",
                         border:"none", fontSize:row.qty <= 1 ? 13 : 18, fontWeight:800, cursor:"pointer" }}>
                       {row.qty <= 1 ? "🗑" : "−"}
@@ -1040,8 +1069,8 @@ Thank you for shopping! 🙏`
                     <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)" }}>
                       {row.qty}
                     </span>
-                    <button onClick={() => setRow(i, "qty", row.qty + 1)}
-                      style={{ width:30, height:30, borderRadius:8, background:"var(--saffron)",
+                    <button onClick={() => setRow(i, "qty", row.qty + 1)} aria-label="More"
+                      style={{ width:40, height:40, borderRadius:9, background:"var(--saffron)",
                         color:"#fff", border:"none", fontSize:18, fontWeight:800, cursor:"pointer" }}>
                       +
                     </button>
@@ -1054,54 +1083,40 @@ Thank you for shopping! 🙏`
               )
             })}
 
-            {/* discount / note row */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
-              <button style={{ background:"var(--bg2)", border:"1.5px dashed rgba(184,134,11,0.3)",
-                color:"var(--brass-deep)", borderRadius:12, padding:"10px",
-                fontSize:MIN_FONT_SIZE, fontWeight:800, cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
-                💰 Discount
-              </button>
-              <button style={{ background:"var(--bg2)", border:"1.5px dashed rgba(184,134,11,0.3)",
-                color:"var(--brass-deep)", borderRadius:12, padding:"10px",
-                fontSize:MIN_FONT_SIZE, fontWeight:800, cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
-                📝 Note
-              </button>
-            </div>
-
-            {/* divider */}
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-              <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
-              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:700, letterSpacing:"1px", whiteSpace:"nowrap" }}>
-                ADD MORE ITEMS
-              </div>
-              <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
-            </div>
+            <label style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 4px 0",
+              fontSize:14, color:"var(--ink-dim)", cursor:"pointer" }}>
+              <input type="checkbox" checked={applyGst} onChange={e => setApplyGst(e.target.checked)}
+                style={{ width:20, height:20, accentColor:"var(--saffron)" }} />
+              {L("Add GST to this bill")}
+            </label>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* ── PRODUCT BROWSER ─────────────────────── */}
+      <div style={{ flex:1, overflowY:"auto", background:"var(--bg1)" }}>
 
         {/* ── PRODUCT BROWSER ─────────────────────── */}
         {(() => {
           const cats = ["Frequent", ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort()]
           const shown = catFilter === "Frequent"
-            ? products.slice(0, 12)
-            : products.filter(p => p.category === catFilter).slice(0, 24)
+            ? products.slice(0, 60)
+            : products.filter(p => p.category === catFilter).slice(0, 120)
 
           return (
-            <div style={{ padding: rows.length > 0 ? "0 14px 80px" : "4px 14px 80px" }}>
+            <div style={{ padding:"4px 14px 24px" }}>
 
               {/* Category filter pills */}
               <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:8,
                 scrollbarWidth:"none", marginBottom:2 }}>
                 {cats.map(c => (
                   <button key={c} onClick={() => setCatFilter(c)}
-                    style={{ padding:"6px 14px", borderRadius:20, border:"none", cursor:"pointer",
-                      flexShrink:0, fontSize:MIN_FONT_SIZE, fontWeight:700, transition:"all 0.12s",
+                    style={{ padding:"8px 14px", borderRadius:20, border:"none", cursor:"pointer",
+                      flexShrink:0, fontSize:13, fontWeight:700, transition:"all 0.12s",
                       background: catFilter === c ? "var(--saffron)" : "var(--bg2)",
                       color:      catFilter === c ? "#fff"          : "var(--ink-dim)",
                       boxShadow:  catFilter === c ? "0 3px 10px rgba(232,119,34,0.3)" : "none" }}>
-                    {c === "Frequent" ? "⭐ Frequent" : c}
+                    {c === "Frequent" ? "⭐ " + L("All") : L(c)}
                   </button>
                 ))}
               </div>
@@ -1112,59 +1127,40 @@ Thank you for shopping! 🙏`
                   No products in this category
                 </div>
               ) : (
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10, paddingTop:4 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8, paddingTop:4 }}>
                   {shown.map(p => {
                     const inCart = rows.find(r => r.prodId === p.id)
-                    const emoji = CAT_EMOJI[p.category] || "📦"
                     const outOfStock = p.stock <= 0
                     return (
                       <button key={p.id}
                         onClick={() => !outOfStock && addToCart(p)}
                         style={{
-                          background:"var(--bg2)", borderRadius:14, padding:"14px 12px",
+                          background: inCart ? "var(--saffron-bg)" : "var(--bg2)", borderRadius:12, padding:"10px 10px",
                           border: inCart ? "2px solid var(--saffron)" : "1px solid var(--rule)",
-                          boxShadow: inCart ? "0 2px 14px rgba(232,119,34,0.18)" : "0 2px 6px rgba(0,0,0,0.04)",
                           cursor: outOfStock ? "default" : "pointer",
-                          opacity: outOfStock ? 0.45 : 1,
-                          display:"flex", flexDirection:"column", alignItems:"flex-start",
-                          gap:8, textAlign:"left", position:"relative", transition:"all 0.12s",
-                        }}
-                        onMouseEnter={e => { if (!outOfStock) e.currentTarget.style.transform="translateY(-2px)" }}
-                        onMouseLeave={e => e.currentTarget.style.transform="none"}>
-
-                        {/* in-cart badge */}
+                          opacity: outOfStock ? 0.45 : 1, minHeight:72,
+                          display:"flex", flexDirection:"column", justifyContent:"space-between",
+                          gap:4, textAlign:"left", position:"relative",
+                        }}>
                         {inCart && (
-                          <div style={{ position:"absolute", top:8, right:8,
-                            minWidth:20, height:20, padding:"0 6px", borderRadius:10,
-                            background:"var(--saffron)", color:"#fff",
-                            fontSize:MIN_FONT_SIZE, fontWeight:800,
+                          <div style={{ position:"absolute", top:6, right:6,
+                            minWidth:24, height:24, padding:"0 7px", borderRadius:12,
+                            background:"var(--saffron)", color:"#fff", fontSize:13, fontWeight:800,
                             display:"flex", alignItems:"center", justifyContent:"center" }}>
                             {inCart.qty}
                           </div>
                         )}
-
-                        {/* emoji icon */}
-                        <div style={{ width:40, height:40, borderRadius:10,
-                          background:"var(--bg0)", border:"1px solid var(--rule)",
-                          display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
-                          {emoji}
+                        <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)", lineHeight:1.25,
+                          paddingRight: inCart ? 26 : 0, overflow:"hidden", textOverflow:"ellipsis",
+                          display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
+                          {p.name}
                         </div>
-
-                        {/* name + price */}
-                        <div style={{ width:"100%", paddingRight: inCart ? 20 : 0 }}>
-                          <div style={{ fontSize:12, fontWeight:700, color:"var(--ink)", lineHeight:1.3,
-                            overflow:"hidden", textOverflow:"ellipsis",
-                            display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
-                            {p.name}
-                          </div>
-                          <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
-                            fontSize:15, color:"var(--brass-deep)", fontWeight:800, marginTop:4 }}>
-                            ₹{p.mrp}
-                          </div>
-                          {outOfStock && (
-                            <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ember)", fontWeight:800,
-                              letterSpacing:"0.5px", marginTop:2 }}>OUT OF STOCK</div>
-                          )}
+                        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:6 }}>
+                          <span style={{ fontSize:16, color:"var(--brass-deep)", fontWeight:800 }}>₹{p.mrp}</span>
+                          <span style={{ fontSize:12, fontWeight:700,
+                            color: outOfStock ? "var(--ember)" : p.stock <= (p.min_stock || 0) ? "#b45309" : "var(--ink-faint)" }}>
+                            {outOfStock ? L("Out of stock") : p.stock + " " + L("left")}
+                          </span>
                         </div>
                       </button>
                     )
@@ -1176,47 +1172,28 @@ Thank you for shopping! 🙏`
         })()}
       </div>
 
-      {/* ── STICKY PAYMENT FOOTER ────────────────── */}
+      {/* ── BOTTOM BAR: items + total → bill sheet · Pay ── */}
       {rows.length > 0 && !invoice && (
-        <div style={{ background:"linear-gradient(180deg,var(--bg2),var(--bg3))",
-          borderTop:"2px solid rgba(184,134,11,0.3)",
-          boxShadow:"0 -8px 24px rgba(26,12,4,0.1)",
-          padding:"12px 14px 14px", flexShrink:0 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-            <input type="checkbox" id="kirana-gst-toggle" checked={applyGst}
-              onChange={e => setApplyGst(e.target.checked)}
-              style={{ width:15, height:15, cursor:"pointer", accentColor:"var(--saffron)" }} />
-            <label htmlFor="kirana-gst-toggle"
-              style={{ fontSize:12, color:"var(--ink-dim)", cursor:"pointer" }}>
-              Apply GST
-            </label>
-          </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
-            <div>
-              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--brass-deep)", letterSpacing:"1.5px",
-                fontWeight:800, textTransform:"uppercase" }}>
-                TOTAL · {rows.length} item{rows.length !== 1 ? "s" : ""}
-              </div>
-              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>
-                {applyGst
-                  ? `incl. ₹${Math.round(totals.tax * 100) / 100} GST (CGST + SGST)`
-                  : "GST not applied"}
-              </div>
+        <div style={{ position:"relative", zIndex:160, background:"var(--bg2)",
+          borderTop:"1px solid var(--rule)", boxShadow:"0 -6px 20px rgba(26,12,4,0.08)",
+          padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+          <button onClick={() => setShowCart(c => !c)}
+            style={{ flex:1, minWidth:0, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:14,
+              padding:"8px 12px", cursor:"pointer", textAlign:"left" }}>
+            <div style={{ fontSize:12, color:"var(--ink-dim)", fontWeight:700 }}>
+              {rows.reduce((n, r) => n + (+r.qty || 0), 0)} {L("items")} · {showCart ? L("hide bill") + " ▼" : L("see bill") + " ▲"}
             </div>
-            <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:38,
-              color:"var(--saffron)", fontWeight:800, lineHeight:1 }}>
+            <div style={{ fontSize:22, color:"var(--ink)", fontWeight:900, lineHeight:1.15 }}>
               ₹{grandTotal}
+              {applyGst && <span style={{ fontSize:11, color:"var(--ink-faint)", fontWeight:600, marginLeft:6 }}>{L("incl. GST")}</span>}
             </div>
-          </div>
-
-          <button onClick={openPay} disabled={saving}
-            style={{ width:"100%", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-              color:"#fff", border:"none", borderRadius:14, padding:"17px",
-              fontSize:17, fontWeight:900, letterSpacing:"0.3px",
-              boxShadow:"0 12px 28px rgba(232,119,34,0.45)", cursor:"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+          </button>
+          <button onClick={() => { setShowCart(false); openPay() }} disabled={saving}
+            style={{ flexShrink:0, background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
+              color:"#fff", border:"none", borderRadius:14, padding:"0 22px", height:58,
+              fontSize:18, fontWeight:900, boxShadow:"0 8px 20px rgba(232,119,34,0.4)", cursor:"pointer",
               opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Generating…" : `💳 Pay ₹${grandTotal} →`}
+            {saving ? "…" : L("Pay →")}
           </button>
         </div>
       )}

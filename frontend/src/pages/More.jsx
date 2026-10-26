@@ -3,44 +3,44 @@ import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
 import { useAppMode, APP_MODES } from "../context/AppModeContext"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const SECTIONS = [
   {
-    label: "Sales & Money",
-    hindi: "बिक्री",
+    label: "Sales & money",
     items: [
-      { label:"POS Billing",    hindi:"बिलिंग",    to:"/billing",     icon:"🧾", desc:"New sale / GST invoice" },
-      { label:"Sale History",   hindi:"इतिहास",    to:"/history",     icon:"📋", desc:"All past bills" },
-      { label:"Udhaar Khata",   hindi:"उधार",      to:"/udhar",       icon:"📒", desc:"Credit customers" },
-      { label:"Customers",      hindi:"ग्राहक",    to:"/customers",   icon:"👥", desc:"Customer profiles" },
+      { label:"New bill",           to:"/billing",     icon:"🧾", desc:"Make a bill" },
+      { label:"Past bills",         to:"/history",     icon:"📋", desc:"All bills you made" },
+      { label:"Khata (udhaar)",     to:"/udhar",       icon:"📒", desc:"Who owes you money" },
+      { label:"Customers",          to:"/customers",   icon:"👥", desc:"Regular customers" },
     ],
   },
   {
-    label: "Stock & Products",
-    hindi: "स्टॉक",
+    label: "Stock",
     items: [
-      { label:"Inventory",      hindi:"सामान",     to:"/inventory",   icon:"📦", desc:"View & edit stock" },
-      { label:"Bulk Import",    hindi:"आयात",      to:"/bulk-import", icon:"📥", desc:"Upload products via CSV" },
-      { label:"Wastage",        hindi:"नुकसान",    to:"/wastage",     icon:"🗑️", desc:"Record damaged goods" },
-      { label:"Expiry Intel",   hindi:"एक्सपायरी", to:"/expiry",      icon:"🕐", desc:"Items expiring soon" },
+      { label:"Stock",              to:"/inventory",   icon:"📦", desc:"Items, prices, quantity" },
+      { label:"Add many items",     to:"/bulk-import", icon:"📥", desc:"From an Excel / CSV file" },
+      { label:"Damaged goods",      to:"/wastage",     icon:"🗑️", desc:"Broken or spoiled items" },
+      { label:"Expiring soon",      to:"/expiry",      icon:"🕐", desc:"Sell these first" },
     ],
   },
   {
-    label: "Intelligence",
-    hindi: "विश्लेषण",
+    label: "Reports & help",
     items: [
-      { label:"Demand Intel",   hindi:"मांग",      to:"/demand",      icon:"📊", desc:"Festival & demand forecast" },
-      { label:"Insights",       hindi:"जानकारी",   to:"/insights",    icon:"📈", desc:"Profit, GST, trends" },
-      { label:"Voice Agent",    hindi:"बोलो",      to:"/voice",       icon:"🎤", desc:"Bill by speaking" },
+      { label:"Profit & reports",   to:"/insights",    icon:"📈", desc:"Profit, GST, trends" },
+      { label:"Festival demand",    to:"/demand",      icon:"📊", desc:"What will sell more" },
+      { label:"Speak a bill",       to:"/voice",       icon:"🎤", desc:"Bill by talking" },
+      { label:"Ask AI",             chat:true,         icon:"💬", desc:"Ask about your shop" },
     ],
   },
   {
-    label: "Operations",
-    hindi: "संचालन",
+    label: "Shop",
     items: [
-      { label:"Day Open/Close", hindi:"दिन",       to:"/day",         icon:"☀️", desc:"Daily cash reconciliation" },
-      { label:"Settings",       hindi:"सेटिंग",    to:"/settings",    icon:"⚙️", desc:"Theme, language, plan" },
-      { label:"Help",           hindi:"मदद",       to:"/help",        icon:"❓", desc:"How to use DukaanAI" },
+      { label:"Open / close day",   to:"/day",         icon:"☀️", desc:"Start and end the day" },
+      { label:"Settings",           to:"/settings",    icon:"⚙️", desc:"Shop details, language" },
+      { label:"Help",               to:"/help",        icon:"❓", desc:"How to use the app" },
     ],
   },
 ]
@@ -59,8 +59,7 @@ export default function More() {
       <div style={{ background:"var(--bg0)", backdropFilter:"blur(6px)",
         borderBottom:"1px solid var(--rule)", padding:"14px 16px",
         position:"sticky", top:0, zIndex:10 }}>
-        <div style={{ fontSize:20, fontWeight:800, color:"var(--ink)", letterSpacing:"-0.5px" }}>More</div>
-        <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>All features & settings</div>
+        <div style={{ fontSize:20, fontWeight:800, color:"var(--ink)", letterSpacing:"-0.5px" }}>{L("More")}</div>
       </div>
 
       <div style={{ padding:"12px 14px 20px" }}>
@@ -78,15 +77,15 @@ export default function More() {
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:15, fontWeight:700, color:"#fff",
               overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {vendor?.store_name || "Your Store"}
+              {vendor?.store_name || L("Your Store")}
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:3 }}>
               <span style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.9)",
                 background:"rgba(255,255,255,0.2)", borderRadius:20, padding:"2px 9px" }}>
-                ★ {planLabel?.name || "Free"} Plan
+                ★ {L(planLabel?.name || "Free")} {L("Plan")}
               </span>
               <span style={{ fontSize:10, color:"rgba(255,255,255,0.8)" }}>
-                {cloud ? "● Cloud sync" : "● Local only"}
+                {L(cloud ? "● Cloud sync" : "● Local only")}
               </span>
             </div>
           </div>
@@ -98,42 +97,40 @@ export default function More() {
           </button>
         </div>
 
-        {/* Mode switcher strip */}
-        <div style={{ display:"flex", gap:6, marginBottom:18 }}>
-          {Object.entries(APP_MODES).map(([key, m]) => {
-            const active = appMode === key
-            return (
-              <button key={key} onClick={() => setAppMode(key)}
-                style={{ flex:1, padding:"8px 4px", borderRadius:10, cursor:"pointer",
-                  border: active ? `1.5px solid ${m.color}` : "1.5px solid var(--rule)",
-                  background: active ? `color-mix(in srgb, ${m.color} 10%, var(--bg2))` : "var(--bg2)",
-                  display:"flex", flexDirection:"column", alignItems:"center", gap:2,
-                  transition:"all 0.15s" }}>
-                <span style={{ fontSize:16 }}>{m.emoji}</span>
-                <span style={{ fontSize:10, fontWeight:700,
-                  color: active ? m.color : "var(--ink-faint)" }}>{m.label}</span>
-              </button>
-            )
-          })}
+        {/* How many features to show */}
+        <div style={{ marginBottom:18 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:"var(--ink)", marginBottom:8 }}>{L("Show features")}</div>
+          <div style={{ display:"flex", gap:6 }}>
+            {Object.entries(APP_MODES).map(([key, m]) => {
+              const active = appMode === key
+              return (
+                <button key={key} onClick={() => setAppMode(key)}
+                  style={{ flex:1, padding:"10px 4px", borderRadius:12, cursor:"pointer",
+                    border: active ? `2px solid ${m.color}` : "1.5px solid var(--rule)",
+                    background: active ? `color-mix(in srgb, ${m.color} 10%, var(--bg2))` : "var(--bg2)",
+                    display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                  <span style={{ fontSize:18 }}>{m.emoji}</span>
+                  <span style={{ fontSize:13, fontWeight:800, color: active ? m.color : "var(--ink-dim)" }}>{L(m.label)}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:6 }}>{L(APP_MODES[appMode]?.desc)}</div>
         </div>
 
         {/* Feature sections */}
         {SECTIONS.map(sec => {
-          const visible = sec.items.filter(item => isScreenVisible(item.to))
+          const visible = sec.items.filter(item => item.chat || isScreenVisible(item.to))
           if (visible.length === 0) return null
           return (
             <div key={sec.label} style={{ marginBottom:20 }}>
-              <div style={{ display:"flex", alignItems:"baseline", gap:8, marginBottom:10 }}>
-                <div style={{ fontSize:10, fontWeight:800, color:"var(--brass-deep)",
-                  letterSpacing:"2px", textTransform:"uppercase" }}>{sec.label}</div>
-                <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
-                  fontSize:12, color:"var(--ink-faint)" }}>{sec.hindi}</div>
-              </div>
+              <div style={{ fontSize:13, fontWeight:800, color:"var(--brass-deep)", marginBottom:10 }}>{L(sec.label)}</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 {visible.map(item => {
                   const effectiveTo = item.to === "/day" && isBangleOnly ? "/bangle-day" : item.to
                   return (
-                  <button key={item.to} onClick={() => navigate(effectiveTo)}
+                  <button key={item.label}
+                    onClick={() => item.chat ? window.dispatchEvent(new Event("dk:open-chat")) : navigate(effectiveTo)}
                     style={{ background:"var(--bg2)", border:"1px solid var(--rule)",
                       borderRadius:14, padding:"14px 12px", cursor:"pointer",
                       display:"flex", flexDirection:"column", alignItems:"flex-start", gap:6,
@@ -141,16 +138,12 @@ export default function More() {
                       transition:"all 0.15s" }}
                     onTouchStart={e => e.currentTarget.style.transform="scale(0.97)"}
                     onTouchEnd={e => e.currentTarget.style.transform="none"}>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
-                      <span style={{ fontSize:22 }}>{item.icon}</span>
-                      <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
-                        fontSize:11, color:"var(--ink-faint)" }}>{item.hindi}</div>
+                    <span style={{ fontSize:24 }}>{item.icon}</span>
+                    <div style={{ fontSize:15, fontWeight:800, color:"var(--ink)", lineHeight:1.2 }}>
+                      {L(item.label)}
                     </div>
-                    <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", lineHeight:1.2 }}>
-                      {item.label}
-                    </div>
-                    <div style={{ fontSize:10, color:"var(--ink-faint)", lineHeight:1.4 }}>
-                      {item.desc}
+                    <div style={{ fontSize:12, color:"var(--ink-faint)", lineHeight:1.35 }}>
+                      {L(item.desc)}
                     </div>
                   </button>
                   )
@@ -169,8 +162,8 @@ export default function More() {
               boxShadow:"0 2px 8px var(--shadow)" }}>
             <span style={{ fontSize:20 }}>📲</span>
             <div style={{ textAlign:"left" }}>
-              <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)" }}>Install App</div>
-              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>Add to home screen for offline use</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)" }}>{L("Install App")}</div>
+              <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>{L("Add to home screen for offline use")}</div>
             </div>
           </button>
 
@@ -180,7 +173,7 @@ export default function More() {
                 borderRadius:12, padding:"12px 16px", cursor:"pointer",
                 display:"flex", alignItems:"center", gap:12 }}>
               <span style={{ fontSize:20 }}>🚪</span>
-              <div style={{ fontSize:13, fontWeight:600, color:"var(--ink-dim)", textAlign:"left" }}>Logout</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"var(--ink-dim)", textAlign:"left" }}>{L("Logout")}</div>
             </button>
           )}
         </div>

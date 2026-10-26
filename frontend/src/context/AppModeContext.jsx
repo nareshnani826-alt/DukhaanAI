@@ -2,14 +2,14 @@ import { createContext, useContext, useState } from "react"
 
 export const APP_MODES = {
   lite: {
-    label: "Lite", hindi: "सरल", emoji: "🌱",
-    desc: "5 screens · perfect for beginners",
+    label: "Simple", hindi: "सरल", emoji: "🌱",
+    desc: "Only billing, stock, khata and past bills",
     color: "var(--jade)",
-    screens: ["/dashboard", "/billing", "/voice", "/udhar", "/inventory"],
+    screens: ["/dashboard", "/billing", "/voice", "/udhar", "/inventory", "/history"],
   },
   standard: {
     label: "Standard", hindi: "साधारण", emoji: "⚡",
-    desc: "11 screens · daily kirana use",
+    desc: "Adds customers, day close, damaged goods and more",
     color: "var(--brass)",
     screens: [
       "/dashboard", "/billing", "/voice", "/udhar", "/inventory",
@@ -17,8 +17,8 @@ export const APP_MODES = {
     ],
   },
   pro: {
-    label: "Pro", hindi: "पूर्ण", emoji: "🚀",
-    desc: "All screens · busy shops",
+    label: "All", hindi: "पूर्ण", emoji: "🚀",
+    desc: "Every feature, including reports and AI insights",
     color: "var(--saffron)",
     screens: "all",
   },
@@ -37,6 +37,8 @@ export function AppModeProvider({ children }) {
   }
 
   function isScreenVisible(path) {
+    // Settings and Help are always reachable, whatever the mode
+    if (path === "/settings" || path === "/help") return true
     const mode = APP_MODES[appMode]
     if (!mode || mode.screens === "all") return true
     return mode.screens.includes(path)
