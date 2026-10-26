@@ -1,5 +1,16 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+// Single source of truth for the version shown in Settings: the Android versionName
+function appVersion() {
+  try {
+    const gradle = readFileSync(new URL("./android/app/build.gradle", import.meta.url), "utf8")
+    return gradle.match(/versionName\s+"([^"]+)"/)?.[1] || "dev"
+  } catch {
+    return "dev"
+  }
+}
 
 // Routes that exist both as React pages AND as backend API paths.
 // A browser back/forward navigation sends a real HTTP request with
@@ -31,9 +42,10 @@ export default defineConfig(({ command }) => ({
   // Dev server: force same-origin API calls through the proxy below. A machine-level
   // VITE_API_URL (e.g. an old LAN IP like 192.168.x.x) otherwise leaks into every
   // fetch and breaks login/AI the moment the laptop's IP changes.
-  ...(command === "serve" && {
-    define: { "import.meta.env.VITE_API_URL": JSON.stringify("") },
-  }),
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion()),
+    ...(command === "serve" && { "import.meta.env.VITE_API_URL": JSON.stringify("") }),
+  },
   optimizeDeps: {
     // Capacitor plugins use native bridges — exclude from Vite's pre-bundler
     // so the web build doesn't choke on them. Dynamic imports load them only

@@ -1,3 +1,4 @@
+/* global __APP_VERSION__ -- injected by vite.config.js from android versionName */
 import { useState, useEffect } from "react"
 import { getUPIVpa, saveUPIVpa } from "../components/UPIQRCode.jsx"
 import { getDefaultApplyGst, setDefaultApplyGst } from "../utils/gstSettings.js"
@@ -426,7 +427,9 @@ export default function Settings() {
           </div>
           <div className="flex justify-between text-xs py-2">
             <span className="text-gray-500">App version</span>
-            <span className="font-medium text-gray-400">DukaanAI v1.0</span>
+            <span className="font-medium text-gray-400">
+              DukaanAI v{__APP_VERSION__}{window.Capacitor?.isNativePlatform?.() ? " (app)" : " (web)"}
+            </span>
           </div>
         </div>
         {/* Add Child User UI for admins/owners */}
