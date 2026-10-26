@@ -108,6 +108,9 @@ function timestamp() {
 
 // ── Detect store-related questions ────────────────────────────
 function isStoreQuestion(q) {
+  const lower = q.toLowerCase()
+  if (SALE_RE.test(lower) || UDHAR_RE.test(lower) || LOW_RE.test(lower) || PROFIT_RE.test(lower)) return true
+  if (lower.split(/[\s?!.,]+/).some(w => WORD_TO_EN[w])) return true
   return /stock|inventory|price|mrp|cost|margin|profit|sale|revenue|invoice|bill|udh|khata|due|baki|wastage|expire|damage|product|item|low|reorder|categ|brand|sku|unit|available|do you have|have you|is there|do we have|kya hai|milega|milta|undi|vundi|unnaya|ఉందా|కావాలి|ఉన్నాయా|వస్తువు|స్టాక్|అమ్మకాలు|బాకీ|ధర|ఉధార్|తక్కువ|లాభ|स्टॉक|बिक्री|उधार|कीमत|लाभ|मिलेगा|ஸ்டாக்|விற்பனை|கடன்|கிடைக்கும்|ಸ್ಟಾಕ್|ಮಾರಾಟ|ಬಾಕಿ/i.test(q)
 }
 
@@ -172,7 +175,53 @@ function phoneticKey(s) {
 }
 
 // ── Answer using db.js APIs (auth handled internally, no raw fetch) ──
-async function localReply(q, storeMode = "kirana") {
+// Intent words in all 10 app languages (the chips the assistant itself suggests must work)
+const SALE_RE   = /sale|revenue|invoice|bill|అమ్మకాలు|అమ్మకం|बिक्री|விற்பனை|ಮಾರಾಟ|വിൽപ്പന|विक्री|বিক্রয়|বিক্রি|વેચાણ|ਵਿਕਰੀ/
+const UDHAR_RE  = /udh|khata|due|baki|bakaya|బాకీ|ఉధార్|उधार|கடன்|ಬಾಕಿ|ಉಧಾರ್|കടം|ബാക്കി|थकबाकी|উধার|বকেয়া|ઉધાર|ਉਧਾਰ|ਬਕਾਇਆ/
+const LOW_RE    = /low|reorder|out of|minimum|min|తక్కువ|कम|कमी|குறைந்த|ಕಡಿಮೆ|കുറഞ്ഞ|কম|ઓછો|ਘੱਟ/
+const PROFIT_RE = /profit|లాభ|लाभ|मुनाफ|லாபம்|ಲಾಭ|ലാഭ|नफा|লাভ|નફો|ਮੁਨਾਫ਼ਾ/
+
+// Everyday grocery words → English, so "పాలు ఉందా?" finds "Amul Milk"
+const GROCERY_WORDS = {
+  milk:   ["పాలు","paalu","palu","दूध","doodh","dudh","பால்","paal","ಹಾಲು","haalu","പാൽ","दूध","দুধ","દૂધ","ਦੁੱਧ"],
+  salt:   ["ఉప్పు","uppu","नमक","namak","உப்பு","ಉಪ್ಪು","ഉപ്പ്","मीठ","লবণ","મીઠું","ਨਮਕ"],
+  oil:    ["నూనె","nune","तेल","tel","எண்ணெய்","ennai","ಎಣ್ಣೆ","enne","എണ്ണ","তেল","તેલ","ਤੇਲ"],
+  sugar:  ["చక్కెర","chakkera","పంచదార","चीनी","cheeni","chini","சர்க்கரை","ಸಕ್ಕರೆ","പഞ്ചസാര","साखर","চিনি","ખાંડ","ਖੰਡ"],
+  dal:    ["పప్పు","pappu","दाल","paruppu","பருப்பு","ಬೇಳೆ","പരിപ്പ്","डाळ","ডাল","દાળ","ਦਾਲ"],
+  rice:   ["బియ్యం","biyyam","चावल","chawal","அரிசி","arisi","ಅಕ್ಕಿ","akki","അരി","तांदूळ","চাল","ચોખા","ਚੌਲ"],
+  soap:   ["సబ్బు","sabbu","साबुन","sabun","சோப்பு","ಸೋಪು","സോപ്പ്","साबण","সাবান","સાબુ","ਸਾਬਣ"],
+  atta:   ["పిండి","pindi","आटा","maavu","மாவு","ಹಿಟ್ಟು","മാവ്","पीठ","আটা","લોટ","ਆਟਾ"],
+  tea:    ["టీ","chai","चाय","டீ","ಚಹಾ","ചായ","चहा","চা","ચા","ਚਾਹ"],
+  ghee:   ["నెయ్యి","neyyi","घी","நெய்","ತುಪ್ಪ","നെയ്യ്","তুপ","ઘી","ਘਿਓ"],
+  curd:   ["పెరుగు","perugu","दही","dahi","தயிர்","ಮೊಸರು","തൈര്","दही","দই","દહીં","ਦਹੀਂ"],
+  egg:    ["గుడ్డు","guddu","अंडा","anda","முட்டை","ಮೊಟ್ಟೆ","മുട്ട","अंडी","ডিম","ઈંડા","ਅੰਡਾ"],
+  biscuit:["బిస్కెట్","बिस्कुट","பிஸ்கட்","ಬಿಸ್ಕತ್","ബിസ്കറ്റ്","बिस्किट","বিস্কুট","બિસ્કિટ","ਬਿਸਕੁਟ"],
+  noodles:["నూడుల్స్","नूडल्स","நூடுல்ஸ்","ನೂಡಲ್ಸ್"],
+  butter: ["వెన్న","venna","मक्खन","makkhan","வெண்ணெய்","ಬೆಣ್ಣೆ","വെണ്ണ","लोणी","মাখন","માખણ","ਮੱਖਣ"],
+}
+const WORD_TO_EN = Object.fromEntries(Object.entries(GROCERY_WORDS).flatMap(([en, list]) => list.map(w => [w.toLowerCase(), en])))
+
+// Assistant replies in the shop's language (Telugu/Hindi; others fall back to English)
+const REPLY = {
+  "te-IN": { in:"స్టాక్‌లో ఉంది", avail:"ఉన్నాయి", low:"తక్కువగా ఉంది", only:"కేవలం", left:"మిగిలాయి", out:"స్టాక్ లేదు",
+    restock:"త్వరలో తెప్పించండి", buy:"కొనాలి", found:"వస్తువులు దొరికాయి", sales:"అమ్మకాల సారాంశం", today:"ఈరోజు",
+    month:"ఈ నెల", bills:"బిల్లులు", top:"ఈ నెల ఎక్కువ అమ్ముడైనవి", sold:"అమ్ముడయ్యాయి", noDue:"బాకీలు ఏమీ లేవు! అందరూ చెల్లించారు.",
+    udhar:"బాకీ సారాంశం", totalDue:"మొత్తం బాకీ", custDue:"బాకీ ఉన్న కస్టమర్లు", topDues:"ఎక్కువ బాకీలు",
+    allOk:"అన్ని వస్తువులు తగినంత ఉన్నాయి! ఏమీ తెప్పించనక్కర్లేదు.", outList:"స్టాక్ లేనివి", lowList:"తక్కువ స్టాక్" },
+  "hi-IN": { in:"स्टॉक में है", avail:"उपलब्ध", low:"कम है", only:"सिर्फ़", left:"बचे", out:"स्टॉक ख़त्म",
+    restock:"जल्द मँगवाएँ", buy:"ख़रीदना होगा", found:"सामान मिला", sales:"बिक्री का सारांश", today:"आज",
+    month:"इस महीने", bills:"बिल", top:"इस महीने सबसे ज़्यादा बिके", sold:"बिके", noDue:"कोई उधार बाकी नहीं! सबने चुका दिया।",
+    udhar:"उधार सारांश", totalDue:"कुल उधार", custDue:"उधार वाले ग्राहक", topDues:"सबसे बड़े उधार",
+    allOk:"सब सामान पर्याप्त है! कुछ मँगवाने की ज़रूरत नहीं।", outList:"स्टॉक ख़त्म", lowList:"कम स्टॉक" },
+  "en-IN": { in:"IN STOCK", avail:"available", low:"RUNNING LOW", only:"only", left:"left", out:"OUT OF STOCK",
+    restock:"consider restocking soon", buy:"you need to purchase this", found:"matching product(s)", sales:"Sales Summary", today:"Today",
+    month:"This month", bills:"bills", top:"Top products this month", sold:"sold", noDue:"No udhaar dues! All customers are clear.",
+    udhar:"Udhaar Summary", totalDue:"Total due", custDue:"Customers with dues", topDues:"Top dues",
+    allOk:"All products have sufficient stock! Nothing to reorder.", outList:"Out of stock", lowList:"Low stock" },
+}
+
+async function localReply(q, storeMode = "kirana", lang = "en-IN") {
+  const R = REPLY[lang] || REPLY["en-IN"]
   // Strip punctuation before any processing so "milk?" matches "milk"
   const query = q.toLowerCase().replace(/[?!.,;:'"()\-]/g, " ").replace(/\s+/g, " ").trim()
 
@@ -203,9 +252,13 @@ async function localReply(q, storeMode = "kirana") {
     ? transliterateIndic(query).toLowerCase().split(/\s+/)
         .filter(w => w.length > 1 && !stopWords.has(w) && !indicStops.has(w))
     : []
-  const allWords = hasIndic ? [...new Set([...words, ...romanWords])] : words
+  const baseWords = hasIndic ? [...new Set([...words, ...romanWords])] : words
+  // Translate everyday grocery words (పాలు → milk) so local-language questions find English product names
+  const dictWords = query.split(/\s+/).map(w => WORD_TO_EN[w]).filter(Boolean)
+  const allWords = dictWords.length ? [...new Set(dictWords)] : baseWords
 
   const isAnalyticsQuery = /sale|revenue|udh|baki|wastage|low stock|reorder|categ|margin|profit|top|best|most/.test(query)
+    || SALE_RE.test(query) || UDHAR_RE.test(query) || PROFIT_RE.test(query) || (LOW_RE.test(query) && dictWords.length === 0)
 
   // ── 0. Learned vocabulary — fastest path (central repo) ──────
   const vocabHits = await VocabDB.lookup(allWords, storeMode).catch(() => [])
@@ -222,7 +275,8 @@ async function localReply(q, storeMode = "kirana") {
     const cat  = (p.category || "").toLowerCase()
     return allWords.filter(w => {
       if (name.includes(w) || cat.includes(w)) return true
-      if (hasIndic && w.length > 1) {
+      // Sound-alike matching only for transliterated words, not dictionary words ("milk" ≈ "amul" would be wrong)
+      if (hasIndic && dictWords.length === 0 && w.length > 1) {
         const wKey = phoneticKey(w)
         if (wKey.length < 2) return false
         return name.split(/\s+/).some(nw => {
@@ -273,22 +327,21 @@ async function localReply(q, storeMode = "kirana") {
       const mrpLine  = p.mrp > 0 ? ` · MRP ₹${p.mrp}` : ""
 
       if (isOut) {
-        return `❌ ${p.name}${p.category ? ` (${p.category})` : ""}
-   Status: OUT OF STOCK — 0 units remaining
-   👉 You need to purchase this product to fulfill the request.${mrpLine}`
+        return `❌ ${p.name}
+   ${R.out} — 👉 ${R.buy}${mrpLine}`
       }
       if (isLow) {
-        return `⚠️ ${p.name}${p.category ? ` (${p.category})` : ""}
-   Status: RUNNING LOW — only ${stock} ${p.unit||"units"} left (min: ${minStock})
-   👉 Stock is low — consider restocking soon.${mrpLine}${m > 0 ? ` · Margin ${m}%` : ""}`
+        return `⚠️ ${p.name}
+   ${R.low} — ${R.only} ${stock} ${R.left}
+   👉 ${R.restock}${mrpLine}`
       }
-      return `✅ ${p.name}${p.category ? ` (${p.category})` : ""}
-   Status: IN STOCK — ${stock} ${p.unit||"units"} available${mrpLine}${m > 0 ? ` · Margin ${m}%` : ""}`
+      return `✅ ${p.name}
+   ${R.in} — ${stock} ${R.avail}${mrpLine}${m > 0 ? ` · Margin ${m}%` : ""}`
     })
 
     const header = matched.length === 1
       ? (fromVocab ? "🧠 (from learned vocab)\n" : "")
-      : `Found ${matched.length} matching product(s):\n\n`
+      : `${matched.length} ${R.found}:\n\n`
     return `${header}${lines.join("\n\n")}`
   }
 
@@ -312,7 +365,7 @@ async function localReply(q, storeMode = "kirana") {
   }
 
   // ── Sales ────────────────────────────────────────────────
-  if (/sale|revenue|invoice|bill|అమ్మకాలు|बिक्री|விற்பனை|ಮಾರಾಟ/.test(query)) {
+  if (SALE_RE.test(query)) {
     const [today, month, bills] = await Promise.all([
       Sales.today().catch(() => ({ total:0, count:0, sales:[] })),
       Sales.summary({ days:30 }).catch(() => ({ total_revenue:0, transaction_count:0, top_products:[] })),
@@ -323,11 +376,12 @@ async function localReply(q, storeMode = "kirana") {
       const now = new Date()
       return d.toDateString() === now.toDateString()
     })
-    const topLines = (month.top_products||[]).slice(0,5).map(p => `  • ${p.name} — ${p.units} sold`)
-    return `💰 Sales Summary:
-• Today: ₹${today.total||0} (${today.count||0} sales, ${todayBills.length} invoices)
-• This month: ₹${month.total_revenue||0} (${month.transaction_count||0} sales)
-${topLines.length ? `\n🏆 Top products this month:\n${topLines.join("\n")}` : ""}`
+    const topLines = (month.top_products||[]).slice(0,5).map(p => `  • ${p.name} — ${p.units} ${R.sold}`)
+    const todayTotal = today.total || todayBills.reduce((t, b) => t + (+b.total || 0), 0)
+    return `💰 ${R.sales}:
+• ${R.today}: ₹${todayTotal} (${todayBills.length} ${R.bills})
+• ${R.month}: ₹${month.total_revenue||todayTotal}
+${topLines.length ? `\n🏆 ${R.top}:\n${topLines.join("\n")}` : ""}`
   }
 
   // ── Bill / Invoice history ───────────────────────────────
@@ -341,33 +395,33 @@ ${topLines.length ? `\n🏆 Top products this month:\n${topLines.join("\n")}` : 
   }
 
   // ── Udhaar ───────────────────────────────────────────────
-  if (/udh|khata|due|baki|bakaya|బాకీ|उधार|கடன்|ಬಾಕಿ/.test(query)) {
+  if (UDHAR_RE.test(query)) {
     const customers = await Udhar.listCustomers().catch(() => [])
     const due   = customers.filter(c => parseFloat(c.total_due||0) > 0)
     const total = due.reduce((s,c) => s + parseFloat(c.total_due||0), 0)
-    if (due.length === 0) return "✅ No udhaar dues! All customers are clear."
+    if (due.length === 0) return `✅ ${R.noDue}`
     const lines = due.slice(0,8).map(c => `• ${c.name}${c.phone?` (${c.phone})`:""} — ₹${parseFloat(c.total_due).toFixed(2)}`)
-    return `🧾 Udhaar Summary:
-• Total due: ₹${total.toFixed(2)}
-• Customers with dues: ${due.length}
+    return `🧾 ${R.udhar}:
+• ${R.totalDue}: ₹${total.toFixed(2)}
+• ${R.custDue}: ${due.length}
 
-Top dues:
+${R.topDues}:
 ${lines.join("\n")}`
   }
 
   // ── Low stock / reorder ──────────────────────────────────
-  if (/low|reorder|out of|minimum|min|తక్కువ|कम|குறைந்த|ಕಡಿಮೆ/.test(query)) {
+  if (LOW_RE.test(query)) {
     const low = products.filter(p => parseFloat(p.stock||0) > 0 && parseFloat(p.stock||0) < parseFloat(p.min_stock||0))
     const out = products.filter(p => parseFloat(p.stock||0) === 0)
-    if (low.length === 0 && out.length === 0) return "✅ All products have sufficient stock! Nothing to reorder."
+    if (low.length === 0 && out.length === 0) return `✅ ${R.allOk}`
     let reply = ""
-    if (out.length > 0) reply += `❌ Out of stock (${out.length}):\n${out.slice(0,8).map(p=>`• ${p.name}`).join("\n")}\n\n`
-    if (low.length > 0) reply += `⚠️ Low stock (${low.length}):\n${low.slice(0,8).map(p=>`• ${p.name} — ${p.stock}/${p.min_stock} ${p.unit||""}`).join("\n")}`
+    if (out.length > 0) reply += `❌ ${R.outList} (${out.length}):\n${out.slice(0,8).map(p=>`• ${p.name}`).join("\n")}\n\n`
+    if (low.length > 0) reply += `⚠️ ${R.lowList} (${low.length}):\n${low.slice(0,8).map(p=>`• ${p.name} — ${p.stock} ${R.left}`).join("\n")}`
     return reply.trim()
   }
 
   // ── Today's / period profit ──────────────────────────────
-  if (/profit|లాభ|लाभ|லாபம்|ಲಾಭ/.test(query)) {
+  if (PROFIT_RE.test(query)) {
     const isToday = /today|aaj|ఈరోజు|आज|இன்று|ಇಂದು/.test(query)
     const isMonth = /month|mahina|నెల|महीना|மாதம்|ತಿಂಗಳು/.test(query)
     const days = isToday ? 1 : isMonth ? 30 : 7
@@ -636,10 +690,10 @@ function AIChatWidget() {
       let reply     = null
       let teachData = null
 
-      // 1. Store question → local db.js APIs (zero latency, always free)
-      if (token && isStoreQuestion(q)) {
+      // 1. Store question → local db.js APIs (zero latency, always free; works logged in or on-phone only)
+      if (isStoreQuestion(q)) {
         try {
-          const localResult = await localReply(q, storeMode)
+          const localResult = await localReply(q, storeMode, lang)
           if (localResult && localResult._teach) {
             reply     = localResult.text
             teachData = {
@@ -668,8 +722,9 @@ function AIChatWidget() {
           if (res.ok) {
             const data = await res.json()
             reply = data?.response || null
-          } else if (res.status === 429 || res.status === 503) {
+          } else if (res.status === 429) {
             reply = t.limitErr
+            // 503 = AI not set up on the server → fall through to the friendly "ask me about stock…" reply
           } else {
             reply = null
           }
