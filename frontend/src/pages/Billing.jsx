@@ -74,8 +74,9 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
 
   return (
     <div style={{
+      // Above the billing bottom bar (z 160) and the phone menu, so Confirm is always reachable
       position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
-      zIndex:100, display:"flex", alignItems:"flex-start", justifyContent:"center",
+      zIndex:450, display:"flex", alignItems:"flex-start", justifyContent:"center",
       padding:"16px", overflowY:"auto",
     }}>
       <div style={{
@@ -492,7 +493,7 @@ export default function Billing() {
       })
       setInvoice({ ...inv, customer_phone: phone })
       if (custName !== "Walk-in") await Customers.upsert({ name: custName, phone: phone||null, gstin: gstin||null, amount: inv.total })
-      showNotif(`Invoice ${inv.invoice_no} generated!`)
+      showNotif(`✓ Invoice ${inv.invoice_no} generated!`)
     } catch(e) { setEasyDone(null); showNotif("Error: " + e.message) }
     finally { setSaving(false) }
   }
@@ -1393,7 +1394,7 @@ Thank you for shopping! 🙏`
       </div>
 
       {/* ── BOTTOM BAR: items + total → bill sheet · Pay ── */}
-      {rows.length > 0 && !invoice && (
+      {rows.length > 0 && !invoice && !showReview && (
         <div style={{ position:"relative", zIndex:160, background:"var(--bg2)",
           borderTop:"1px solid var(--rule)", boxShadow:"0 -6px 20px rgba(26,12,4,0.08)",
           padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
