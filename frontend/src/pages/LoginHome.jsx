@@ -1307,9 +1307,9 @@ function AuthForm({ onSuccess, onLocalMode }) {
         </button>
       </div>
 
-      {/* APK is uploaded next to the website (public_html/download/) — not bundled, or the app would contain itself */}
+      {/* APK lives on GitHub Releases — "latest" always serves the newest version. Not bundled, or the app would contain itself */}
       {!window.Capacitor?.isNativePlatform?.() && (
-        <a href="/download/dukaanai.apk" download
+        <a href="https://github.com/nareshnani826-alt/DukhaanAI/releases/latest/download/dukaanai.apk"
           style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8,
             padding:"12px", borderRadius:12, border:"1.5px solid #f0d9c4",
             background:"#fff8f2", color:"#c25500", fontSize:13, fontWeight:700,
