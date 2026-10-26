@@ -321,6 +321,19 @@ export default function Billing() {
   const addRow = ()  => setRows(r => [...r, { prodId: products[0]?.id || "", qty: 1, isNew: true }])
   const delRow = i   => setRows(r => r.filter((_, ri) => ri !== i))
 
+  // ── Stock limit: a bill can't take more than what's in the shop ──
+  const stockOf   = p  => Number(p?.stock) || 0
+  const qtyInBill = id => rows.find(r => r.prodId === id)?.qty || 0
+  function canAddOne(product) {
+    if (!product) return false
+    const have = stockOf(product)
+    if (qtyInBill(product.id) + 1 <= have) return true
+    showNotif(have <= 0
+      ? `${product.name}: ${L("Out of stock")}`
+      : `${L("Only")} ${have} ${L("in stock")}: ${product.name}`)
+    return false
+  }
+
   // ── Barcode lookup (manual + camera) ─────────────────────
   async function lookupBarcode(code) {
     const q = (code || "").trim()
@@ -370,6 +383,7 @@ export default function Billing() {
   }
 
   function addBarcodeProductToBill(product) {
+    if (!canAddOne(product)) return
     setRows(rows => {
       const existing = rows.findIndex(r => r.prodId === product.id)
       if (existing >= 0) {
@@ -409,6 +423,15 @@ export default function Billing() {
   }
 
   async function handleReviewConfirm(finalItems) {
+    const over = finalItems.find(it => {
+      const prod = getProduct(it.product_id)
+      return prod && +it.qty > stockOf(prod)
+    })
+    if (over) {
+      const prod = getProduct(over.product_id)
+      showNotif(`${L("Only")} ${stockOf(prod)} ${L("in stock")}: ${prod.name}`)
+      return
+    }
     setShowReview(false)
     setSaving(true)
     const custName = cust.trim() || "Walk-in"
@@ -529,6 +552,7 @@ Thank you for shopping! 🙏`
   }
 
   function addToCart(product) {
+    if (!canAddOne(product)) return
     setRows(prev => {
       const idx = prev.findIndex(r => r.prodId === product.id)
       if (idx >= 0) return prev.map((r, i) => i === idx ? { ...r, qty: r.qty + 1 } : r)
@@ -628,7 +652,9 @@ Thank you for shopping! 🙏`
       {/* ── Toast notification ───────────────────── */}
       {notif && (
         <div style={{ position:"fixed", bottom: rows.length ? 170 : 96, left:"50%", transform:"translateX(-50%)",
-          zIndex:300, background:"var(--jade)", color:"#fff", maxWidth:"90vw", overflow:"hidden", textOverflow:"ellipsis",
+          // Green for "added", amber for warnings (stock limit, errors)
+          zIndex:300, background: notif.startsWith("✓") || notif.startsWith("🎤") ? "var(--jade)" : "#b45309",
+          color:"#fff", maxWidth:"90vw", overflow:"hidden", textOverflow:"ellipsis",
           padding:"10px 18px", borderRadius:999, fontSize:14, fontWeight:700,
           whiteSpace:"nowrap", boxShadow:"0 4px 20px rgba(0,0,0,0.2)", pointerEvents:"none" }}>
           {notif}
@@ -1069,7 +1095,7 @@ Thank you for shopping! 🙏`
                     <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)" }}>
                       {row.qty}
                     </span>
-                    <button onClick={() => setRow(i, "qty", row.qty + 1)} aria-label="More"
+                    <button onClick={() => canAddOne(p) && setRow(i, "qty", row.qty + 1)} aria-label="More"
                       style={{ width:40, height:40, borderRadius:9, background:"var(--saffron)",
                         color:"#fff", border:"none", fontSize:18, fontWeight:800, cursor:"pointer" }}>
                       +
@@ -1131,6 +1157,7 @@ Thank you for shopping! 🙏`
                   {shown.map(p => {
                     const inCart = rows.find(r => r.prodId === p.id)
                     const outOfStock = p.stock <= 0
+                    const leftAfterBill = Math.max(0, stockOf(p) - (inCart?.qty || 0))
                     return (
                       <button key={p.id}
                         onClick={() => !outOfStock && addToCart(p)}
@@ -1158,8 +1185,8 @@ Thank you for shopping! 🙏`
                         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:6 }}>
                           <span style={{ fontSize:16, color:"var(--brass-deep)", fontWeight:800 }}>₹{p.mrp}</span>
                           <span style={{ fontSize:12, fontWeight:700,
-                            color: outOfStock ? "var(--ember)" : p.stock <= (p.min_stock || 0) ? "#b45309" : "var(--ink-faint)" }}>
-                            {outOfStock ? L("Out of stock") : p.stock + " " + L("left")}
+                            color: outOfStock || leftAfterBill === 0 ? "var(--ember)" : leftAfterBill <= (p.min_stock || 0) ? "#b45309" : "var(--ink-faint)" }}>
+                            {outOfStock ? L("Out of stock") : leftAfterBill + " " + L("left")}
                           </span>
                         </div>
                       </button>

@@ -67,6 +67,25 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
             "total": item_total,
         })
 
+    # Refuse to sell more than is in stock (checked before anything is saved)
+    wanted: dict[str, float] = {}
+    for item in line_items:
+        if item.get("product_id"):
+            wanted[item["product_id"]] = wanted.get(item["product_id"], 0) + float(item["qty"])
+    if wanted:
+        stock_rows = (
+            db.table("products").select("id,name,stock")
+            .eq("vendor_id", vendor["id"]).in_("id", list(wanted)).execute().data
+        )
+        for p in stock_rows:
+            have = float(p.get("stock") or 0)
+            if wanted[p["id"]] > have:
+                have_txt = int(have) if have.is_integer() else have
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Only {have_txt} in stock: {p['name']}. Update the stock or reduce the quantity.",
+                )
+
     subtotal = round(subtotal, 2)
     tax_total = round(tax_total, 2)
     cgst = round(tax_total / 2, 2)
