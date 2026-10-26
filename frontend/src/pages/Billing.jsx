@@ -256,6 +256,44 @@ const CAT_EMOJI = {
   Fruits:'🍎', Vegetables:'🥦', Other:'📦',
 }
 
+// Big picture for each product (Easy billing) — from the name first, then the category
+const NAME_EMOJI = [
+  [/milk|doodh|curd|dahi|lassi|paneer/i, "🥛"], [/butter|ghee|cheese/i, "🧈"], [/salt|namak/i, "🧂"],
+  [/oil|tel\b/i, "🫙"], [/biscuit|cookie|parle|marie|bourbon/i, "🍪"], [/noodle|maggi|pasta|yippee/i, "🍜"],
+  [/chips|lays|kurkure|namkeen|bhujia/i, "🥔"], [/chocolate|dairy milk|kitkat|5 ?star/i, "🍫"],
+  [/sugar|chini|candy|toffee/i, "🍬"], [/rice|chawal|poha/i, "🍚"], [/dal|lentil|chana|rajma|moong|toor/i, "🫘"],
+  [/atta|flour|maida|sooji|rava|besan/i, "🌾"], [/tea|chai/i, "🍵"], [/coffee/i, "☕"],
+  [/soap|lifebuoy|lux|dettol|santoor/i, "🧼"], [/shampoo|lotion|cream|oil.*hair/i, "🧴"],
+  [/paste|colgate|pepsodent|brush/i, "🪥"], [/surf|detergent|rin|tide|ariel|nirma|vim|harpic/i, "🧺"],
+  [/cola|pepsi|sprite|thums|fanta|drink|soda|limca/i, "🥤"], [/juice|frooti|maaza|slice/i, "🧃"],
+  [/water|bisleri|aquafina/i, "💧"], [/egg|anda/i, "🥚"], [/bread|pav|bun|rusk/i, "🍞"],
+  [/onion|potato|tomato|vegetable|sabzi/i, "🥕"], [/banana|apple|fruit|mango/i, "🍎"],
+  [/masala|chilli|mirchi|haldi|turmeric|jeera|spice/i, "🌶️"], [/agarbatti|incense|matchbox|match/i, "🔥"],
+]
+function productEmoji(p) {
+  const hit = NAME_EMOJI.find(([re]) => re.test(p?.name || ""))
+  return hit ? hit[1] : (CAT_EMOJI[p?.category] || "📦")
+}
+
+// "Total ₹107" said out loud in the shop's language (web: speechSynthesis; skipped where unavailable)
+const TOTAL_WORDS = {
+  "en-IN": n => `Total ${n} rupees`,      "hi-IN": n => `कुल ${n} रुपये`,     "te-IN": n => `మొత్తం ${n} రూపాయలు`,
+  "ta-IN": n => `மொத்தம் ${n} ரூபாய்`,     "kn-IN": n => `ಒಟ್ಟು ${n} ರೂಪಾಯಿ`,  "ml-IN": n => `ആകെ ${n} രൂപ`,
+  "mr-IN": n => `एकूण ${n} रुपये`,         "bn-IN": n => `মোট ${n} টাকা`,       "gu-IN": n => `કુલ ${n} રૂપિયા`,
+  "pa-IN": n => `ਕੁੱਲ ${n} ਰੁਪਏ`,
+}
+function speakTotal(amount) {
+  try {
+    if (!window.speechSynthesis) return
+    const lang = uiLang()
+    const u = new SpeechSynthesisUtterance((TOTAL_WORDS[lang] || TOTAL_WORDS["en-IN"])(Math.round(amount)))
+    u.lang = lang
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(u)
+  } catch { /* no voice on this device */ }
+}
+const buzz = () => { try { navigator.vibrate?.(25) } catch { /* not supported */ } }
+
 export default function Billing() {
   const { vendor }  = useAuth()
   const { hasFeature } = usePlan()
@@ -300,6 +338,13 @@ export default function Billing() {
   })
   const [showHeld, setShowHeld] = useState(false)
   const [showCart, setShowCart] = useState(false)   // bill sheet over the product list (mobile-first)
+  // "easy" = big pictures + one PAID button; "default" = full billing screen. Remembered per phone.
+  const [billMode, setBillMode] = useState(() => { try { return localStorage.getItem("dk_bill_mode") || "default" } catch { return "default" } })
+  const [easyDone, setEasyDone] = useState(null)   // { total } after an Easy bill is saved
+  function switchBillMode(m) {
+    setBillMode(m)
+    try { localStorage.setItem("dk_bill_mode", m) } catch { /* private mode */ }
+  }
   const [openingDay, setOpeningDay] = useState(false)
 
   const searchRef = useRef(null)
@@ -430,6 +475,7 @@ export default function Billing() {
     if (over) {
       const prod = getProduct(over.product_id)
       showNotif(`${L("Only")} ${stockOf(prod)} ${L("in stock")}: ${prod.name}`)
+      setEasyDone(null)
       return
     }
     setShowReview(false)
@@ -447,7 +493,7 @@ export default function Billing() {
       setInvoice({ ...inv, customer_phone: phone })
       if (custName !== "Walk-in") await Customers.upsert({ name: custName, phone: phone||null, gstin: gstin||null, amount: inv.total })
       showNotif(`Invoice ${inv.invoice_no} generated!`)
-    } catch(e) { showNotif("Error: " + e.message) }
+    } catch(e) { setEasyDone(null); showNotif("Error: " + e.message) }
     finally { setSaving(false) }
   }
 
@@ -505,6 +551,7 @@ Thank you for shopping! 🙏`
     setRows([])
     setCust(""); setPhone(""); setGstin("")
     setInvoice(null); setSearchQ(""); setBarcodeResult(null)
+    setEasyDone(null)
   }
 
   // ── billing-first helpers ────────────────────────────────
@@ -564,6 +611,21 @@ Thank you for shopping! 🙏`
     setTimeout(() => searchRef.current?.focus(), 50)
   }
 
+  function removeOne(product) {
+    setRows(prev => prev.flatMap(r => r.prodId !== product.id ? [r] : r.qty > 1 ? [{ ...r, qty: r.qty - 1 }] : []))
+  }
+
+  // Easy billing: save straight away as a cash bill — no review screen
+  async function finishEasyBill() {
+    const items = rows.map(r => {
+      const p = getProduct(r.prodId)
+      return p && +r.qty > 0 ? { product_id: p.id, name: p.name, qty: +r.qty, unit_price: p.mrp, gst_percent: p.gst_percent || 0 } : null
+    }).filter(Boolean)
+    if (!items.length) return showNotif(L("Tap a picture to add"))
+    setEasyDone({ total: grandTotal })   // shown once the invoice exists; cleared again on failure below
+    await handleReviewConfirm(items)
+  }
+
   function holdBill() {
     if (!rows.length) { showNotif("Nothing to hold"); return }
     const held = [
@@ -586,6 +648,10 @@ Thank you for shopping! 🙏`
     localStorage.setItem("dk_held_bills", JSON.stringify(remaining))
     setShowHeld(false)
   }
+
+  useEffect(() => {
+    if (easyDone && invoice) { speakTotal(easyDone.total); buzz() }
+  }, [easyDone, invoice])
 
   // Listen for held-bills trigger from the nav tab
   useEffect(() => {
@@ -645,6 +711,128 @@ Thank you for shopping! 🙏`
       {notif && <div style={{ fontSize:13, color:"var(--ember)" }}>{notif}</div>}
     </div>
   )
+
+  // ════ EASY BILLING ═══════════════════════════════════════
+  // "See bill" after an Easy bill falls through to the full screen, which has the bill sheet (WhatsApp / Print)
+  if (billMode === "easy" && !(invoice && !easyDone)) {
+    const count = rows.reduce((n, r) => n + (+r.qty || 0), 0)
+    const shown = products.filter(p => p.is_active !== false).slice(0, 200)
+    return (
+      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)" }}>
+        {notif && (
+          <div style={{ position:"fixed", bottom:180, left:"50%", transform:"translateX(-50%)", zIndex:300,
+            background: notif.startsWith("✓") || notif.startsWith("🎤") ? "var(--jade)" : "#b45309",
+            color:"#fff", padding:"12px 20px", borderRadius:999, fontSize:16, fontWeight:800, maxWidth:"92vw", pointerEvents:"none" }}>
+            {notif}
+          </div>
+        )}
+        {scanner && <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />}
+
+        {/* Saved → big tick, total, next customer */}
+        {invoice && easyDone && (
+          <div style={{ position:"fixed", inset:0, zIndex:400, background:"var(--bg0)", display:"flex", flexDirection:"column",
+            alignItems:"center", justifyContent:"center", gap:18, padding:24, textAlign:"center" }}>
+            <div style={{ width:120, height:120, borderRadius:"50%", background:"var(--jade)", color:"#fff",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:64 }}>✓</div>
+            <div style={{ fontSize:20, fontWeight:800, color:"var(--ink-dim)" }}>{L("Bill saved")}</div>
+            <div style={{ fontSize:56, fontWeight:900, color:"var(--ink)", lineHeight:1 }}>₹{Math.round(easyDone.total)}</div>
+            <button onClick={() => { setEasyDone(null); clearBill() }}
+              style={{ width:"100%", maxWidth:360, height:72, borderRadius:20, border:"none", fontSize:22, fontWeight:900,
+                color:"#fff", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))", marginTop:8 }}>
+              {L("Next customer")} →
+            </button>
+            <button onClick={() => setEasyDone(null)}
+              style={{ background:"none", border:"none", color:"var(--ink-dim)", fontSize:16, fontWeight:700, textDecoration:"underline" }}>
+              {L("See bill")} · WhatsApp · {L("Print")}
+            </button>
+          </div>
+        )}
+
+        {/* Top: speak + scan, and the switch back */}
+        <div style={{ padding:"10px 12px 6px", display:"flex", gap:10, flexShrink:0 }}>
+          <button onClick={voiceActive ? undefined : startVoiceSearch}
+            style={{ flex:1, height:64, borderRadius:18, fontSize:20, fontWeight:900, cursor:"pointer",
+              border: voiceActive ? "3px solid #dc2626" : "2px solid var(--rule)",
+              background: voiceActive ? "#fee2e2" : "var(--bg2)", color: voiceActive ? "#b91c1c" : "var(--ink)" }}>
+            🎤 {voiceActive ? "…" : L("Speak")}
+          </button>
+          <button onClick={() => setScanner(true)}
+            style={{ flex:1, height:64, borderRadius:18, border:"none", fontSize:20, fontWeight:900, cursor:"pointer",
+              color:"#fff", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))" }}>
+            📷 {L("Scan")}
+          </button>
+        </div>
+        <div style={{ padding:"0 14px 6px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+          <span style={{ fontSize:13, color:"var(--ink-faint)", fontWeight:700 }}>{L("Tap a picture to add")}</span>
+          <button onClick={() => switchBillMode("default")}
+            style={{ background:"none", border:"none", color:"var(--saffron)", fontSize:13, fontWeight:800, cursor:"pointer" }}>
+            {L("Full mode")} ⇄
+          </button>
+        </div>
+
+        {/* Pictures */}
+        <div style={{ flex:1, overflowY:"auto", padding:"4px 12px 16px" }}>
+          {shown.length === 0 ? (
+            <div style={{ textAlign:"center", padding:32, color:"var(--ink-faint)", fontSize:16 }}>{L("Nothing matches.")}</div>
+          ) : (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(104px,1fr))", gap:10 }}>
+              {shown.map(p => {
+                const inCart = rows.find(r => r.prodId === p.id)
+                const out = stockOf(p) <= 0
+                return (
+                  <div key={p.id} style={{ position:"relative" }}>
+                    <button onClick={() => { if (!out) { addToCart(p); buzz() } }}
+                      style={{ width:"100%", aspectRatio:"1 / 1.12", borderRadius:18, cursor: out ? "default" : "pointer",
+                        border: inCart ? "3px solid var(--saffron)" : "1.5px solid var(--rule)",
+                        background: inCart ? "var(--saffron-bg)" : "var(--bg2)", opacity: out ? 0.4 : 1,
+                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, padding:6 }}>
+                      <span style={{ fontSize:44, lineHeight:1 }}>{productEmoji(p)}</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:"var(--ink)", lineHeight:1.15, textAlign:"center",
+                        overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</span>
+                      <span style={{ fontSize:17, fontWeight:900, color:"var(--brass-deep)" }}>₹{p.mrp}</span>
+                    </button>
+                    {inCart && (
+                      <>
+                        <div style={{ position:"absolute", top:-6, right:-6, minWidth:34, height:34, padding:"0 8px", borderRadius:17,
+                          background:"var(--saffron)", color:"#fff", fontSize:18, fontWeight:900, pointerEvents:"none",
+                          display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>
+                          {inCart.qty}
+                        </div>
+                        <button onClick={() => { removeOne(p); buzz() }} aria-label={"Remove one " + p.name}
+                          style={{ position:"absolute", top:-6, left:-6, width:34, height:34, borderRadius:17, border:"2px solid #fff",
+                            background:"#dc2626", color:"#fff", fontSize:22, fontWeight:900, lineHeight:1,
+                            boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>−</button>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Total + PAID */}
+        <div style={{ flexShrink:0, background:"var(--bg2)", borderTop:"1px solid var(--rule)", padding:"10px 12px",
+          display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:14, color:"var(--ink-dim)", fontWeight:800 }}>{count} {L("items")}</div>
+            <div style={{ fontSize:32, fontWeight:900, color:"var(--ink)", lineHeight:1.05 }}>₹{grandTotal}</div>
+          </div>
+          {count > 0 && (
+            <button onClick={clearBill} aria-label={L("Clear")}
+              style={{ width:58, height:72, borderRadius:16, border:"1.5px solid rgba(192,57,43,0.3)", background:"var(--ember-bg)",
+                color:"var(--ember)", fontSize:24, fontWeight:900 }}>✕</button>
+          )}
+          <button onClick={finishEasyBill} disabled={saving || count === 0}
+            style={{ flex:1.4, height:72, borderRadius:18, border:"none", fontSize:24, fontWeight:900, color:"#fff",
+              background: count ? "linear-gradient(135deg,#16a34a,#15803d)" : "var(--rule)", opacity: saving ? 0.7 : 1,
+              boxShadow: count ? "0 8px 20px rgba(22,163,74,0.35)" : "none" }}>
+            {saving ? "…" : "✅ " + L("PAID")}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>
@@ -801,6 +989,11 @@ Thank you for shopping! 🙏`
       <div style={{ padding:"8px 14px", background:"var(--bg0)",
         display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
         <div style={{ flex:1, fontSize:17, color:"var(--ink)", fontWeight:800 }}>{L("New bill")}</div>
+        <button onClick={() => switchBillMode("easy")}
+          style={{ background:"var(--jade-bg, #e7f6ee)", border:"1px solid rgba(26,122,74,0.3)", color:"var(--jade)",
+            borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:800, cursor:"pointer" }}>
+          ⚡ {L("Easy")}
+        </button>
         {heldBills.length > 0 && (
           <button onClick={() => setShowHeld(true)}
             style={{ background:"var(--saffron-bg)", border:"1px solid rgba(232,119,34,0.35)", color:"var(--saffron)",
