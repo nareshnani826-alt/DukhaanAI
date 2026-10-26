@@ -51,7 +51,9 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_pass: str = ""
-    smtp_from: str = "noreply@dukhaanai.com"
+    smtp_from: str = "noreply@dukhaanai.com"   # also the Brevo sender address
+    # Brevo transactional email API (HTTPS) — preferred over SMTP when set
+    brevo_api_key: str = ""
 
     # Razorpay
     razorpay_key_id: str = ""

@@ -34,7 +34,10 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      # Email — required for sign-up OTP and password reset
+      # Email — required for sign-up OTP and password reset.
+      # BREVO_API_KEY (HTTPS API) works on the free plan; SMTP_* needs a paid plan.
+      - key: BREVO_API_KEY
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

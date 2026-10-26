@@ -2,9 +2,6 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
 import secrets
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from slowapi import Limiter
@@ -26,23 +23,17 @@ from app.schemas.schemas import (
     RegisterOtpRequired, RegisterConfirm,
 )
 from app.core.config import settings
+from app.core.mailer import email_configured, send_email
 from app.core.whatsapp import send_otp as _send_whatsapp_otp, _normalize_phone
 
 
 def _send_reset_email(to_email: str, store_name: str, reset_url: str) -> None:
-    if not settings.smtp_host:
-        return
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Reset your DukaanAI password"
-        msg["From"] = settings.smtp_from
-        msg["To"] = to_email
-        text = (
-            f"Hi {store_name},\n\n"
-            f"Reset your DukaanAI password by visiting:\n{reset_url}\n\n"
-            "This link expires in 1 hour. If you didn't request this, ignore this email."
-        )
-        html = f"""<div style="font-family:sans-serif;max-width:480px">
+    text = (
+        f"Hi {store_name},\n\n"
+        f"Reset your DukaanAI password by visiting:\n{reset_url}\n\n"
+        "This link expires in 1 hour. If you didn't request this, ignore this email."
+    )
+    html = f"""<div style="font-family:sans-serif;max-width:480px">
 <h2 style="color:#1D9E75">DukaanAI Password Reset</h2>
 <p>Hi <b>{store_name}</b>,</p>
 <p>Click the button below to reset your password:</p>
@@ -50,14 +41,7 @@ def _send_reset_email(to_email: str, store_name: str, reset_url: str) -> None:
 <p style="font-size:12px;color:#666">Or copy this link: {reset_url}</p>
 <p style="font-size:12px;color:#888">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
 </div>"""
-        msg.attach(MIMEText(text, "plain"))
-        msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-            server.starttls()
-            server.login(settings.smtp_user, settings.smtp_pass)
-            server.sendmail(settings.smtp_from, to_email, msg.as_string())
-    except Exception:
-        pass
+    send_email(to_email, "Reset your DukaanAI password", text, html)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -113,20 +97,13 @@ def _issue_tokens(db, vendor: dict) -> TokenResponse:
 
 
 def _send_otp_email(to_email: str, store_name: str, otp: str) -> bool:
-    """Send a 6-digit OTP to the user's email via SMTP. Returns False if SMTP not configured."""
-    if not settings.smtp_host:
-        return False
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"🔐 {otp} is your DukaanAI verification code"
-        msg["From"]    = settings.smtp_from
-        msg["To"]      = to_email
-        text = (
-            f"Hi {store_name},\n\n"
-            f"Your DukaanAI verification code is: {otp}\n\n"
-            f"Valid for 10 minutes. Do not share this code with anyone."
-        )
-        html = f"""<div style="font-family:sans-serif;max-width:480px;margin:auto">
+    """Send a 6-digit OTP to the user's email. Returns False if it couldn't be sent."""
+    text = (
+        f"Hi {store_name},\n\n"
+        f"Your DukaanAI verification code is: {otp}\n\n"
+        f"Valid for 10 minutes. Do not share this code with anyone."
+    )
+    html = f"""<div style="font-family:sans-serif;max-width:480px;margin:auto">
 <h2 style="color:#1D9E75">DukaanAI Verification</h2>
 <p>Hi <b>{store_name}</b>,</p>
 <p>Use the code below to complete your registration:</p>
@@ -136,18 +113,7 @@ def _send_otp_email(to_email: str, store_name: str, otp: str) -> bool:
 <p style="font-size:12px;color:#666">Valid for <b>10 minutes</b>. Do not share this code.</p>
 <p style="font-size:11px;color:#aaa">If you didn't request this, ignore this email.</p>
 </div>"""
-        msg.attach(MIMEText(text, "plain"))
-        msg.attach(MIMEText(html,  "html"))
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as s:
-            s.starttls()
-            s.login(settings.smtp_user, settings.smtp_pass)
-            s.sendmail(settings.smtp_from, to_email, msg.as_string())
-        return True
-    except Exception as e:
-        # Previously swallowed silently, so a wrong password/host looked like a random 502
-        logging.error("OTP email to %s failed via %s:%s — %s: %s",
-                      to_email, settings.smtp_host, settings.smtp_port, type(e).__name__, e)
-        return False
+    return send_email(to_email, f"🔐 {otp} is your DukaanAI verification code", text, html)
 
 
 @router.post("/register")
@@ -163,9 +129,9 @@ async def register(request: Request, body: VendorRegister):
 
     # Production must send real emails. In local development without SMTP, the OTP is
     # printed to the backend console instead so sign-up can still be tested.
-    dev_otp_to_console = not settings.smtp_host and settings.app_env != "production"
-    if not settings.smtp_host and not dev_otp_to_console:
-        logging.error("Registration blocked: SMTP_HOST is not set in the server environment")
+    dev_otp_to_console = not email_configured() and settings.app_env != "production"
+    if not email_configured() and not dev_otp_to_console:
+        logging.error("Registration blocked: neither BREVO_API_KEY nor SMTP_HOST is set")
         raise HTTPException(
             status_code=503,
             detail="Sign-up is temporarily unavailable. Please try again later."
