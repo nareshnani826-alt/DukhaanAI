@@ -700,6 +700,10 @@ export const UI_STRINGS = {
     "User added successfully!": "సిబ్బంది జోడించబడ్డారు!",
     "Enter staff username": "సిబ్బంది యూజర్ పేరు రాయండి",
     "Failed to add user": "జోడించలేకపోయాం",
+    "How to use DukaanAI, step by step": "DukaanAI ఎలా వాడాలి — ఒక్కో అడుగు",
+    "Search help...": "సహాయంలో వెతకండి...",
+    "Nothing found for": "దొరకలేదు:",
+    "Try other words": "వేరే పదాలు ప్రయత్నించండి",
   },
   "hi-IN": {
     "Today": "आज", "bills": "बिल", "Stock Health": "स्टॉक की स्थिति",
@@ -1396,6 +1400,10 @@ export const UI_STRINGS = {
     "User added successfully!": "स्टाफ जुड़ गया!",
     "Enter staff username": "स्टाफ का यूज़र नाम लिखें",
     "Failed to add user": "जोड़ नहीं सके",
+    "How to use DukaanAI, step by step": "DukaanAI कैसे चलाएं — कदम दर कदम",
+    "Search help...": "मदद में खोजें...",
+    "Nothing found for": "कुछ नहीं मिला:",
+    "Try other words": "दूसरे शब्द आज़माएं",
   },
   "ta-IN": {
     "Today": "இன்று", "bills": "பில்கள்", "Stock Health": "சரக்கு நிலை",
