@@ -425,16 +425,18 @@ function ProductCard({ p, lang, nativeVoices, onSpeak }) {
   )
 }
 
-function StatCard({ label, value, color, sub, icon }) {
+function StatCard({ label, value, color, sub, icon, wide }) {
   return (
     <div style={{background:"var(--bg1,#fff)", border:"1px solid var(--rule,#eee)",
       borderRadius:14, padding:"16px 18px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
-      display:"flex", alignItems:"center", gap:14}}>
+      display:"flex", alignItems:"center", gap:12, minWidth:0, gridColumn: wide ? "span 2" : undefined}}>
       {icon && <div style={{fontSize:24, flexShrink:0, width:44, height:44,
         display:"flex", alignItems:"center", justifyContent:"center",
         background:`${color||"#888"}18`, borderRadius:12}}>{icon}</div>}
-      <div>
-        <div style={{fontSize:26, fontWeight:800, color:color||"var(--ink)", lineHeight:1.1}}>{value}</div>
+      <div style={{minWidth:0}}>
+        {/* long amounts (₹11,390) get a smaller size so they stay inside the card */}
+        <div style={{fontSize:String(value).length > 4 ? 22 : 26, fontWeight:800, color:color||"var(--ink)",
+          lineHeight:1.1, whiteSpace:"nowrap"}}>{value}</div>
         <div style={{fontSize:12, color:"var(--ink-dim)", marginTop:3, fontWeight:500}}>{label}</div>
         {sub && <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:1}}>{sub}</div>}
       </div>
@@ -773,8 +775,8 @@ export default function ExpiryIntelligence() {
           <StatCard icon="🟡" label="Needs Attention" value={s.attention} color="#d97706" />
           <StatCard icon="🟢" label="Safe" value={s.safe} color="#16a34a" />
           {s.value_at_risk>0 && (
-            <StatCard icon="💸" label="Value at Risk"
-              value={`₹${Number(s.value_at_risk).toLocaleString("en-IN")}`}
+            <StatCard icon="💸" label="Value at Risk" wide
+              value={`₹${Math.round(Number(s.value_at_risk)).toLocaleString("en-IN")}`}
               color="#dc2626" sub="Expired + High Risk" />
           )}
         </div>
