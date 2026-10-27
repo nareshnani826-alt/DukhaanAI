@@ -301,20 +301,39 @@ function productEmoji(p) {
   return hit ? hit[1] : (CAT_EMOJI[p?.category] || "📦")
 }
 
-// A heap of grains in a bowl, drawn at emoji size
-const GRAIN_SPOTS = [[10,25],[15,25.5],[20,26],[25,26],[30,25.5],[35,25],[39,24.5],[12.5,21],[17.5,21.5],[22.5,21],
-  [27.5,21.5],[32.5,21],[36.5,20.5],[15.5,17],[20.5,17],[25.5,17.5],[30.5,17],[18.5,13],[23.5,13.5],[28.5,13],[24,9.5]]
+// A heap of small grains in a steel bowl, drawn at emoji size.
+// Grain spots are fixed (seeded) so every tile looks the same on every render.
+const GRAIN_HEAP = (() => {
+  let seed = 7
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const out = []
+  while (out.length < 95) {
+    const x = 6 + rnd() * 36, y = 8 + rnd() * 20
+    // inside the mound: half-ellipse sitting on the bowl rim (y = 27)
+    if (((x - 24) / 18.5) ** 2 + ((27.5 - y) / 18) ** 2 > 1) continue
+    out.push({ x, y, a: Math.round(rnd() * 180), t: rnd() })
+  }
+  return out.sort((a, b) => a.y - b.y)   // back to front
+})()
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16)
+  const ch = v => Math.max(0, Math.min(255, Math.round(v * f)))
+  return `rgb(${ch(n >> 16)},${ch((n >> 8) & 255)},${ch(n & 255)})`
+}
 function GrainBowl({ color, round, size = 48 }) {
-  const r = round ? 3.1 : 2.9
+  const tones = [shade(color, 0.82), color, shade(color, 1.08)]
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
-      <path d="M3 27 Q24 52 45 27 Z" fill="#a0522d" />
-      <ellipse cx="24" cy="27" rx="21" ry="3.6" fill="#6e3514" />
-      {GRAIN_SPOTS.map(([x, y], i) => (
-        <ellipse key={i} cx={x} cy={y} rx={r} ry={round ? r : r * 0.78} fill={color}
-          stroke="rgba(0,0,0,0.28)" strokeWidth="0.7" transform={round ? undefined : `rotate(${(i * 37) % 60 - 30} ${x} ${y})`} />
+      <ellipse cx="24" cy="27.5" rx="20.5" ry="3.4" fill={shade(color, 0.55)} />
+      {GRAIN_HEAP.map((g, i) => (
+        <ellipse key={i} cx={g.x} cy={g.y} rx={round ? 1.9 : 2.1} ry={round ? 1.8 : 1.35}
+          fill={tones[Math.floor(g.t * 3)]} stroke="rgba(0,0,0,0.22)" strokeWidth="0.35"
+          transform={round ? undefined : `rotate(${g.a} ${g.x} ${g.y})`} />
       ))}
-      <path d="M3 27 Q24 52 45 27" fill="none" stroke="#7a3d17" strokeWidth="1.2" />
+      {/* steel katori */}
+      <path d="M2.5 28 Q4 45 24 45 Q44 45 45.5 28 Z" fill="#b9c0c8" />
+      <path d="M6 31 Q9 41 20 42.5" fill="none" stroke="#eef1f4" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+      <path d="M2.5 28 Q24 31.5 45.5 28" fill="none" stroke="#8d96a0" strokeWidth="1.3" />
     </svg>
   )
 }
