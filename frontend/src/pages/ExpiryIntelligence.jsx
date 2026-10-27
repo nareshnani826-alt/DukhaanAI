@@ -425,11 +425,17 @@ function ProductCard({ p, lang, nativeVoices, onSpeak }) {
   )
 }
 
-function StatCard({ label, value, color, sub, icon, wide }) {
+// Tapping a card (when onClick is given) filters the list below; tap again for all
+function StatCard({ label, value, color, sub, icon, wide, onClick, active }) {
+  const Tag = onClick ? "button" : "div"
   return (
-    <div style={{background:"var(--bg1,#fff)", border:"1px solid var(--rule,#eee)",
-      borderRadius:14, padding:"16px 18px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
-      display:"flex", alignItems:"center", gap:12, minWidth:0, gridColumn: wide ? "span 2" : undefined}}>
+    <Tag onClick={onClick} aria-pressed={onClick ? !!active : undefined}
+      style={{background: active ? `${color||"#e87722"}14` : "var(--bg1,#fff)",
+      border: active ? `2.5px solid ${color||"#e87722"}` : "1px solid var(--rule,#eee)",
+      borderRadius:14, padding: active ? "14.5px 16.5px" : "16px 18px",
+      boxShadow: active ? `0 4px 14px ${color||"#e87722"}33` : "0 1px 4px rgba(0,0,0,0.06)",
+      display:"flex", alignItems:"center", gap:12, minWidth:0, gridColumn: wide ? "span 2" : undefined,
+      textAlign:"left", font:"inherit", cursor: onClick ? "pointer" : "default", transition:"all 0.15s"}}>
       {icon && <div style={{fontSize:24, flexShrink:0, width:44, height:44,
         display:"flex", alignItems:"center", justifyContent:"center",
         background:`${color||"#888"}18`, borderRadius:12}}>{icon}</div>}
@@ -440,7 +446,7 @@ function StatCard({ label, value, color, sub, icon, wide }) {
         <div style={{fontSize:12, color:"var(--ink-dim)", marginTop:3, fontWeight:500}}>{label}</div>
         {sub && <div style={{fontSize:11, color:"var(--ink-faint)", marginTop:1}}>{sub}</div>}
       </div>
-    </div>
+    </Tag>
   )
 }
 
@@ -466,6 +472,7 @@ export default function ExpiryIntelligence() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState("")
   const [tab, setTab]             = useState("all")
+  const pickTab = key => setTab(t => t === key ? "all" : key)   // tap the same card again → all
   const [speaking, setSpeaking]   = useState(false)
   // nativeVoices: { "te-IN": true/false, ... } — which langs have offline device voices
   const [nativeVoices, setNativeVoices] = useState({})
@@ -767,13 +774,18 @@ export default function ExpiryIntelligence() {
       {s && (
         <div style={{padding:"16px 24px",
           display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))", gap:12}}>
-          <StatCard icon="📦" label="Total Products" value={s.total_products} />
+          <StatCard icon="📦" label="Total Products" value={s.total_products}
+            active={tab==="all"} onClick={()=>setTab("all")} />
           <StatCard icon="⛔" label="Likely Expired"  value={s.likely_expired} color="#dc2626"
-            sub={s.likely_expired>0?"Check immediately":"None"} />
+            sub={s.likely_expired>0?"Check immediately":"None"}
+            active={tab==="expired"} onClick={()=>pickTab("expired")} />
           <StatCard icon="🔴" label="High Risk"  value={s.high_risk}  color="#ea580c"
-            sub={s.high_risk>0?"Act soon":"All clear"} />
-          <StatCard icon="🟡" label="Needs Attention" value={s.attention} color="#d97706" />
-          <StatCard icon="🟢" label="Safe" value={s.safe} color="#16a34a" />
+            sub={s.high_risk>0?"Act soon":"All clear"}
+            active={tab==="high_risk"} onClick={()=>pickTab("high_risk")} />
+          <StatCard icon="🟡" label="Needs Attention" value={s.attention} color="#d97706"
+            active={tab==="attention"} onClick={()=>pickTab("attention")} />
+          <StatCard icon="🟢" label="Safe" value={s.safe} color="#16a34a"
+            active={tab==="safe"} onClick={()=>pickTab("safe")} />
           {s.value_at_risk>0 && (
             <StatCard icon="💸" label="Value at Risk" wide
               value={`₹${Math.round(Number(s.value_at_risk)).toLocaleString("en-IN")}`}
@@ -792,30 +804,10 @@ export default function ExpiryIntelligence() {
         </div>
       )}
 
-      {/* ── Tabs + Search ─────────────────────────────────────── */}
+      {/* ── Search (the cards above are the filters) ──────────────── */}
       {data && (
         <div style={{padding:"0 24px 14px",
           display:"flex", gap:8, alignItems:"center", flexWrap:"wrap"}}>
-          {[
-            {key:"all",       label:"All",       count:allProducts.length},
-            {key:"expired",   label:"Expired",   count:s?.likely_expired||0, color:"#dc2626"},
-            {key:"high_risk", label:"High Risk", count:s?.high_risk||0,      color:"#ea580c"},
-            {key:"attention", label:"Attention", count:s?.attention||0,      color:"#d97706"},
-            {key:"safe",      label:"Safe",      count:s?.safe||0,           color:"#16a34a"},
-          ].map(t => (
-            <button key={t.key} onClick={()=>setTab(t.key)}
-              style={{padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600,
-                cursor:"pointer", transition:"all 0.15s",
-                border:tab===t.key?"none":"1.5px solid var(--rule,#eee)",
-                background:tab===t.key?(t.color||"#e87722"):"var(--bg1,white)",
-                color:tab===t.key?"white":(t.color||"var(--ink-dim)"),
-                boxShadow:tab===t.key?`0 2px 8px ${(t.color||"#e87722")}44`:"none"}}>
-              {t.label}
-              <span style={{marginLeft:6, fontSize:11,
-                background:tab===t.key?"rgba(255,255,255,0.3)":"var(--bg2,#f3f4f6)",
-                padding:"1px 7px", borderRadius:10}}>{t.count}</span>
-            </button>
-          ))}
           <div style={{flex:1, minWidth:180, maxWidth:320, position:"relative", marginLeft:"auto"}}>
             <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
               placeholder="Search products…"
