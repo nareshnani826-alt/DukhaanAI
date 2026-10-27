@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { api, isCloud, Products } from "../sync/db"
+import { api, isCloud, Products, API_BASE } from "../sync/db"
 import { getSavedLang, LANG_KEY } from "../voice/i18n"
 
 // ── Shelf-life rules ───────────────────────────────────────────
@@ -208,22 +208,26 @@ function speakNative(text, langCode) {
   return true
 }
 
-// Engine 2: Google Translate TTS via Audio element (requires internet)
-// Works for ALL Indian languages without any installation.
-// Uses the Google Translate web TTS endpoint (same one used by translate.google.com).
+// Engine 2: cloud voice for languages the device can't speak (requires internet).
+// Our server fetches the audio — browsers are often refused when calling Google directly —
+// and reads the whole alert, not just the first sentence.
+function playAudio(url) {
+  if (_cloudAudio) { _cloudAudio.pause(); _cloudAudio = null }
+  _cloudAudio = new Audio(url)
+  _cloudAudio.volume = 1
+  return _cloudAudio.play()
+}
 async function speakCloud(text, langCode) {
-  const lang  = langCode.split("-")[0]   // te | hi | ta | kn | ml | mr | bn
-  const chunk = chunkText(text)[0]       // first sentence fits in one request
+  const lang = langCode.split("-")[0]   // te | hi | ta | kn | ml | mr | bn
   try {
-    if (_cloudAudio) { _cloudAudio.pause(); _cloudAudio = null }
-    // Audio element does not require CORS headers — no cross-origin restrictions
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${lang}&client=tw-ob&ttsspeed=0.85`
-    _cloudAudio = new Audio(url)
-    _cloudAudio.volume = 1
-    await _cloudAudio.play()
+    await playAudio(`${API_BASE}/api/voice/tts?lang=${lang}&text=${encodeURIComponent(text.slice(0, 1500))}`)
     return true
-  } catch(e) {
-    return false
+  } catch {
+    // Server unreachable: try Google directly (first sentence only)
+    try {
+      await playAudio(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunkText(text)[0])}&tl=${lang}&client=tw-ob&ttsspeed=0.85`)
+      return true
+    } catch { return false }
   }
 }
 
