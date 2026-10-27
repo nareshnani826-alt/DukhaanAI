@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom"
 import { tr, uiLang } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
+const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 
 export default function UpgradeWall({ feature, children }) {
   const { hasFeature, isToggledOff, FEATURE_LABELS, PLAN_LABELS } = usePlan()
@@ -121,15 +122,15 @@ export default function UpgradeWall({ feature, children }) {
           🔒
         </div>
         <h2 className="text-sm font-semibold text-gray-800 mb-1">
-          {info.name} is a {reqPlan.name} feature
+          {Lf("{name} is a {plan} feature", { name: L(info.name), plan: L(reqPlan.name) })}
         </h2>
         <p className="text-xs text-gray-400 mb-6">
-          {info.desc}. Upgrade to {reqPlan.name} to unlock this and all premium features.
+          {L(info.desc)}. {Lf("Upgrade to {plan} to unlock this and all premium features.", { plan: L(reqPlan.name) })}
         </p>
 
         <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left">
           <div className="text-[10px] font-medium text-gray-500 mb-3">
-            {reqPlan.name} plan includes:
+            {Lf("{plan} plan includes:", { plan: L(reqPlan.name) })}
           </div>
           {info.plan === "pro" ? (
             <div className="space-y-2">
@@ -157,7 +158,7 @@ export default function UpgradeWall({ feature, children }) {
 
         <div className="mb-4">
           <div className="text-2xl font-semibold" style={{ color: reqPlan.color }}>
-            {reqPlan.price}
+            {reqPlan.price.replace("/month", L("/month"))}
           </div>
           <div className="text-[10px] text-gray-400">{L("Cancel anytime")}</div>
         </div>
@@ -165,7 +166,7 @@ export default function UpgradeWall({ feature, children }) {
         <button onClick={() => navigate("/settings")}
           className="btn btn-primary w-full py-2.5 text-xs font-semibold mb-2"
           style={info.plan === "wholesale" ? { background:"#7F77DD", borderColor:"#7F77DD" } : {}}>
-          Upgrade to {reqPlan.name}
+          {Lf("Upgrade to {plan}", { plan: L(reqPlan.name) })}
         </button>
         <button onClick={() => navigate(-1)} className="btn w-full text-xs text-gray-400">
           {L("Go back")}

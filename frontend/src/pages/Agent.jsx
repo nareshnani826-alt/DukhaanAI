@@ -5,6 +5,10 @@ import { useAuth } from "../context/AuthContext.jsx"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
 import { LANGUAGES } from "../voice/languages.js"
 import { AssemblyVoiceEngine } from "../voice/assemblyEngine.js"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
+const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 
 
 // ── Quick suggestions per language ───────────────────────
@@ -378,7 +382,7 @@ async function askAI(messages, storeContext, lang = "en-IN") {
   }
 
   const data = await response.json()
-  return data.response || "Sorry, I couldn't get a response."
+  return data.response || L("Sorry, I couldn't get a response.")
 }
 
 // ── Message bubble ───────────────────────────────────────
@@ -507,7 +511,7 @@ export default function Agent() {
     ? (QUICK_BANGLE[lang] || QUICK_BANGLE["en-IN"])
     : (QUICK_BY_LANG[lang] || QUICK_BY_LANG["en-IN"])
 
-  // Reload when language changes
+  // Welcome in the shop's language — when the store data arrives and when the language changes
   useEffect(() => {
     if (!ctxLoading && context) {
       const s = context.store_summary
@@ -604,7 +608,7 @@ Ask me anything!`,
       }
       setMessages([{ role:"ai", text: welcomes[lang] || welcomes["en-IN"] }])
     }
-  }, [lang])
+  }, [lang, ctxLoading, context])
 
   // Load store context on mount
   useEffect(() => {
@@ -612,21 +616,7 @@ Ask me anything!`,
       .then(ctx => {
         setContext(ctx)
         setCtxLoading(false)
-        const s = ctx.store_summary
-        const currentLang = getSavedLang()
-        setLang(currentLang)
-        const storeLabel = isBangle ? "Bangle Store" : "DukaanAI shop"
-        setMessages([{
-          role:"ai",
-          text: `Namaste! 🙏 I'm your ${storeLabel} assistant.
-
-Your store right now:
-• ${s.total_products} products
-• ${s.low_stock_count} low stock${s.out_of_stock_count > 0 ? ` · ${s.out_of_stock_count} out of stock` : ""}
-• Today's sales: ${INR(s.today_revenue)} (${s.today_invoices} invoices)
-
-Ask me anything!`,
-        }])
+        setLang(getSavedLang())   // the welcome effect above then greets in this language
       })
       .catch(() => {
         setCtxLoading(false)
@@ -665,14 +655,14 @@ Ask me anything!`,
       console.error("[Agent] AI request failed:", msg)
       const errMsg = msg.includes("Invalid Groq") || msg.includes("API key")
         || msg.includes("AI not configured") || msg.includes("not configured")
-        ? "AI assistant is temporarily unavailable. Please try again later."
+        ? L("AI assistant is temporarily unavailable. Please try again later.")
         : msg.includes("quota") || msg.includes("429") || msg.includes("rate")
-        ? "Too many requests — please wait a moment and try again."
+        ? L("Too many requests — please wait a moment and try again.")
         : msg.includes("401") || msg.includes("Session expired")
-        ? "Session expired. Please log in again."
+        ? L("Session expired. Please log in again.")
         : msg.includes("AI error:")
         ? msg
-        : "Couldn't connect to AI. Check internet or try again."
+        : L("Couldn't connect to AI. Check internet or try again.")
       setError(errMsg)
       addMsg("ai", `⚠️ ${errMsg}`)
     } finally {
@@ -710,9 +700,9 @@ Ask me anything!`,
             fontSize:20, boxShadow:"0 2px 10px rgba(232,119,34,0.35)",
           }}>🤖</div>
           <div>
-            <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)" }}>Shop Assistant</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)" }}>{L("Shop Assistant")}</div>
             <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
-              {ctxLoading ? "Loading store data..." : `${stats?.total_products||0} products · AI powered`}
+              {ctxLoading ? L("Loading store data...") : Lf("{n} products · AI powered", { n: stats?.total_products || 0 })}
             </div>
           </div>
         </div>
@@ -742,14 +732,14 @@ Ask me anything!`,
                 background:"var(--ember-bg,rgba(192,57,43,0.1))",
                 color:"var(--ember,#c0392b)",
                 border:"1px solid rgba(192,57,43,0.25)",
-              }}>⚠ {stats.low_stock_count} low stock</div>
+              }}>⚠ {Lf("{n} low stock", { n: stats.low_stock_count })}</div>
             )}
             <div style={{
               fontSize:10, fontWeight:700, padding:"4px 10px", borderRadius:20,
               background:"var(--jade-bg,rgba(26,122,74,0.1))",
               color:"var(--jade,#1a7a4a)",
               border:"1px solid rgba(26,122,74,0.25)",
-            }}>💰 {INR(stats.today_revenue)} today</div>
+            }}>💰 {Lf("{amt} today", { amt: INR(stats.today_revenue) })}</div>
           </div>
         )}
       </div>
@@ -811,7 +801,7 @@ Ask me anything!`,
               lang === "bn-IN" ? "যেকোনো পণ্য, স্টক, দাম জিজ্ঞেস করুন…" :
               lang === "gu-IN" ? "કોઈ પણ ઉત્પાદ, સ્ટોક, કિંમત પૂછો…" :
               lang === "pa-IN" ? "ਕੋਈ ਵੀ ਉਤਪਾਦ, ਸਟਾਕ, ਕੀਮਤ ਪੁੱਛੋ…" :
-              "Ask about any product, stock, price…"
+              L("Ask about any product, stock, price…")
             }
             disabled={loading}
             style={{
@@ -826,7 +816,7 @@ Ask me anything!`,
           />
           {/* Mic button — speak to fill the input */}
           <button onClick={handleMic} disabled={loading || ctxLoading}
-            title={micListening ? "Tap to stop" : "Speak your question"}
+            title={micListening ? L("Tap to stop") : L("Speak your question")}
             style={{
               width:44, height:44, borderRadius:12, border:"none",
               background: micListening
@@ -874,7 +864,7 @@ Ask me anything!`,
           </button>
         </div>
         <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:6, textAlign:"center" }}>
-          Powered by Groq AI (Llama 3.3) · Reads your live inventory data
+          {L("Powered by Groq AI (Llama 3.3) · Reads your live inventory data")}
         </div>
       </div>
     </div>
