@@ -134,6 +134,18 @@ const SCRIPTS = {
     : `${n} is safe. ${d} days remaining.`,
 }
 
+// "Check A, B, C and 3 more right away." — names only, so the alert stays short
+const CHECK_LIST = {
+  "te-IN": (l, m) => `${l}${m ? ` ఇంకా ${m} వస్తువులు` : ""} వెంటనే చూడండి.`,
+  "hi-IN": (l, m) => `${l}${m ? ` और ${m} और सामान` : ""} तुरंत देखें।`,
+  "ta-IN": (l, m) => `${l}${m ? ` மற்றும் ${m} பொருட்கள்` : ""} உடனே பாருங்கள்.`,
+  "kn-IN": (l, m) => `${l}${m ? ` ಮತ್ತು ${m} ವಸ್ತುಗಳು` : ""} ತಕ್ಷಣ ನೋಡಿ.`,
+  "ml-IN": (l, m) => `${l}${m ? ` കൂടാതെ ${m} എണ്ണം` : ""} ഉടൻ നോക്കുക.`,
+  "mr-IN": (l, m) => `${l}${m ? ` आणि आणखी ${m}` : ""} लगेच तपासा.`,
+  "bn-IN": (l, m) => `${l}${m ? ` আর ${m}টি` : ""} এখনই দেখুন।`,
+  "en-IN": (l, m) => `Check ${l}${m ? ` and ${m} more` : ""} right away.`,
+}
+
 function getSummaryIntro(lang, total) {
   const safe = {
     "te-IN":"అన్ని వస్తువులు సురక్షితంగా ఉన్నాయి. ఈరోజు హెచ్చరికలు లేవు.",
@@ -165,6 +177,12 @@ function getSummaryIntro(lang, total) {
 // Engine 3: Text display (always works — pure fallback)
 
 let _cloudAudio = null
+let _onSpeechEnd = null   // set by the page so the button goes back from "Stop" when speech ends
+
+function stopAllSpeech() {
+  try { window.speechSynthesis?.cancel() } catch { /* no speech */ }
+  if (_cloudAudio) { _cloudAudio.pause(); _cloudAudio = null }
+}
 
 function findNativeVoice(langCode) {
   if (!window.speechSynthesis) return null
@@ -204,6 +222,7 @@ function speakNative(text, langCode) {
   utt.voice = voice
   utt.rate  = 0.88
   utt.pitch = 1
+  utt.onend = () => _onSpeechEnd?.()
   window.speechSynthesis.speak(utt)
   return true
 }
@@ -215,6 +234,7 @@ function playAudio(url) {
   if (_cloudAudio) { _cloudAudio.pause(); _cloudAudio = null }
   _cloudAudio = new Audio(url)
   _cloudAudio.volume = 1
+  _cloudAudio.onended = () => _onSpeechEnd?.()
   return _cloudAudio.play()
 }
 async function speakCloud(text, langCode) {
@@ -450,6 +470,18 @@ export default function ExpiryIntelligence() {
   const [textFallback, setTextFallback] = useState(null) // product to show as text
   const speakTimerRef = useRef(null)
 
+  // Button returns to "Voice Alert" when speech ends; leaving the page stops it
+  useEffect(() => {
+    _onSpeechEnd = () => { clearTimeout(speakTimerRef.current); setSpeaking(false) }
+    return () => { _onSpeechEnd = null; stopAllSpeech() }
+  }, [])
+
+  function stopSpeaking() {
+    stopAllSpeech()
+    clearTimeout(speakTimerRef.current)
+    setSpeaking(false)
+  }
+
   // ── Detect native (offline) voice availability ─────────────────
   // Note: on Android, Google TTS is built-in so Telugu shows as "native".
   // On Windows PC it's false → falls back to cloud (Google Translate TTS).
@@ -528,8 +560,8 @@ export default function ExpiryIntelligence() {
     if (!data) return
     const urgent = [...data.groups.likely_expired, ...data.groups.high_risk, ...data.groups.attention]
     const intro  = getSummaryIntro(lang, urgent.length)
-    const items  = urgent.slice(0,5).map(p =>
-      (SCRIPTS[lang]||SCRIPTS["en-IN"])(p.name, p.risk_level, p.days_remaining))
+    const names  = [...new Set(urgent.map(p => p.name))]
+    const items  = names.length ? [(CHECK_LIST[lang]||CHECK_LIST["en-IN"])(names.slice(0,3).join(", "), names.length - 3 > 0 ? names.length - 3 : 0)] : []
     const fullText = [intro, ...items].join(" ")
     const result   = await smartSpeak(fullText, lang)
     if (!result.ok && urgent.length>0) {
@@ -538,7 +570,7 @@ export default function ExpiryIntelligence() {
     }
     setSpeaking(true)
     clearTimeout(speakTimerRef.current)
-    speakTimerRef.current = setTimeout(()=>setSpeaking(false), (items.length+1)*4000)
+    speakTimerRef.current = setTimeout(()=>setSpeaking(false), 20000)
   }
 
   async function readInEnglish(p) {
@@ -642,17 +674,17 @@ export default function ExpiryIntelligence() {
           </span>
 
           {/* Voice Alert button */}
-          <button onClick={speakAllAlerts} disabled={!data||loading}
+          <button onClick={speaking ? stopSpeaking : speakAllAlerts} disabled={!data||loading}
             style={{
               display:"flex", alignItems:"center", gap:7, padding:"8px 16px",
               borderRadius:9, border:"none", fontSize:13, fontWeight:700,
               cursor:!data||loading?"not-allowed":"pointer",
-              background: speaking ? "linear-gradient(135deg,#16a34a,#15803d)"
+              background: speaking ? "linear-gradient(135deg,#dc2626,#b91c1c)"
                 : "linear-gradient(135deg,#e87722,#d45f00)",
               color:"white", opacity:!data||loading?0.5:1, transition:"all 0.2s",
             }}>
-            <span style={{fontSize:16}}>{speaking?"🔊":"🔔"}</span>
-            {speaking ? "Speaking…" : `Voice Alert`}
+            <span style={{fontSize:16}}>{speaking?"⏹":"🔔"}</span>
+            {speaking ? "Stop" : `Voice Alert`}
           </button>
 
           <button onClick={fetchData} disabled={loading}
