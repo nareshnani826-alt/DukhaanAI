@@ -673,6 +673,7 @@ Thank you for shopping! 🙏`
   // ── billing-first helpers ────────────────────────────────
 
   const [catFilter,    setCatFilter]    = useState("Frequent")
+  const [easyQ,        setEasyQ]        = useState("")   // Easy mode: type to find a picture
   const [voiceActive,  setVoiceActive]  = useState(false)
 
   // Instant product search results as user types
@@ -844,7 +845,11 @@ Thank you for shopping! 🙏`
   // "See bill" after an Easy bill falls through to the full screen, which has the bill sheet (WhatsApp / Print)
   if (billMode === "easy" && !(invoice && !easyDone)) {
     const count = itemCount
-    const shown = products.filter(p => p.is_active !== false).slice(0, 200)
+    const cats = ["Frequent", ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort()]
+    const q = easyQ.trim().toLowerCase()
+    const shown = products.filter(p => p.is_active !== false
+      && (catFilter === "Frequent" || p.category === catFilter)
+      && (!q || p.name.toLowerCase().includes(q))).slice(0, 400)
     return (
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)" }}>
         {notif && (
@@ -902,6 +907,30 @@ Thank you for shopping! 🙏`
             style={{ background:"none", border:"none", color:"var(--saffron)", fontSize:13, fontWeight:800, cursor:"pointer" }}>
             {L("Full mode")} ⇄
           </button>
+        </div>
+
+        {/* Find: type a name, or pick a category */}
+        <div style={{ padding:"0 12px 8px", flexShrink:0 }}>
+          <div style={{ position:"relative", marginBottom:8 }}>
+            <input value={easyQ} onChange={e => setEasyQ(e.target.value)} placeholder={"🔍 " + L("Search item…")}
+              className="input" style={{ width:"100%", fontSize:18, padding:"12px 48px 12px 14px", borderRadius:14 }} />
+            {easyQ && (
+              <button onClick={() => setEasyQ("")} aria-label="Clear search"
+                style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", width:40, height:40,
+                  borderRadius:10, border:"none", background:"var(--bg2)", fontSize:18, color:"var(--ink-dim)" }}>✕</button>
+            )}
+          </div>
+          <div style={{ display:"flex", gap:8, overflowX:"auto", scrollbarWidth:"none" }}>
+            {cats.map(c => (
+              <button key={c} onClick={() => setCatFilter(c)}
+                style={{ padding:"10px 16px", borderRadius:22, border:"none", cursor:"pointer", flexShrink:0,
+                  fontSize:15, fontWeight:800,
+                  background: catFilter === c ? "var(--saffron)" : "var(--bg2)",
+                  color:      catFilter === c ? "#fff" : "var(--ink-dim)" }}>
+                {c === "Frequent" ? "⭐ " + L("All") : L(c)}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Pictures */}
@@ -1473,7 +1502,7 @@ Thank you for shopping! 🙏`
         {(() => {
           const cats = ["Frequent", ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort()]
           const shown = catFilter === "Frequent"
-            ? products.slice(0, 60)
+            ? products.slice(0, 400)
             : products.filter(p => p.category === catFilter).slice(0, 120)
 
           return (
