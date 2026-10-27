@@ -124,10 +124,11 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
         raise HTTPException(status_code=500, detail=f"Failed to save invoice: {e}") from e
 
     # Deduct stock and record sales for each line item.
-    # Wrapped in try/except so a stock-update failure never blocks the invoice response.
+    # Each item has its own try/except so one failure never blocks the invoice
+    # response or skips the stock update of the remaining items.
     sold_at = datetime.now(timezone.utc).isoformat()
-    try:
-        for item in line_items:
+    for item in line_items:
+        try:
             if not item.get("product_id"):
                 continue
             prod = db.table("products").select("id,stock").eq("id", item["product_id"]).eq("vendor_id", vendor["id"]).execute().data
@@ -149,8 +150,8 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
                 "payment_mode": body.payment_mode,
                 "sold_at":      sold_at,
             }).execute()
-    except Exception as stock_err:
-        logging.warning("Stock/sales update failed after invoice %s: %s", invoice_no, stock_err)
+        except Exception as stock_err:
+            logging.warning("Stock/sales update failed for %s on invoice %s: %s", item.get("name"), invoice_no, stock_err)
 
     return invoice
 

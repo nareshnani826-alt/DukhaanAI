@@ -295,6 +295,74 @@ function speakTotal(amount) {
 }
 const buzz = () => { try { navigator.vibrate?.(25) } catch { /* not supported */ } }
 
+// ── Loose items (sold by weight / volume from a bag or tin) ──
+// Price is per kg / per litre and qty is kept in kg / litres (0.25 = 250 g).
+// Only items set to kg/litre WITHOUT a pack size in the name count as loose,
+// so "Tata Salt 1kg" stays a packet while "Sugar (loose)" is sold by weight.
+const LOOSE_BASE = { kg:"kg", litre:"litre" }
+const PACK_SIZE_RE = /\d+(\.\d+)?\s*(kg|kgs|g|gm|gms|gram|grams|l|ltr|litre|liter|ml)\b/i
+const isLoose  = p => !!LOOSE_BASE[p?.unit] && !PACK_SIZE_RE.test(p?.name || "")
+const looseKg  = p => LOOSE_BASE[p?.unit] === "kg"
+const round3   = n => Math.round(n * 1000) / 1000
+function fmtQty(p, q) {
+  if (!isLoose(p)) return String(+q)
+  const n = +q
+  if (n < 1) return `${Math.round(n * 1000)} ${looseKg(p) ? "g" : "ml"}`
+  return `${+n.toFixed(3)} ${looseKg(p) ? "kg" : "L"}`
+}
+const perUnit = p => isLoose(p) ? (looseKg(p) ? "/kg" : "/L") : ""
+
+function LoosePicker({ product: p, inBill, onPick, onClose, L }) {
+  const [grams, setGrams] = useState("")
+  const [rupees, setRupees] = useState("")
+  const kg = looseKg(p)
+  const presets = kg ? [0.05, 0.1, 0.25, 0.5, 1, 2] : [0.1, 0.25, 0.5, 1, 2, 5]
+  const price = q => Math.round(p.mrp * q * 100) / 100
+  const fromGrams = +grams > 0 ? +grams / 1000 : 0
+  const fromRupees = +rupees > 0 && p.mrp > 0 ? round3(+rupees / p.mrp) : 0
+  const btn = { borderRadius:16, border:"2px solid var(--rule)", background:"var(--bg2)", padding:"12px 6px",
+    display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer" }
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:500, background:"rgba(0,0,0,0.45)",
+      display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:520, background:"var(--bg1)",
+        borderRadius:"22px 22px 0 0", padding:"18px 16px", paddingBottom:"max(20px, env(safe-area-inset-bottom))" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:18, fontWeight:900, color:"var(--ink)" }}>{p.name}</div>
+            <div style={{ fontSize:14, color:"var(--ink-dim)", fontWeight:700 }}>
+              ₹{p.mrp}{perUnit(p)} · {L("Loose")}{inBill > 0 ? ` · ${L("In bill")}: ${fmtQty(p, inBill)}` : ""}
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ width:44, height:44, borderRadius:12, border:"1px solid var(--rule)",
+            background:"var(--bg2)", fontSize:20, color:"var(--ink-dim)" }}>✕</button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, margin:"14px 0" }}>
+          {presets.map(q => (
+            <button key={q} onClick={() => onPick(q)} style={btn}>
+              <span style={{ fontSize:22, fontWeight:900, color:"var(--ink)" }}>{fmtQty(p, q)}</span>
+              <span style={{ fontSize:15, fontWeight:800, color:"var(--brass-deep)" }}>₹{price(q)}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+          <input type="number" inputMode="numeric" value={grams} onChange={e => { setGrams(e.target.value); setRupees("") }}
+            placeholder={kg ? L("Grams") : "ml"} className="input" style={{ flex:1, fontSize:18, padding:"12px" }} />
+          <input type="number" inputMode="decimal" value={rupees} onChange={e => { setRupees(e.target.value); setGrams("") }}
+            placeholder={"₹ " + L("worth")} className="input" style={{ flex:1, fontSize:18, padding:"12px" }} />
+        </div>
+        <button disabled={!(fromGrams || fromRupees)} onClick={() => onPick(fromGrams || fromRupees)}
+          style={{ width:"100%", height:58, borderRadius:16, border:"none", fontSize:18, fontWeight:900, color:"#fff",
+            background: fromGrams || fromRupees ? "linear-gradient(135deg,var(--saffron),var(--saffron-hot))" : "var(--rule)" }}>
+          {fromGrams || fromRupees
+            ? `${L("Add to bill")} · ${fmtQty(p, fromGrams || fromRupees)} · ₹${price(fromGrams || fromRupees)}`
+            : L("Add to bill")}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Billing() {
   const { vendor }  = useAuth()
   const { hasFeature } = usePlan()
@@ -339,6 +407,7 @@ export default function Billing() {
   })
   const [showHeld, setShowHeld] = useState(false)
   const [showCart, setShowCart] = useState(false)   // bill sheet over the product list (mobile-first)
+  const [loosePick, setLoosePick] = useState(null)  // loose product whose weight picker is open
   // "easy" = big pictures + one PAID button; "default" = full billing screen. Remembered per phone.
   const [billMode, setBillMode] = useState(() => { try { return localStorage.getItem("dk_bill_mode") || "default" } catch { return "default" } })
   const [easyDone, setEasyDone] = useState(null)   // { total } after an Easy bill is saved
@@ -370,15 +439,18 @@ export default function Billing() {
   // ── Stock limit: a bill can't take more than what's in the shop ──
   const stockOf   = p  => Number(p?.stock) || 0
   const qtyInBill = id => rows.find(r => r.prodId === id)?.qty || 0
-  function canAddOne(product) {
+  function canAdd(product, amount = 1) {
     if (!product) return false
     const have = stockOf(product)
-    if (qtyInBill(product.id) + 1 <= have) return true
+    if (qtyInBill(product.id) + amount <= have + 1e-9) return true
     showNotif(have <= 0
       ? `${product.name}: ${L("Out of stock")}`
-      : `${L("Only")} ${have} ${L("in stock")}: ${product.name}`)
+      : `${L("Only")} ${fmtQty(product, have)} ${L("in stock")}: ${product.name}`)
     return false
   }
+  const canAddOne = product => canAdd(product, 1)
+  // Bill count: a loose item counts as one line, packets by quantity
+  const itemCount = rows.reduce((n, r) => n + (isLoose(getProduct(r.prodId)) ? 1 : (+r.qty || 0)), 0)
 
   // ── Barcode lookup (manual + camera) ─────────────────────
   async function lookupBarcode(code) {
@@ -599,21 +671,24 @@ Thank you for shopping! 🙏`
     rec.start()
   }
 
-  function addToCart(product) {
-    if (!canAddOne(product)) return
+  function addToCart(product, amount) {
+    if (isLoose(product) && amount == null) { setLoosePick(product); return }
+    const amt = amount ?? 1
+    if (!canAdd(product, amt)) return
     setRows(prev => {
       const idx = prev.findIndex(r => r.prodId === product.id)
-      if (idx >= 0) return prev.map((r, i) => i === idx ? { ...r, qty: r.qty + 1 } : r)
-      return [...prev, { prodId: product.id, qty: 1 }]
+      if (idx >= 0) return prev.map((r, i) => i === idx ? { ...r, qty: round3(r.qty + amt) } : r)
+      return [...prev, { prodId: product.id, qty: amt }]
     })
+    setLoosePick(null)
     setSearchQ("")
     setBarcodeResult(null)
-    showNotif(`✓ ${product.name}`)
+    showNotif(`✓ ${product.name}${isLoose(product) ? " · " + fmtQty(product, amt) : ""}`)
     setTimeout(() => searchRef.current?.focus(), 50)
   }
 
   function removeOne(product) {
-    setRows(prev => prev.flatMap(r => r.prodId !== product.id ? [r] : r.qty > 1 ? [{ ...r, qty: r.qty - 1 }] : []))
+    setRows(prev => prev.flatMap(r => r.prodId !== product.id ? [r] : !isLoose(product) && r.qty > 1 ? [{ ...r, qty: r.qty - 1 }] : []))
   }
 
   // Easy billing: save straight away as a cash bill — no review screen
@@ -716,7 +791,7 @@ Thank you for shopping! 🙏`
   // ════ EASY BILLING ═══════════════════════════════════════
   // "See bill" after an Easy bill falls through to the full screen, which has the bill sheet (WhatsApp / Print)
   if (billMode === "easy" && !(invoice && !easyDone)) {
-    const count = rows.reduce((n, r) => n + (+r.qty || 0), 0)
+    const count = itemCount
     const shown = products.filter(p => p.is_active !== false).slice(0, 200)
     return (
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)" }}>
@@ -728,6 +803,11 @@ Thank you for shopping! 🙏`
           </div>
         )}
         {scanner && <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />}
+        {loosePick && (
+          <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} L={L}
+            onPick={q => { addToCart(loosePick, q); buzz() }} onClose={() => setLoosePick(null)} />
+        )}
+
 
         {/* Saved → big tick, total, next customer */}
         {invoice && easyDone && (
@@ -790,14 +870,14 @@ Thank you for shopping! 🙏`
                       <span style={{ fontSize:44, lineHeight:1 }}>{productEmoji(p)}</span>
                       <span style={{ fontSize:12, fontWeight:700, color:"var(--ink)", lineHeight:1.15, textAlign:"center",
                         overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</span>
-                      <span style={{ fontSize:17, fontWeight:900, color:"var(--brass-deep)" }}>₹{p.mrp}</span>
+                      <span style={{ fontSize:17, fontWeight:900, color:"var(--brass-deep)" }}>₹{p.mrp}{perUnit(p)}</span>
                     </button>
                     {inCart && (
                       <>
                         <div style={{ position:"absolute", top:-6, right:-6, minWidth:34, height:34, padding:"0 8px", borderRadius:17,
                           background:"var(--saffron)", color:"#fff", fontSize:18, fontWeight:900, pointerEvents:"none",
                           display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>
-                          {inCart.qty}
+                          {fmtQty(p, inCart.qty)}
                         </div>
                         <button onClick={() => { removeOne(p); buzz() }} aria-label={"Remove one " + p.name}
                           style={{ position:"absolute", top:-6, left:-6, width:34, height:34, borderRadius:17, border:"2px solid #fff",
@@ -853,6 +933,11 @@ Thank you for shopping! 🙏`
       {scanner && (
         <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />
       )}
+      {loosePick && (
+          <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} L={L}
+            onPick={q => { addToCart(loosePick, q); buzz() }} onClose={() => setLoosePick(null)} />
+        )}
+
 
       {showReview && (
         <ReviewModal rows={rows} products={products} applyGst={applyGst}
@@ -1255,7 +1340,7 @@ Thank you for shopping! 🙏`
               borderRadius:"20px 20px 0 0", padding:"14px 14px 168px", boxShadow:"0 -8px 32px rgba(0,0,0,0.2)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div style={{ fontSize:17, fontWeight:800, color:"var(--ink)" }}>
-                {L("Bill")} · {rows.reduce((n, r) => n + (+r.qty || 0), 0)} {L("items")}
+                {L("Bill")} · {itemCount} {L("items")}
               </div>
               <button onClick={() => setShowCart(false)} aria-label="Close"
                 style={{ width:40, height:40, borderRadius:10, background:"var(--bg2)", border:"1px solid var(--rule)",
@@ -1274,22 +1359,22 @@ Thank you for shopping! 🙏`
                       overflow:"hidden", textOverflow:"ellipsis",
                       display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</div>
                     <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
-                      ₹{p.mrp}/unit
+                      ₹{p.mrp}{isLoose(p) ? perUnit(p) : "/unit"}
                     </div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:4,
                     background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
-                    <button onClick={() => row.qty <= 1 ? delRow(i) : setRow(i, "qty", row.qty - 1)}
+                    <button onClick={() => isLoose(p) || row.qty <= 1 ? delRow(i) : setRow(i, "qty", row.qty - 1)}
                       aria-label={row.qty <= 1 ? "Remove" : "Less"}
                       style={{ width:40, height:40, borderRadius:9, background:"var(--bg2)",
-                        color: row.qty <= 1 ? "var(--ember)" : "var(--brass-deep)",
-                        border:"none", fontSize:row.qty <= 1 ? 13 : 18, fontWeight:800, cursor:"pointer" }}>
-                      {row.qty <= 1 ? "🗑" : "−"}
+                        color: isLoose(p) || row.qty <= 1 ? "var(--ember)" : "var(--brass-deep)",
+                        border:"none", fontSize: isLoose(p) || row.qty <= 1 ? 13 : 18, fontWeight:800, cursor:"pointer" }}>
+                      {isLoose(p) || row.qty <= 1 ? "🗑" : "−"}
                     </button>
-                    <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)" }}>
-                      {row.qty}
+                    <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)", whiteSpace:"nowrap" }}>
+                      {fmtQty(p, row.qty)}
                     </span>
-                    <button onClick={() => canAddOne(p) && setRow(i, "qty", row.qty + 1)} aria-label="More"
+                    <button onClick={() => isLoose(p) ? setLoosePick(p) : canAddOne(p) && setRow(i, "qty", row.qty + 1)} aria-label="More"
                       style={{ width:40, height:40, borderRadius:9, background:"var(--saffron)",
                         color:"#fff", border:"none", fontSize:18, fontWeight:800, cursor:"pointer" }}>
                       +
@@ -1368,7 +1453,7 @@ Thank you for shopping! 🙏`
                             minWidth:24, height:24, padding:"0 7px", borderRadius:12,
                             background:"var(--saffron)", color:"#fff", fontSize:13, fontWeight:800,
                             display:"flex", alignItems:"center", justifyContent:"center" }}>
-                            {inCart.qty}
+                            {fmtQty(p, inCart.qty)}
                           </div>
                         )}
                         <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)", lineHeight:1.25,
@@ -1377,10 +1462,10 @@ Thank you for shopping! 🙏`
                           {p.name}
                         </div>
                         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:6 }}>
-                          <span style={{ fontSize:16, color:"var(--brass-deep)", fontWeight:800 }}>₹{p.mrp}</span>
+                          <span style={{ fontSize:16, color:"var(--brass-deep)", fontWeight:800 }}>₹{p.mrp}{perUnit(p)}</span>
                           <span style={{ fontSize:12, fontWeight:700,
                             color: outOfStock || leftAfterBill === 0 ? "var(--ember)" : leftAfterBill <= (p.min_stock || 0) ? "#b45309" : "var(--ink-faint)" }}>
-                            {outOfStock ? L("Out of stock") : leftAfterBill + " " + L("left")}
+                            {outOfStock ? L("Out of stock") : fmtQty(p, round3(leftAfterBill)) + " " + L("left")}
                           </span>
                         </div>
                       </button>
@@ -1402,7 +1487,7 @@ Thank you for shopping! 🙏`
             style={{ flex:1, minWidth:0, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:14,
               padding:"8px 12px", cursor:"pointer", textAlign:"left" }}>
             <div style={{ fontSize:12, color:"var(--ink-dim)", fontWeight:700 }}>
-              {rows.reduce((n, r) => n + (+r.qty || 0), 0)} {L("items")} · {showCart ? L("hide bill") + " ▼" : L("see bill") + " ▲"}
+              {itemCount} {L("items")} · {showCart ? L("hide bill") + " ▼" : L("see bill") + " ▲"}
             </div>
             <div style={{ fontSize:22, color:"var(--ink)", fontWeight:900, lineHeight:1.15 }}>
               ₹{grandTotal}

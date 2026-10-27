@@ -265,10 +265,34 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose,
             </div>
           )}
 
+          {/* How it is sold: packet/piece, or loose from a bag (per kg) / tin (per litre) */}
+          <div>
+            <label style={{ fontSize:14, fontWeight:700, display:"block", marginBottom:6 }}>{L("How do you sell it?")}</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[["piece", "📦", L("Packet / piece")], ["kg", "⚖️", L("Loose · per kg")], ["litre", "🫗", L("Loose · per litre")]].map(([u, icon, label]) => {
+                const on = u === "piece" ? !["kg", "g", "litre", "ml"].includes(form.unit) : form.unit === u
+                return (
+                  <button key={u} type="button" onClick={() => { set("unit", u); setUnitDetected(false) }}
+                    style={{ padding:"10px 4px", borderRadius:12, border:"2px solid", fontSize:13, fontWeight:800, lineHeight:1.25,
+                      borderColor: on ? "var(--jade)" : "#e5e7eb", background: on ? "var(--jade)" : "#fff", color: on ? "#fff" : "#374151" }}>
+                    <div style={{ fontSize:20 }}>{icon}</div>{label}
+                  </button>
+                )
+              })}
+            </div>
+            {["kg", "litre"].includes(form.unit) && (
+              <div style={{ fontSize:12, color:"#6b7280", marginTop:6 }}>
+                {L("At billing you pick 50 g, 100 g, 250 g… or type ₹ amount")}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             {/* 2. Selling price */}
             <div>
-              <label style={{ fontSize:14, fontWeight:700, display:"block", marginBottom:6 }}>{L("Selling price ₹")}</label>
+              <label style={{ fontSize:14, fontWeight:700, display:"block", marginBottom:6 }}>
+                {form.unit === "kg" ? L("Price per kg ₹") : form.unit === "litre" ? L("Price per litre ₹") : L("Selling price ₹")}
+              </label>
               <div className="flex gap-1 items-center">
                 <input className="input flex-1" style={{ ...big, minWidth:0 }} type="number" inputMode="decimal"
                   value={form.mrp} onChange={e => set("mrp", e.target.value)} placeholder="0" />
