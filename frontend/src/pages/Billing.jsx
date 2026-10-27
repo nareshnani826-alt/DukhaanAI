@@ -269,7 +269,12 @@ const NAME_EMOJI = [
   [/tooth ?paste|colgate|pepsodent|close ?up|sensodyne|dabur red|brush/i, "🪥"], [/surf|detergent|rin|tide|ariel|nirma|vim|harpic/i, "🧺"],
   [/cola|coke|pepsi|sprite|thums|fanta|drink|soda|limca/i, "🥤"], [/juice|frooti|maaza|slice/i, "🧃"],
   [/water|bisleri|aquafina/i, "💧"], [/egg|anda/i, "🥚"], [/bread|pav|bun|rusk/i, "🍞"],
-  [/onion|potato|tomato|vegetable|sabzi/i, "🥕"], [/banana|apple|fruit|mango/i, "🍎"],
+  [/tomato|tamatar|tamata/i, "🍅"], [/onion|pyaz|ullipaya/i, "🧅"], [/potato|aloo|bangala/i, "🥔"],
+  [/carrot|gajar/i, "🥕"], [/brinjal|baingan|vankaya/i, "🍆"], [/corn|bhutta/i, "🌽"], [/cucumber|kheera/i, "🥒"],
+  [/coriander|dhaniya|kothimeera|palak|spinach|methi|curry leaves|leaf|leaves/i, "🌿"],
+  [/vegetable|sabzi|cabbage|cauliflower|gobi/i, "🥬"],
+  [/banana|kela|arati/i, "🍌"], [/mango|aam\b|mamidi/i, "🥭"], [/lemon|nimbu|nimma/i, "🍋"], [/grape/i, "🍇"],
+  [/coconut|nariyal|kobbari/i, "🥥"], [/orange|santra/i, "🍊"], [/apple|seb|fruit/i, "🍎"],
   [/masala|chilli|mirchi|haldi|turmeric|jeera|spice/i, "🌶️"], [/agarbatti|incense|matchbox|match/i, "🔥"],
 ]
 // Pulses have no emoji of their own (🫘 is rajma), so they get a bowl of grains in their real colour.
