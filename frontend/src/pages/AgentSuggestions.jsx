@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Agent } from "../sync/db"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 // No supplier phone stored against kirana products (unlike bangle suppliers),
 // so we open a blank WhatsApp compose — vendor picks the contact themselves.
@@ -47,7 +50,7 @@ function SuggestionCard({ s, onApprove, onDismiss, busyId }) {
           className="text-[10px] text-gray-400 underline mb-2"
           onClick={() => setExpanded(v => !v)}
         >
-          {expanded ? "Hide reasoning" : "Why is this suggested?"}
+          {expanded ? L("Hide reasoning") : L("Why is this suggested?")}
         </button>
       )}
       {expanded && (
@@ -58,7 +61,7 @@ function SuggestionCard({ s, onApprove, onDismiss, busyId }) {
 
       {resolved ? (
         <div className="text-[10px] font-semibold text-gray-500">
-          {s.status === "approved" ? "✓ Approved" : "✕ Dismissed"}
+          {s.status === "approved" ? L("✓ Approved") : "✕ Dismissed"}
         </div>
       ) : (
         <div className="flex gap-2 mt-2">
@@ -100,7 +103,7 @@ export default function AgentSuggestions() {
     try {
       setItems(await Agent.list(s))
     } catch (e) {
-      setError(e.message || "Failed to load suggestions")
+      setError(e.message || L("Failed to load suggestions"))
     } finally {
       setLoading(false)
     }
@@ -116,7 +119,7 @@ export default function AgentSuggestions() {
       setLastRun(result)
       if (status === "pending") await load("pending")
     } catch (e) {
-      setError(e.message || "Agent run failed")
+      setError(e.message || L("Agent run failed"))
     } finally {
       setRunning(false)
     }
@@ -141,7 +144,7 @@ export default function AgentSuggestions() {
       }
       setItems(prev => prev.filter(x => x.id !== s.id))
     } catch (e) {
-      setError(e.message || "Could not approve")
+      setError(e.message || L("Could not approve"))
     } finally {
       setBusyId(null)
     }
@@ -153,7 +156,7 @@ export default function AgentSuggestions() {
       await Agent.dismiss(id)
       setItems(prev => prev.filter(x => x.id !== id))
     } catch (e) {
-      setError(e.message || "Could not dismiss")
+      setError(e.message || L("Could not dismiss"))
     } finally {
       setBusyId(null)
     }
@@ -163,9 +166,9 @@ export default function AgentSuggestions() {
     <div className="flex-1 overflow-y-auto p-4">
       <div className="page-sticky-header flex items-center justify-between mb-1">
         <div>
-          <h1 className="text-sm font-semibold">🤖 AI Suggestions</h1>
+          <h1 className="text-sm font-semibold">{L("🤖 AI Suggestions")}</h1>
           <div className="text-[11px] text-gray-400 mt-0.5">
-            Correlates reorder, festival demand, margin & dead-stock signals into a prioritized action list. Nothing changes until you approve.
+            {L("Correlates reorder, festival demand, margin & dead-stock signals into a prioritized action list. Nothing changes until you approve.")}
           </div>
         </div>
         <button
@@ -174,7 +177,7 @@ export default function AgentSuggestions() {
           className="text-xs font-semibold rounded-lg px-3 py-2 flex-shrink-0"
           style={{ background: "var(--saffron,#e87722)", color: "white", opacity: running ? 0.7 : 1 }}
         >
-          {running ? "Thinking…" : "Run Agent"}
+          {running ? "Thinking…" : L("Run Agent")}
         </button>
       </div>
 
@@ -198,7 +201,7 @@ export default function AgentSuggestions() {
               color: status === s ? "white" : "var(--ink-dim,#6b7280)",
             }}
           >
-            {s[0].toUpperCase() + s.slice(1)}
+            {L(s[0].toUpperCase() + s.slice(1))}
           </button>
         ))}
       </div>
@@ -208,12 +211,12 @@ export default function AgentSuggestions() {
       )}
 
       {loading ? (
-        <div className="text-xs text-gray-400">Loading…</div>
+        <div className="text-xs text-gray-400">{L("Loading…")}</div>
       ) : items.length === 0 ? (
         <div className="card text-center py-8">
           <div className="text-2xl mb-2">✅</div>
           <div className="text-sm text-gray-500">
-            {status === "pending" ? "No pending suggestions. Tap Run Agent to check for new ones." : `No ${status} suggestions.`}
+            {status === "pending" ? L("No pending suggestions. Tap Run Agent to check for new ones.") : L("No suggestions here.")}
           </div>
         </div>
       ) : (
