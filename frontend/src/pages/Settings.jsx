@@ -10,6 +10,9 @@ import AddChildUser from "../components/AddChildUser"
 import { useTheme } from "../context/ThemeContext"
 import { useAppMode, APP_MODES } from "../context/AppModeContext"
 import { useNavigate } from "react-router-dom"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const TOGGLE_FEATURES = [
   { key:"voice_agent",      label:"Voice Agent",         desc:"Speak in Telugu, Hindi, Tamil and 7 more languages",  plan:"pro" },
@@ -46,9 +49,9 @@ function UPISetting() {
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
         <span style={{ fontSize:20 }}>📱</span>
         <div>
-          <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>UPI Payment ID</div>
+          <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{L("UPI Payment ID")}</div>
           <div style={{ fontSize:10, color:"var(--ink-faint)" }}>
-            Customers scan a QR on every bill to pay instantly
+            {L("Customers scan a QR on every bill to pay instantly")}
           </div>
         </div>
       </div>
@@ -73,7 +76,7 @@ function UPISetting() {
             color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer",
             transition:"background 0.2s", whiteSpace:"nowrap",
           }}>
-          {saved ? "✓ Saved" : "Save"}
+          {L(saved ? "✓ Saved" : "Save")}
         </button>
       </div>
       {vpa && (
@@ -100,10 +103,9 @@ function GstDefaultSetting() {
         <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
           <span style={{ fontSize:20 }}>🧾</span>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>Apply GST by default</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{L("Apply GST by default")}</div>
             <div style={{ fontSize:10, color:"var(--ink-faint)" }}>
-              Turn on if you issue GST invoices. Off by default — most local vendors don't.
-              You can still switch it per bill.
+              {L("Turn on if you issue GST invoices. Off by default — most local vendors don't. You can still switch it per bill.")}
             </div>
           </div>
         </div>
@@ -175,7 +177,7 @@ export default function Settings() {
   return (
     <div className="flex-1 overflow-y-auto p-4">
       <div className="page-sticky-header flex items-center mb-4">
-        <h1 className="text-sm font-semibold">Settings</h1>
+        <h1 className="text-sm font-semibold">{L("Settings")}</h1>
       </div>
 
       {/* Current plan card */}
@@ -184,11 +186,11 @@ export default function Settings() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-semibold" style={{ color: planI.color }}>
-                {planI.name} Plan
+                {L(planI.name)} {L("Plan")}
               </span>
               <span className="badge text-[10px] font-medium px-2 py-0.5 rounded-full"
                 style={{ background: planI.bg, color: planI.color }}>
-                Active
+                {L("Active")}
               </span>
             </div>
             <div className="text-xs text-gray-400">
@@ -204,7 +206,7 @@ export default function Settings() {
             <div className="text-lg font-semibold" style={{ color: planI.color }}>
               {planI.price}
             </div>
-            <div className="text-[10px] text-gray-400">per month</div>
+            <div className="text-[10px] text-gray-400">{L("per month")}</div>
           </div>
         </div>
 
@@ -212,23 +214,23 @@ export default function Settings() {
         {plan === "free" && (
           <div className="mt-3 flex gap-2">
             <button className="btn btn-primary flex-1 py-2 text-xs font-medium">
-              Upgrade to Pro — ₹299/month
+              {L("Upgrade to Pro — ₹299/month")}
             </button>
             <button className="btn flex-1 py-2 text-xs font-medium"
               style={{ borderColor:"#7F77DD", color:"#7F77DD" }}>
-              Wholesale — ₹799/month
+              {L("Wholesale — ₹799/month")}
             </button>
           </div>
         )}
         {plan === "pro" && (
           <button className="btn w-full mt-3 py-2 text-xs font-medium"
             style={{ borderColor:"#7F77DD", color:"#7F77DD" }}>
-            Upgrade to Wholesale — ₹799/month
+            {L("Upgrade to Wholesale — ₹799/month")}
           </button>
         )}
         {plan === "wholesale" && (
           <div className="mt-3 text-[10px] text-gray-400 text-center">
-            You have the highest plan — all features unlocked!
+            {L("You have the highest plan — all features unlocked!")}
           </div>
         )}
       </div>
@@ -243,8 +245,8 @@ export default function Settings() {
             display:"flex", alignItems:"center", justifyContent:"center", fontSize:18,
           }}>☀</div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>Theme</div>
-            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>Light is better for shop daylight</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{L("Theme")}</div>
+            <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>{L("Light is better for shop daylight")}</div>
           </div>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
@@ -266,7 +268,7 @@ export default function Settings() {
                 fontSize:11, fontWeight:700, cursor:"pointer",
                 boxShadow: theme === m.key ? "0 6px 14px rgba(232,119,34,0.35)" : "none",
               }}
-            >{m.label}</button>
+            >{L(m.label)}</button>
           ))}
         </div>
       </div>
@@ -278,9 +280,9 @@ export default function Settings() {
             background:"var(--saffron-bg)", border:"1px solid rgba(212,98,31,0.3)",
             display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📱</div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>App Mode</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)" }}>{L("App Mode")}</div>
             <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>
-              Choose how many features you want to see
+              {L("Choose how many features you want to see")}
             </div>
           </div>
         </div>
@@ -298,11 +300,11 @@ export default function Settings() {
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
                     <span style={{ fontSize:13, fontWeight:700,
-                      color: active ? m.color : "var(--ink)" }}>{m.label}</span>
+                      color: active ? m.color : "var(--ink)" }}>{L(m.label)}</span>
                     <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
                       fontSize:11, color:"var(--ink-faint)" }}>{m.hindi}</span>
                   </div>
-                  <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>{m.desc}</div>
+                  <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:1 }}>{L(m.desc)}</div>
                 </div>
                 {active && (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -324,9 +326,9 @@ export default function Settings() {
 
       {/* Feature toggles */}
       <div className="card mb-4">
-        <div className="text-xs font-medium text-gray-600 mb-1">Feature Settings</div>
+        <div className="text-xs font-medium text-gray-600 mb-1">{L("Feature Settings")}</div>
         <div className="text-[10px] text-gray-400 mb-3">
-          Turn features on or off. Locked features require a higher plan.
+          {L("Turn features on or off. Locked features require a higher plan.")}
         </div>
         <div className="space-y-1">
           {TOGGLE_FEATURES.map(f => {
@@ -340,7 +342,7 @@ export default function Settings() {
               }`}>
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-gray-700">{f.label}</span>
+                    <span className="text-xs font-medium text-gray-700">{L(f.label)}</span>
                     {!allowed && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
                         style={{ background: reqPlan.bg, color: reqPlan.color }}>
@@ -348,7 +350,7 @@ export default function Settings() {
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">{f.desc}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{L(f.desc)}</div>
                 </div>
 
                 {allowed ? (
@@ -366,7 +368,7 @@ export default function Settings() {
                     onClick={() => setToggle(f.key, true)}
                     className="flex-shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg border font-medium"
                     style={{ borderColor:"var(--jade)", color:"var(--jade)" }}>
-                    Enable
+                    {L("Enable")}
                   </button>
                 ) : (
                   // Plan doesn't allow — show Upgrade button
@@ -374,7 +376,7 @@ export default function Settings() {
                     onClick={() => {}}
                     className="flex-shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg border font-medium"
                     style={{ borderColor: reqPlan.color, color: reqPlan.color }}>
-                    Upgrade
+                    {L("Upgrade")}
                   </button>
                 )}
               </div>
@@ -385,7 +387,7 @@ export default function Settings() {
 
       {/* Plans comparison */}
       <div className="card mb-4">
-        <div className="text-xs font-medium text-gray-600 mb-3">Plan Comparison</div>
+        <div className="text-xs font-medium text-gray-600 mb-3">{L("Plan Comparison")}</div>
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(PLAN_INFO).map(([key, p]) => (
             <div key={key} className={`rounded-xl p-3 text-center border ${
@@ -393,15 +395,15 @@ export default function Settings() {
             }`}
             style={plan === key ? { borderColor: p.color, background: p.bg } : {}}>
               <div className="text-xs font-semibold mb-0.5" style={{ color: p.color }}>
-                {p.name}
+                {L(p.name)}
               </div>
               <div className="text-sm font-bold" style={{ color: p.color }}>
                 {p.price}
               </div>
-              <div className="text-[9px] text-gray-400">/month</div>
+              <div className="text-[9px] text-gray-400">{L("/month")}</div>
               {plan === key && (
                 <div className="text-[9px] font-medium mt-1" style={{ color: p.color }}>
-                  Current plan
+                  {L("Current plan")}
                 </div>
               )}
             </div>
@@ -411,22 +413,22 @@ export default function Settings() {
 
       {/* Account settings */}
       <div className="card mb-4">
-        <div className="text-xs font-medium text-gray-600 mb-3">Account</div>
+        <div className="text-xs font-medium text-gray-600 mb-3">{L("Account")}</div>
         <div className="space-y-2">
           <div className="flex justify-between text-xs py-2 border-b border-gray-50">
-            <span className="text-gray-500">Store name</span>
+            <span className="text-gray-500">{L("Store name")}</span>
             <span className="font-medium">{vendor?.store_name || "—"}</span>
           </div>
           <div className="flex justify-between text-xs py-2 border-b border-gray-50">
-            <span className="text-gray-500">Email</span>
+            <span className="text-gray-500">{L("Email")}</span>
             <span className="font-medium">{vendor?.email || "—"}</span>
           </div>
           <div className="flex justify-between text-xs py-2 border-b border-gray-50">
-            <span className="text-gray-500">Plan</span>
-            <span className="font-medium" style={{ color: planI.color }}>{planI.name}</span>
+            <span className="text-gray-500">{L("Plan")}</span>
+            <span className="font-medium" style={{ color: planI.color }}>{L(planI.name)}</span>
           </div>
           <div className="flex justify-between text-xs py-2">
-            <span className="text-gray-500">App version</span>
+            <span className="text-gray-500">{L("App version")}</span>
             <span className="font-medium text-gray-400">
               DukaanAI v{__APP_VERSION__}{window.Capacitor?.isNativePlatform?.() ? " (app)" : " (web)"}
             </span>
@@ -440,10 +442,10 @@ export default function Settings() {
 
       {/* Danger zone */}
       <div className="card border-red-100">
-        <div className="text-xs font-medium text-red-600 mb-3">Account actions</div>
+        <div className="text-xs font-medium text-red-600 mb-3">{L("Account actions")}</div>
         <button onClick={logout}
           className="btn w-full text-xs text-red-500 hover:bg-red-50 border-red-200 py-2">
-          Logout from this device
+          {L("Logout from this device")}
         </button>
       </div>
     </div>
