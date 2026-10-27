@@ -6,8 +6,9 @@
  *   2. Is today's session not yet opened?                 → show "Open Today" step
  *   3. Already open or closed today?                      → silent, no modal
  *
- * Snooze (1 h) and per-day "done" flags live in sessionStorage so the modal
- * never re-appears within the same browsing session once handled.
+ * Snooze (1 h) and per-day "done" flags live in localStorage (keyed by date) so the
+ * modal stays away for the rest of the day once handled — sessionStorage was wiped
+ * every time the phone app was closed, so the modal came back again and again.
  *
  * Works for both:
  *   • Cloud (Pro/Wholesale) users → calls /day-sessions/pending + /open + /close-prev/:id
@@ -52,13 +53,19 @@ function openLocalSession() {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
+// Per-day flags; storage can be blocked (private mode) — then the modal just asks again
+const flags = {
+  getItem: k => { try { return localStorage.getItem(k) } catch { return null } },
+  setItem: (k, v) => { try { localStorage.setItem(k, v) } catch { /* blocked */ } },
+}
+
 export default function DaySessionGate({ vendor }) {
   const [step,        setStep]        = useState(null)  // null | "close-prev" | "open-today"
   const [prevSession, setPrevSession] = useState(null)
   const [acting,      setActing]      = useState(false)
   const [error,       setError]       = useState("")
 
-  const today    = new Date().toISOString().slice(0, 10)
+  const today    = new Date().toLocaleDateString("en-CA")   // local YYYY-MM-DD (toISOString is UTC: wrong day before 5:30 AM IST)
   const doneKey  = `dk_gate_done_${today}`
   const snoozeKey = "dk_gate_snooze"
 
@@ -66,9 +73,9 @@ export default function DaySessionGate({ vendor }) {
     if (!vendor) return
     // Skip bangle-only users — they manage day sessions via /bangle-day
     if (Array.isArray(vendor.modules) && vendor.modules.includes("bangle_fancy") && !vendor.modules.includes("kirana")) return
-    if (sessionStorage.getItem(doneKey)) return
+    if (flags.getItem(doneKey)) return
 
-    const snoozeUntil = parseInt(sessionStorage.getItem(snoozeKey) || "0")
+    const snoozeUntil = parseInt(flags.getItem(snoozeKey) || "0")
     if (Date.now() < snoozeUntil) return
 
     // Small delay so the app renders fully before showing the modal
@@ -86,19 +93,19 @@ export default function DaySessionGate({ vendor }) {
     const check = async () => {
       const hour = new Date().getHours()
       if (hour < 18) return  // only after 6 PM
-      if (sessionStorage.getItem(closeReminderKey)) return
+      if (flags.getItem(closeReminderKey)) return
 
       try {
         if (isCloud()) {
           const data = await api.get("/day-sessions/pending").catch(() => null)
           if (data?.today?.status === "open") {
-            sessionStorage.setItem(closeReminderKey, "1")
+            flags.setItem(closeReminderKey, "1")
             setStep("close-today")
           }
         } else {
           const s = getLocalSession()
           if (s && s.date === today && s.status === "open") {
-            sessionStorage.setItem(closeReminderKey, "1")
+            flags.setItem(closeReminderKey, "1")
             setStep("close-today")
           }
         }
@@ -146,7 +153,7 @@ export default function DaySessionGate({ vendor }) {
         const s = getLocalSession()
         if (s) closeLocalSession(s)
       }
-      sessionStorage.setItem(doneKey, "1")
+      flags.setItem(doneKey, "1")
       setStep(null)
     } catch {
       setError("Could not close. Try the Day Ops page directly.")
@@ -179,7 +186,7 @@ export default function DaySessionGate({ vendor }) {
       } else {
         openLocalSession()
       }
-      sessionStorage.setItem(doneKey, "1")
+      flags.setItem(doneKey, "1")
       setStep(null)
     } catch {
       setError("Could not open. Try the Day Ops page directly.")
@@ -192,12 +199,12 @@ export default function DaySessionGate({ vendor }) {
   }
 
   function handleSnooze() {
-    sessionStorage.setItem(snoozeKey, String(Date.now() + 60 * 60 * 1000))
+    flags.setItem(snoozeKey, String(Date.now() + 60 * 60 * 1000))
     setStep(null)
   }
 
   function handleDismiss() {
-    sessionStorage.setItem(doneKey, "1")
+    flags.setItem(doneKey, "1")
     setStep(null)
   }
 
