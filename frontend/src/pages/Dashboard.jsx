@@ -2,7 +2,11 @@ import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Products, Sales, Invoices, api, isCloud, getStoreName } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
-import { tr } from "../i18n/kiranaStrings"
+import { tr, uiLang as currentLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, currentLang())
+// Sentences with numbers: Lf("{n} items running low", { n: 3 })
+const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 import { MIN_FONT_SIZE } from "../styles/textScale"
 
 const INR = n => "₹" + (n || 0).toLocaleString("en-IN")
@@ -14,18 +18,18 @@ function getUILang() {
 
 function greeting() {
   const h = new Date().getHours()
-  if (h < 12) return "Good morning"
-  if (h < 17) return "Good afternoon"
-  return "Good evening"
+  if (h < 12) return L("Good morning")
+  if (h < 17) return L("Good afternoon")
+  return L("Good evening")
 }
 
 const QUICK = [
-  { label:"New Sale",    icon:"🧾", color:"var(--saffron-bg)", border:"rgba(232,119,34,0.25)", to:"/billing" },
-  { label:"Add Stock",   icon:"📦", color:"var(--brass-bg)",   border:"rgba(184,134,11,0.25)",  to:"/inventory" },
-  { label:"Add Udhar",   icon:"📒", color:"var(--ember-bg)",   border:"rgba(192,57,43,0.25)",   to:"/udhar" },
-  { label:"Scan Item",   icon:"📷", color:"var(--jade-bg)",    border:"rgba(26,122,74,0.25)",   to:"/billing" },
-  { label:"Voice Entry", icon:"🎤", color:"var(--saffron-bg)", border:"rgba(232,119,34,0.25)", to:"/voice" },
-  { label:"Bulk Import", icon:"📥", color:"var(--brass-bg)",   border:"rgba(184,134,11,0.25)",  to:"/bulk-import" },
+  { label:L("New Sale"),    icon:"🧾", color:"var(--saffron-bg)", border:"rgba(232,119,34,0.25)", to:"/billing" },
+  { label:L("Add Stock"),   icon:"📦", color:"var(--brass-bg)",   border:"rgba(184,134,11,0.25)",  to:"/inventory" },
+  { label:L("Add Udhar"),   icon:"📒", color:"var(--ember-bg)",   border:"rgba(192,57,43,0.25)",   to:"/udhar" },
+  { label:L("Scan Item"),   icon:"📷", color:"var(--jade-bg)",    border:"rgba(26,122,74,0.25)",   to:"/billing" },
+  { label:L("Voice Entry"), icon:"🎤", color:"var(--saffron-bg)", border:"rgba(232,119,34,0.25)", to:"/voice" },
+  { label:L("Bulk Import"), icon:"📥", color:"var(--brass-bg)",   border:"rgba(184,134,11,0.25)",  to:"/bulk-import" },
 ]
 
 // ── Stock Popup ───────────────────────────────────────────────
@@ -101,8 +105,8 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
             <div style={{ width:34, height:34, borderRadius:10, background:"#25D366",
               display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>📲</div>
             <div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#128C7E" }}>Send WhatsApp Stock Alert</div>
-              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1 }}>Share this list with your supplier or staff</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#128C7E" }}>{L("Send WhatsApp Stock Alert")}</div>
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1 }}>{L("Share this list with your supplier or staff")}</div>
             </div>
             <svg style={{ marginLeft:"auto", flexShrink:0 }} width="14" height="14" fill="none"
               stroke="#128C7E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -115,7 +119,7 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
         <div style={{ overflowY:"auto", flex:1 }}>
           {items.length === 0 && (
             <div style={{ padding:"32px 22px", textAlign:"center", color:"var(--ink-faint)", fontSize:13 }}>
-              No items to show
+              {L("No items to show")}
             </div>
           )}
           {items.map((p, i) => (
@@ -169,7 +173,7 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
                   style={{ padding:"5px 12px", borderRadius:9, border:"1.5px solid var(--rule)",
                     background:"var(--bg2)", fontSize:MIN_FONT_SIZE, fontWeight:600,
                     color:"var(--ink)", cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>
-                  ✏️ Edit
+                  {L("✏️ Edit")}
                 </button>
               )}
             </div>
@@ -200,8 +204,8 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
     const urgent = p.days_left < 1
     items.push({
       icon:  urgent ? "🔴" : "🟠",
-      text:  `${p.name} — ${p.days_left < 1 ? "runs out TODAY" : `runs out in ${p.days_left} day${p.days_left !== 1 ? "s" : ""}`}`,
-      sub:   `Selling ${p.daily_rate} ${p.unit}/day`,
+      text:  `${p.name} — ${p.days_left < 1 ? L("runs out TODAY") : Lf(p.days_left === 1 ? "runs out in {n} day" : "runs out in {n} days", { n: p.days_left })}`,
+      sub:   Lf("Selling {n} {unit}/day", { n: p.daily_rate, unit: p.unit }),
       color: urgent ? "var(--ember)" : "#d97706",
       bg:    urgent ? "var(--ember-bg)" : "rgba(217,119,6,0.08)",
       to:    "/inventory",
@@ -212,7 +216,7 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
   if (out_of_stock?.length > 0) {
     items.push({
       icon:  "❌",
-      text:  `${out_of_stock.length} item${out_of_stock.length > 1 ? "s" : ""} OUT of stock`,
+      text:  Lf(out_of_stock.length > 1 ? "{n} items OUT of stock" : "{n} item OUT of stock", { n: out_of_stock.length }),
       sub:   out_of_stock.slice(0, 3).map(p => p.name).join(", "),
       color: "var(--ember)",
       bg:    "var(--ember-bg)",
@@ -226,7 +230,7 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
   if (lowExtra.length > 0) {
     items.push({
       icon:  "⚠️",
-      text:  `${lowExtra.length} item${lowExtra.length > 1 ? "s" : ""} running low`,
+      text:  Lf(lowExtra.length > 1 ? "{n} items running low" : "{n} item running low", { n: lowExtra.length }),
       sub:   lowExtra.slice(0, 3).map(p => p.name).join(", "),
       color: "var(--brass)",
       bg:    "var(--brass-bg)",
@@ -238,8 +242,8 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
   if (dead_stock?.count > 0) {
     items.push({
       icon:  "💸",
-      text:  `${INR(dead_stock.blocked_value)} blocked in dead stock`,
-      sub:   `${dead_stock.count} item${dead_stock.count > 1 ? "s" : ""} unsold for 30+ days${dead_stock.items?.length ? " · " + dead_stock.items.slice(0,2).map(p=>p.name).join(", ") : ""}`,
+      text:  Lf("{amt} blocked in dead stock", { amt: INR(dead_stock.blocked_value) }),
+      sub:   `${Lf(dead_stock.count > 1 ? "{n} items unsold for 30+ days" : "{n} item unsold for 30+ days", { n: dead_stock.count })}${dead_stock.items?.length ? " · " + dead_stock.items.slice(0,2).map(p=>p.name).join(", ") : ""}`,
       color: "var(--brass)",
       bg:    "rgba(184,134,11,0.07)",
       stockType: "dead_stock",
@@ -250,8 +254,8 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
   if (udhar?.total_due > 0) {
     items.push({
       icon:  "📒",
-      text:  `${INR(udhar.total_due)} in pending Udhar`,
-      sub:   `${udhar.customer_count} customer${udhar.customer_count > 1 ? "s" : ""} with dues${udhar.top?.length ? " · " + udhar.top.map(u => u.name).join(", ") : ""}`,
+      text:  Lf("{amt} in pending Udhar", { amt: INR(udhar.total_due) }),
+      sub:   `${Lf(udhar.customer_count > 1 ? "{n} customers with dues" : "{n} customer with dues", { n: udhar.customer_count })}${udhar.top?.length ? " · " + udhar.top.map(u => u.name).join(", ") : ""}`,
       color: "#7c3aed",
       bg:    "rgba(124,58,237,0.07)",
       to:    "/udhar",
@@ -262,7 +266,7 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
   if (margin_alerts?.length > 0) {
     items.push({
       icon:  "📉",
-      text:  `${margin_alerts.length} product${margin_alerts.length > 1 ? "s" : ""} below 10% margin`,
+      text:  Lf(margin_alerts.length > 1 ? "{n} products below 10% margin" : "{n} product below 10% margin", { n: margin_alerts.length }),
       sub:   margin_alerts.slice(0, 3).map(p => `${p.name} (${p.margin_pct}%)`).join(", "),
       color: "var(--ember)",
       bg:    "var(--ember-bg)",
@@ -277,8 +281,8 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
         display:"flex", alignItems:"center", gap:14 }}>
         <span style={{ fontSize:28 }}>✅</span>
         <div>
-          <div style={{ fontWeight:700, fontSize:13, color:"var(--ink)" }}>All clear today!</div>
-          <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>Stock healthy · No pending udhar · Margins good</div>
+          <div style={{ fontWeight:700, fontSize:13, color:"var(--ink)" }}>{L("All clear today!")}</div>
+          <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>{L("Stock healthy · No pending udhar · Margins good")}</div>
         </div>
       </div>
     )
@@ -293,9 +297,9 @@ function BriefingCard({ briefing, navigate, onStockClick }) {
           padding:"13px 18px", display:"flex", alignItems:"center", gap:10, textAlign:"left" }}>
         <span style={{ fontSize:18 }}>🌅</span>
         <div style={{ flex:1 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:"var(--ink)" }}>Today's Briefing</div>
+          <div style={{ fontWeight:700, fontSize:13, color:"var(--ink)" }}>{L("Today's Briefing")}</div>
           <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1 }}>
-            {items.length} action item{items.length !== 1 ? "s" : ""} need attention
+            {Lf(items.length !== 1 ? "{n} action items need attention" : "{n} action item needs attention", { n: items.length })}
           </div>
         </div>
         <svg width="14" height="14" fill="none" stroke="var(--ink-faint)" strokeWidth="2" viewBox="0 0 24 24"
@@ -423,7 +427,7 @@ export default function Dashboard() {
           opened_at:new Date().toISOString(), status:"open", opening_stock:[] }
         localSetDaySession(s); setDaySession(s)
       }
-    } catch { setDayError("Could not open — try Day Ops page") }
+    } catch { setDayError(L("Could not open — try Day Ops page")) }
     setDayActing(false)
   }
 
@@ -440,7 +444,7 @@ export default function Dashboard() {
           localSetDaySession(closed); setDaySession(closed)
         }
       }
-    } catch { setDayError("Could not close — try Day Ops page") }
+    } catch { setDayError(L("Could not close — try Day Ops page")) }
     setDayActing(false)
   }
 
@@ -457,7 +461,7 @@ export default function Dashboard() {
           localSetDaySession(reopened); setDaySession(reopened)
         }
       }
-    } catch { setDayError("Could not reopen — try again") }
+    } catch { setDayError(L("Could not reopen — try again")) }
     setDayActing(false)
   }
 
@@ -572,7 +576,7 @@ export default function Dashboard() {
                   background:"linear-gradient(135deg,#d97706,#b45309)", color:"#fff",
                   cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1,
                   boxShadow:"0 2px 8px rgba(217,119,6,0.35)", whiteSpace:"nowrap" }}>
-                {dayActing ? "Opening…" : "▶ Open Day"}
+                {dayActing ? L("Opening…") : L("▶ Open Day")}
               </button>
             )
             if (isOpen) return (
@@ -588,12 +592,12 @@ export default function Dashboard() {
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, color:"var(--ink-faint)",
                   padding:"5px 10px", borderRadius:20, border:"1px solid var(--rule)",
-                  background:"var(--bg2)", whiteSpace:"nowrap" }}>✓ Day Closed</span>
+                  background:"var(--bg2)", whiteSpace:"nowrap" }}>{L("✓ Day Closed")}</span>
                 <button onClick={() => setShowReopenConfirm(true)} disabled={dayActing}
                   style={{ padding:"5px 10px", borderRadius:20, border:"1.5px solid rgba(202,138,4,0.4)",
                     fontSize:MIN_FONT_SIZE, fontWeight:700, background:"#fffbeb", color:"#92400e",
                     cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1, whiteSpace:"nowrap" }}>
-                  ↺ Reopen
+                  {L("↺ Reopen")}
                 </button>
               </div>
             )
@@ -624,13 +628,13 @@ export default function Dashboard() {
             </div>
             <div style={{ textAlign:"left" }}>
               <div style={{ fontSize:18, fontWeight:900, color:"#fff", lineHeight:1 }}>
-                {t("New Bill")}
+                {t(L("New Bill"))}
               </div>
               <div style={{ fontSize:MIN_FONT_SIZE, color:"rgba(255,255,255,0.8)", marginTop:4 }}>
                 {loading ? "Loading…"
                   : today.count > 0
                   ? `${t("Today")}: ${today.count} ${t("bills")} · ${INR(today.total)}`
-                  : t("Tap to start billing")}
+                  : t(L("Tap to start billing"))}
               </div>
             </div>
             <svg style={{ marginLeft:"auto", flexShrink:0 }} width="20" height="20" fill="none"
@@ -655,7 +659,7 @@ export default function Dashboard() {
               display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
               📦
             </div>
-            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
+            <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t(L("Add Stock"))}</div>
             <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--jade)", fontWeight:600 }}>
               {loading ? "—" : `${total} ${t("products")}`}
             </div>
@@ -684,7 +688,7 @@ export default function Dashboard() {
                     ? "Kaata: " + INR(briefing.udhar.collected_today)
                     : briefing.udhar.total_due > 0
                       ? INR(briefing.udhar.total_due) + " due"
-                      : "All clear")
+                      : L("All clear"))
                 : "—"}
             </div>
           </button>
@@ -743,7 +747,7 @@ export default function Dashboard() {
                   display: "flex", alignItems: "center", gap: 6,
                   animation: "fadeIn 0.2s ease",
                 }}>
-                  🎉 All shelves are fully stocked — great job!
+                  {L("🎉 All shelves are fully stocked — great job!")}
                 </div>
               )}
             </button>
@@ -771,7 +775,7 @@ export default function Dashboard() {
                   style={{ padding:"9px 16px", borderTop:"1px solid rgba(192,57,43,0.15)",
                     fontSize:MIN_FONT_SIZE, fontWeight:700, color:"var(--ember)", cursor:"pointer",
                     textAlign:"center" }}>
-                  View all in Inventory →
+                  {L("View all in Inventory →")}
                 </div>
               </div>
             )}
@@ -824,14 +828,14 @@ export default function Dashboard() {
 
             <div style={{ display:"flex", gap:20, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
               <span style={{ color:"var(--jade)", fontWeight:600 }}>
-                {today.count > 0 ? `${today.count} ${t(today.count===1?"invoice today":"invoices today")}` : t("No sales yet")}
+                {today.count > 0 ? `${today.count} ${t(today.count===1?"invoice today":"invoices today")}` : t(L("No sales yet"))}
               </span>
               <span style={{ color:"var(--ink-faint)" }}>
                 {INR(avgInv)} {t("avg")} · {INR(summary.total_revenue || 0)} {t("this month")}
               </span>
               {profit && (
                 <span style={{ color:"var(--ink-faint)" }}>
-                  Monthly profit: {INR(profit.month?.profit || 0)} ({profit.month?.margin_pct || 0}%)
+                  {L("Monthly profit")}: {INR(profit.month?.profit || 0)} ({profit.month?.margin_pct || 0}%)
                 </span>
               )}
             </div>
@@ -854,10 +858,10 @@ export default function Dashboard() {
           const cardBg     = isOpen ? "var(--jade-bg,#e8f8f2)" : isClosed ? "var(--bg2)" : "#fffbeb"
           const cardBorder = isOpen ? "rgba(26,122,74,0.25)"   : isClosed ? "var(--rule)" : "rgba(202,138,4,0.35)"
           const dotColor   = isOpen ? "var(--jade)"            : isClosed ? "var(--ink-faint)" : "#d97706"
-          const label      = isOpen ? "Day Open"               : isClosed ? "Day Closed"       : "Day Not Started"
-          const sublabel   = isOpen   ? `Opened at ${openedTime}`
+          const label      = isOpen ? L("Day Open")               : isClosed ? L("Day Closed")       : L("Day Not Started")
+          const sublabel   = isOpen   ? Lf("Opened at {t}", { t: openedTime })
                            : isClosed ? `${openedTime} → ${closedTime}`
-                           : "Open the day to track stock & profit"
+                           : L("Open the day to track stock & profit")
 
           return (
             <div style={{ background:cardBg, border:`1px solid ${cardBorder}`,
@@ -901,13 +905,13 @@ export default function Dashboard() {
                       border:"1.5px solid rgba(202,138,4,0.4)", background:"#fffbeb",
                       color:"#92400e", fontSize:MIN_FONT_SIZE, fontWeight:700,
                       cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1 }}>
-                    ↺ Reopen
+                    {L("↺ Reopen")}
                   </button>
                   <button onClick={() => navigate("/day")}
                     style={{ padding:"7px 14px", borderRadius:12,
                       border:"1.5px solid var(--rule)", background:"transparent",
                       color:"var(--ink-dim)", fontSize:MIN_FONT_SIZE, fontWeight:600, cursor:"pointer" }}>
-                    View Report
+                    {L("View Report")}
                   </button>
                 </div>
               )}
@@ -944,10 +948,10 @@ export default function Dashboard() {
           {/* Recent sales */}
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>{t("RECENT SALES")}</div>
+              <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>{t(L("RECENT SALES"))}</div>
               <button onClick={() => navigate("/billing")}
                 style={{ fontSize:MIN_FONT_SIZE, color:"var(--saffron)", fontWeight:600,
-                  background:"none", border:"none", cursor:"pointer" }}>{t("View all →")}</button>
+                  background:"none", border:"none", cursor:"pointer" }}>{t(L("View all →"))}</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14,
               border:"1px solid var(--rule)", overflow:"hidden",
@@ -959,7 +963,7 @@ export default function Dashboard() {
                 <div style={{ padding:"28px 16px", textAlign:"center",
                   color:"var(--ink-faint)", fontSize:13 }}>
                   <div style={{ fontSize:32, marginBottom:8 }}>🎤</div>
-                  {t("Start your first sale!")}
+                  {t(L("Start your first sale!"))}
                 </div>
               ) : today.sales.slice(0, 5).map((s, i) => (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
@@ -996,14 +1000,14 @@ export default function Dashboard() {
               </div>
               <button onClick={() => navigate("/inventory")}
                 style={{ fontSize:MIN_FONT_SIZE, color:"var(--saffron)", fontWeight:600,
-                  background:"none", border:"none", cursor:"pointer" }}>{t("View all →")}</button>
+                  background:"none", border:"none", cursor:"pointer" }}>{t(L("View all →"))}</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14, border:"1px solid var(--rule)",
               overflow:"hidden", boxShadow:"0 4px 10px var(--shadow)" }}>
               {[
                 {
                   icon: "💰",
-                  label: "Stock Value",
+                  label: L("Stock Value"),
                   value: loading || !briefing ? "—"
                     : briefing.stock_value > 0
                       ? `₹${(briefing.stock_value/1000).toFixed(1)}k`
@@ -1014,23 +1018,23 @@ export default function Dashboard() {
                 },
                 {
                   icon: "💤",
-                  label: "Dead Stock",
+                  label: L("Dead Stock"),
                   value: loading || !briefing ? "—" : briefing.dead_stock?.count ?? 0,
                   sub: briefing?.dead_stock?.blocked_value > 0
-                    ? `₹${(briefing.dead_stock.blocked_value/1000).toFixed(1)}k blocked`
-                    : "No dead stock",
+                    ? Lf("₹{k}k blocked", { k: (briefing.dead_stock.blocked_value/1000).toFixed(1) })
+                    : L("No dead stock"),
                   color: briefing?.dead_stock?.count > 0 ? "var(--brass)" : "var(--jade)",
                   bg: briefing?.dead_stock?.count > 0 ? "rgba(184,134,11,0.10)" : "rgba(26,122,74,0.10)",
                   clickType: briefing?.dead_stock?.count > 0 ? "dead_stock" : null,
                 },
                 {
                   icon: "📈",
-                  label: "Monthly Margin",
+                  label: L("Monthly Margin"),
                   value: loading || !briefing ? "—"
                     : `${briefing.profit?.month?.margin_pct ?? 0}%`,
                   sub: briefing?.profit?.month
                     ? `${INR(briefing.profit.month.profit || 0)} profit`
-                    : "This month",
+                    : L("This month"),
                   color: (briefing?.profit?.month?.margin_pct ?? 0) > 15 ? "var(--jade)" : "var(--ember)",
                   bg: (briefing?.profit?.month?.margin_pct ?? 0) > 15
                     ? "rgba(26,122,74,0.10)" : "var(--ember-bg)",
@@ -1088,8 +1092,8 @@ export default function Dashboard() {
                 border:"1.5px solid rgba(202,138,4,0.3)", display:"flex", alignItems:"center",
                 justifyContent:"center", fontSize:22 }}>↺</div>
               <div>
-                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>Reopen Today's Day?</div>
-                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>This will unlock billing again</div>
+                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>{L("Reopen Today's Day?")}</div>
+                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>{L("This will unlock billing again")}</div>
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:22 }}>
@@ -1114,7 +1118,7 @@ export default function Dashboard() {
               <button onClick={() => setShowReopenConfirm(false)}
                 style={{ flex:1, padding:"13px", borderRadius:13, border:"1.5px solid var(--rule)",
                   background:"transparent", fontSize:13, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
-                Cancel
+                {L("Cancel")}
               </button>
               <button onClick={() => { setShowReopenConfirm(false); reopenDay() }} disabled={dayActing}
                 style={{ flex:2, padding:"13px", borderRadius:13, border:"none",
@@ -1141,8 +1145,8 @@ export default function Dashboard() {
                 border:"1.5px solid rgba(202,138,4,0.3)", display:"flex", alignItems:"center",
                 justifyContent:"center", fontSize:22 }}>⚠️</div>
               <div>
-                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>Close Today's Day?</div>
-                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>Please read before confirming</div>
+                <div style={{ fontSize:16, fontWeight:800, color:"var(--ink)" }}>{L("Close Today's Day?")}</div>
+                <div style={{ fontSize:12, color:"var(--ink-faint)", marginTop:2 }}>{L("Please read before confirming")}</div>
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:22 }}>
@@ -1167,11 +1171,11 @@ export default function Dashboard() {
                 borderRadius:12, padding:"10px 14px", marginBottom:20, display:"flex", gap:20 }}>
                 <div style={{ textAlign:"center" }}>
                   <div style={{ fontSize:15, fontWeight:800, color:"var(--jade)" }}>{INR(today.total)}</div>
-                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>TODAY'S SALES</div>
+                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>{L("TODAY'S SALES")}</div>
                 </div>
                 <div style={{ textAlign:"center" }}>
                   <div style={{ fontSize:15, fontWeight:800, color:"var(--saffron)" }}>{today.count}</div>
-                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>BILLS</div>
+                  <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", fontWeight:600, marginTop:2 }}>{L("BILLS")}</div>
                 </div>
               </div>
             )}
@@ -1181,14 +1185,14 @@ export default function Dashboard() {
               <button onClick={() => setShowCloseConfirm(false)}
                 style={{ flex:1, padding:"13px", borderRadius:13, border:"1.5px solid var(--rule)",
                   background:"transparent", fontSize:13, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
-                Cancel
+                {L("Cancel")}
               </button>
               <button onClick={() => { setShowCloseConfirm(false); closeDay() }} disabled={dayActing}
                 style={{ flex:2, padding:"13px", borderRadius:13, border:"none",
                   background:"linear-gradient(135deg,#185FA5,#2563eb)", color:"#fff",
                   fontSize:13, fontWeight:700, cursor:dayActing?"default":"pointer", opacity:dayActing?0.7:1,
                   boxShadow:"0 4px 14px rgba(37,99,235,0.35)" }}>
-                {dayActing ? "Closing…" : "Yes, Close Day"}
+                {dayActing ? "Closing…" : L("Yes, Close Day")}
               </button>
             </div>
           </div>
@@ -1203,9 +1207,9 @@ export default function Dashboard() {
             padding:"28px 24px", boxShadow:"0 12px 48px rgba(0,0,0,0.3)" }}>
             <div style={{ textAlign:"center", marginBottom:20 }}>
               <div style={{ fontSize:40, marginBottom:10 }}>🌙</div>
-              <div style={{ fontSize:18, fontWeight:800, color:"var(--ink)" }}>Day Still Open!</div>
+              <div style={{ fontSize:18, fontWeight:800, color:"var(--ink)" }}>{L("Day Still Open!")}</div>
               <div style={{ fontSize:13, color:"var(--ink-faint)", marginTop:6, lineHeight:1.5 }}>
-                It's past 1:00 AM and your day session is still open.<br/>Please close it to save today's records.
+                {L("It's past 1:00 AM and your day session is still open.")}<br/>{L("Please close it to save today's records.")}
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:22, gap:6 }}>
@@ -1216,21 +1220,21 @@ export default function Dashboard() {
                 <div style={{ fontSize:22, fontWeight:900, color:"#dc2626", lineHeight:1 }}>
                   {Math.floor(autoCloseSecsLeft/60)}:{String(autoCloseSecsLeft%60).padStart(2,"0")}
                 </div>
-                <div style={{ fontSize:MIN_FONT_SIZE, color:"#dc2626", fontWeight:700, letterSpacing:"1px" }}>LEFT</div>
+                <div style={{ fontSize:MIN_FONT_SIZE, color:"#dc2626", fontWeight:700, letterSpacing:"1px" }}>{L("LEFT")}</div>
               </div>
-              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>Day will auto-close when timer hits 0:00</div>
+              <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>{L("Day will auto-close when timer hits 0:00")}</div>
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => { setShowAutoClose(false); setAutoCloseSecsLeft(300) }}
                 style={{ flex:1, padding:"12px", borderRadius:13, border:"1.5px solid var(--rule)",
                   background:"transparent", fontSize:12, fontWeight:700, color:"var(--ink-faint)", cursor:"pointer" }}>
-                Keep Open
+                {L("Keep Open")}
               </button>
               <button onClick={() => { setShowAutoClose(false); closeDay() }}
                 style={{ flex:2, padding:"12px", borderRadius:13, border:"none",
                   background:"linear-gradient(135deg,#dc2626,#b91c1c)", color:"#fff",
                   fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 14px rgba(220,38,38,0.35)" }}>
-                Close Day Now
+                {L("Close Day Now")}
               </button>
             </div>
           </div>

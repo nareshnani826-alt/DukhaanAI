@@ -897,8 +897,8 @@ Thank you for shopping! 🙏`
       </div>
       <div style={{ fontSize:14, color:"var(--ink-dim)", maxWidth:300, lineHeight:1.6 }}>
         {dayStatus === "closed"
-          ? "You closed today's accounts. Reopen to make more bills today."
-          : "Tap below to start today's sales. Your stock is noted for the day's report."}
+          ? L("You closed today's accounts. Reopen to make more bills today.")
+          : L("Tap below to start today's sales. Your stock is noted for the day's report.")}
       </div>
       <button onClick={openDayHere} disabled={openingDay}
         style={{ padding:"16px 32px", borderRadius:14, border:"none", minWidth:240,

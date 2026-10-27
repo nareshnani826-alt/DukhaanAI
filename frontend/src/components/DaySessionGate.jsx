@@ -18,6 +18,9 @@
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { api, isCloud, getToken } from "../sync/db"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const API = import.meta.env.VITE_API_URL ?? ""
 
@@ -25,7 +28,7 @@ const API = import.meta.env.VITE_API_URL ?? ""
 
 function fmtDate(iso) {
   if (!iso) return ""
-  return new Date(iso).toLocaleDateString("en-IN", {
+  return new Date(iso).toLocaleDateString(uiLang(), {   // "సోమవారం, 26 అక్టోబర్" in Telugu
     weekday: "long", day: "numeric", month: "long",
   })
 }
@@ -156,7 +159,7 @@ export default function DaySessionGate({ vendor }) {
       flags.setItem(doneKey, "1")
       setStep(null)
     } catch {
-      setError("Could not close. Try the Day Ops page directly.")
+      setError(L("Could not close. Try the Day Ops page directly."))
     }
     setActing(false)
   }
@@ -172,7 +175,7 @@ export default function DaySessionGate({ vendor }) {
       }
       setStep("open-today")
     } catch {
-      setError("Could not close. Please try on the Day Ops page.")
+      setError(L("Could not close. Please try on the Day Ops page."))
     }
     setActing(false)
   }
@@ -189,7 +192,7 @@ export default function DaySessionGate({ vendor }) {
       flags.setItem(doneKey, "1")
       setStep(null)
     } catch {
-      setError("Could not open. Try the Day Ops page directly.")
+      setError(L("Could not open. Try the Day Ops page directly."))
     }
     setActing(false)
   }
@@ -238,13 +241,13 @@ export default function DaySessionGate({ vendor }) {
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ fontSize: 52, marginBottom: 10, lineHeight: 1 }}>🌙</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink,#111)", marginBottom: 8 }}>
-                Time to Close the Day
+                {L("Time to Close the Day")}
               </div>
               <div style={{ fontSize: 13, color: "var(--ink-faint,#666)", lineHeight: 1.6 }}>
                 <span style={{ fontWeight: 700, color: "var(--saffron,#e87722)" }}>
                   {fmtDate(today)}
                 </span>
-                {" "}is still open. Close it to record today's final profit, stock levels, and reorder alerts.
+                {" "}{L("is still open. Close it to record today's final profit, stock levels, and reorder alerts.")}
               </div>
             </div>
 
@@ -266,7 +269,7 @@ export default function DaySessionGate({ vendor }) {
                   cursor: acting ? "default" : "pointer",
                   opacity: acting ? 0.7 : 1,
                 }}>
-                {acting ? "Closing…" : "🌙 Close Today's Day"}
+                {acting ? L("Closing…") : L("🌙 Close Today's Day")}
               </button>
 
               <button
@@ -278,7 +281,7 @@ export default function DaySessionGate({ vendor }) {
                   color: "var(--ink-dim,#555)", fontSize: 12,
                   fontWeight: 600, cursor: "pointer",
                 }}>
-                ⏰ Remind me in 1 hour
+                {L("⏰ Remind me in 1 hour")}
               </button>
             </div>
           </>
@@ -288,13 +291,13 @@ export default function DaySessionGate({ vendor }) {
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ fontSize: 52, marginBottom: 10, lineHeight: 1 }}>⚠️</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink,#111)", marginBottom: 8 }}>
-                Previous Day Not Closed
+                {L("Previous Day Not Closed")}
               </div>
               <div style={{ fontSize: 13, color: "var(--ink-faint,#666)", lineHeight: 1.6 }}>
                 <span style={{ fontWeight: 700, color: "var(--saffron,#e87722)" }}>
                   {prevDateLabel}
                 </span>{" "}
-                was left open. Close it first so profit and stock data stays accurate.
+                {L("was left open. Close it first so profit and stock data stays accurate.")}
               </div>
             </div>
 
@@ -316,7 +319,7 @@ export default function DaySessionGate({ vendor }) {
                   cursor: acting ? "default" : "pointer",
                   opacity: acting ? 0.7 : 1,
                 }}>
-                {acting ? "Closing…" : `✓ Close ${prevDateLabel}`}
+                {acting ? L("Closing…") : `✓ ${prevDateLabel} ${L("— close it")}`}
               </button>
 
               <button
@@ -328,7 +331,7 @@ export default function DaySessionGate({ vendor }) {
                   color: "var(--ink-dim,#555)", fontSize: 13,
                   fontWeight: 600, cursor: "pointer",
                 }}>
-                Skip — Open Today Anyway
+                {L("Skip — Open Today Anyway")}
               </button>
             </div>
           </>
@@ -338,13 +341,13 @@ export default function DaySessionGate({ vendor }) {
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ fontSize: 52, marginBottom: 10, lineHeight: 1 }}>🏪</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink,#111)", marginBottom: 8 }}>
-                Good morning! Open your store?
+                {L("Good morning! Open your store?")}
               </div>
               <div style={{ fontSize: 13, color: "var(--ink-faint,#666)", lineHeight: 1.6 }}>
                 <span style={{ fontWeight: 700, color: "var(--saffron,#e87722)" }}>
                   {fmtDate(today)}
                 </span>
-                {" "}— Opens a stock snapshot so you can track today's sales, profit, and low-stock items.
+                {" "}— {L("Opens a stock snapshot so you can track today's sales, profit, and low-stock items.")}
               </div>
             </div>
 
@@ -366,7 +369,7 @@ export default function DaySessionGate({ vendor }) {
                   cursor: acting ? "default" : "pointer",
                   opacity: acting ? 0.7 : 1,
                 }}>
-                {acting ? "Opening…" : "🚀 Open Day Now"}
+                {acting ? L("Opening…") : L("🚀 Open Day Now")}
               </button>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -379,7 +382,7 @@ export default function DaySessionGate({ vendor }) {
                     color: "var(--ink-dim,#555)", fontSize: 12,
                     fontWeight: 600, cursor: "pointer",
                   }}>
-                  ⏰ Remind in 1 hr
+                  {L("⏰ Remind in 1 hr")}
                 </button>
                 <button
                   onClick={handleDismiss}
@@ -390,7 +393,7 @@ export default function DaySessionGate({ vendor }) {
                     color: "var(--ink-faint,#aaa)", fontSize: 12,
                     fontWeight: 600, cursor: "pointer",
                   }}>
-                  Not today
+                  {L("Not today")}
                 </button>
               </div>
             </div>

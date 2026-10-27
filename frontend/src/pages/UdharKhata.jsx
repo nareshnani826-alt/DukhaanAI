@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react"
 import { Udhar } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 const fmt = iso => {
@@ -62,16 +65,16 @@ export default function UdharKhata() {
   }
 
   async function save() {
-    if (!form.name?.trim() && modal==="add-customer") return showNotif("Name required")
-    if (!form.amount && modal!=="add-customer") return showNotif("Amount required")
+    if (!form.name?.trim() && modal==="add-customer") return showNotif(L("Name required"))
+    if (!form.amount && modal!=="add-customer") return showNotif(L("Amount required"))
     setSaving(true)
     try {
       if (modal === "add-customer") {
         await Udhar.addCustomer({ name:form.name, phone:form.phone||null, address:form.address||null })
-        showNotif("Customer added!")
+        showNotif(L("Customer added!"))
       } else if (modal === "edit-customer") {
         await Udhar.updateCustomer(selected.id, { name:form.name, phone:form.phone||null, address:form.address||null })
-        showNotif("Customer updated!")
+        showNotif(L("Customer updated!"))
       } else if (modal === "credit") {
         await Udhar.addCredit({ customerId:selected.id, amount:+form.amount, note:form.note||null })
         showNotif(`₹${form.amount} credit added`)
@@ -98,11 +101,11 @@ export default function UdharKhata() {
     if (!confirm(`Remove ${c.name} from Udhar Khata? All transactions will be deleted.`)) return
     await Udhar.deleteCustomer(c.id)
     if (selected?.id === c.id) setSelected(null)
-    load(); showNotif("Customer removed")
+    load(); showNotif(L("Customer removed"))
   }
 
   function sendReminder(c) {
-    if (!c.phone) return showNotif("No phone number saved for this customer")
+    if (!c.phone) return showNotif(L("No phone number saved for this customer"))
     const msg =
 `🙏 Namaste ${c.name} ji,
 
@@ -117,7 +120,7 @@ Dhanyawaad! 🙏`
   }
 
   function sendStatement(c, transactions) {
-    if (!c.phone) return showNotif("No phone number saved")
+    if (!c.phone) return showNotif(L("No phone number saved"))
     const lines = transactions.slice(0,10).map(t =>
       `${t.type==="credit"?"📤 Udhar":"📥 Payment"}: ${INR(t.amount)} — ${fmt(t.created_at)}${t.note ? ` (${t.note})` : ""}`
     ).join("\n")
@@ -137,7 +140,7 @@ ${c.total_due > 0 ? "Kripya jaldi payment karein 🙏" : "✅ Account clear hai!
 
   // Generate a proof receipt for a single transaction
   function sendProof(c, txn) {
-    if (!c.phone) return showNotif("No phone number saved for this customer")
+    if (!c.phone) return showNotif(L("No phone number saved for this customer"))
     const txnId   = txn.id.slice(-6).toUpperCase()
     const typeStr = txn.type === "credit" ? "Udhar (Credit)" : "Payment Received"
     const msg =
@@ -162,7 +165,7 @@ Please save this message for your records.
 
 _Powered by DukaanAI_`
     WA(c.phone, msg)
-    showNotif("Proof sent on WhatsApp!")
+    showNotif(L("Proof sent on WhatsApp!"))
   }
 
   // Print a proof receipt
@@ -251,7 +254,7 @@ _Powered by DukaanAI_`
           <div className="bg-white rounded-2xl p-5 shadow-xl animate-slide-up" style={{ width: 384, maxWidth: "95vw" }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-semibold">
-                {modal==="add-customer" ? "Add Customer" :
+                {modal==="add-customer" ? L("Add Customer") :
                  modal==="credit"       ? `Add Udhar — ${selected?.name}` :
                                           `Record Payment — ${selected?.name}`}
               </h3>
@@ -260,7 +263,7 @@ _Powered by DukaanAI_`
 
             {(modal === "add-customer" || modal === "edit-customer") ? (
               <div className="space-y-2.5">
-                <div><label className="label">Name *</label>
+                <div><label className="label">{L("Name *")}</label>
                   <input className="input" value={form.name||""} onChange={e=>set("name",e.target.value)}
                     placeholder="Ravi Kumar" autoFocus /></div>
                 <div><label className="label">Phone (for WhatsApp reminders)</label>
@@ -268,7 +271,7 @@ _Powered by DukaanAI_`
                     placeholder="9876543210" /></div>
                 <div><label className="label">Address</label>
                   <input className="input" value={form.address||""} onChange={e=>set("address",e.target.value)}
-                    placeholder="Shop or house address" /></div>
+                    placeholder={L("Shop or house address")} /></div>
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -280,7 +283,7 @@ _Powered by DukaanAI_`
                   </div>
                 )}
                 <div>
-                  <label className="label">Amount (₹) *</label>
+                  <label className="label">{L("Amount (₹) *")}</label>
                   <input className="input text-lg font-semibold" type="number" step="0.01"
                     value={form.amount||""} onChange={e=>set("amount",e.target.value)}
                     placeholder="0.00" autoFocus />
@@ -310,10 +313,10 @@ _Powered by DukaanAI_`
               }`}
               style={modal==="credit" ? { background:"#EF9F27", color:"var(--bg1)", border:"none" } : {}}>
               {saving ? "Saving..." :
-               modal==="add-customer"  ? "Add Customer" :
-               modal==="edit-customer" ? "Save Changes" :
-               modal==="credit"        ? "Add Udhar" :
-                                         "Record Payment"}
+               modal==="add-customer"  ? L("Add Customer") :
+               modal==="edit-customer" ? L("Save Changes") :
+               modal==="credit"        ? L("Add Udhar") :
+                                         L("Record Payment")}
             </button>
           </div>
         </div>
@@ -322,11 +325,11 @@ _Powered by DukaanAI_`
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Udhar Khata 📒</h1>
-          <p className="text-[10px] text-gray-400">Digital credit book — track who owes what</p>
+          <h1 className="text-sm font-semibold">{L("Udhar Khata 📒")}</h1>
+          <p className="text-[10px] text-gray-400">{L("Digital credit book — track who owes what")}</p>
         </div>
         <button onClick={() => openModal("add-customer")} className="btn btn-primary btn-sm">
-          + Add Customer
+          {L("+ Add Customer")}
         </button>
       </div>
 
@@ -335,23 +338,23 @@ _Powered by DukaanAI_`
         <div className="stat-card">
           <div className="stat-bar" style={{ background:"#E24B4A" }} />
           <div className="stat-icon-box" style={{ background:"#FCEBEB" }}>💸</div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Total Due</div>
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{L("Total Due")}</div>
           <div className="text-xl font-bold" style={{ color:"#E24B4A" }}>{INR(summary.total_due)}</div>
-          <div className="text-[10px] text-gray-400">To collect</div>
+          <div className="text-[10px] text-gray-400">{L("To collect")}</div>
         </div>
         <div className="stat-card">
           <div className="stat-bar" style={{ background:"#EF9F27" }} />
           <div className="stat-icon-box" style={{ background:"#FAEEDA" }}>👥</div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Pending</div>
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{L("Pending")}</div>
           <div className="text-xl font-bold text-gray-800">{summary.overdue_count}</div>
-          <div className="text-[10px] text-gray-400">Customers with balance</div>
+          <div className="text-[10px] text-gray-400">{L("Customers with balance")}</div>
         </div>
         <div className="stat-card">
           <div className="stat-bar" style={{ background:"linear-gradient(135deg,#e87722,#ff8e35)" }} />
           <div className="stat-icon-box" style={{ background:"#E1F5EE" }}>📒</div>
           <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Total</div>
           <div className="text-xl font-bold text-gray-800">{summary.customer_count}</div>
-          <div className="text-[10px] text-gray-400">Customers in khata</div>
+          <div className="text-[10px] text-gray-400">{L("Customers in khata")}</div>
         </div>
       </div>
 
@@ -359,7 +362,7 @@ _Powered by DukaanAI_`
 
         {/* Left — customer list */}
         <div style={{ width: window.innerWidth <= 768 ? "100%" : "288px", flexShrink:0, display: window.innerWidth <= 768 && showDetail ? "none" : "flex", flexDirection:"column" }}>
-          <input className="input mb-2" placeholder="Search customer or phone..."
+          <input className="input mb-2" placeholder={L("Search customer or phone...")}
             value={search} onChange={e => setSearch(e.target.value)} />
 
           <div className="card p-0 flex-1 overflow-y-auto">
@@ -370,13 +373,13 @@ _Powered by DukaanAI_`
             ) : customers.length === 0 ? (
               <div className="p-6 text-center">
                 <div className="text-4xl mb-3">📒</div>
-                <div className="text-xs font-medium text-gray-500 mb-1">No customers yet</div>
+                <div className="text-xs font-medium text-gray-500 mb-1">{L("No customers yet")}</div>
                 <div className="text-[10px] text-gray-400 mb-4">
-                  {search ? "No match found" : "Add customers who buy on credit"}
+                  {search ? L("No match found") : L("Add customers who buy on credit")}
                 </div>
                 {!search && (
                   <button onClick={()=>openModal("add-customer")} className="btn btn-primary btn-sm">
-                    + Add first customer
+                    {L("+ Add first customer")}
                   </button>
                 )}
               </div>
@@ -398,7 +401,7 @@ _Powered by DukaanAI_`
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-semibold text-gray-800 truncate">{c.name}</div>
                   <div className="text-[10px] text-gray-400">
-                    {c.phone || "No phone"} · {fmt(c.last_txn_at)}
+                    {c.phone || L("No phone")} · {fmt(c.last_txn_at)}
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -421,15 +424,15 @@ _Powered by DukaanAI_`
               style={{ display:"flex", alignItems:"center", gap:6, color:"var(--jade)",
                 fontSize:12, fontWeight:500, padding:"8px 0", marginBottom:8,
                 background:"none", border:"none", cursor:"pointer" }}>
-              ← Back to customers
+              {L("← Back to customers")}
             </button>
           )}
           {!selected ? (
             <div className="card h-64 flex items-center justify-center flex-col gap-3 text-center">
               <div className="text-5xl">👈</div>
-              <div className="text-sm font-medium text-gray-400">Select a customer</div>
+              <div className="text-sm font-medium text-gray-400">{L("Select a customer")}</div>
               <div className="text-xs text-gray-300 max-w-xs">
-                Click any customer to see their full udhar history and collect payment
+                {L("Click any customer to see their full udhar history and collect payment")}
               </div>
             </div>
           ) : (
@@ -449,7 +452,7 @@ _Powered by DukaanAI_`
                     <div>
                       <div className="text-base font-bold text-gray-800">{selected.name}</div>
                       <div className="text-xs text-gray-400 mt-0.5">
-                        {selected.phone || "No phone"}
+                        {selected.phone || L("No phone")}
                         {selected.address && <span className="ml-2">· {selected.address}</span>}
                       </div>
                       <div className="text-[10px] text-gray-400 mt-1">
@@ -460,12 +463,12 @@ _Powered by DukaanAI_`
 
                   {/* Balance display */}
                   <div className="text-right">
-                    <div className="text-[10px] text-gray-400 mb-0.5">Balance due</div>
+                    <div className="text-[10px] text-gray-400 mb-0.5">{L("Balance due")}</div>
                     <div className="text-2xl font-bold" style={{ color: dueColor(selected.total_due) }}>
                       {INR(selected.total_due)}
                     </div>
                     {selected.total_due === 0 && (
-                      <div className="text-[10px] text-primary font-medium">✓ Account clear</div>
+                      <div className="text-[10px] text-primary font-medium">{L("✓ Account clear")}</div>
                     )}
                   </div>
                 </div>
@@ -479,7 +482,7 @@ _Powered by DukaanAI_`
                   </button>
                   <button onClick={() => openModal("payment", selected)}
                     className="btn btn-primary py-2.5 text-xs font-semibold">
-                    ✓ Record Payment
+                    {L("✓ Record Payment")}
                   </button>
                 </div>
 
@@ -488,12 +491,12 @@ _Powered by DukaanAI_`
                   <button onClick={() => sendReminder(selected)}
                     className="py-2 rounded-xl text-[10px] font-medium transition-all"
                     style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
-                    Send Reminder on WhatsApp
+                    {L("Send Reminder on WhatsApp")}
                   </button>
                   <button onClick={() => sendStatement(selected, txns)}
                     className="py-2 rounded-xl text-[10px] font-medium transition-all"
                     style={{ background:"#128C7E", color:"var(--bg1)", border:"none" }}>
-                    Send Full Statement
+                    {L("Send Full Statement")}
                   </button>
                 </div>
 
@@ -501,11 +504,11 @@ _Powered by DukaanAI_`
                   <button
                     onClick={() => openModal("edit-customer", selected)}
                     className="text-[10px] text-primary underline">
-                    ✏ Edit details
+                    {L("✏ Edit details")}
                   </button>
                   <button onClick={e => deleteCustomer(selected, e)}
                     className="text-[10px] text-red-400 hover:text-red-600 underline">
-                    Remove from Khata
+                    {L("Remove from Khata")}
                   </button>
                 </div>
               </div>
@@ -513,7 +516,7 @@ _Powered by DukaanAI_`
               {/* Transaction history */}
               <div className="card">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-xs font-semibold text-gray-700">Transaction History</div>
+                  <div className="text-xs font-semibold text-gray-700">{L("Transaction History")}</div>
                   {txns.length > 0 && (
                     <span className="badge badge-blue">{txns.length} entries</span>
                   )}
@@ -522,9 +525,9 @@ _Powered by DukaanAI_`
                 {txns.length === 0 ? (
                   <div className="text-center py-6">
                     <div className="text-2xl mb-2">📭</div>
-                    <div className="text-xs text-gray-400">No transactions yet</div>
+                    <div className="text-xs text-gray-400">{L("No transactions yet")}</div>
                     <div className="text-[10px] text-gray-300 mt-1">
-                      Add udhar or record a payment to start tracking
+                      {L("Add udhar or record a payment to start tracking")}
                     </div>
                   </div>
                 ) : txns.map((t, i) => (
@@ -543,7 +546,7 @@ _Powered by DukaanAI_`
                       <div className="text-xs font-semibold" style={{
                         color: t.type==="credit" ? "#633806" : "#085041"
                       }}>
-                        {t.type === "credit" ? "Udhar diya" : "Payment mila"}
+                        {t.type === "credit" ? L("Udhar diya") : L("Payment mila")}
                       </div>
                       <div className="text-[10px] text-gray-500">
                         {fmtTime(t.created_at)}
@@ -561,7 +564,7 @@ _Powered by DukaanAI_`
                           <button onClick={()=>sendProof(selected, t)}
                             className="text-[9px] px-1.5 py-0.5 rounded font-medium"
                             style={{ background:"#25D366", color:"var(--bg1)", border:"none", cursor:"pointer" }}>
-                            WA Proof
+                            {L("WA Proof")}
                           </button>
                         )}
                         <button onClick={()=>printProof(selected, t)}
