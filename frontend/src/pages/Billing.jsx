@@ -24,7 +24,7 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
       if (!p) return null
       return {
         prodId:      p.id,
-        name:        p.name,
+        name:        lineName(p, r.qty),
         qty:         +r.qty || 1,
         unit_price:  p.mrp,
         gst_percent: p.gst_percent || 0,
@@ -296,30 +296,65 @@ function speakTotal(amount) {
 const buzz = () => { try { navigator.vibrate?.(25) } catch { /* not supported */ } }
 
 // ── Loose items (sold by weight / volume from a bag or tin) ──
-// Price is per kg / per litre and qty is kept in kg / litres (0.25 = 250 g).
-// Only items set to kg/litre WITHOUT a pack size in the name count as loose,
-// so "Tata Salt 1kg" stays a packet while "Sugar (loose)" is sold by weight.
-const LOOSE_BASE = { kg:"kg", litre:"litre" }
-const PACK_SIZE_RE = /\d+(\.\d+)?\s*(kg|kgs|g|gm|gms|gram|grams|l|ltr|litre|liter|ml)\b/i
-const isLoose  = p => !!LOOSE_BASE[p?.unit] && !PACK_SIZE_RE.test(p?.name || "")
-const looseKg  = p => LOOSE_BASE[p?.unit] === "kg"
-const round3   = n => Math.round(n * 1000) / 1000
-function fmtQty(p, q) {
-  if (!isLoose(p)) return String(+q)
-  const n = +q
-  if (n < 1) return `${Math.round(n * 1000)} ${looseKg(p) ? "g" : "ml"}`
-  return `${+n.toFixed(3)} ${looseKg(p) ? "kg" : "L"}`
+// Two kinds:
+//  • unit kg/litre with no size in the name ("Sugar"): price is per kg / litre, qty in kg / litres
+//  • a big bag or can ("CHANA 50 KG", "SOYABEAN CHUNKS 15 KG"): price and stock are per bag,
+//    qty is a fraction of the bag (500 g of a 50 kg bag = 0.01) so stock stays in bags
+// Small packets ("Tata Salt 1kg", "Besan 500 GM") stay one-tap packets.
+const SIZE_RE  = /(\d+(?:\.\d+)?)\s*(kgs?|gms?|grams?|g|ltrs?|litres?|liters?|l|ml)\b/i
+const BAG_MIN  = 5   // kg or litres
+const round6   = n => Math.round(n * 1e6) / 1e6
+function looseInfo(p) {
+  if (!p) return null
+  const m = (p.name || "").match(SIZE_RE)
+  if (m) {
+    const n = parseFloat(m[1]), u = m[2].toLowerCase()
+    const kg = /^kg/.test(u) ? n : /^(g|gm|gram)/.test(u) ? n / 1000 : null
+    const lt = u === "ml" ? n / 1000 : kg == null ? n : null
+    if (kg != null && kg >= BAG_MIN) return { kg: true, per: kg, bag: true }
+    if (lt != null && lt >= BAG_MIN) return { kg: false, per: lt, bag: true }
+    return null
+  }
+  if (p.unit === "kg" || p.unit === "litre") return { kg: p.unit === "kg", per: 1, bag: false }
+  return null
 }
-const perUnit = p => isLoose(p) ? (looseKg(p) ? "/kg" : "/L") : ""
+const isLoose = p => !!looseInfo(p)
+const looseKg = p => !!looseInfo(p)?.kg
+// weight (kg or litres) → "250 g" / "1.5 kg" / "750 ml" / "2 L"
+function fmtWeight(kg, w) {
+  if (w < 1) return `${Math.round(w * 1000)} ${kg ? "g" : "ml"}`
+  return `${+w.toFixed(2)} ${kg ? "kg" : "L"}`
+}
+// bill quantity (in the product's own unit) → what the customer gets
+function fmtQty(p, q) {
+  const info = looseInfo(p)
+  return info ? fmtWeight(info.kg, +q * info.per) : String(+q)
+}
+// price per kg / litre: "₹55.2/kg"
+const ratePer = p => { const i = looseInfo(p); return i ? Math.round(p.mrp / i.per * 100) / 100 : p.mrp }
+const perUnit = p => { const i = looseInfo(p); return i && !i.bag ? (i.kg ? "/kg" : "/L") : "" }
+const rateLabel = p => { const i = looseInfo(p); return i ? `₹${ratePer(p)}/${i.kg ? "kg" : "L"}` : `₹${p.mrp}/unit` }
+// "−" on a loose line: take off 1 kg (or 1 L) above 1 kg, 100 g below. Returns 0 when it should go.
+function looseLess(p, q) {
+  const { per } = looseInfo(p)
+  const w = q * per
+  const left = w - (w > 1 + 1e-9 ? 1 : 0.1)
+  return left < 0.05 - 1e-9 ? 0 : round6(left / per)
+}
+// invoice line name for loose sales: "CHANA 50 KG · 500 g"
+const lineName = (p, q) => isLoose(p) ? `${p.name} · ${fmtQty(p, q)}` : p.name
 
-function LoosePicker({ product: p, inBill, onPick, onClose, L }) {
+function LoosePicker({ product: p, inBill, change, onPick, onClose, L }) {
   const [grams, setGrams] = useState("")
   const [rupees, setRupees] = useState("")
-  const kg = looseKg(p)
+  const info = looseInfo(p)
+  const kg = info.kg
   const presets = kg ? [0.05, 0.1, 0.25, 0.5, 1, 2] : [0.1, 0.25, 0.5, 1, 2, 5]
-  const price = q => Math.round(p.mrp * q * 100) / 100
+  const rate = ratePer(p)
+  const price = w => Math.round(rate * w * 100) / 100
   const fromGrams = +grams > 0 ? +grams / 1000 : 0
-  const fromRupees = +rupees > 0 && p.mrp > 0 ? round3(+rupees / p.mrp) : 0
+  const fromRupees = +rupees > 0 && rate > 0 ? Math.round(+rupees / rate * 1000) / 1000 : 0
+  const pick = w => onPick(round6(w / info.per))
   const btn = { borderRadius:16, border:"2px solid var(--rule)", background:"var(--bg2)", padding:"12px 6px",
     display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer" }
   return (
@@ -329,34 +364,41 @@ function LoosePicker({ product: p, inBill, onPick, onClose, L }) {
         borderRadius:"22px 22px 0 0", padding:"18px 16px", paddingBottom:"max(20px, env(safe-area-inset-bottom))" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:18, fontWeight:900, color:"var(--ink)" }}>{p.name}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"var(--ink)" }}>{change ? L("Change weight") + " · " : ""}{p.name}</div>
             <div style={{ fontSize:14, color:"var(--ink-dim)", fontWeight:700 }}>
-              ₹{p.mrp}{perUnit(p)} · {L("Loose")}{inBill > 0 ? ` · ${L("In bill")}: ${fmtQty(p, inBill)}` : ""}
+              ₹{rate}/{kg ? "kg" : "L"} · {L("Loose")}{inBill > 0 ? ` · ${L("In bill")}: ${fmtQty(p, inBill)}` : ""}
             </div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{ width:44, height:44, borderRadius:12, border:"1px solid var(--rule)",
             background:"var(--bg2)", fontSize:20, color:"var(--ink-dim)" }}>✕</button>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, margin:"14px 0" }}>
-          {presets.map(q => (
-            <button key={q} onClick={() => onPick(q)} style={btn}>
-              <span style={{ fontSize:22, fontWeight:900, color:"var(--ink)" }}>{fmtQty(p, q)}</span>
-              <span style={{ fontSize:15, fontWeight:800, color:"var(--brass-deep)" }}>₹{price(q)}</span>
+          {presets.map(w => (
+            <button key={w} onClick={() => pick(w)} style={btn}>
+              <span style={{ fontSize:22, fontWeight:900, color:"var(--ink)" }}>{fmtWeight(kg, w)}</span>
+              <span style={{ fontSize:15, fontWeight:800, color:"var(--brass-deep)" }}>₹{price(w)}</span>
             </button>
           ))}
         </div>
+        {info.bag && (
+          <button onClick={() => onPick(1)} style={{ ...btn, width:"100%", flexDirection:"row", justifyContent:"center",
+            gap:10, marginBottom:10, padding:"12px" }}>
+            <span style={{ fontSize:18, fontWeight:900, color:"var(--ink)" }}>{L("Full bag")} · {fmtWeight(kg, info.per)}</span>
+            <span style={{ fontSize:16, fontWeight:800, color:"var(--brass-deep)" }}>₹{p.mrp}</span>
+          </button>
+        )}
         <div style={{ display:"flex", gap:8, marginBottom:10 }}>
           <input type="number" inputMode="numeric" value={grams} onChange={e => { setGrams(e.target.value); setRupees("") }}
             placeholder={kg ? L("Grams") : "ml"} className="input" style={{ flex:1, fontSize:18, padding:"12px" }} />
           <input type="number" inputMode="decimal" value={rupees} onChange={e => { setRupees(e.target.value); setGrams("") }}
             placeholder={"₹ " + L("worth")} className="input" style={{ flex:1, fontSize:18, padding:"12px" }} />
         </div>
-        <button disabled={!(fromGrams || fromRupees)} onClick={() => onPick(fromGrams || fromRupees)}
+        <button disabled={!(fromGrams || fromRupees)} onClick={() => pick(fromGrams || fromRupees)}
           style={{ width:"100%", height:58, borderRadius:16, border:"none", fontSize:18, fontWeight:900, color:"#fff",
             background: fromGrams || fromRupees ? "linear-gradient(135deg,var(--saffron),var(--saffron-hot))" : "var(--rule)" }}>
           {fromGrams || fromRupees
-            ? `${L("Add to bill")} · ${fmtQty(p, fromGrams || fromRupees)} · ₹${price(fromGrams || fromRupees)}`
-            : L("Add to bill")}
+            ? `${L(change ? "Set" : "Add to bill")} · ${fmtWeight(kg, fromGrams || fromRupees)} · ₹${price(fromGrams || fromRupees)}`
+            : L(change ? "Set" : "Add to bill")}
         </button>
       </div>
     </div>
@@ -408,6 +450,7 @@ export default function Billing() {
   const [showHeld, setShowHeld] = useState(false)
   const [showCart, setShowCart] = useState(false)   // bill sheet over the product list (mobile-first)
   const [loosePick, setLoosePick] = useState(null)  // loose product whose weight picker is open
+  const [looseChange, setLooseChange] = useState(false)  // picker sets the weight instead of adding
   // "easy" = big pictures + one PAID button; "default" = full billing screen. Remembered per phone.
   const [billMode, setBillMode] = useState(() => { try { return localStorage.getItem("dk_bill_mode") || "default" } catch { return "default" } })
   const [easyDone, setEasyDone] = useState(null)   // { total } after an Easy bill is saved
@@ -677,7 +720,7 @@ Thank you for shopping! 🙏`
     if (!canAdd(product, amt)) return
     setRows(prev => {
       const idx = prev.findIndex(r => r.prodId === product.id)
-      if (idx >= 0) return prev.map((r, i) => i === idx ? { ...r, qty: round3(r.qty + amt) } : r)
+      if (idx >= 0) return prev.map((r, i) => i === idx ? { ...r, qty: round6(r.qty + amt) } : r)
       return [...prev, { prodId: product.id, qty: amt }]
     })
     setLoosePick(null)
@@ -687,15 +730,24 @@ Thank you for shopping! 🙏`
     setTimeout(() => searchRef.current?.focus(), 50)
   }
 
+  function setLooseQty(product, q) {
+    if (q > stockOf(product) + 1e-9) {
+      return showNotif(`${L("Only")} ${fmtQty(product, stockOf(product))} ${L("in stock")}: ${product.name}`)
+    }
+    setRows(prev => prev.map(r => r.prodId === product.id ? { ...r, qty: q } : r))
+    setLoosePick(null); setLooseChange(false)
+  }
+
   function removeOne(product) {
-    setRows(prev => prev.flatMap(r => r.prodId !== product.id ? [r] : !isLoose(product) && r.qty > 1 ? [{ ...r, qty: r.qty - 1 }] : []))
+    setRows(prev => prev.flatMap(r => r.prodId !== product.id ? [r] : isLoose(product) ? (looseLess(product, r.qty) ? [{ ...r, qty: looseLess(product, r.qty) }] : [])
+      : r.qty > 1 ? [{ ...r, qty: r.qty - 1 }] : []))
   }
 
   // Easy billing: save straight away as a cash bill — no review screen
   async function finishEasyBill() {
     const items = rows.map(r => {
       const p = getProduct(r.prodId)
-      return p && +r.qty > 0 ? { product_id: p.id, name: p.name, qty: +r.qty, unit_price: p.mrp, gst_percent: p.gst_percent || 0 } : null
+      return p && +r.qty > 0 ? { product_id: p.id, name: lineName(p, r.qty), qty: +r.qty, unit_price: p.mrp, gst_percent: p.gst_percent || 0 } : null
     }).filter(Boolean)
     if (!items.length) return showNotif(L("Tap a picture to add"))
     setEasyDone({ total: grandTotal })   // shown once the invoice exists; cleared again on failure below
@@ -804,8 +856,9 @@ Thank you for shopping! 🙏`
         )}
         {scanner && <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />}
         {loosePick && (
-          <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} L={L}
-            onPick={q => { addToCart(loosePick, q); buzz() }} onClose={() => setLoosePick(null)} />
+          <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} change={looseChange} L={L}
+            onPick={q => { looseChange ? setLooseQty(loosePick, q) : addToCart(loosePick, q); buzz() }}
+            onClose={() => { setLoosePick(null); setLooseChange(false) }} />
         )}
 
 
@@ -934,8 +987,9 @@ Thank you for shopping! 🙏`
         <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />
       )}
       {loosePick && (
-          <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} L={L}
-            onPick={q => { addToCart(loosePick, q); buzz() }} onClose={() => setLoosePick(null)} />
+          <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} change={looseChange} L={L}
+            onPick={q => { looseChange ? setLooseQty(loosePick, q) : addToCart(loosePick, q); buzz() }}
+            onClose={() => { setLoosePick(null); setLooseChange(false) }} />
         )}
 
 
@@ -1359,21 +1413,35 @@ Thank you for shopping! 🙏`
                       overflow:"hidden", textOverflow:"ellipsis",
                       display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</div>
                     <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
-                      ₹{p.mrp}{isLoose(p) ? perUnit(p) : "/unit"}
+                      {rateLabel(p)}
                     </div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:4,
                     background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
-                    <button onClick={() => isLoose(p) || row.qty <= 1 ? delRow(i) : setRow(i, "qty", row.qty - 1)}
-                      aria-label={row.qty <= 1 ? "Remove" : "Less"}
+{(() => {
+                    const loose = isLoose(p)
+                    const last = loose ? !looseLess(p, row.qty) : row.qty <= 1
+                    return (<>
+                    <button onClick={() => last ? delRow(i) : setRow(i, "qty", loose ? looseLess(p, row.qty) : row.qty - 1)}
+                      aria-label={last ? "Remove" : "Less"}
                       style={{ width:40, height:40, borderRadius:9, background:"var(--bg2)",
-                        color: isLoose(p) || row.qty <= 1 ? "var(--ember)" : "var(--brass-deep)",
-                        border:"none", fontSize: isLoose(p) || row.qty <= 1 ? 13 : 18, fontWeight:800, cursor:"pointer" }}>
-                      {isLoose(p) || row.qty <= 1 ? "🗑" : "−"}
+                        color: last ? "var(--ember)" : "var(--brass-deep)",
+                        border:"none", fontSize: last ? 13 : 18, fontWeight:800, cursor:"pointer" }}>
+                      {last ? "🗑" : "−"}
                     </button>
-                    <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)", whiteSpace:"nowrap" }}>
-                      {fmtQty(p, row.qty)}
-                    </span>
+                    {loose ? (
+                      <button onClick={() => { setLooseChange(true); setLoosePick(p) }} aria-label="Change weight"
+                        style={{ minWidth:22, padding:"0 4px", fontSize:15, fontWeight:800, color:"var(--ink)", whiteSpace:"nowrap",
+                          background:"none", border:"none", borderBottom:"2px dashed var(--saffron)", cursor:"pointer" }}>
+                        {fmtQty(p, row.qty)}
+                      </button>
+                    ) : (
+                      <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)", whiteSpace:"nowrap" }}>
+                        {fmtQty(p, row.qty)}
+                      </span>
+                    )}
+                    </>)
+                  })()}
                     <button onClick={() => isLoose(p) ? setLoosePick(p) : canAddOne(p) && setRow(i, "qty", row.qty + 1)} aria-label="More"
                       style={{ width:40, height:40, borderRadius:9, background:"var(--saffron)",
                         color:"#fff", border:"none", fontSize:18, fontWeight:800, cursor:"pointer" }}>
@@ -1465,7 +1533,7 @@ Thank you for shopping! 🙏`
                           <span style={{ fontSize:16, color:"var(--brass-deep)", fontWeight:800 }}>₹{p.mrp}{perUnit(p)}</span>
                           <span style={{ fontSize:12, fontWeight:700,
                             color: outOfStock || leftAfterBill === 0 ? "var(--ember)" : leftAfterBill <= (p.min_stock || 0) ? "#b45309" : "var(--ink-faint)" }}>
-                            {outOfStock ? L("Out of stock") : fmtQty(p, round3(leftAfterBill)) + " " + L("left")}
+                            {outOfStock ? L("Out of stock") : fmtQty(p, round6(leftAfterBill)) + " " + L("left")}
                           </span>
                         </div>
                       </button>
