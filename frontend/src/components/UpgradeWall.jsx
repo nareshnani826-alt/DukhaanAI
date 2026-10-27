@@ -2,6 +2,9 @@ import { useState } from "react"
 import { usePlan } from "../context/PlanContext"
 import { startVoiceTrial, getTrialDaysLeft } from "../context/PlanContext"
 import { useNavigate } from "react-router-dom"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 export default function UpgradeWall({ feature, children }) {
   const { hasFeature, isToggledOff, FEATURE_LABELS, PLAN_LABELS } = usePlan()
@@ -39,7 +42,7 @@ export default function UpgradeWall({ feature, children }) {
             {info.name} is turned off
           </h2>
           <p className="text-xs text-gray-400 mb-6">
-            You disabled this feature. Your plan supports it — tap below to turn it back on.
+            {L("You disabled this feature. Your plan supports it — tap below to turn it back on.")}
           </p>
           <button onClick={enableNow}
             className="btn btn-primary w-full py-2.5 text-xs font-semibold mb-2">
@@ -47,10 +50,10 @@ export default function UpgradeWall({ feature, children }) {
           </button>
           <button onClick={() => navigate("/settings")}
             className="btn w-full text-xs text-gray-500 mb-2">
-            Manage in Settings
+            {L("Manage in Settings")}
           </button>
           <button onClick={() => navigate(-1)} className="btn w-full text-xs text-gray-400">
-            Go back
+            {L("Go back")}
           </button>
         </div>
       </div>
@@ -65,11 +68,10 @@ export default function UpgradeWall({ feature, children }) {
         <div className="max-w-sm w-full text-center">
           <div style={{ fontSize: 64, marginBottom: 12 }}>🎤</div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>
-            Try Voice Agent Free
+            {L("Try Voice Agent Free")}
           </h2>
           <p style={{ fontSize: 13, color: "var(--ink-faint)", marginBottom: 24, lineHeight: 1.6 }}>
-            Speak items in <strong>Telugu, Hindi, Tamil</strong> and 7 more Indian languages.
-            Bill ban jata hai — instantly.
+            {L("Speak items in Telugu, Hindi, Tamil and 7 more Indian languages. The bill is made instantly.")}
           </p>
 
           <div style={{ background: "var(--bg2)", borderRadius: 16, padding: "16px 20px",
@@ -78,7 +80,7 @@ export default function UpgradeWall({ feature, children }) {
               "Stock updates in real-time","Works offline too"].map(f => (
               <div key={f} style={{ display: "flex", alignItems: "center", gap: 10,
                 marginBottom: 10, fontSize: 13, color: "var(--ink-dim)" }}>
-                <span style={{ color: "var(--jade)", fontWeight: 700, fontSize: 16 }}>✓</span> {f}
+                <span style={{ color: "var(--jade)", fontWeight: 700, fontSize: 16 }}>✓</span> {L(f)}
               </div>
             ))}
           </div>
@@ -89,22 +91,22 @@ export default function UpgradeWall({ feature, children }) {
               background: "linear-gradient(135deg,var(--saffron),#d45f00)",
               color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer",
               marginBottom: 10 }}>
-            🚀 Start 7-Day Free Trial
+            {L("🚀 Start 7-Day Free Trial")}
           </button>
           <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 16 }}>
-            No credit card · No sign-up · Just try it
+            {L("No credit card · No sign-up · Just try it")}
           </div>
           <button onClick={() => navigate("/settings")}
             style={{ width: "100%", padding: "11px", borderRadius: 12,
               border: "1.5px solid var(--rule)", background: "transparent",
               color: "var(--ink-dim)", fontSize: 12, fontWeight: 600, cursor: "pointer",
               marginBottom: 8 }}>
-            Upgrade to Pro — ₹299/month
+            {L("Upgrade to Pro — ₹299/month")}
           </button>
           <button onClick={() => navigate(-1)}
             style={{ width: "100%", padding: "8px", background: "none", border: "none",
               color: "var(--ink-faint)", fontSize: 12, cursor: "pointer" }}>
-            Go back
+            {L("Go back")}
           </button>
         </div>
       </div>
@@ -136,7 +138,7 @@ export default function UpgradeWall({ feature, children }) {
                 "Day open/close with profit report","Insights & GST reports",
                 "Unlimited invoices"].map(f => (
                 <div key={f} className="flex items-center gap-2 text-xs text-gray-600">
-                  <span className="text-primary">✓</span> {f}
+                  <span className="text-primary">✓</span> {L(f)}
                 </div>
               ))}
             </div>
@@ -146,7 +148,7 @@ export default function UpgradeWall({ feature, children }) {
                 "AI product image recognition","Staff audit log",
                 "Bulk data export","Priority support"].map(f => (
                 <div key={f} className="flex items-center gap-2 text-xs text-gray-600">
-                  <span style={{ color:"#7F77DD" }}>✓</span> {f}
+                  <span style={{ color:"#7F77DD" }}>✓</span> {L(f)}
                 </div>
               ))}
             </div>
@@ -157,7 +159,7 @@ export default function UpgradeWall({ feature, children }) {
           <div className="text-2xl font-semibold" style={{ color: reqPlan.color }}>
             {reqPlan.price}
           </div>
-          <div className="text-[10px] text-gray-400">Cancel anytime</div>
+          <div className="text-[10px] text-gray-400">{L("Cancel anytime")}</div>
         </div>
 
         <button onClick={() => navigate("/settings")}
@@ -166,7 +168,7 @@ export default function UpgradeWall({ feature, children }) {
           Upgrade to {reqPlan.name}
         </button>
         <button onClick={() => navigate(-1)} className="btn w-full text-xs text-gray-400">
-          Go back
+          {L("Go back")}
         </button>
       </div>
     </div>

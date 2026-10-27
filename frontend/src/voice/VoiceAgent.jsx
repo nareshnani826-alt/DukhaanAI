@@ -8,6 +8,7 @@ import { getConfidenceLevel } from "./phonetic.js"
 import { LANGUAGES } from "./languages.js"
 import { Products, getToken } from "../sync/db.js"
 import { loadFromServer } from "../voice-ai/syncPatterns"
+import { tr, uiLang } from "../i18n/kiranaStrings"
 import { validateProduct, extractVariant, buildProductName } from "./productValidator.js"
 import { detectUnit } from "./unitDetector.js"
 import { detectPlatform } from "./engine.js"
@@ -17,6 +18,8 @@ import { learnCorrection }       from "../voice-ai/learningStore"
 import { matchFromLearned, recordConfirmation } from "../voice-ai/patternLearner"
 import { parseVoiceUtterance, isSpeedBilling, parseSpeedBilling } from "../voice-ai/kiranaNLP"
 import { initContextPredictor, addToSession, startSession } from "../voice-ai/contextPredictor"
+
+const L = k => tr(k, uiLang())
 
 const pulseStyle = `
   /* ── Siri-like orb animations ─────────────────────────── */
@@ -847,7 +850,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
               boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
             }}/>
           </div>
-          {continuous ? "🎙️ Hands-free ON" : "Hands-free OFF"}
+          {L(continuous ? "🎙️ Hands-free ON" : "Hands-free OFF")}
         </button>
 
         {/* Transcript */}
@@ -1063,7 +1066,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
 
       {/* Quick commands */}
       <div className="card mb-3">
-        <div className="text-[10px] font-medium text-gray-500 mb-2">Try saying:</div>
+        <div className="text-[10px] font-medium text-gray-500 mb-2">{L("Try saying:")}</div>
         <div className="grid grid-cols-2 gap-1.5">
           {(storeMode === "bangle_fancy" ? [
             { lang:"Telugu",  ex:'"Rendu red kundan bangle size 2.4"' },
@@ -1077,7 +1080,7 @@ export default function VoiceAgent({ onAddToBill, onLangChange, extraProducts = 
             { lang:"Bill",    ex:'"Parle-G 5 packet bill mein daalo"' },
           ]).map(e => (
             <div key={e.lang} className="bg-gray-50 rounded-lg p-2">
-              <div className="text-[10px] text-primary font-medium mb-0.5">{e.lang}</div>
+              <div className="text-[10px] text-primary font-medium mb-0.5">{L(e.lang)}</div>
               <div className="text-[10px] text-gray-500 italic">{e.ex}</div>
             </div>
           ))}

@@ -5,6 +5,9 @@ import { Invoices, Products } from "../sync/db.js"
 import { BangleProducts } from "../sync/bangleDb.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { t, getSavedLang } from "../voice/i18n.js"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 
@@ -64,26 +67,26 @@ function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
           display:"flex", justifyContent:"space-between", alignItems:"center",
         }}>
           <div>
-            <div style={{ fontSize:15, fontWeight:700, color:"#fff" }}>Review Voice Bill</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginTop:2 }}>Edit prices · Apply discount · Confirm GST</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"#fff" }}>{L("Review Voice Bill")}</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginTop:2 }}>{L("Edit prices · Apply discount · Confirm GST")}</div>
           </div>
           <button onClick={onClose} style={{
             background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8,
             padding:"6px 12px", fontSize:12, cursor:"pointer", color:"#fff",
-          }}>✕ Back</button>
+          }}>{L("✕ Back")}</button>
         </div>
 
         <div style={{ padding:"16px 20px" }}>
-          <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-faint)", marginBottom:8 }}>Items</div>
+          <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-faint)", marginBottom:8 }}>{L("Items")}</div>
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
               <thead>
                 <tr style={{ background:"var(--bg2)" }}>
-                  <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)" }}>Product</th>
-                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:60 }}>Qty</th>
-                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:80 }}>Rate ₹</th>
-                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:60 }}>GST %</th>
-                  <th style={{ textAlign:"right", padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)" }}>Total</th>
+                  <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)" }}>{L("Product")}</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:60 }}>{L("Qty")}</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:80 }}>{L("Rate ₹")}</th>
+                  <th style={{ padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)", width:60 }}>{L("GST %")}</th>
+                  <th style={{ textAlign:"right", padding:"6px 8px", fontWeight:600, color:"var(--ink-faint)" }}>{L("Total")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,13 +132,13 @@ function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
           </div>
 
           <div style={{ marginTop:16, padding:"12px", background:"var(--bg2)", borderRadius:10 }}>
-            <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-faint)", marginBottom:8 }}>Discount</div>
+            <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-faint)", marginBottom:8 }}>{L("Discount")}</div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               <select value={discountType} onChange={e => setDiscountType(e.target.value)}
                 style={{ border:"1px solid var(--rule)", borderRadius:8, padding:"7px 8px",
                   fontSize:12, background:"var(--bg1)", color:"var(--ink)" }}>
-                <option value="flat">₹ Flat</option>
-                <option value="percent">% Percent</option>
+                <option value="flat">{L("₹ Flat")}</option>
+                <option value="percent">{L("% Percent")}</option>
               </select>
               <input type="number" min="0" placeholder="0"
                 value={discountVal} onChange={e => setDiscountVal(e.target.value)}
@@ -151,12 +154,12 @@ function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
 
           <div style={{ marginTop:14, padding:"12px", border:"1px solid var(--rule)", borderRadius:10 }}>
             <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
-              <span style={{ color:"var(--ink-faint)" }}>Subtotal</span>
+              <span style={{ color:"var(--ink-faint)" }}>{L("Subtotal")}</span>
               <span style={{ color:"var(--ink)" }}>₹{Math.round(subtotal * 100) / 100}</span>
             </div>
             {discountAmt > 0 && (
               <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
-                <span style={{ color:"#dc2626" }}>Discount</span>
+                <span style={{ color:"#dc2626" }}>{L("Discount")}</span>
                 <span style={{ color:"#dc2626" }}>− ₹{discountAmt}</span>
               </div>
             )}
@@ -170,7 +173,7 @@ function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
               <span style={{ color:"var(--ink)" }}>₹{Math.round((gstTotal - gstTotal / 2) * 100) / 100}</span>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700 }}>
-              <span style={{ color:"var(--ink)" }}>Grand Total</span>
+              <span style={{ color:"var(--ink)" }}>{L("Grand Total")}</span>
               <span style={{ color:"var(--jade)" }}>₹{grandTotal}</span>
             </div>
           </div>
@@ -179,13 +182,13 @@ function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
             <button onClick={onClose}
               style={{ flex:1, padding:"11px", borderRadius:10, border:"1px solid var(--rule)",
                 background:"var(--bg2)", fontSize:13, cursor:"pointer", color:"var(--ink-dim)" }}>
-              ← Edit Bill
+              {L("← Edit Bill")}
             </button>
             <button onClick={handleConfirm}
               style={{ flex:2, padding:"11px", borderRadius:10, border:"none",
                 background:"linear-gradient(135deg, var(--jade,#1a7a4a), var(--jade-lite,#27ae60))",
                 color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-              Confirm & Generate Invoice
+              {L("Confirm & Generate Invoice")}
             </button>
           </div>
         </div>
@@ -302,7 +305,7 @@ export default function Voice() {
   }
 
   async function generateVoiceBill(overrideItems) {
-    if (!billItems.length && !overrideItems?.length) return showNotif("No items in bill yet")
+    if (!billItems.length && !overrideItems?.length) return showNotif(L("No items in bill yet"))
     setGenerating(true)
 
     // Snapshot bill before clearing — if generation fails we still have it
@@ -351,7 +354,7 @@ export default function Voice() {
           }
         } catch {}
         // Can't confirm — bill is already cleared, tell user to check History
-        showNotif("Network error — check Bill History to confirm the invoice was saved")
+        showNotif(L("Network error — check Bill History to confirm the invoice was saved"))
       } else {
         // Non-network error (e.g. validation) — restore the bill so user can retry
         setBillItems(billSnapshot)
@@ -428,14 +431,14 @@ Thank you! 🙏`
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
               <div style={{ fontSize:16, fontWeight:700, color:"var(--ink)", lineHeight:1.1, letterSpacing:"-0.3px" }}>
-                Voice Agent
+                {L("Voice Agent")}
               </div>
               <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:13, color:"var(--brass-lite)" }}>
                 🎤 बोलो
               </div>
             </div>
             <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2, letterSpacing:"0.3px" }}>
-              Telugu · Hindi · Tamil · Kannada · 6 more
+              {L("Telugu · Hindi · Tamil · Kannada · 6 more")}
             </div>
           </div>
           {/* free badge */}
@@ -447,7 +450,7 @@ Thank you! 🙏`
             letterSpacing:"0.5px", display:"flex", alignItems:"center", gap:4,
           }}>
             <span style={{ width:5, height:5, borderRadius:"50%", background:"var(--jade-lite,#4cb892)" }}/>
-            FREE
+            {L("FREE")}
           </div>
         </div>
 
@@ -466,14 +469,14 @@ Thank you! 🙏`
             borderRadius:10, padding:"10px 12px",
           }}>
             <div style={{ fontSize:11, marginBottom:6, fontWeight:500, color:"var(--ink-dim)" }}>
-              📱 For best voice experience:
+              {L("📱 For best voice experience:")}
             </div>
             <button onClick={openInChrome} style={{
               background:"var(--saffron)", color:"#fff", border:"none",
               borderRadius:8, padding:"7px 16px", fontSize:11,
               fontWeight:600, cursor:"pointer", width:"100%",
             }}>
-              🌐 Open in Chrome for full voice support
+              {L("🌐 Open in Chrome for full voice support")}
             </button>
           </div>
         )}
@@ -483,7 +486,7 @@ Thank you! 🙏`
             marginTop:8, background:"var(--bg2)", border:"1px solid var(--rule)",
             borderRadius:10, padding:"8px 12px", fontSize:11, color:"var(--ink-dim)",
           }}>
-            ⚠ iPhone: Settings → Safari → Microphone → Allow
+            {L("⚠ iPhone: Settings → Safari → Microphone → Allow")}
           </div>
         )}
       </div>
@@ -554,7 +557,7 @@ Thank you! 🙏`
               background:"var(--bg2)",
             }}>
               <div style={{ fontSize:12, fontWeight:600, color:"var(--jade)", marginBottom:8 }}>
-                🧾 Voice Bill
+                {L("🧾 Voice Bill")}
               </div>
               <input
                 value={customer}
@@ -572,10 +575,10 @@ Thank you! 🙏`
                   padding:"6px 10px", fontSize:11, background:"var(--bg1)",
                   outline:"none", boxSizing:"border-box",
                 }}>
-                <option>Cash</option>
+                <option>{L("Cash")}</option>
                 <option>UPI</option>
-                <option>Credit</option>
-                <option>Cheque</option>
+                <option>{L("Credit")}</option>
+                <option>{L("Cheque")}</option>
               </select>
             </div>
 
@@ -587,12 +590,12 @@ Thank you! 🙏`
                   color:"var(--ink-faint)", fontSize:11,
                 }}>
                   <div style={{ fontSize:40, marginBottom:8 }}>🎤</div>
-                  Speak a product name to add to bill
+                  {L("Speak a product name to add to bill")}
                 </div>
               ) : invoice ? (
                 <div style={{ textAlign:"center", padding:"40px 16px", color:"var(--ink-faint)", fontSize:11 }}>
                   <div style={{ fontSize:32, marginBottom:8 }}>✅</div>
-                  Invoice ready
+                  {L("Invoice ready")}
                 </div>
               ) : (
                 billItems.map((item, i) => {
@@ -646,7 +649,7 @@ Thank you! 🙏`
                         <div style={{ marginTop:8 }}>
                           <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:6 }}>
                             <div style={{ flex:1 }}>
-                              <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>Qty</div>
+                              <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>{L("Qty")}</div>
                               <input type="number" min="0.01" step="0.01"
                                 value={editForm.qty}
                                 onChange={e => setEditForm(f => ({ ...f, qty: e.target.value }))}
@@ -655,7 +658,7 @@ Thank you! 🙏`
                                   boxSizing:"border-box" }} />
                             </div>
                             <div style={{ flex:1 }}>
-                              <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>Price ₹</div>
+                              <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>{L("Price ₹")}</div>
                               <input type="number" min="0" step="0.01"
                                 value={editForm.mrp}
                                 onChange={e => setEditForm(f => ({ ...f, mrp: e.target.value }))}
@@ -677,7 +680,7 @@ Thank you! 🙏`
                             style={{ width:"100%", padding:"6px", borderRadius:7, border:"none",
                               background:"var(--jade)", color:"#fff", fontSize:11,
                               fontWeight:600, cursor:"pointer" }}>
-                            ✓ Save
+                            {L("✓ Save")}
                           </button>
                         </div>
                       ) : (
@@ -706,13 +709,13 @@ Thank you! 🙏`
               }}>
                 <div style={{ marginBottom:10 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:2 }}>
-                    <span>Subtotal</span><span>{INR(totalSubtotal)}</span>
+                    <span>{L("Subtotal")}</span><span>{INR(totalSubtotal)}</span>
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--ink-faint)", marginBottom:6 }}>
                     <span>GST</span><span>{INR(totalGST)}</span>
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700, color:"var(--jade)" }}>
-                    <span>Total</span><span>{INR(grandTotal)}</span>
+                    <span>{L("Total")}</span><span>{INR(grandTotal)}</span>
                   </div>
                 </div>
                 <button onClick={() => setShowReview(true)} disabled={generating} style={{
@@ -738,14 +741,14 @@ Thank you! 🙏`
                     } catch(e) { console.error("Stock restore failed:", e) }
                     setBillItems([])
                     localStorage.removeItem("dk_voice_bill")
-                    showNotif("Bill cleared — stock restored")
+                    showNotif(L("Bill cleared — stock restored"))
                   }} style={{
                   width:"100%", padding:"8px",
                   background:"var(--bg2)", color:"var(--ink-faint)",
                   border:"none", borderRadius:10,
                   fontSize:11, cursor:"pointer",
                 }}>
-                  Clear Bill
+                  {L("Clear Bill")}
                 </button>
               </div>
             )}
@@ -796,7 +799,7 @@ Thank you! 🙏`
                 <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M20.5 3.5A11 11 0 003.6 17.4L2 22l4.7-1.5A11 11 0 1020.5 3.5zm-8.5 17a8.5 8.5 0 01-4.3-1.2l-.3-.2-2.8.9.9-2.7-.2-.3a8.5 8.5 0 1112.7-3.5 8.5 8.5 0 01-6 7zm4.7-6.4c-.3-.1-1.6-.8-1.8-.9-.2-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.1.2-.3.2-.6.1a7 7 0 01-3.4-3c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.5l-.8-2c-.2-.4-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3a3 3 0 00-1 2.2c0 1.3 1 2.6 1.1 2.8.1.2 2 3 4.8 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.1-1.4-.1-.1-.3-.2-.5-.3z"/>
                 </svg>
-                Send on WhatsApp
+                {L("Send on WhatsApp")}
               </button>
               <button onClick={() => window.print()} style={{
                 width:"100%", padding:"11px",
@@ -809,7 +812,7 @@ Thank you! 🙏`
                   <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
                   <rect x="6" y="14" width="12" height="8"/>
                 </svg>
-                Print Invoice
+                {L("Print Invoice")}
               </button>
               <button onClick={() => setInvoice(null)} style={{
                 width:"100%", padding:"9px",
@@ -817,7 +820,7 @@ Thank you! 🙏`
                 border:"1px dashed #e5e7eb", borderRadius:12,
                 fontSize:12, cursor:"pointer",
               }}>
-                + Start New Bill
+                {L("+ Start New Bill")}
               </button>
             </div>
           </div>
