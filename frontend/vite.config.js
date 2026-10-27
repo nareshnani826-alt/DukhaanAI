@@ -18,7 +18,7 @@ function appVersion() {
 // proxy to the backend (which returns {"detail":"Not authenticated"}).
 const SPA_ROUTES = new Set([
   "/customers", "/udhar", "/admin", "/sales", "/insights",
-  "/products", "/invoices", "/expiry", "/wastage", "/voice",
+  "/products", "/invoices", "/expiry", "/wastage", "/voice", "/agent",
 ])
 
 function apiProxy(target = "http://localhost:8000") {

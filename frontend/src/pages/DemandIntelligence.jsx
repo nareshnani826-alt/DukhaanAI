@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react"
 import { getUpcomingFestivalsAsync, getCurrentSeason, computeUrgentAlerts, SEASONS } from "../data/indianCalendar.js"
-import { Products, api } from "../sync/db.js"
+import { Products, api, API_BASE } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 
 const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 
 // ── News-based demand signals using Google News RSS ──────
-// Free — no API key needed
+// Free — no API key needed. Queries must match NEWS_TOPICS in app/routers/insights.py
 async function fetchNewsDemandSignals() {
   const KEYWORDS = [
     { query:"heatwave India",        products:["ORS","Cold drinks","Lemon","Salt"],          signal:"🌡️ Heatwave alert",    color:"#E24B4A" },
@@ -19,24 +19,15 @@ async function fetchNewsDemandSignals() {
     { query:"cooking oil price India",products:["Sunflower oil","Palm oil","Groundnut oil"],  signal:"📈 Oil price spike",   color:"#EF9F27" },
   ]
 
-  const results = await Promise.allSettled(
-    KEYWORDS.map(async kw => {
-      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(kw.query)}&hl=en-IN&gl=IN&ceid=IN:en`
-      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`)
-      if (!res.ok) return null
-      const data = await res.json()
-      const xml  = data.contents || ""
-      const items = xml.match(/<pubDate>(.*?)<\/pubDate>/g) || []
-      const recent = items.filter(d => {
-        const date = new Date(d.replace(/<\/?pubDate>/g, ""))
-        return (Date.now() - date.getTime()) < 3 * 86400000
-      })
-      return recent.length >= 2 ? { ...kw, count: recent.length } : null
-    })
-  )
-  return results
-    .filter(r => r.status === "fulfilled" && r.value !== null)
-    .map(r => r.value)
+  // The server reads Google News for these topics (browsers are blocked from doing it)
+  let counts = {}
+  try {
+    const res = await fetch(`${API_BASE}/insights/news-signals`)
+    if (res.ok) counts = await res.json()
+  } catch { /* offline: no news signals */ }
+  return KEYWORDS
+    .filter(kw => (counts[kw.query] || 0) >= 2)
+    .map(kw => ({ ...kw, count: counts[kw.query] }))
 }
 
 // ── Vendor's own sales patterns ───────────────────────────

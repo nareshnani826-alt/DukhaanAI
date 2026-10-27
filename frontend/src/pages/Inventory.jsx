@@ -68,13 +68,14 @@ function VoiceInput({ label, value, onChange, placeholder, type="text",
 }
 
 // ── Product form modal ────────────────────────────────────
-function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose, onDelete }) {
+function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose, onDelete, products = [] }) {
   const [form,         setForm]         = useState(initialForm)
   // Name, price and stock are enough to start selling; the rest is optional
   const [showMore,     setShowMore]     = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [notif,        setNotif]        = useState("")
   const [lossConfirmed, setLossConfirmed] = useState(false)  // cost > MRP needs a second tap
+  const [dupConfirmed,  setDupConfirmed]  = useState(false)  // same name as another product needs a second tap
   const catTouched = useRef(!!editId)  // don't auto-change category once the user picks one / when editing
   const [unitDetected, setUnitDetected] = useState(false)
   const [lang,         setLang]         = useState(initialLang || savedVoiceLang)
@@ -185,6 +186,13 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose,
     if (mrp < 0) return setNotif("MRP cannot be negative")
     if (cost < 0) return setNotif("Cost price cannot be negative")
     if (stock < 0) return setNotif("Stock cannot be negative")
+    // Same name twice splits the stock over two products — warn first
+    const dup = products.find(p => p.id !== editId && p.is_active !== false
+      && p.name.trim().toLowerCase() === name.toLowerCase())
+    if (dup && !dupConfirmed) {
+      setDupConfirmed(true)
+      return setNotif(`"${dup.name}" is already in your stock (${dup.stock} left). To add more stock, close this and use + Stock on it. Tap Save again to add a second "${name}" anyway.`)
+    }
     if (cost > mrp && mrp > 0 && !lossConfirmed) {
       setLossConfirmed(true)
       return setNotif(`Cost price (₹${cost}) is higher than MRP (₹${mrp}) — you will lose money on every sale. Check the prices, or tap the button again to keep them.`)
@@ -688,6 +696,7 @@ export default function Inventory() {
           onSave={handleSave}
           onClose={() => setModal(false)}
           onDelete={del}
+          products={products}
         />
       )}
 

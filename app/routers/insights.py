@@ -703,3 +703,48 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
             "collected_today": udhar_kaata,
         },
     }
+
+
+# ── News demand signals ────────────────────────────────────────────
+# Browsers can't read Google News directly (CORS), and the free relay the page
+# used has stopped working. The server reads the feeds for a fixed list of
+# topics (never arbitrary URLs) and keeps the result for an hour.
+NEWS_TOPICS = [
+    "heatwave India", "heavy rain flood India", "onion price India", "tomato price India",
+    "petrol diesel price", "sugar shortage India", "wheat flour shortage", "cooking oil price India",
+]
+_news_cache: dict = {"at": None, "data": None}
+
+
+@router.get("/news-signals")
+async def news_signals():
+    import asyncio
+    import re
+    from email.utils import parsedate_to_datetime
+
+    import httpx
+
+    now = datetime.now(timezone.utc)
+    if _news_cache["at"] and now - _news_cache["at"] < timedelta(hours=1):
+        return _news_cache["data"]
+
+    async def recent_count(client: httpx.AsyncClient, topic: str) -> int:
+        try:
+            r = await client.get("https://news.google.com/rss/search",
+                                 params={"q": topic, "hl": "en-IN", "gl": "IN", "ceid": "IN:en"})
+            n = 0
+            for d in re.findall(r"<pubDate>(.*?)</pubDate>", r.text):
+                try:
+                    if now - parsedate_to_datetime(d) < timedelta(days=3):
+                        n += 1
+                except (TypeError, ValueError):
+                    pass
+            return n
+        except httpx.HTTPError:
+            return 0
+
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+        counts = await asyncio.gather(*(recent_count(client, t) for t in NEWS_TOPICS))
+    data = dict(zip(NEWS_TOPICS, counts))
+    _news_cache.update(at=now, data=data)
+    return data

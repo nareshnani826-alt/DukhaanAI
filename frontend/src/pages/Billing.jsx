@@ -40,9 +40,11 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
   }
 
   const subtotal    = items.reduce((s, i) => s + Math.round(i.unit_price * i.qty * 100) / 100, 0)
+  // Discount can't be negative (that would raise the price) or more than the bill
+  const discNum     = Math.max(0, +discountVal || 0)
   const discountAmt = discountType === "percent"
-    ? Math.round(subtotal * (+discountVal || 0) / 100 * 100) / 100
-    : Math.min(+discountVal || 0, subtotal)
+    ? Math.round(subtotal * Math.min(discNum, 100) / 100 * 100) / 100
+    : Math.min(discNum, subtotal)
   const afterDiscount = Math.round((subtotal - discountAmt) * 100) / 100
 
   // Distribute discount proportionally across items for GST calc.
@@ -128,13 +130,13 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
                       </td>
                       <td style={{ padding:"8px 4px" }}>
                         <input type="number" min="0.01" step="0.01" value={item.qty}
-                          onChange={e => setItem(i, "qty", +e.target.value || 1)}
+                          onChange={e => setItem(i, "qty", +e.target.value > 0 ? +e.target.value : 1)}
                           style={{ width:46, textAlign:"center", border:"1px solid #e5e7eb",
                             borderRadius:6, padding:"4px 2px", fontSize:12 }} />
                       </td>
                       <td style={{ padding:"8px 4px" }}>
                         <input type="number" min="0" step="0.01" value={item.unit_price}
-                          onChange={e => setItem(i, "unit_price", +e.target.value || 0)}
+                          onChange={e => setItem(i, "unit_price", Math.max(0, +e.target.value || 0))}
                           style={{ width:72, border:"1px solid #e5e7eb", borderRadius:6,
                             padding:"4px 6px", fontSize:12 }} />
                       </td>
