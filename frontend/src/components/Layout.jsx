@@ -13,6 +13,7 @@ import { VocabDB, preloadVocab } from "../sync/vocabDb.js"
 import DaySessionGate from "./DaySessionGate.jsx"
 import { tr } from "../i18n/kiranaStrings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
+import { CASHIER_PATHS } from "../utils/roles.js"
 
 const KIRANA_NAV = [
   { label:"Home", to:"/dashboard",
@@ -722,8 +723,9 @@ function AIChatWidget() {
           if (res.ok) {
             const data = await res.json()
             reply = data?.response || null
-          } else if (res.status === 429) {
-            reply = t.limitErr
+          } else if (res.status === 429 || res.status === 403) {
+            // daily AI limit / sign-in needed — the server says which in plain words
+            reply = (await res.json().catch(() => null))?.detail || t.limitErr
             // 503 = AI not set up on the server → fall through to the friendly "ask me about stock…" reply
           } else {
             reply = null
@@ -1097,7 +1099,7 @@ function AIChatWidget() {
 
 // ── Main Layout ───────────────────────────────────────────────
 export default function Layout({ children }) {
-  const { vendor, loggedIn, cloud, hasModule, logout } = useAuth()
+  const { vendor, loggedIn, cloud, hasModule, logout, role } = useAuth()
   const hasBangle = hasModule("bangle_fancy")
   const hasKirana = hasModule("kirana")
   const multiStore = hasBangle && hasKirana
@@ -1181,8 +1183,14 @@ export default function Layout({ children }) {
     navigate(mode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard")
   }
 
-  const NAV      = storeMode === "bangle_fancy" ? BANGLE_NAV : KIRANA_NAV
-  const MOB_TABS_ACTIVE = storeMode === "bangle_fancy" ? BANGLE_MOB_TABS : MOB_TABS
+  // Cashiers see only the billing-side pages
+  const allowed  = to => role !== "cashier" || CASHIER_PATHS.includes(to)
+  const NAV      = (storeMode === "bangle_fancy" ? BANGLE_NAV : KIRANA_NAV).flatMap(item => {
+    const sub = item.sub?.filter(x => allowed(x.to)) ?? null
+    if (allowed(item.to)) return [{ ...item, sub }]
+    return sub?.length ? [{ ...item, to: sub[0].to, sub }] : []
+  })
+  const MOB_TABS_ACTIVE = (storeMode === "bangle_fancy" ? BANGLE_MOB_TABS : MOB_TABS).filter(t => allowed(t.to))
   const storeLabel = storeMode === "bangle_fancy" ? "Bangle Store" : "Kirana POS"
 
   const { planLabel } = usePlan()

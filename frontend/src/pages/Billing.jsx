@@ -677,6 +677,11 @@ export default function Billing() {
         items:          finalItems,
       })
       setInvoice({ ...inv, customer_phone: phone })
+      // Take the sold qty off the products on screen so the next bill sees the new stock without a refresh
+      setProducts(prev => prev.map(p => {
+        const sold = finalItems.reduce((s, it) => it.product_id === p.id ? s + (+it.qty || 0) : s, 0)
+        return sold ? { ...p, stock: Math.max(0, round6(stockOf(p) - sold)) } : p
+      }))
       if (custName !== "Walk-in") await Customers.upsert({ name: custName, phone: phone||null, gstin: gstin||null, amount: inv.total })
       showNotif(`✓ Invoice ${inv.invoice_no} generated!`)
     } catch(e) { setEasyDone(null); showNotif("Error: " + e.message) }

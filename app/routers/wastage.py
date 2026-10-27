@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime, timezone
 
 from app.core.database import get_db
+from app.core.cache import cache_bust
 from app.core.security import get_current_vendor
 
 router = APIRouter(prefix="/wastage", tags=["wastage"])
@@ -45,6 +46,7 @@ async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)
         )
     new_stock = round(max(0, current_stock - raw_qty), 2)
     db.table("products").update({"stock": new_stock}).eq("id", body.product_id).execute()
+    cache_bust(f"products:{vendor['id']}:")
     loss_value = round(raw_qty * float(product["cost_price"] or 0), 2)
     record = db.table("wastage_records").insert({
         "vendor_id": vendor["id"],

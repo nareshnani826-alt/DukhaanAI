@@ -20,7 +20,7 @@ from app.schemas.schemas import (
     RefreshRequest, VendorProfile, VendorUpdate, MessageResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
     SendOtpRequest, VerifyOtpRequest,
-    RegisterOtpRequired, RegisterConfirm,
+    RegisterOtpRequired, RegisterConfirm, StaffLogin,
 )
 from app.core.config import settings
 from app.core.mailer import email_configured, send_email
@@ -74,18 +74,24 @@ def _decode_pending_token(token: str) -> dict:
         raise HTTPException(status_code=400, detail="Registration session expired. Please start again.")
 
 
-def _issue_tokens(db, vendor: dict) -> TokenResponse:
-    """Create access + refresh tokens for a newly authenticated vendor."""
-    access_token = create_access_token({"sub": vendor["id"], "plan": vendor["plan"]})
+def _issue_tokens(db, vendor: dict, staff: dict | None = None) -> TokenResponse:
+    """Create access + refresh tokens for a newly authenticated vendor (or one of its staff)."""
+    claims = {"sub": vendor["id"], "plan": vendor["plan"]}
+    if staff:
+        claims.update(role=staff["role"], staff_id=staff["id"])
+    access_token = create_access_token(claims)
     raw_refresh, hashed_refresh = create_refresh_token()
-    db.table("refresh_tokens").insert({
+    row = {
         "vendor_id": vendor["id"],
         "token_hash": hashed_refresh,
         "expires_at": (
             datetime.now(timezone.utc)
             + timedelta(days=settings.jwt_refresh_token_expire_days)
         ).isoformat(),
-    }).execute()
+    }
+    if staff:
+        row["staff_id"] = staff["id"]
+    db.table("refresh_tokens").insert(row).execute()
     return TokenResponse(
         access_token=access_token,
         refresh_token=raw_refresh,
@@ -93,6 +99,8 @@ def _issue_tokens(db, vendor: dict) -> TokenResponse:
         store_name=vendor["store_name"],
         plan=vendor["plan"],
         modules=vendor.get("modules", ["kirana"]),
+        role=staff["role"] if staff else "owner",
+        staff_name=staff["username"] if staff else None,
     )
 
 
@@ -318,28 +326,43 @@ async def refresh(body: RefreshRequest):
         raise HTTPException(status_code=401, detail="Refresh token expired, please login again")
 
     vendor = record["vendors"]
+    staff = None
+    if record.get("staff_id"):
+        rows = db.table("staff").select("id,username,role,is_active").eq("id", record["staff_id"]).execute().data
+        if not rows or not rows[0]["is_active"]:
+            db.table("refresh_tokens").delete().eq("token_hash", token_hash).execute()
+            raise HTTPException(status_code=401, detail="Staff access removed, please ask the owner")
+        staff = rows[0]
 
     # Rotate refresh token
     db.table("refresh_tokens").delete().eq("token_hash", token_hash).execute()
-    raw_refresh, hashed_refresh = create_refresh_token()
-    db.table("refresh_tokens").insert({
-        "vendor_id": vendor["id"],
-        "token_hash": hashed_refresh,
-        "expires_at": (
-            datetime.now(timezone.utc)
-            + timedelta(days=settings.jwt_refresh_token_expire_days)
-        ).isoformat(),
-    }).execute()
+    return _issue_tokens(db, vendor, staff)
 
-    access_token = create_access_token({"sub": vendor["id"], "plan": vendor["plan"]})
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=raw_refresh,
-        vendor_id=vendor["id"],
-        store_name=vendor["store_name"],
-        plan=vendor["plan"],
-        modules=vendor.get("modules", ["kirana"]),
+
+@router.post("/staff-login", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def staff_login(request: Request, body: StaffLogin):
+    db = get_db()
+    shop = body.shop.strip()
+    if "@" in shop:
+        found = db.table("vendors").select("*").eq("email", shop.lower()).execute().data
+    else:
+        found = db.table("vendors").select("*").eq("phone", _normalize_phone_local(shop)).execute().data
+
+    bad = HTTPException(status_code=401, detail="Wrong shop, username or PIN")
+    if not found:
+        raise bad
+    vendor = found[0]
+    rows = (
+        db.table("staff").select("id,username,role,is_active,pin_hash")
+        .eq("vendor_id", vendor["id"]).eq("username", body.username.strip().lower()).execute().data
     )
+    if not rows or not verify_password(body.pin, rows[0]["pin_hash"]):
+        raise bad
+    staff = rows[0]
+    if not staff["is_active"] or not vendor["is_active"]:
+        raise HTTPException(status_code=403, detail="This staff login is switched off. Ask the owner.")
+    return _issue_tokens(db, vendor, staff)
 
 
 @router.post("/logout", response_model=MessageResponse)

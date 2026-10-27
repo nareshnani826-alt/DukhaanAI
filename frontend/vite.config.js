@@ -78,6 +78,7 @@ export default defineConfig(({ command }) => ({
       "/wastage":           apiProxy(),
       "/bangle/":           apiProxy(),
       "/agent":             apiProxy(),
+      "/staff":             apiProxy(),
       "/vocab":             apiProxy(),
       "/voice":             apiProxy(),
     },

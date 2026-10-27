@@ -35,6 +35,50 @@ class TokenResponse(BaseModel):
     store_name: str
     plan: str
     modules: list[str] = ["kirana"]
+    role: str = "owner"
+    staff_name: Optional[str] = None
+
+
+class StaffLogin(BaseModel):
+    shop: str      # shop owner's email or phone number
+    username: str
+    pin: str
+
+
+def _check_pin(v: str) -> str:
+    if not (v.isdigit() and len(v) == 4):
+        raise ValueError("PIN must be 4 digits")
+    return v
+
+
+class StaffCreate(BaseModel):
+    username: str
+    pin: str
+    role: Literal["manager", "cashier"]
+
+    @field_validator("username")
+    @classmethod
+    def clean_username(cls, v):
+        v = v.strip().lower()
+        if not 2 <= len(v) <= 30:
+            raise ValueError("Username must be 2 to 30 characters")
+        return v
+
+    @field_validator("pin")
+    @classmethod
+    def valid_pin(cls, v):
+        return _check_pin(v)
+
+
+class StaffUpdate(BaseModel):
+    pin: Optional[str] = None
+    role: Optional[Literal["manager", "cashier"]] = None
+    is_active: Optional[bool] = None
+
+    @field_validator("pin")
+    @classmethod
+    def valid_pin(cls, v):
+        return v if v is None else _check_pin(v)
 
 
 class RefreshRequest(BaseModel):

@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -60,7 +60,9 @@ from app.routers import (
     bangle,
     vocab,
     agent,
+    staff,
 )
+from app.core.roles import enforce_role
 
 _is_dev = settings.app_env != "production"
 
@@ -79,6 +81,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs"  if _is_dev else None,
     redoc_url="/redoc" if _is_dev else None,
+    dependencies=[Depends(enforce_role)],   # staff role limits on every route
 )
 
 # ── Security headers middleware ───────────────────────────────
@@ -166,6 +169,7 @@ app.include_router(expiry.router)
 app.include_router(bangle.router)
 app.include_router(vocab.router)
 app.include_router(agent.router)
+app.include_router(staff.router)
 app.include_router(
     voice.router,
     prefix="/api/voice",

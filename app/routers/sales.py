@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.database import get_db
+from app.core.cache import cache_bust
 from app.core.security import get_current_vendor
 from app.schemas.schemas import SaleCreate, SaleOut
 
@@ -50,6 +51,7 @@ async def record_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
     db.table("products").update({
         "stock": product["stock"] - body.qty
     }).eq("id", str(body.product_id)).execute()
+    cache_bust(f"products:{vendor['id']}:")
 
     return sale
 

@@ -15,6 +15,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
 from app.core.database import get_db
+from app.core.cache import cache_bust
 from app.core.security import decode_access_token
 from app.core.config import settings
 
@@ -610,7 +611,7 @@ async def _parse_with_llm(text: str) -> list:
         try:
             async with httpx.AsyncClient(timeout=20) as client:
                 resp = await client.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.gemini_api_key}",
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.gemini_api_key}",
                     json={"contents": [{"parts": [{"text": prompt}]}]},
                 )
                 resp.raise_for_status()
@@ -815,7 +816,7 @@ async def _gemini_vision(raw: bytes, mime: str) -> list:
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.gemini_api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.gemini_api_key}",
                 json={"contents": [{"parts": [
                     {"text": _VISION_PROMPT},
                     {"inline_data": {"mime_type": mime, "data": b64}},
@@ -1211,6 +1212,7 @@ async def apply_invoice(
             logger.warning("apply item=%s err=%s", item.name, e)
             errors.append(item.name or item.product_id or "?")
 
+    cache_bust(f"products:{vendor_id}:")
     return {"added": added, "updated": updated, "errors": errors}
 
 

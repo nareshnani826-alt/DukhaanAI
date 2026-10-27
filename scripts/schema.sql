@@ -35,8 +35,8 @@ create table products (
   name        text not null,
   sku         text,
   category    text,
-  stock       integer not null default 0,
-  min_stock   integer not null default 10,
+  stock       numeric(12,4) not null default 0,
+  min_stock   numeric(12,4) not null default 10,
   mrp         numeric(10,2) not null default 0,
   cost_price  numeric(10,2) not null default 0,
   gst_percent integer not null default 5
@@ -55,7 +55,7 @@ create table sales (
   vendor_id   uuid not null references vendors(id) on delete cascade,
   product_id  uuid not null references products(id),
   product_name text not null,             -- snapshot at time of sale
-  qty         integer not null,
+  qty         numeric(12,4) not null,
   unit_price  numeric(10,2) not null,
   total       numeric(10,2) not null,
   customer    text default 'Walk-in',

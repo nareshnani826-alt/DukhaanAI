@@ -435,7 +435,7 @@ export default function Settings() {
           </div>
         </div>
         {/* Add Child User UI for admins/owners */}
-        {vendor?.plan === "wholesale" && (
+        {vendor?.plan === "wholesale" && !vendor?.role && (
           <AddChildUser />
         )}
       </div>

@@ -6,21 +6,25 @@ from datetime import date
 from groq import AsyncGroq
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from typing import Optional
 
+from app.core.ai_quota import use_ai_quota
 from app.core.config import settings
 from app.core.security import decode_access_token
 from app.core.database import get_db
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 _bearer = HTTPBearer(auto_error=False)
 _GROQ_MODEL   = "llama-3.3-70b-versatile"
-_GEMINI_MODEL = "gemini-1.5-flash"
+_GEMINI_MODEL = "gemini-2.5-flash"
 
 LANG_NAMES = {
     "en-IN": "English", "te-IN": "Telugu",  "hi-IN": "Hindi",
@@ -853,7 +857,9 @@ Use ONLY the data above. Use ₹ and bullet points. Keep it short."""
 # ══════════════════════════════════════════════════════════════
 
 @router.post("")
+@limiter.limit("10/minute")
 async def chat(
+    request: Request,
     req: ChatRequest,
     vendor=Depends(_optional_vendor),
 ):
@@ -885,6 +891,10 @@ async def chat(
     # ── TIER 2: Groq (primary LLM) ───────────────────────────
     if not settings.groq_api_key:
         raise HTTPException(status_code=503, detail="AI not configured. Add GROQ_API_KEY to server environment.")
+    # LLM answers cost shared free-tier tokens: signed-in shops only, capped per day
+    if not vendor:
+        raise HTTPException(status_code=403, detail="Please sign in to use the AI assistant.")
+    use_ai_quota(vendor["id"])
 
     if vendor:
         # Build a lightweight store hint so Groq has context before any tool call

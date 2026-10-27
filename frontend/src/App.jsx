@@ -1,8 +1,8 @@
 import { useEffect, lazy, Suspense }     from "react"
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { initializeSeedTraining }        from "./voice-ai/seedTraining"
 import { ThemeProvider }    from "./context/ThemeContext"
-import { AuthProvider }     from "./context/AuthContext"
+import { AuthProvider, useAuth } from "./context/AuthContext"
 import { PlanProvider }     from "./context/PlanContext"
 import { AppModeProvider }  from "./context/AppModeContext"
 import Layout            from "./components/Layout"
@@ -10,6 +10,7 @@ import UpgradeWall       from "./components/UpgradeWall"
 import InstallPrompt     from "./components/InstallPrompt"
 import OfflineBanner     from "./components/OfflineBanner"
 import { tr, uiLang } from "./i18n/kiranaStrings"
+import { CASHIER_PATHS } from "./utils/roles"
 
 const L = k => tr(k, uiLang())
 
@@ -60,6 +61,17 @@ function FirstRunGuard({ children }) {
   return children
 }
 
+// Cashiers only get the billing side; anything else sends them to their bill screen
+function RoleGuard({ children }) {
+  const { role } = useAuth()
+  const { pathname } = useLocation()
+  if (role === "cashier" && !CASHIER_PATHS.includes(pathname)) {
+    const bangle = pathname.startsWith("/bangle") || localStorage.getItem("storeMode") === "bangle_fancy"
+    return <Navigate to={bangle ? "/bangle-billing" : "/billing"} replace />
+  }
+  return children
+}
+
 // Unknown URLs used to render an empty page inside the layout
 function NotFound() {
   return (
@@ -99,6 +111,7 @@ export default function App() {
             <Route path="/*" element={
               <FirstRunGuard>
               <Layout>
+                <RoleGuard>
                 <Routes>
                   <Route path="/dashboard"  element={<Dashboard />} />
                   <Route path="/inventory"  element={<Inventory />} />
@@ -133,6 +146,7 @@ export default function App() {
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </RoleGuard>
               </Layout>
             </FirstRunGuard>} />
           </Routes>

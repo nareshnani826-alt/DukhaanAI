@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # Free tier: ~1,500 req/day (Gemini 1.5 Flash). Get key at aistudio.google.com
     gemini_api_key: str = ""
 
+    # LLM questions each shop may ask per day (keyword answers aren't counted).
+    # Override with AI_DAILY_LIMIT in the server environment.
+    ai_daily_limit: int = 30
+
     # Bing Image Search (auto-fetch product images from the web)
     # Get key: portal.azure.com → Create resource → Bing Search v7 → Keys
     bing_search_key: str = ""

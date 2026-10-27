@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.cache import cache_bust
 from app.core.security import get_current_vendor
 from app.core.whatsapp import send_invoice_notification
 from app.schemas.schemas import InvoiceCreate, InvoiceOut, SendInvoiceWhatsAppRequest, MessageResponse
@@ -153,6 +154,8 @@ async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendo
         except Exception as stock_err:
             logging.warning("Stock/sales update failed for %s on invoice %s: %s", item.get("name"), invoice_no, stock_err)
 
+    # Stock changed — drop the cached product list so Inventory shows it right away
+    cache_bust(f"products:{vendor['id']}:")
     return invoice
 
 

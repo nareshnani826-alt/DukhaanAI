@@ -1135,11 +1135,11 @@ function AnimatedShowcase() {
 
 // ── Auth form ─────────────────────────────────────────────────
 function AuthForm({ onSuccess, onLocalMode }) {
-  const { login, register, registerConfirm, loading, error, setError } = useAuth()
+  const { login, staffLogin, register, registerConfirm, loading, error, setError } = useAuth()
   const lang = currentLang()
   const t = k => tr(k, lang)
   const [tab,      setTab]      = useState("login")
-  const [form,     setForm]     = useState({ identifier:"", password:"", store_name:"" })
+  const [form,     setForm]     = useState({ identifier:"", password:"", store_name:"", username:"" })
   const [modules,  setModules]  = useState(["kirana"])
   const [fieldErr, setFieldErr] = useState({})
   const [otpStep,    setOtpStep]    = useState(false)
@@ -1148,7 +1148,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
   const [pendingTok, setPendingTok] = useState("")
 
   function set(k, v) { setForm(f => ({ ...f, [k]:v })); setError(""); setFieldErr(e => ({ ...e, [k]:"" })) }
-  function switchTab(t) { setTab(t); setForm({ identifier:"", password:"", store_name:"" }); setFieldErr({}); setError(""); setOtpStep(false) }
+  function switchTab(t) { setTab(t); setForm({ identifier:"", password:"", store_name:"", username:"" }); setFieldErr({}); setError(""); setOtpStep(false) }
   function toggleModule(id) {
     setModules(m => m.includes(id) ? (m.length > 1 ? m.filter(x => x !== id) : m) : [...m, id])
   }
@@ -1157,17 +1157,22 @@ function AuthForm({ onSuccess, onLocalMode }) {
     e.preventDefault()
     const errs = {}
     if (!form.identifier) errs.identifier = t("Required")
-    else if (tab === "login" && !isValidEmail(form.identifier) && !isValidPhone(form.identifier))
+    else if (tab !== "register" && !isValidEmail(form.identifier) && !isValidPhone(form.identifier))
       errs.identifier = t("Valid email or 10-digit phone")
     else if (tab === "register" && !isValidEmail(form.identifier))
       errs.identifier = t("Valid email required")
     if (!form.password) errs.password = t("Required")
     else if (tab === "register" && form.password.length < 8) errs.password = t("Min 8 characters")
+    else if (tab === "staff" && !/^\d{4}$/.test(form.password)) errs.password = t("4-digit PIN")
+    if (tab === "staff" && !form.username.trim()) errs.username = t("Required")
     if (tab === "register" && !form.store_name) errs.store_name = t("Required")
     if (Object.keys(errs).length) { setFieldErr(errs); return }
     try {
       if (tab === "login") {
         const d = await login(form.identifier, form.password)
+        onSuccess(d.modules || ["kirana"])
+      } else if (tab === "staff") {
+        const d = await staffLogin(form.identifier, form.username, form.password)
         onSuccess(d.modules || ["kirana"])
       } else {
         const res = await register({ ...form, email: form.identifier, modules })
@@ -1223,7 +1228,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
 
       {/* Tab row */}
       <div style={{ display:"flex", background:"#f3f4f6", borderRadius:10, padding:3, gap:2, marginBottom:6 }}>
-        {[["login","Sign In"],["register","Create Account"]].map(([tabKey, lbl]) => (
+        {[["login","Sign In"],["staff","Staff"],["register","Create Account"]].map(([tabKey, lbl]) => (
           <button key={tabKey} type="button" onClick={() => switchTab(tabKey)}
             style={{ flex:1, padding:"9px 8px", borderRadius:8, border:"none", fontSize:12,
               fontWeight:700, cursor:"pointer", transition:"all 0.15s",
@@ -1247,19 +1252,30 @@ function AuthForm({ onSuccess, onLocalMode }) {
 
       <div>
         <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>
-          {tab === "login" ? t("Email or Phone") : t("Email")}
+          {tab === "login" ? t("Email or Phone") : tab === "staff" ? t("Shop owner's phone or email") : t("Email")}
         </label>
-        <input style={inp} placeholder={tab === "login" ? "email@example.com or 9876543210" : "email@example.com"}
+        <input style={inp} placeholder={tab === "register" ? "email@example.com" : "email@example.com or 9876543210"}
           value={form.identifier} onChange={e => set("identifier", e.target.value)}
           onFocus={inpFocus} onBlur={inpBlur} autoComplete="username" />
         {fieldErr.identifier && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.identifier}</p>}
       </div>
 
+      {tab === "staff" && (
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Username")}</label>
+          <input style={inp} placeholder="mahesh" autoCapitalize="none"
+            value={form.username} onChange={e => set("username", e.target.value)}
+            onFocus={inpFocus} onBlur={inpBlur} />
+          {fieldErr.username && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.username}</p>}
+        </div>
+      )}
+
       <div>
-        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Password")}</label>
-        <input style={inp} type="password" placeholder={tab==="register" ? t("Min 8 characters") : "••••••••"}
+        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{tab === "staff" ? t("PIN") : t("Password")}</label>
+        <input style={inp} type="password" placeholder={tab==="register" ? t("Min 8 characters") : tab==="staff" ? "••••" : "••••••••"}
+          inputMode={tab === "staff" ? "numeric" : undefined} maxLength={tab === "staff" ? 4 : undefined}
           value={form.password} onChange={e => set("password", e.target.value)}
-          onFocus={inpFocus} onBlur={inpBlur} autoComplete={tab==="login"?"current-password":"new-password"} />
+          onFocus={inpFocus} onBlur={inpBlur} autoComplete={tab==="register"?"new-password":"current-password"} />
         {fieldErr.password && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.password}</p>}
       </div>
 
@@ -1296,7 +1312,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
           fontSize:14, fontWeight:700, cursor:loading?"default":"pointer",
           opacity:loading?0.7:1, marginTop:4,
           boxShadow:"0 4px 16px rgba(232,119,34,0.35)", transition:"opacity 0.2s" }}>
-        {loading ? t("Please wait…") : tab==="login" ? t("Sign In →") : t("Create Account →")}
+        {loading ? t("Please wait…") : tab==="register" ? t("Create Account →") : t("Sign In →")}
       </button>
 
       <div style={{ textAlign:"center" }}>

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from groq import AsyncGroq
 
+from app.core.ai_quota import use_ai_quota
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_vendor
@@ -135,6 +136,7 @@ async def run_agent(vendor=Depends(get_current_vendor)):
     acting on it elsewhere in the app.
     """
     db = get_db()
+    use_ai_quota(vendor["id"])
     signals = await _gather_signals(vendor)
     suggestions = await _correlate_with_llm(signals)
 

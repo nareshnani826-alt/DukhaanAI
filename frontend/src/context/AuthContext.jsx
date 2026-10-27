@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
   const loggedIn   = !!vendor
   const cloud      = !!vendor && ["pro","wholesale"].includes(vendor?.plan)
   const hasModule  = (m) => vendor?.modules?.includes(m) ?? (m === "kirana")
+  const role       = vendor?.role || "owner"   // staff sign-ins carry "manager" / "cashier"
 
   useEffect(() => {
     function onLogout() { setVendorState(null) }
@@ -24,6 +25,20 @@ export function AuthProvider({ children }) {
       const d = await api.post("/auth/login", { identifier, password })
       setTokens(d.access_token, d.refresh_token, remember)
       const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
+      setVendor(v); setVendorState(v)
+      return d
+    } catch(e) { setError(e.message); throw e }
+    finally { setLoading(false) }
+  }
+
+  // Staff sign in on the shop's device with the shop's phone/email + their username + PIN
+  async function staffLogin(shop, username, pin, remember = true) {
+    setLoading(true); setError("")
+    try {
+      const d = await api.post("/auth/staff-login", { shop, username, pin })
+      setTokens(d.access_token, d.refresh_token, remember)
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"],
+        role: d.role, staff_name: d.staff_name }
       setVendor(v); setVendorState(v)
       return d
     } catch(e) { setError(e.message); throw e }
@@ -91,7 +106,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, loading, error, setError, login, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout }}>
+    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, role, loading, error, setError, login, staffLogin, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout }}>
       {children}
     </AuthCtx.Provider>
   )
