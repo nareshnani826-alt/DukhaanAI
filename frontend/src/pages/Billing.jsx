@@ -259,14 +259,15 @@ const CAT_EMOJI = {
 
 // Big picture for each product (Easy billing) — from the name first, then the category
 const NAME_EMOJI = [
+  [/ginger|garlic|adrak|lahsun|allam|vellulli/i, "🧄"], [/cashew|kaju|badam|almond|peanut|groundnut|pista|walnut|nuts?/i, "🥜"],
   [/milk|doodh|curd|dahi|lassi|paneer/i, "🥛"], [/butter|ghee|cheese/i, "🧈"], [/salt|namak/i, "🧂"],
   [/oil|tel\b/i, "🫙"], [/biscuit|cookie|parle|marie|bourbon/i, "🍪"], [/noodle|maggi|pasta|yippee/i, "🍜"],
   [/chips|lays|kurkure|namkeen|bhujia/i, "🥔"], [/chocolate|dairy milk|kitkat|5 ?star/i, "🍫"],
-  [/sugar|chini|candy|toffee/i, "🍬"], [/rice|chawal|poha/i, "🍚"], [/dal|lentil|chana|rajma|moong|toor/i, "🫘"],
+  [/sugar|chini|candy|toffee/i, "🍬"], [/rice|chawal|poha/i, "🍚"], [/dal|lentil|chana|rajma|moong|toor|pappu|urad|udad|masoor/i, "🫘"],
   [/atta|flour|maida|sooji|rava|besan/i, "🌾"], [/tea|chai/i, "🍵"], [/coffee/i, "☕"],
   [/soap|lifebuoy|lux|dettol|santoor/i, "🧼"], [/shampoo|lotion|cream|oil.*hair/i, "🧴"],
-  [/paste|colgate|pepsodent|brush/i, "🪥"], [/surf|detergent|rin|tide|ariel|nirma|vim|harpic/i, "🧺"],
-  [/cola|pepsi|sprite|thums|fanta|drink|soda|limca/i, "🥤"], [/juice|frooti|maaza|slice/i, "🧃"],
+  [/tooth ?paste|colgate|pepsodent|close ?up|sensodyne|dabur red|brush/i, "🪥"], [/surf|detergent|rin|tide|ariel|nirma|vim|harpic/i, "🧺"],
+  [/cola|coke|pepsi|sprite|thums|fanta|drink|soda|limca/i, "🥤"], [/juice|frooti|maaza|slice/i, "🧃"],
   [/water|bisleri|aquafina/i, "💧"], [/egg|anda/i, "🥚"], [/bread|pav|bun|rusk/i, "🍞"],
   [/onion|potato|tomato|vegetable|sabzi/i, "🥕"], [/banana|apple|fruit|mango/i, "🍎"],
   [/masala|chilli|mirchi|haldi|turmeric|jeera|spice/i, "🌶️"], [/agarbatti|incense|matchbox|match/i, "🔥"],
