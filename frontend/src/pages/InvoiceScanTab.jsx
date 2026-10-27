@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react"
 import { getToken, tryRefresh, clearAuth } from "../sync/db"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
@@ -81,7 +84,7 @@ export default function InvoiceScanTab() {
         } else {
           clearAuth()
           window.dispatchEvent(new Event("dk:logout"))
-          throw new Error("Session expired. Please log in again.")
+          throw new Error(L("Session expired. Please log in again."))
         }
       }
 
@@ -112,7 +115,7 @@ export default function InvoiceScanTab() {
       const isNet = msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network")
       const friendly = isNet
         ? `Server unreachable (${API}). Check your internet connection or try again in a moment.`
-        : msg || "Could not scan. Try a clearer photo with good lighting."
+        : msg || L("Could not scan. Try a clearer photo with good lighting.")
       setError(friendly)
       setStep("upload")
     }
@@ -146,12 +149,12 @@ export default function InvoiceScanTab() {
         },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error("Apply failed")
+      if (!res.ok) throw new Error(L("Apply failed"))
       const data = await res.json()
       setResult(data)
       setStep("done")
     } catch (e) {
-      setError(e.message || "Failed to update inventory. Please try again.")
+      setError(e.message || L("Failed to update inventory. Please try again."))
       setStep("review")
     }
   }
@@ -168,16 +171,16 @@ export default function InvoiceScanTab() {
       <div style={{ padding: 24, textAlign: "center", maxWidth: 480, margin: "0 auto" }}>
         <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>
-          Inventory Updated!
+          {L("Inventory Updated!")}
         </div>
         <div style={{ fontSize: 13, color: "var(--ink-faint)", marginBottom: 24 }}>
-          Invoice successfully processed
+          {L("Invoice successfully processed")}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
           {[
-            { label: "New Products",  value: result.added,              bg: "#ecfdf5", color: "#059669" },
-            { label: "Stock Updated", value: result.updated,            bg: "#eff6ff", color: "#2563eb" },
-            { label: "Errors",        value: result.errors?.length || 0, bg: "var(--bg2)", color: "var(--ink-faint)" },
+            { label: L("New Products"),  value: result.added,              bg: "#ecfdf5", color: "#059669" },
+            { label: L("Stock Updated"), value: result.updated,            bg: "#eff6ff", color: "#2563eb" },
+            { label: L("Errors"),        value: result.errors?.length || 0, bg: "var(--bg2)", color: "var(--ink-faint)" },
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: 16 }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -189,13 +192,13 @@ export default function InvoiceScanTab() {
           <button onClick={reset}
             style={{ flex: 1, padding: 12, background: "var(--bg2)", color: "var(--ink-dim)",
               border: "none", borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            Scan Another
+            {L("Scan Another")}
           </button>
           <button onClick={() => window.location.href = "/inventory"}
             style={{ flex: 1, padding: 12, background: "linear-gradient(135deg,#0F6E56,#1D9E75)",
               color: "#fff", border: "none", borderRadius: 12, fontSize: 13,
               fontWeight: 600, cursor: "pointer" }}>
-            View Inventory →
+            {L("View Inventory →")}
           </button>
         </div>
       </div>
@@ -205,10 +208,10 @@ export default function InvoiceScanTab() {
   // ── Scanning / applying loader ────────────────────────────────
   if (step === "scanning" || step === "applying") {
     const isScanning = step === "scanning"
-    const stageMsg   = isScanning ? "Reading invoice…" : "Updating inventory…"
+    const stageMsg   = isScanning ? L("Reading invoice…") : L("Updating inventory…")
     const stageSub   = isScanning
       ? "EasyOCR is extracting text on the server — local, free, no API needed"
-      : "Adding stock and creating new products"
+      : L("Adding stock and creating new products")
 
     return (
       <div style={{ padding: 40, textAlign: "center" }}>
@@ -280,13 +283,13 @@ export default function InvoiceScanTab() {
           {/* Title + tier badge */}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)" }}>
-              Review Extracted Items
+              {L("Review Extracted Items")}
             </div>
             <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
               {[
-                { label: `${stats.exact} matched`,  color: "#059669", bg: "#ecfdf5" },
-                { label: `${stats.fuzzy} similar`,  color: "#b45309", bg: "#fefce8" },
-                { label: `${stats.new} new`,         color: "#2563eb", bg: "#eff6ff" },
+                { label: `${stats.exact} ${L("matched")}`,  color: "#059669", bg: "#ecfdf5" },
+                { label: `${stats.fuzzy} ${L("similar")}`,  color: "#b45309", bg: "#fefce8" },
+                { label: `${stats.new} ${L("new")}`,         color: "#2563eb", bg: "#eff6ff" },
               ].map(s => (
                 <span key={s.label} style={{ fontSize: 10, fontWeight: 700,
                   padding: "2px 8px", borderRadius: 20, background: s.bg, color: s.color }}>
@@ -307,18 +310,18 @@ export default function InvoiceScanTab() {
             <button onClick={() => items.forEach((_, i) => setItemField(i, "action", "skip"))}
               style={{ padding: "6px 12px", background: "none", color: "var(--ink-faint)",
                 border: "1px solid var(--rule)", borderRadius: 8, fontSize: 11, cursor: "pointer" }}>
-              Skip All
+              {L("Skip All")}
             </button>
             <button onClick={() => items.forEach((it, i) =>
               setItemField(i, "action", it.match_type === "new" ? "create" : "add_stock"))}
               style={{ padding: "6px 12px", background: "none", color: "var(--jade)",
                 border: "1px solid #d1fae5", borderRadius: 8, fontSize: 11, cursor: "pointer" }}>
-              Select All
+              {L("Select All")}
             </button>
             <button onClick={reset}
               style={{ padding: "6px 12px", background: "var(--bg2)", color: "var(--ink-dim)",
                 border: "none", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-              Rescan
+              {L("Rescan")}
             </button>
             <button onClick={applyToInventory} disabled={toApply === 0}
               style={{ padding: "8px 18px",
@@ -343,13 +346,13 @@ export default function InvoiceScanTab() {
             <thead style={{ position: "sticky", top: 0, background: "var(--bg1)", zIndex: 1 }}>
               <tr>
                 <th style={{ ...th, width: 28 }}>#</th>
-                <th style={th}>Invoice Item</th>
-                <th style={th}>Inventory Match</th>
-                <th style={{ ...th, width: 60 }}>Qty</th>
-                <th style={{ ...th, width: 64 }}>Unit</th>
-                <th style={{ ...th, width: 80 }}>Price/Unit</th>
-                <th style={{ ...th, width: 56 }}>GST%</th>
-                <th style={{ ...th, width: 110 }}>Action</th>
+                <th style={th}>{L("Invoice Item")}</th>
+                <th style={th}>{L("Inventory Match")}</th>
+                <th style={{ ...th, width: 60 }}>{L("Qty")}</th>
+                <th style={{ ...th, width: 64 }}>{L("Unit")}</th>
+                <th style={{ ...th, width: 80 }}>{L("Price/Unit")}</th>
+                <th style={{ ...th, width: 56 }}>{L("GST%")}</th>
+                <th style={{ ...th, width: 110 }}>{L("Action")}</th>
                 <th style={{ ...th, width: 28 }}></th>
               </tr>
             </thead>
@@ -377,7 +380,7 @@ export default function InvoiceScanTab() {
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px",
                         borderRadius: 10, background: badge.bg, color: badge.color }}>
-                        {badge.label}
+                        {L(badge.label)}
                       </span>
                       {(it.expiry || it.batch) && (
                         <div style={{ marginTop: 2, display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -407,7 +410,7 @@ export default function InvoiceScanTab() {
                           )}
                         </div>
                       ) : (
-                        <span style={{ fontSize: 11, color: "#2563eb" }}>Will create new</span>
+                        <span style={{ fontSize: 11, color: "#2563eb" }}>{L("Will create new")}</span>
                       )}
                     </td>
 
@@ -417,14 +420,14 @@ export default function InvoiceScanTab() {
                         <input type="number" min="0" step="1"
                           value={it.qty}
                           onChange={e => setItemField(i, "qty", e.target.value)}
-                          title={qtyLow ? "⚠ Low confidence — please verify this quantity" : ""}
+                          title={qtyLow ? L("⚠ Low confidence — please verify this quantity") : ""}
                           style={{ width: 54, borderRadius: 6, padding: "4px 5px",
                             fontSize: 12, fontWeight: 700, outline: "none", textAlign: "right",
                             border: qtyLow ? warnBorder : "1.5px solid var(--rule)",
                             background: qtyLow ? warnBg : "white" }}/>
                         {qtyLow && (
                           <span style={{ position:"absolute", top:-6, right:-6, fontSize:11,
-                            lineHeight:1 }} title="Low confidence — verify">⚠️</span>
+                            lineHeight:1 }} title={L("Low confidence — verify")}>⚠️</span>
                         )}
                       </div>
                     </td>
@@ -449,14 +452,14 @@ export default function InvoiceScanTab() {
                           value={it.unit_price || ""}
                           onChange={e => setItemField(i, "unit_price", e.target.value)}
                           placeholder="—"
-                          title={priceLow ? "⚠ Low confidence — please verify this price" : ""}
+                          title={priceLow ? L("⚠ Low confidence — please verify this price") : ""}
                           style={{ width: 74, borderRadius: 6, padding: "4px 5px",
                             fontSize: 12, outline: "none", textAlign: "right",
                             border: priceLow ? warnBorder : "1.5px solid var(--rule)",
                             background: priceLow ? warnBg : "white" }}/>
                         {priceLow && (
                           <span style={{ position:"absolute", top:-6, right:-6, fontSize:11,
-                            lineHeight:1 }} title="Low confidence — verify">⚠️</span>
+                            lineHeight:1 }} title={L("Low confidence — verify")}>⚠️</span>
                         )}
                       </div>
                     </td>
@@ -476,7 +479,7 @@ export default function InvoiceScanTab() {
                     <td style={td}>
                       {it.match_type === "exact" ? (
                         <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>
-                          + Add stock
+                          {L("+ Add stock")}
                         </span>
                       ) : (
                         <select value={it.action}
@@ -485,9 +488,9 @@ export default function InvoiceScanTab() {
                             padding: "4px 3px", fontSize: 11, outline: "none",
                             background: "white" }}>
                           {it.match_type === "fuzzy" &&
-                            <option value="add_stock">Add to match</option>}
-                          <option value="create">Create new</option>
-                          <option value="skip">Skip</option>
+                            <option value="add_stock">{L("Add to match")}</option>}
+                          <option value="create">{L("Create new")}</option>
+                          <option value="skip">{L("Skip")}</option>
                         </select>
                       )}
                     </td>
@@ -497,7 +500,7 @@ export default function InvoiceScanTab() {
                       <button
                         onClick={() => setItemField(i, "action",
                           isSkip ? (it.match_type === "new" ? "create" : "add_stock") : "skip")}
-                        title={isSkip ? "Restore" : "Skip this item"}
+                        title={isSkip ? "Restore" : L("Skip this item")}
                         style={{ background: "none", border: "none", cursor: "pointer",
                           fontSize: 14, padding: 0, color: isSkip ? "var(--jade)" : "#dc2626" }}>
                         {isSkip ? "↩" : "✕"}
@@ -547,9 +550,9 @@ export default function InvoiceScanTab() {
       {backendOk === false && (
         <div style={{ marginBottom: 16, padding: "12px 16px", background: "#fef2f2",
           color: "#dc2626", borderRadius: 10, fontSize: 12 }}>
-          <strong>⚠ Backend unreachable:</strong> {API}<br/>
+          <strong>{L("⚠ Can't reach the DukaanAI server.")}</strong><br/>
           <span style={{ color: "#991b1b" }}>
-            Check Railway is running, or open F12 → Console for details.
+            {L("Check your internet and try again.")}
           </span>
         </div>
       )}
@@ -573,7 +576,7 @@ export default function InvoiceScanTab() {
         onMouseLeave={e => e.currentTarget.style.borderColor = "#d1fae5"}>
         <div style={{ fontSize: 52, marginBottom: 12 }}>📄</div>
         <div style={{ fontSize: 17, fontWeight: 700, color: "var(--jade)", marginBottom: 6 }}>
-          Upload Vendor Invoice
+          {L("Upload Vendor Invoice")}
         </div>
         <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 16 }}>
           JPG · PNG · WEBP · PDF · Excel · CSV &nbsp;·&nbsp; Max 10 MB
@@ -581,7 +584,7 @@ export default function InvoiceScanTab() {
         <div style={{ display: "inline-flex", gap: 10 }}>
           <div style={{ background: "linear-gradient(135deg,#0F6E56,#1D9E75)", color: "#fff",
             borderRadius: 10, padding: "10px 22px", fontSize: 13, fontWeight: 600 }}>
-            Choose File
+            {L("Choose File")}
           </div>
         </div>
         <input ref={fileRef} type="file"
@@ -597,21 +600,21 @@ export default function InvoiceScanTab() {
           display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
           fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 24 }}>
         <span style={{ fontSize: 20 }}>📷</span>
-        Take Photo of Invoice
+        {L("Take Photo of Invoice")}
       </button>
 
       {/* How it works */}
       <div style={{ background: "var(--bg1)", borderRadius: 16, padding: 20,
         border: "1px solid var(--rule)" }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 14 }}>
-          How it works
+          {L("How it works")}
         </div>
         {[
           ["📷", "Photo / Image — EasyOCR reads text on the server (no API, local model)"],
           ["📄", "PDF Invoice — extracts tables & text from digital PDFs"],
           ["📊", "Excel (.xlsx/.xls) — reads rows directly, no conversion needed"],
           ["📝", "CSV — export from any billing software and upload directly"],
-          ["💾", "Review matches and apply — stock updates in one tap"],
+          ["💾", L("Review matches and apply — stock updates in one tap")],
         ].map(([icon, text]) => (
           <div key={text} style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "flex-start" }}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>

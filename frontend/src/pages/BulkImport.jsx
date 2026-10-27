@@ -6,6 +6,10 @@ import { CommunityCatalog } from "../sync/db.js"
 import { fuzzySearch } from "../data/productCatalog.js"
 import InvoiceScanTab  from "./InvoiceScanTab.jsx"
 import BarcodeScannerTab from "./BarcodeScannerTab.jsx"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
+const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 
 const INR  = n => "₹" + (n||0).toLocaleString("en-IN")
 const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
@@ -288,18 +292,18 @@ export default function BulkImport() {
       reader.onload = ev => {
         try {
           const parsed = parseXLSX(new Uint8Array(ev.target.result))
-          if (parsed.length === 0) { showNotif("No valid products found in Excel file."); return }
+          if (parsed.length === 0) { showNotif(L("No valid products found in Excel file.")); return }
           setCsvData(parsed)
           showNotif(`✓ Found ${parsed.length} products from Excel`)
         } catch {
-          showNotif("Could not read Excel file. Try saving as CSV.")
+          showNotif(L("Could not read Excel file. Try saving as CSV."))
         }
       }
       reader.readAsArrayBuffer(file)
     } else {
       reader.onload = ev => {
         const parsed = parseCSV(ev.target.result)
-        if (parsed.length === 0) { showNotif("No valid products found. Check your CSV format."); return }
+        if (parsed.length === 0) { showNotif(L("No valid products found. Check your CSV format.")); return }
         setCsvData(parsed)
         showNotif(`✓ Found ${parsed.length} products`)
       }
@@ -324,7 +328,7 @@ export default function BulkImport() {
       rawItems = csvData
     }
 
-    if (rawItems.length === 0) return showNotif("Please select at least one product first")
+    if (rawItems.length === 0) return showNotif(L("Please select at least one product first"))
 
     setImporting(true)
     try {
@@ -344,7 +348,7 @@ export default function BulkImport() {
         <div style={{ textAlign:"center", maxWidth:380 }}>
           <div style={{ fontSize:64, marginBottom:16 }}>🎉</div>
           <div style={{ fontSize:22, fontWeight:800, color:"var(--ink)", marginBottom:8 }}>
-            Import Complete!
+            {L("Import Complete!")}
           </div>
           <div style={{ fontSize:14, color:"var(--ink-faint)", marginBottom:24 }}>
             {done.added} new · {done.updated} stock updated
@@ -354,15 +358,15 @@ export default function BulkImport() {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
             <div style={{ background:"#E1F5EE", borderRadius:16, padding:16, textAlign:"center" }}>
               <div style={{ fontSize:28, fontWeight:800, color:"var(--jade)" }}>{done.added}</div>
-              <div style={{ fontSize:11, color:"var(--jade)", marginTop:2 }}>New Products</div>
+              <div style={{ fontSize:11, color:"var(--jade)", marginTop:2 }}>{L("New Products")}</div>
             </div>
             <div style={{ background:"#EFF6FF", borderRadius:16, padding:16, textAlign:"center" }}>
               <div style={{ fontSize:28, fontWeight:800, color:"#378ADD" }}>{done.updated}</div>
-              <div style={{ fontSize:11, color:"#378ADD", marginTop:2 }}>Stock Updated</div>
+              <div style={{ fontSize:11, color:"#378ADD", marginTop:2 }}>{L("Stock Updated")}</div>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:16, padding:16, textAlign:"center" }}>
               <div style={{ fontSize:28, fontWeight:800, color:"var(--ink-faint)" }}>{done.failed}</div>
-              <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>Skipped</div>
+              <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>{L("Skipped")}</div>
             </div>
           </div>
 
@@ -370,14 +374,14 @@ export default function BulkImport() {
             <button onClick={() => { setStep(1); setSelected(new Set()); setCsvData([]); setDone(null) }}
               style={{ flex:1, padding:"12px", background:"var(--bg2)", color:"var(--ink-dim)",
                 border:"none", borderRadius:12, fontSize:13, fontWeight:600, cursor:"pointer" }}>
-              Import More
+              {L("Import More")}
             </button>
             <button onClick={() => window.location.href="/inventory"}
               style={{ flex:1, padding:"12px",
                 background:"linear-gradient(135deg,#0F6E56,#1D9E75)",
                 color:"var(--bg1)", border:"none", borderRadius:12, fontSize:13,
                 fontWeight:600, cursor:"pointer" }}>
-              View Inventory →
+              {L("View Inventory →")}
             </button>
           </div>
         </div>
@@ -406,10 +410,10 @@ export default function BulkImport() {
         borderBottom:"1px solid var(--rule)", flexShrink:0 }}>
         <div>
           <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)" }}>
-            📦 Bulk Stock Import
+            {L("📦 Bulk Stock Import")}
           </div>
           <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-            Add 200+ products or restock existing inventory in seconds
+            {L("Add 200+ products or restock existing inventory in seconds")}
           </div>
         </div>
         {(tab === "catalog" || tab === "excel") && selectedItems.length > 0 && (
@@ -439,9 +443,9 @@ export default function BulkImport() {
               borderBottom: tab===t.id ? "2px solid #1D9E75" : "2px solid transparent" }}>
             <div style={{ fontSize:11, fontWeight:600,
               color: tab===t.id ? "var(--jade)" : "var(--ink-dim)" }}>
-              {t.label}
+              {L(t.label)}
             </div>
-            <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:1 }}>{t.sub}</div>
+            <div style={{ fontSize:9, color:"var(--ink-faint)", marginTop:1 }}>{L(t.sub)}</div>
           </button>
         ))}
       </div>
@@ -454,7 +458,7 @@ export default function BulkImport() {
             borderBottom:"1px solid var(--rule)", flexShrink:0 }}>
             <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}>
               <input value={restockSearch} onChange={e => setRestockSearch(e.target.value)}
-                placeholder="🔍 Search products..."
+                placeholder={L("🔍 Search products...")}
                 style={{ flex:1, border:"1.5px solid #e5e7eb", borderRadius:10,
                   padding:"8px 14px", fontSize:12, outline:"none" }}/>
               {/* Mode toggle */}
@@ -464,7 +468,7 @@ export default function BulkImport() {
                     fontWeight:600, cursor:"pointer", whiteSpace:"nowrap",
                     background: restockMode==="add" ? "var(--jade)" : "transparent",
                     color: restockMode==="add" ? "var(--bg1)" : "var(--ink-dim)" }}>
-                  + Add to stock
+                  {L("+ Add to stock")}
                 </button>
                 <button onClick={() => setRestockMode("set")}
                   style={{ padding:"6px 12px", borderRadius:8, border:"none", fontSize:11,
@@ -483,7 +487,7 @@ export default function BulkImport() {
                     fontSize:11, fontWeight:500, whiteSpace:"nowrap", cursor:"pointer", flexShrink:0,
                     background: restockCategory===cat ? "var(--jade)" : "var(--bg2)",
                     color: restockCategory===cat ? "var(--bg1)" : "var(--ink-dim)" }}>
-                  {cat}
+                  {L(cat)}
                 </button>
               ))}
             </div>
@@ -493,13 +497,13 @@ export default function BulkImport() {
           <div style={{ flex:1, overflowY:"auto", padding:"16px 24px" }}>
             {restockLoading ? (
               <div style={{ textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13 }}>
-                Loading inventory...
+                {L("Loading inventory...")}
               </div>
             ) : filteredRestock.length === 0 ? (
               <div style={{ textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13 }}>
                 {restockItems.length === 0
-                  ? "No products yet. Use Catalog or CSV tab to add products first."
-                  : "No products match this filter."}
+                  ? L("No products yet. Use Catalog or CSV tab to add products first.")
+                  : L("No products match this filter.")}
               </div>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -523,9 +527,9 @@ export default function BulkImport() {
                           {p.name}
                         </div>
                         <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-                          {p.category} · {p.unit} · Stock:{" "}
+                          {L(p.category)} · {p.unit} · {L("Stock")}:{" "}
                           <b style={{ color: isLow ? "#dc2626" : "var(--jade)" }}>{p.stock}</b>
-                          {isLow && <span style={{ color:"#dc2626", marginLeft:4 }}>⚠ Low</span>}
+                          {isLow && <span style={{ color:"#dc2626", marginLeft:4 }}>{L("⚠ Low")}</span>}
                           {hasChange && (
                             <span style={{ color:"#1D9E75", marginLeft:4 }}>→ {newStock}</span>
                           )}
@@ -533,7 +537,7 @@ export default function BulkImport() {
                       </div>
                       <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
                         <span style={{ fontSize:10, color:"var(--ink-faint)", whiteSpace:"nowrap" }}>
-                          {restockMode === "add" ? "Add qty" : "Set to"}
+                          {restockMode === "add" ? L("Add qty") : L("Set to")}
                         </span>
                         <input type="number" min="0"
                           value={qty}
@@ -564,14 +568,14 @@ export default function BulkImport() {
                   {pendingRestockCount} products to update
                 </div>
                 <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-                  Mode: {restockMode === "add" ? "Adding to current stock" : "Setting new stock value"}
+                  Mode: {restockMode === "add" ? L("Adding to current stock") : L("Setting new stock value")}
                 </div>
               </div>
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={() => setRestockChanges({})}
                   style={{ background:"var(--bg2)", color:"var(--ink-dim)", border:"none",
                     borderRadius:9, padding:"8px 16px", fontSize:12, fontWeight:600, cursor:"pointer" }}>
-                  Clear
+                  {L("Clear")}
                 </button>
                 <button onClick={saveRestock} disabled={restockSaving}
                   style={{ background:"linear-gradient(135deg,#0F6E56,#1D9E75)",
@@ -608,20 +612,20 @@ export default function BulkImport() {
             borderBottom:"1px solid var(--rule)", flexShrink:0 }}>
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="🔍 Search products..."
+                placeholder={L("🔍 Search products...")}
                 style={{ flex:1, border:"1.5px solid #e5e7eb", borderRadius:10,
                   padding:"8px 14px", fontSize:12, outline:"none" }}/>
               <button onClick={selectAll}
                 style={{ background:"#E1F5EE", color:"var(--jade)", border:"none",
                   borderRadius:9, padding:"8px 14px", fontSize:11,
                   fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
-                Select All
+                {L("Select All")}
               </button>
               <button onClick={clearAll}
                 style={{ background:"var(--bg2)", color:"var(--ink-dim)", border:"none",
                   borderRadius:9, padding:"8px 14px", fontSize:11,
                   fontWeight:600, cursor:"pointer" }}>
-                Clear
+                {L("Clear")}
               </button>
             </div>
             {/* Category pills */}
@@ -634,7 +638,7 @@ export default function BulkImport() {
                     background: category===cat ? "var(--jade)" : "var(--bg2)",
                     color: category===cat ? "var(--bg1)" : "var(--ink-dim)",
                     flexShrink:0 }}>
-                  {cat}
+                  {L(cat)}
                 </button>
               ))}
             </div>
@@ -666,7 +670,7 @@ export default function BulkImport() {
                         <div style={{ position:"absolute", top:8, right:8,
                           background:"#EEEDFE", color:"#7F77DD",
                           fontSize:8, fontWeight:700, padding:"2px 6px", borderRadius:8 }}>
-                          Community
+                          {L("Community")}
                         </div>
                         <div style={{ width:18, height:18, borderRadius:5, position:"absolute", top:8, left:8,
                           background: sel ? "#7F77DD" : "var(--bg2)",
@@ -678,8 +682,8 @@ export default function BulkImport() {
                           {p.name}
                         </div>
                         <div style={{ fontSize:10, color:"var(--ink-faint)", marginBottom:8 }}>
-                          {p.category} · {p.unit}{p.gst > 0 ? ` · GST ${p.gst}%` : ""}
-                          {p.usage_count > 1 && ` · Used by ${p.usage_count} vendors`}
+                          {L(p.category)} · {p.unit}{p.gst > 0 ? ` · GST ${p.gst}%` : ""}
+                          {p.usage_count > 1 && ` · ${Lf("Used by {n} shops", { n: p.usage_count })}`}
                         </div>
                         <div style={{ display:"flex", justifyContent:"space-between" }}>
                           <div style={{ fontSize:13, fontWeight:700, color:"var(--jade)" }}>{INR(p.mrp)}</div>
@@ -717,7 +721,7 @@ export default function BulkImport() {
                       {p.name}
                     </div>
                     <div style={{ fontSize:10, color:"var(--ink-faint)", marginBottom:8 }}>
-                      {p.category} · {p.unit}
+                      {L(p.category)} · {p.unit}
                       {p.gst > 0 && ` · GST ${p.gst}%`}
                     </div>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
@@ -738,7 +742,7 @@ export default function BulkImport() {
                     {sel && (
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}
                         onClick={e => e.stopPropagation()}>
-                        <span style={{ fontSize:10, color:"var(--ink-dim)", whiteSpace:"nowrap" }}>Qty in stock:</span>
+                        <span style={{ fontSize:10, color:"var(--ink-dim)", whiteSpace:"nowrap" }}>{L("Qty in stock:")}</span>
                         <input
                           type="number" min="0"
                           value={quantities[p.name] ?? ""}
@@ -765,10 +769,10 @@ export default function BulkImport() {
               boxShadow:"0 -4px 20px rgba(0,0,0,0.06)" }}>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:"var(--ink)" }}>
-                  {selected.size} products selected
+                  {Lf("{n} products selected", { n: selected.size })}
                 </div>
                 <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-                  All prices editable after import
+                  {L("All prices editable after import")}
                 </div>
               </div>
               <button onClick={importProducts} disabled={importing}
@@ -776,7 +780,7 @@ export default function BulkImport() {
                   color:"var(--bg1)", border:"none", borderRadius:12,
                   padding:"12px 28px", fontSize:13, fontWeight:700,
                   cursor:"pointer", opacity: importing ? 0.7 : 1 }}>
-                {importing ? "Adding products..." : `✓ Add ${selected.size} Products to Inventory`}
+                {importing ? L("Adding products...") : Lf("✓ Add {n} Products to Inventory", { n: selected.size })}
               </button>
             </div>
           )}
@@ -799,15 +803,15 @@ export default function BulkImport() {
                 onMouseLeave={e => e.currentTarget.style.borderColor="#d1fae5"}>
                 <div style={{ fontSize:48, marginBottom:12 }}>📊</div>
                 <div style={{ fontSize:16, fontWeight:700, color:"var(--jade)", marginBottom:6 }}>
-                  Upload your price list
+                  {L("Upload your price list")}
                 </div>
                 <div style={{ fontSize:12, color:"var(--ink-faint)", marginBottom:16 }}>
-                  Supports CSV (.csv) and Excel (.xlsx, .xls) files
+                  {L("Supports CSV (.csv) and Excel (.xlsx, .xls) files")}
                 </div>
                 <div style={{ background:"linear-gradient(135deg,#e87722,#ff8e35)", color:"var(--bg1)", border:"none",
                   borderRadius:10, padding:"10px 24px", fontSize:12,
                   fontWeight:600, display:"inline-block" }}>
-                  Choose File
+                  {L("Choose File")}
                 </div>
                 <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm"
                   style={{ display:"none" }} onChange={handleFile}/>
@@ -817,7 +821,7 @@ export default function BulkImport() {
               <div style={{ background:"var(--bg1)", borderRadius:16, padding:20,
                 border:"1px solid var(--rule)", marginBottom:16 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)", marginBottom:12 }}>
-                  📋 Supported Formats
+                  {L("📋 Supported Formats")}
                 </div>
 
                 <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-dim)", marginBottom:6 }}>
@@ -841,9 +845,9 @@ export default function BulkImport() {
                 </div>
 
                 <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-                  ✓ Both formats are auto-detected from the header row<br/>
-                  ✓ Excel files (.xlsx) are supported — no conversion needed<br/>
-                  ✓ For invoice format: RATE is imported as cost price — set MRP after import<br/>
+                  {L("✓ Both formats are auto-detected from the header row")}<br/>
+                  {L("✓ Excel files (.xlsx) are supported — no conversion needed")}<br/>
+                  {L("✓ For invoice format: RATE is imported as cost price — set MRP after import")}<br/>
                   ✓ Column names are flexible (any order, case-insensitive)
                 </div>
               </div>
@@ -860,7 +864,7 @@ export default function BulkImport() {
                   border:"1.5px solid #1D9E75", borderRadius:10,
                   padding:"10px 20px", fontSize:12, fontWeight:600,
                   cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
-                ⬇ Download Template CSV
+                {L("⬇ Download Template CSV")}
               </button>
             </div>
           ) : (
@@ -868,8 +872,7 @@ export default function BulkImport() {
               {csvData[0]?._isInvoice && (
                 <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:12,
                   padding:"10px 14px", marginBottom:12, fontSize:11, color:"#92400e" }}>
-                  <b>Wholesale invoice format detected.</b> RATE imported as cost price — MRP will match cost price.
-                  Set your selling prices in Inventory after import.
+                  <b>{L("Wholesale invoice format detected.")}</b> {L("RATE imported as cost price — MRP will match cost price. Set your selling prices in Inventory after import.")}
                 </div>
               )}
               {/* Action bar */}
@@ -880,7 +883,7 @@ export default function BulkImport() {
                     {csvData.length} products ready to import
                   </div>
                   <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>
-                    Edit any cell · click ✕ to remove a row · then Import
+                    {L("Edit any cell · click ✕ to remove a row · then Import")}
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
@@ -888,7 +891,7 @@ export default function BulkImport() {
                     style={{ background:"var(--bg2)", color:"var(--ink-dim)", border:"none",
                       borderRadius:9, padding:"8px 16px", fontSize:12,
                       fontWeight:600, cursor:"pointer" }}>
-                    Cancel
+                    {L("Cancel")}
                   </button>
                   <button onClick={importProducts} disabled={importing || csvData.length === 0}
                     style={{ background:"linear-gradient(135deg,#0F6E56,#1D9E75)",
@@ -906,7 +909,7 @@ export default function BulkImport() {
                 border:"1px solid var(--rule)" }}>
                 {csvData.length === 0 ? (
                   <div style={{ padding:32, textAlign:"center", fontSize:12, color:"var(--ink-faint)" }}>
-                    All rows removed — click Cancel to go back.
+                    {L("All rows removed — click Cancel to go back.")}
                   </div>
                 ) : (
                   <div style={{ overflowX:"auto" }}>
@@ -987,7 +990,7 @@ export default function BulkImport() {
                               </select>
                             </td>
                             <td style={{ padding:"5px 6px", textAlign:"center" }}>
-                              <button onClick={() => deleteRow(i)} title="Remove this row"
+                              <button onClick={() => deleteRow(i)} title={L("Remove this row")}
                                 style={{ background:"none", border:"none", cursor:"pointer",
                                   color:"#dc2626", fontSize:15, lineHeight:1,
                                   padding:"2px 6px", borderRadius:6 }}>

@@ -3,6 +3,9 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { getToken, Products } from "../sync/db"
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import { Capacitor } from '@capacitor/core'
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13,
@@ -74,7 +77,7 @@ export default function BarcodeScannerTab() {
       const res = await fetch(`${API}/invoice-scan/barcode/${encodeURIComponent(code)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      if (!res.ok) throw new Error("Lookup failed")
+      if (!res.ok) throw new Error(L("Lookup failed"))
       const data = await res.json()
       setResult(data)
       if (data.source === "inventory") {
@@ -183,7 +186,7 @@ export default function BarcodeScannerTab() {
         (code) => handleBarcode(code),
         () => {},
       ).catch(() => {
-        setError("Camera not available. Enter barcode manually below.")
+        setError(L("Camera not available. Enter barcode manually below."))
         setScanning(false)
       })
     }
@@ -207,7 +210,7 @@ export default function BarcodeScannerTab() {
       setDone({ action: "stock_updated", name: result.product.name, qty, stock: cur + parseFloat(qty) })
       setResult(null)
     } catch {
-      setError("Failed to update stock. Please try again.")
+      setError(L("Failed to update stock. Please try again."))
     } finally {
       setLoading(false)
     }
@@ -231,7 +234,7 @@ export default function BarcodeScannerTab() {
       setDone({ action: "product_created", name: result.product.name })
       setResult(null)
     } catch {
-      setError("Failed to create product. Please try again.")
+      setError(L("Failed to create product. Please try again."))
     } finally {
       setLoading(false)
     }
@@ -250,7 +253,7 @@ export default function BarcodeScannerTab() {
           {done.action === "stock_updated" ? "📦" : "✅"}
         </div>
         <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>
-          {done.action === "stock_updated" ? "Stock Updated!" : "Product Created!"}
+          {done.action === "stock_updated" ? L("Stock Updated!") : L("Product Created!")}
         </div>
         <div style={{ fontSize: 13, color: "var(--ink-faint)", marginBottom: 8 }}>
           {done.name}
@@ -264,13 +267,13 @@ export default function BarcodeScannerTab() {
           <button onClick={scanAnother}
             style={{ flex: 1, padding: 12, background: "var(--bg2)", color: "var(--ink-dim)",
               border: "none", borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            Scan Another
+            {L("Scan Another")}
           </button>
           <button onClick={() => window.location.href = "/inventory"}
             style={{ flex: 1, padding: 12, background: "linear-gradient(135deg,#0F6E56,#1D9E75)",
               color: "#fff", border: "none", borderRadius: 12, fontSize: 13,
               fontWeight: 600, cursor: "pointer" }}>
-            View Inventory →
+            {L("View Inventory →")}
           </button>
         </div>
       </div>
@@ -285,11 +288,11 @@ export default function BarcodeScannerTab() {
         <div style={{ background: "#ecfdf5", borderRadius: 14, padding: 16, marginBottom: 16,
           border: "1.5px solid #6ee7b7" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#059669", marginBottom: 6,
-            letterSpacing: "0.05em" }}>✓ FOUND IN YOUR INVENTORY</div>
+            letterSpacing: "0.05em" }}>{L("✓ FOUND IN YOUR INVENTORY")}</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>{p.name}</div>
           <div style={{ display: "flex", gap: 16 }}>
             <div>
-              <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>Current Stock</div>
+              <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>{L("Current Stock")}</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "var(--jade)" }}>
                 {p.stock} {p.unit || "pc"}
               </div>
@@ -304,7 +307,7 @@ export default function BarcodeScannerTab() {
         <div style={{ background: "var(--bg1)", borderRadius: 14, padding: 16,
           border: "1px solid var(--rule)", marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 12 }}>
-            Add to Stock
+            {L("Add to Stock")}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <button onClick={() => setQty(q => Math.max(1, parseFloat(q) - 1))}
@@ -331,7 +334,7 @@ export default function BarcodeScannerTab() {
         <button onClick={scanAnother}
           style={{ width: "100%", padding: "10px", background: "var(--bg2)", color: "var(--ink-dim)",
             border: "none", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-          Scan Another Product
+          {L("Scan Another Product")}
         </button>
       </div>
     )
@@ -352,7 +355,7 @@ export default function BarcodeScannerTab() {
           {isFF ? (
             <>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
-                {p.name || "Unknown Product"}
+                {p.name || L("Unknown Product")}
               </div>
               <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
                 {p.category}{p.qty_hint ? ` · ${p.qty_hint}` : ""}
@@ -360,8 +363,7 @@ export default function BarcodeScannerTab() {
             </>
           ) : (
             <div style={{ fontSize: 13, color: "var(--ink-faint)" }}>
-              This barcode isn't in your inventory or our global database.
-              You can still add it as a new product below.
+              {L("This barcode isn't in your inventory or our global database. You can still add it as a new product below.")}
             </div>
           )}
         </div>
@@ -369,10 +371,10 @@ export default function BarcodeScannerTab() {
         <div style={{ background: "var(--bg1)", borderRadius: 14, padding: 16,
           border: "1px solid var(--rule)", marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 14 }}>
-            Add to Inventory
+            {L("Add to Inventory")}
           </div>
           {[
-            { label: "Product Name", value: p.name || "", onChange: v => setResult(r => ({...r, product: {...r.product, name: v}})), required: true },
+            { label: L("Product Name"), value: p.name || "", onChange: v => setResult(r => ({...r, product: {...r.product, name: v}})), required: true },
           ].map(f => (
             <div key={f.label} style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
@@ -398,14 +400,14 @@ export default function BarcodeScannerTab() {
                   padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}/>
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4 }}>Opening Stock</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4 }}>{L("Opening Stock")}</div>
               <input type="number" min="0" value={qty}
                 onChange={e => setQty(e.target.value)} placeholder="0"
                 style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 9,
                   padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}/>
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4 }}>Category</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4 }}>{L("Category")}</div>
               <input value={category} onChange={e => setCategory(e.target.value)}
                 style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 9,
                   padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}/>
@@ -424,7 +426,7 @@ export default function BarcodeScannerTab() {
         <button onClick={scanAnother}
           style={{ width: "100%", padding: "10px", background: "var(--bg2)", color: "var(--ink-dim)",
             border: "none", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-          Scan Another Product
+          {L("Scan Another Product")}
         </button>
       </div>
     )
@@ -442,7 +444,7 @@ export default function BarcodeScannerTab() {
 
       {loading && (
         <div style={{ textAlign: "center", padding: 32 }}>
-          <div style={{ fontSize: 14, color: "var(--ink-faint)" }}>Looking up barcode…</div>
+          <div style={{ fontSize: 14, color: "var(--ink-faint)" }}>{L("Looking up barcode…")}</div>
         </div>
       )}
 
@@ -461,7 +463,7 @@ export default function BarcodeScannerTab() {
             style={{ width: "100%", marginTop: 10, padding: "10px", background: "var(--bg2)",
               color: "var(--ink-dim)", border: "none", borderRadius: 10,
               fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-            Cancel
+            {L("Cancel")}
           </button>
         </div>
       )}
@@ -480,15 +482,15 @@ export default function BarcodeScannerTab() {
               display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
               marginBottom: 20 }}>
             <span style={{ fontSize: 36 }}>📱</span>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>Scan Barcode</span>
-            <span style={{ fontSize: 12, opacity: 0.85 }}>Point camera at product barcode</span>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{L("Scan Barcode")}</span>
+            <span style={{ fontSize: 12, opacity: 0.85 }}>{L("Point camera at product barcode")}</span>
           </button>
 
           {/* Manual entry fallback */}
           <div style={{ background: "var(--bg1)", borderRadius: 14, padding: 16,
             border: "1px solid var(--rule)" }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)",
-              marginBottom: 10 }}>Or enter barcode manually</div>
+              marginBottom: 10 }}>{L("Or enter barcode manually")}</div>
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 value={manualCode}
@@ -504,17 +506,17 @@ export default function BarcodeScannerTab() {
                 style={{ padding: "9px 16px", background: manualCode ? "var(--jade)" : "var(--bg2)",
                   color: manualCode ? "#fff" : "var(--ink-faint)", border: "none",
                   borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                Search
+                {L("Search")}
               </button>
             </div>
           </div>
 
           {/* Tips */}
           <div style={{ marginTop: 20, fontSize: 11, color: "var(--ink-faint)", lineHeight: 1.7 }}>
-            <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--ink-dim)" }}>Tips:</div>
-            <div>• Hold camera steady 10–15 cm from barcode</div>
-            <div>• Make sure barcode is well-lit</div>
-            <div>• Supports EAN-13, EAN-8, QR codes</div>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--ink-dim)" }}>{L("Tips:")}</div>
+            <div>{L("• Hold camera steady 10–15 cm from barcode")}</div>
+            <div>{L("• Make sure barcode is well-lit")}</div>
+            <div>{L("• Supports EAN-13, EAN-8, QR codes")}</div>
             <div>• Works with packaged goods (biscuits, chips, FMCG)</div>
           </div>
         </>
