@@ -259,11 +259,11 @@ const CAT_EMOJI = {
 
 // Big picture for each product (Easy billing) — from the name first, then the category
 const NAME_EMOJI = [
-  [/ginger|garlic|adrak|lahsun|allam|vellulli/i, "🧄"], [/cashew|kaju|badam|almond|peanut|groundnut|pista|walnut|nuts?/i, "🥜"],
+  [/ginger|garlic|adrak|lahsun|allam|vellulli/i, "🧄"], [/cashew|kaju|badam|almond|peanut|groundnut|pista|walnut|\bnuts?\b/i, "🥜"],
   [/milk|doodh|curd|dahi|lassi|paneer/i, "🥛"], [/butter|ghee|cheese/i, "🧈"], [/salt|namak/i, "🧂"],
   [/oil|tel\b/i, "🫙"], [/biscuit|cookie|parle|marie|bourbon/i, "🍪"], [/noodle|maggi|pasta|yippee/i, "🍜"],
   [/chips|lays|kurkure|namkeen|bhujia/i, "🥔"], [/chocolate|dairy milk|kitkat|5 ?star/i, "🍫"],
-  [/sugar|chini|candy|toffee/i, "🍬"], [/rice|chawal|poha/i, "🍚"], [/dal|lentil|chana|rajma|moong|toor|pappu|urad|udad|masoor/i, "🫘"],
+  [/sugar|chini|candy|toffee/i, "🍬"], [/rice|chawal|poha/i, "🍚"], [/rajma|kidney/i, "🫘"],
   [/atta|flour|maida|sooji|rava|besan/i, "🌾"], [/tea|chai/i, "🍵"], [/coffee/i, "☕"],
   [/soap|lifebuoy|lux|dettol|santoor/i, "🧼"], [/shampoo|lotion|cream|oil.*hair/i, "🧴"],
   [/tooth ?paste|colgate|pepsodent|close ?up|sensodyne|dabur red|brush/i, "🪥"], [/surf|detergent|rin|tide|ariel|nirma|vim|harpic/i, "🧺"],
@@ -272,9 +272,52 @@ const NAME_EMOJI = [
   [/onion|potato|tomato|vegetable|sabzi/i, "🥕"], [/banana|apple|fruit|mango/i, "🍎"],
   [/masala|chilli|mirchi|haldi|turmeric|jeera|spice/i, "🌶️"], [/agarbatti|incense|matchbox|match/i, "🔥"],
 ]
+// Pulses have no emoji of their own (🫘 is rajma), so they get a bowl of grains in their real colour.
+// [name pattern, grain colour, round grains?] — first match wins
+const PULSE_GRAIN = [
+  [/rajma|kidney/i, null],
+  [/kabuli|chole|chickpea/i, "#e8cd96", true],
+  [/chana ?dal|senaga ?pappu|bengal gram dal/i, "#e6b437"],
+  [/kala chana|black chana|chana|senagalu|bengal gram/i, "#8b5a2b", true],
+  [/moong ?dal|pesara ?pappu|yellow moong/i, "#f0cf5a"],
+  [/moong|green gram|pesara/i, "#7da63a", true],
+  [/masoor|red lentil/i, "#e0703a"],
+  [/(urad|udad|minapa|minumulu).*(dal|pappu|gota)|(dal|pappu).*(urad|udad)/i, "#f1ead6"],
+  [/urad|udad|minumulu|black gram/i, "#2f2f2f", true],
+  [/soya/i, "#d6a96b", true],
+  [/sabudana|sago/i, "#f6f3ea", true],
+  [/toor|thoor|tuvar|arhar|kandi|kandhi|\bdal\b|pappu|lentil|pulse/i, "#e9b949"],
+]
 function productEmoji(p) {
-  const hit = NAME_EMOJI.find(([re]) => re.test(p?.name || ""))
+  const name = p?.name || ""
+  const pulse = PULSE_GRAIN.find(([re]) => re.test(name))
+  if (pulse && pulse[1]) return { grain: pulse[1], round: !!pulse[2] }
+  const hit = NAME_EMOJI.find(([re]) => re.test(name))
   return hit ? hit[1] : (CAT_EMOJI[p?.category] || "📦")
+}
+
+// A heap of grains in a bowl, drawn at emoji size
+const GRAIN_SPOTS = [[10,25],[15,25.5],[20,26],[25,26],[30,25.5],[35,25],[39,24.5],[12.5,21],[17.5,21.5],[22.5,21],
+  [27.5,21.5],[32.5,21],[36.5,20.5],[15.5,17],[20.5,17],[25.5,17.5],[30.5,17],[18.5,13],[23.5,13.5],[28.5,13],[24,9.5]]
+function GrainBowl({ color, round, size = 48 }) {
+  const r = round ? 3.1 : 2.9
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M3 27 Q24 52 45 27 Z" fill="#a0522d" />
+      <ellipse cx="24" cy="27" rx="21" ry="3.6" fill="#6e3514" />
+      {GRAIN_SPOTS.map(([x, y], i) => (
+        <ellipse key={i} cx={x} cy={y} rx={r} ry={round ? r : r * 0.78} fill={color}
+          stroke="rgba(0,0,0,0.28)" strokeWidth="0.7" transform={round ? undefined : `rotate(${(i * 37) % 60 - 30} ${x} ${y})`} />
+      ))}
+      <path d="M3 27 Q24 52 45 27" fill="none" stroke="#7a3d17" strokeWidth="1.2" />
+    </svg>
+  )
+}
+function ProductPic({ p, size = 44 }) {
+  const pic = productEmoji(p)
+  return typeof pic === "string"
+    ? <span style={{ fontSize:size, lineHeight:1 }}>{pic}</span>
+    : <GrainBowl color={pic.grain} round={pic.round} size={size + 4} />
 }
 
 // "Total ₹107" said out loud in the shop's language (web: speechSynthesis; skipped where unavailable)
@@ -950,7 +993,7 @@ Thank you for shopping! 🙏`
                         border: inCart ? "3px solid var(--saffron)" : "1.5px solid var(--rule)",
                         background: inCart ? "var(--saffron-bg)" : "var(--bg2)", opacity: out ? 0.4 : 1,
                         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, padding:6 }}>
-                      <span style={{ fontSize:44, lineHeight:1 }}>{productEmoji(p)}</span>
+                      <ProductPic p={p} />
                       <span style={{ fontSize:12, fontWeight:700, color:"var(--ink)", lineHeight:1.15, textAlign:"center",
                         overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</span>
                       <span style={{ fontSize:17, fontWeight:900, color:"var(--brass-deep)" }}>₹{p.mrp}{perUnit(p)}</span>
