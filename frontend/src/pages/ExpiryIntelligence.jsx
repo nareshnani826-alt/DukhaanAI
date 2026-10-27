@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { api, isCloud, Products, API_BASE } from "../sync/db"
 import { getSavedLang, LANG_KEY } from "../voice/i18n"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
+const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 
 // ── Shelf-life rules ───────────────────────────────────────────
 const RULES = [
@@ -280,7 +284,7 @@ function TextAlertCard({ product, lang, onClose, onReadEnglish }) {
           <div style={{display:"flex", gap:10, alignItems:"center"}}>
             <span style={{fontSize:28}}>{r.icon}</span>
             <div>
-              <div style={{color:"white", fontWeight:800, fontSize:16}}>{r.label}</div>
+              <div style={{color:"white", fontWeight:800, fontSize:16}}>{L(r.label)}</div>
               <div style={{color:"rgba(255,255,255,0.8)", fontSize:11}}>{product.name}</div>
             </div>
           </div>
@@ -319,13 +323,13 @@ function TextAlertCard({ product, lang, onClose, onReadEnglish }) {
               style={{flex:1, padding:"10px", borderRadius:9, border:"none",
                 background:"linear-gradient(135deg,#e87722,#d45f00)", color:"white",
                 fontWeight:700, fontSize:13, cursor:"pointer"}}>
-              🔊 Read in English
+              {L("🔊 Read in English")}
             </button>
             <button onClick={onClose}
               style={{padding:"10px 16px", borderRadius:9,
                 border:"1px solid var(--rule,#eee)", background:"white",
                 color:"var(--ink-dim)", fontWeight:600, fontSize:13, cursor:"pointer"}}>
-              Close
+              {L("Close")}
             </button>
           </div>
         </div>
@@ -339,13 +343,13 @@ function TextAlertCard({ product, lang, onClose, onReadEnglish }) {
 function EngineLabel({ langCode, nativeVoices }) {
   const hasNative = nativeVoices[langCode]
   if (hasNative === undefined) return (
-    <span style={{fontSize:10, color:"#9ca3af"}}>checking…</span>
+    <span style={{fontSize:10, color:"#9ca3af"}}>{L("checking…")}</span>
   )
   if (hasNative) return (
-    <span style={{fontSize:10, color:"#16a34a", fontWeight:700}}>✅ Device</span>
+    <span style={{fontSize:10, color:"#16a34a", fontWeight:700}}>{L("✅ Device")}</span>
   )
   return (
-    <span style={{fontSize:10, color:"#2563eb", fontWeight:700}}>☁️ Online</span>
+    <span style={{fontSize:10, color:"#2563eb", fontWeight:700}}>{L("☁️ Online")}</span>
   )
 }
 
@@ -358,7 +362,7 @@ function ExpiryBar({ daysOld, shelfMax, risk }) {
       <div style={{display:"flex", justifyContent:"space-between", fontSize:11,
         color:"var(--ink-faint,#888)", marginBottom:4}}>
         <span>Day {daysOld}</span>
-        <span style={{fontWeight:600, color:clr}}>{pct}% used</span>
+        <span style={{fontWeight:600, color:clr}}>{Lf("{n}% used", { n: pct })}</span>
         <span>Day {shelfMax}</span>
       </div>
       <div style={{height:8, borderRadius:6, background:"#e5e7eb", overflow:"hidden"}}>
@@ -387,7 +391,7 @@ function ProductCard({ p, lang, nativeVoices, onSpeak }) {
           <div style={{fontWeight:700, fontSize:14, overflow:"hidden",
             textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={p.name}>{p.name}</div>
           <div style={{fontSize:12, color:"var(--ink-dim,#555)", marginTop:3}}>
-            {[p.category, `${p.stock} ${p.unit||"pc"}`, p.cost_price>0&&`₹${p.cost_price}`]
+            {[L(p.category), `${p.stock} ${p.unit||"pc"}`, p.cost_price>0&&`₹${p.cost_price}`]
               .filter(Boolean).join(" · ")}
           </div>
         </div>
@@ -395,7 +399,7 @@ function ProductCard({ p, lang, nativeVoices, onSpeak }) {
           <span style={{fontSize:11, fontWeight:700, color:r.color,
             background:"rgba(255,255,255,0.85)", border:`1.5px solid ${r.border}`,
             borderRadius:20, padding:"3px 10px", whiteSpace:"nowrap"}}>
-            {r.icon} {r.label}
+            {r.icon} {L(r.label)}
           </span>
           <button onClick={()=>onSpeak(p)}
             title={hasNative ? "Voice alert (device)" : "Voice alert (internet cloud)"}
@@ -410,14 +414,14 @@ function ProductCard({ p, lang, nativeVoices, onSpeak }) {
       </div>
       <ExpiryBar daysOld={p.days_in_stock} shelfMax={p.shelf_max_days} risk={p.risk_level} />
       <div style={{display:"flex", flexWrap:"wrap", gap:10, fontSize:12}}>
-        <span style={{color:"var(--ink-dim)"}}>In stock: <b>{p.days_in_stock}d</b></span>
-        <span style={{color:"var(--ink-dim)"}}>Shelf: <b>{p.shelf_min_days}–{p.shelf_max_days}d</b></span>
+        <span style={{color:"var(--ink-dim)"}}>{L("In stock:")} <b>{Lf("{n}d", { n: p.days_in_stock })}</b></span>
+        <span style={{color:"var(--ink-dim)"}}>{L("Shelf:")} <b>{Lf("{a}–{b}d", { a: p.shelf_min_days, b: p.shelf_max_days })}</b></span>
         {p.risk_level!=="likely_expired"
-          ? <span style={{color:r.color, fontWeight:700}}>{p.days_remaining}d left</span>
-          : <span style={{color:r.color, fontWeight:700}}>⚠ Check shelf!</span>}
+          ? <span style={{color:r.color, fontWeight:700}}>{Lf("{n}d left", { n: p.days_remaining })}</span>
+          : <span style={{color:r.color, fontWeight:700}}>{L("⚠ Check shelf!")}</span>}
         {valRisk>0 && (
           <span style={{marginLeft:"auto", color:r.color, fontSize:11, fontWeight:600}}>
-            ₹{valRisk.toLocaleString("en-IN")} at risk
+            {Lf("₹{amt} at risk", { amt: valRisk.toLocaleString("en-IN") })}
           </span>
         )}
       </div>
@@ -456,7 +460,7 @@ function SectionHeader({ risk, count }) {
   return (
     <div style={{display:"flex", alignItems:"center", gap:10, margin:"24px 0 10px"}}>
       <span style={{fontSize:18}}>{r.icon}</span>
-      <span style={{fontWeight:800, fontSize:16, color:r.color}}>{r.label}</span>
+      <span style={{fontWeight:800, fontSize:16, color:r.color}}>{L(r.label)}</span>
       <span style={{fontWeight:700, fontSize:12, color:"white", background:r.color,
         borderRadius:20, padding:"2px 10px"}}>{count}</span>
       <div style={{flex:1, height:1, background:`${r.color}30`, marginLeft:4}} />
@@ -544,7 +548,7 @@ export default function ExpiryIntelligence() {
           likely_expired:groups.likely_expired.length, high_risk:groups.high_risk.length,
           attention:groups.attention.length, safe:groups.safe.length,
           value_at_risk:Math.round(val*100)/100}, groups})
-      } catch { setError("Could not load expiry data. Check your connection.") }
+      } catch { setError(L("Could not load expiry data. Check your connection.")) }
     } finally { setLoading(false) }
   }, [])
 
@@ -637,10 +641,10 @@ export default function ExpiryIntelligence() {
       }}>
         <div>
           <h1 style={{margin:0, fontSize:20, fontWeight:800, color:"var(--ink)"}}>
-            🕐 Expiry Intelligence
+            {L("🕐 Expiry Intelligence")}
           </h1>
           <p style={{margin:"3px 0 0", fontSize:12, color:"var(--ink-faint)"}}>
-            AI shelf-life tracking · {allProducts.length} products
+            {Lf("AI shelf-life tracking · {n} products", { n: allProducts.length })}
             {urgentCount>0 && <span style={{marginLeft:8, color:"#dc2626", fontWeight:700}}>· {urgentCount} urgent</span>}
           </p>
         </div>
@@ -664,7 +668,7 @@ export default function ExpiryIntelligence() {
               background: nativeVoices[lang]===true  ? "#16a34a"  // green = offline
                         : nativeVoices[lang]===false ? "#2563eb"  // blue = cloud
                         : "#9ca3af",                               // grey = checking
-            }} title={nativeVoices[lang]===true?"Device voice (offline)":nativeVoices[lang]===false?"Cloud voice (internet)":"Checking…"} />
+            }} title={L(nativeVoices[lang]===true?"Device voice (offline)":nativeVoices[lang]===false?"Cloud voice (internet)":"Checking…")} />
           </div>
 
           {/* Engine label chip */}
@@ -678,8 +682,8 @@ export default function ExpiryIntelligence() {
                  : "#9ca3af",
             border: `1.5px solid ${nativeVoices[lang]===true?"#86efac":nativeVoices[lang]===false?"#93c5fd":"#e5e7eb"}`,
           }}>
-            {nativeVoices[lang]===true  ? "✅ Device voice" :
-             nativeVoices[lang]===false ? "☁️ Cloud voice"  : "Checking…"}
+            {L(nativeVoices[lang]===true  ? "✅ Device voice" :
+               nativeVoices[lang]===false ? "☁️ Cloud voice"  : "Checking…")}
           </span>
 
           {/* Voice Alert button */}
@@ -693,7 +697,7 @@ export default function ExpiryIntelligence() {
               color:"white", opacity:!data||loading?0.5:1, transition:"all 0.2s",
             }}>
             <span style={{fontSize:16}}>{speaking?"⏹":"🔔"}</span>
-            {speaking ? "Stop" : `Voice Alert`}
+            {speaking ? L("Stop") : L("Voice Alert")}
           </button>
 
           <button onClick={fetchData} disabled={loading}
@@ -703,7 +707,7 @@ export default function ExpiryIntelligence() {
               display:"flex", alignItems:"center", gap:6}}>
             <span style={{display:"inline-block",
               animation:loading?"expirySpin 0.8s linear infinite":"none"}}>↻</span>
-            Refresh
+            {L("Refresh")}
           </button>
         </div>
       </div>
@@ -716,7 +720,7 @@ export default function ExpiryIntelligence() {
           borderRadius:10, display:"flex", gap:8, alignItems:"center", flexWrap:"wrap",
         }}>
           <span style={{fontSize:12, fontWeight:700, color:"var(--ink-faint)", flexShrink:0}}>
-            🔊 Voice engine per language:
+            {L("🔊 Voice engine per language:")}
           </span>
           {Object.entries(LANGS).map(([code,info]) => (
             <span key={code} style={{
@@ -731,7 +735,7 @@ export default function ExpiryIntelligence() {
             </span>
           ))}
           <span style={{fontSize:11, color:"var(--ink-faint)", marginLeft:"auto"}}>
-            ✅ Device · ☁️ Cloud (internet) · ⏳ Checking
+            {L("✅ Device · ☁️ Cloud (internet) · ⏳ Checking")}
           </span>
         </div>
       )}
@@ -754,10 +758,10 @@ export default function ExpiryIntelligence() {
           <span style={{fontSize:32, flexShrink:0}}>⚠️</span>
           <div style={{flex:1, minWidth:200}}>
             <div style={{fontWeight:800, color:"#dc2626", fontSize:15}}>
-              {urgentCount} product{urgentCount!==1?"s":""} need urgent attention
+              {Lf(urgentCount!==1 ? "{n} products need urgent attention" : "{n} product needs urgent attention", { n: urgentCount })}
             </div>
             <div style={{fontSize:12, color:"#92400e", marginTop:4}}>
-              Consider selling at discount or returning to supplier to minimise waste.
+              {L("Consider selling at discount or returning to supplier to minimise waste.")}
             </div>
           </div>
           <button onClick={speakAllAlerts}
@@ -765,7 +769,7 @@ export default function ExpiryIntelligence() {
               borderRadius:9, padding:"8px 16px", cursor:"pointer",
               fontSize:13, fontWeight:700, flexShrink:0,
               display:"flex", alignItems:"center", gap:6}}>
-            🔊 Alert Me
+            {L("🔊 Alert Me")}
           </button>
         </div>
       )}
@@ -774,22 +778,22 @@ export default function ExpiryIntelligence() {
       {s && (
         <div style={{padding:"16px 24px",
           display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))", gap:12}}>
-          <StatCard icon="📦" label="Total Products" value={s.total_products}
+          <StatCard icon="📦" label={L("Total Products")} value={s.total_products}
             active={tab==="all"} onClick={()=>setTab("all")} />
-          <StatCard icon="⛔" label="Likely Expired"  value={s.likely_expired} color="#dc2626"
-            sub={s.likely_expired>0?"Check immediately":"None"}
+          <StatCard icon="⛔" label={L("Likely Expired")}  value={s.likely_expired} color="#dc2626"
+            sub={s.likely_expired>0?L("Check immediately"):"None"}
             active={tab==="expired"} onClick={()=>pickTab("expired")} />
-          <StatCard icon="🔴" label="High Risk"  value={s.high_risk}  color="#ea580c"
-            sub={s.high_risk>0?"Act soon":"All clear"}
+          <StatCard icon="🔴" label={L("High Risk")}  value={s.high_risk}  color="#ea580c"
+            sub={s.high_risk>0?L("Act soon"):L("All clear")}
             active={tab==="high_risk"} onClick={()=>pickTab("high_risk")} />
-          <StatCard icon="🟡" label="Needs Attention" value={s.attention} color="#d97706"
+          <StatCard icon="🟡" label={L("Needs Attention")} value={s.attention} color="#d97706"
             active={tab==="attention"} onClick={()=>pickTab("attention")} />
-          <StatCard icon="🟢" label="Safe" value={s.safe} color="#16a34a"
+          <StatCard icon="🟢" label={L("Safe")} value={s.safe} color="#16a34a"
             active={tab==="safe"} onClick={()=>pickTab("safe")} />
           {s.value_at_risk>0 && (
-            <StatCard icon="💸" label="Value at Risk" wide
+            <StatCard icon="💸" label={L("Value at Risk")} wide
               value={`₹${Math.round(Number(s.value_at_risk)).toLocaleString("en-IN")}`}
-              color="#dc2626" sub="Expired + High Risk" />
+              color="#dc2626" sub={L("Expired + High Risk")} />
           )}
         </div>
       )}
@@ -810,7 +814,7 @@ export default function ExpiryIntelligence() {
           display:"flex", gap:8, alignItems:"center", flexWrap:"wrap"}}>
           <div style={{flex:1, minWidth:180, maxWidth:320, position:"relative", marginLeft:"auto"}}>
             <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder="Search products…"
+              placeholder={L("Search products…")}
               style={{width:"100%", padding:"8px 32px 8px 14px", borderRadius:9, boxSizing:"border-box",
                 border:"1.5px solid var(--rule,#eee)", background:"var(--bg1,white)",
                 color:"var(--ink)", fontSize:13, outline:"none"}}
@@ -851,9 +855,9 @@ export default function ExpiryIntelligence() {
           filtered.length===0
             ? <div style={{textAlign:"center", padding:"60px 20px"}}>
                 <div style={{fontSize:48, marginBottom:12}}>🔍</div>
-                <div style={{fontSize:16, fontWeight:700}}>No products found</div>
+                <div style={{fontSize:16, fontWeight:700}}>{L("No products found")}</div>
                 <div style={{fontSize:13, color:"var(--ink-faint)", marginTop:6}}>
-                  {search?`Nothing matching "${search}"`:"This filter is empty."}
+                  {search?`Nothing matching "${search}"`:L("This filter is empty.")}
                 </div>
               </div>
             : <div style={{display:"grid",
@@ -867,9 +871,9 @@ export default function ExpiryIntelligence() {
         {data && allProducts.length===0 && (
           <div style={{textAlign:"center", padding:"80px 20px"}}>
             <div style={{fontSize:56, marginBottom:16}}>📦</div>
-            <div style={{fontSize:18, fontWeight:800}}>No products in stock</div>
+            <div style={{fontSize:18, fontWeight:800}}>{L("No products in stock")}</div>
             <div style={{fontSize:13, color:"var(--ink-faint)", marginTop:8}}>
-              Add products to your inventory to start tracking expiry.
+              {L("Add products to your inventory to start tracking expiry.")}
             </div>
           </div>
         )}
@@ -880,7 +884,7 @@ export default function ExpiryIntelligence() {
         <div style={{margin:"0 24px 32px", padding:"20px 24px",
           borderRadius:16, background:"var(--bg2,#f9fafb)", border:"1px solid var(--rule,#eee)"}}>
           <div style={{fontWeight:700, fontSize:14, marginBottom:14, display:"flex", gap:8}}>
-            💡 How voice works in DukaanAI
+            {L("💡 How voice works in DukaanAI")}
           </div>
           <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px,1fr))", gap:16}}>
             {[
@@ -899,9 +903,9 @@ export default function ExpiryIntelligence() {
                   background:"var(--bg1,white)", borderRadius:10,
                   boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>{item.icon}</span>
                 <div>
-                  <div style={{fontWeight:700, fontSize:13}}>{item.title}</div>
+                  <div style={{fontWeight:700, fontSize:13}}>{L(item.title)}</div>
                   <div style={{fontSize:12, color:"var(--ink-dim)", marginTop:3, lineHeight:1.5}}>
-                    {item.desc}
+                    {L(item.desc)}
                   </div>
                 </div>
               </div>

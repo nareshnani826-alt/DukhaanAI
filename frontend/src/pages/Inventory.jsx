@@ -827,7 +827,7 @@ export default function Inventory() {
 
       {/* Filters */}
       <div className="gap-2 mb-3 flex-wrap hidden md:flex">
-        <input className="input flex-1" style={{ minWidth: 140 }} placeholder="Search products..."
+        <input className="input flex-1" style={{ minWidth: 140 }} placeholder={L("Search products...")}
           value={search} onChange={e => handleSearchChange(e.target.value)} />
         <select className="input" style={{ width: 140 }} value={cat} onChange={e => setCat(e.target.value)}>
           <option value="">All categories</option>
