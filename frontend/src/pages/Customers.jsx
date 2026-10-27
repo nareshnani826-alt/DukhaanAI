@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react"
 import { Customers } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 function formatDate(iso) {
   if (!iso) return "—"
@@ -73,7 +76,7 @@ export default function CustomersPage() {
   }
 
   async function saveCustomer() {
-    if (!form.name.trim()) return showNotif("Name is required")
+    if (!form.name.trim()) return showNotif(L("Name is required"))
     setSaving(true)
     try {
       if (editId) {
@@ -85,7 +88,7 @@ export default function CustomersPage() {
           address: form.address || null,
           notes:   form.notes || null,
         })
-        showNotif("Customer updated!")
+        showNotif(L("Customer updated!"))
         // Refresh selected if it's the one being edited
         if (selected?.id === editId) {
           setSelected(prev => ({ ...prev, ...form }))
@@ -99,7 +102,7 @@ export default function CustomersPage() {
           notes:   form.notes || null,
           amount:  0,
         })
-        showNotif("Customer added!")
+        showNotif(L("Customer added!"))
       }
       setModal(false)
       load()
@@ -109,11 +112,11 @@ export default function CustomersPage() {
 
   async function deleteCustomer(id, e) {
     e?.stopPropagation()
-    if (!confirm("Remove this customer from history?")) return
+    if (!confirm(L("Remove this customer from history?"))) return
     await Customers.delete(id)
     if (selected?.id === id) setSelected(null)
     load()
-    showNotif("Customer removed")
+    showNotif(L("Customer removed"))
   }
 
   function sendInvoiceWA(invoice, phone) {
@@ -146,13 +149,13 @@ export default function CustomersPage() {
           <div className="bg-white rounded-2xl p-5 w-96 shadow-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-medium">
-                {editId ? "Edit Customer" : "Add Customer"}
+                {editId ? L("Edit Customer") : L("Add Customer")}
               </h3>
               <button onClick={() => setModal(false)} className="text-gray-300 hover:text-gray-500 text-xl">×</button>
             </div>
             <div className="space-y-2.5">
               <div>
-                <label className="label">Name *</label>
+                <label className="label">{L("Name *")}</label>
                 <input className="input" value={form.name} onChange={e => set("name",e.target.value)}
                   placeholder="e.g. Ravi Kirana Mart" autoFocus />
               </div>
@@ -165,22 +168,22 @@ export default function CustomersPage() {
                 <div>
                   <label className="label">GSTIN</label>
                   <input className="input" value={form.gstin} onChange={e => set("gstin",e.target.value)}
-                    placeholder="Optional" />
+                    placeholder={L("Optional")} />
                 </div>
               </div>
               <div>
-                <label className="label">Address</label>
+                <label className="label">{L("Address")}</label>
                 <input className="input" value={form.address} onChange={e => set("address",e.target.value)}
-                  placeholder="Shop address (optional)" />
+                  placeholder={L("Shop address (optional)")} />
               </div>
               <div>
-                <label className="label">Notes</label>
+                <label className="label">{L("Notes")}</label>
                 <input className="input" value={form.notes} onChange={e => set("notes",e.target.value)}
-                  placeholder="e.g. Pays on credit, weekly settlement" />
+                  placeholder={L("e.g. Pays on credit, weekly settlement")} />
               </div>
               <button onClick={saveCustomer} disabled={saving}
                 className="btn btn-primary w-full py-2 text-xs font-medium">
-                {saving ? "Saving..." : editId ? "Update Customer" : "Add Customer"}
+                {saving ? "Saving..." : editId ? L("Update Customer") : L("Add Customer")}
               </button>
             </div>
           </div>
@@ -190,31 +193,31 @@ export default function CustomersPage() {
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Customers</h1>
-          <p className="text-[10px] text-gray-400">Auto-saved from invoices · Add manually · Resend on WhatsApp</p>
+          <h1 className="text-sm font-semibold">{L("Customers")}</h1>
+          <p className="text-[10px] text-gray-400">{L("Auto-saved from invoices · Add manually · Resend on WhatsApp")}</p>
         </div>
-        <button onClick={openAdd} className="btn btn-primary btn-sm">+ Add Customer</button>
+        <button onClick={openAdd} className="btn btn-primary btn-sm">{L("+ Add Customer")}</button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2.5 mb-4">
         <div className="stat-card">
-          <div className="text-[10px] text-gray-400 mb-1">Total Customers</div>
+          <div className="text-[10px] text-gray-400 mb-1">{L("Total Customers")}</div>
           <div className="text-xl font-semibold">{customers.length}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Unique buyers</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">{L("Unique buyers")}</div>
         </div>
         <div className="stat-card">
-          <div className="text-[10px] text-gray-400 mb-1">Total Revenue</div>
+          <div className="text-[10px] text-gray-400 mb-1">{L("Total Revenue")}</div>
           <div className="text-xl font-semibold text-primary">
             ₹{Math.round(totalRevenue).toLocaleString("en-IN")}
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">From all customers</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">{L("From all customers")}</div>
         </div>
         <div className="stat-card">
-          <div className="text-[10px] text-gray-400 mb-1">Top Customer</div>
+          <div className="text-[10px] text-gray-400 mb-1">{L("Top Customer")}</div>
           <div className="text-sm font-semibold truncate">{topCustomer?.name||"—"}</div>
           <div className="text-[10px] text-gray-400 mt-0.5">
-            {topCustomer ? `₹${Math.round(topCustomer.total_spent).toLocaleString("en-IN")} spent` : "No customers yet"}
+            {topCustomer ? `₹${Math.round(topCustomer.total_spent).toLocaleString("en-IN")} spent` : L("No customers yet")}
           </div>
         </div>
       </div>
@@ -223,24 +226,24 @@ export default function CustomersPage() {
 
         {/* Left — customer list */}
         <div className="customer-list w-72 flex flex-col flex-shrink-0">
-          <input className="input mb-2" placeholder="Search name or phone..."
+          <input className="input mb-2" placeholder={L("Search name or phone...")}
             value={search} onChange={e => setSearch(e.target.value)} />
 
           <div className="card flex-1 overflow-y-auto p-0">
             {loading ? (
-              <div className="p-4 text-xs text-gray-400 text-center">Loading...</div>
+              <div className="p-4 text-xs text-gray-400 text-center">{L("Loading...")}</div>
             ) : customers.length === 0 ? (
               <div className="p-6 text-center">
                 <div className="text-3xl mb-2">👤</div>
                 <div className="text-xs text-gray-400 mb-3">
                   {search
-                    ? "No customers match your search"
-                    : "Customers appear here automatically when you generate invoices, or add them manually"
+                    ? L("No customers match your search")
+                    : L("Customers appear here automatically when you generate invoices, or add them manually")
                   }
                 </div>
                 {!search && (
                   <button onClick={openAdd} className="btn btn-primary btn-sm">
-                    + Add first customer
+                    {L("+ Add first customer")}
                   </button>
                 )}
               </div>
@@ -259,7 +262,7 @@ export default function CustomersPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-gray-800 truncate">{c.name}</div>
                   <div className="text-[10px] text-gray-400">
-                    {c.phone || "No phone"} · {c.visit_count||0} visit{c.visit_count!==1?"s":""}
+                    {c.phone || L("No phone")} · {c.visit_count||0} visit{c.visit_count!==1?"s":""}
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -278,9 +281,9 @@ export default function CustomersPage() {
           {!selected ? (
             <div className="card h-64 flex items-center justify-center flex-col gap-3 text-center">
               <div className="text-5xl">👈</div>
-              <div className="text-sm font-medium text-gray-400">Select a customer</div>
+              <div className="text-sm font-medium text-gray-400">{L("Select a customer")}</div>
               <div className="text-xs text-gray-300 max-w-xs">
-                See full purchase history and resend invoices on WhatsApp
+                {L("See full purchase history and resend invoices on WhatsApp")}
               </div>
             </div>
           ) : (
@@ -296,7 +299,7 @@ export default function CustomersPage() {
                     <div>
                       <div className="text-sm font-semibold text-gray-800">{selected.name}</div>
                       <div className="text-xs text-gray-400 mt-0.5">
-                        {selected.phone||"No phone"}
+                        {selected.phone||L("No phone")}
                         {selected.gstin && <span className="ml-2">GSTIN: {selected.gstin}</span>}
                       </div>
                       {selected.address && (
@@ -325,11 +328,11 @@ export default function CustomersPage() {
                     )}
                     <button onClick={e => openEdit(selected, e)}
                       className="btn btn-sm text-[10px]">
-                      Edit
+                      {L("Edit")}
                     </button>
                     <button onClick={e => deleteCustomer(selected.id, e)}
                       className="btn btn-sm text-red-400 hover:bg-red-50 text-[10px]">
-                      Remove
+                      {L("Remove")}
                     </button>
                   </div>
                 </div>
@@ -337,9 +340,9 @@ export default function CustomersPage() {
                 {/* Stats grid */}
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label:"Total spent",  value:`₹${Math.round(selected.total_spent||0).toLocaleString("en-IN")}`, green:true },
-                    { label:"Total visits", value: selected.visit_count||0 },
-                    { label:"Last visited", value: formatDate(selected.last_visited) },
+                    { label:L("Total spent"),  value:`₹${Math.round(selected.total_spent||0).toLocaleString("en-IN")}`, green:true },
+                    { label:L("Total visits"), value: selected.visit_count||0 },
+                    { label:L("Last visited"), value: formatDate(selected.last_visited) },
                   ].map(s => (
                     <div key={s.label} className="bg-gray-50 rounded-lg p-2.5 text-center">
                       <div className="text-[10px] text-gray-400">{s.label}</div>
@@ -363,13 +366,13 @@ export default function CustomersPage() {
                 </div>
 
                 {invLoading ? (
-                  <div className="text-xs text-gray-400 py-4 text-center">Loading invoices...</div>
+                  <div className="text-xs text-gray-400 py-4 text-center">{L("Loading invoices...")}</div>
                 ) : invoices.length === 0 ? (
                   <div className="py-6 text-center">
                     <div className="text-2xl mb-2">🧾</div>
                     <div className="text-xs text-gray-400">
-                      No invoices yet for this customer.<br/>
-                      Generate an invoice with their name to see it here.
+                      {L("No invoices yet for this customer.")}<br/>
+                      {L("Generate an invoice with their name to see it here.")}
                     </div>
                   </div>
                 ) : invoices.map(inv => (
@@ -392,7 +395,7 @@ export default function CustomersPage() {
                             ? { background:"#25D366", color:"var(--bg1)", border:"none" }
                             : {}
                           }>
-                          {selected.phone ? "Resend WhatsApp" : "No phone saved"}
+                          {selected.phone ? L("Resend WhatsApp") : L("No phone saved")}
                         </button>
                       </div>
                     </div>

@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react"
 import { Wastage as WastageDB, Products } from "../sync/db.js"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const INR    = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 const fmtDt  = iso => new Date(iso).toLocaleString("en-IN",{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })
 
 const REASONS = [
   { key:"expired",  label:"Expired",  icon:"⏰", color:"#E24B4A", bg:"#FCEBEB",
-    desc:"Product passed expiry date" },
+    desc:L("Product passed expiry date") },
   { key:"damaged",  label:"Damaged",  icon:"💔", color:"#EF9F27", bg:"#FAEEDA",
-    desc:"Broken, wet or damaged" },
+    desc:L("Broken, wet or damaged") },
   { key:"stolen",   label:"Stolen",   icon:"🚨", color:"#7F77DD", bg:"#EEEDFE",
-    desc:"Theft or missing stock" },
+    desc:L("Theft or missing stock") },
   { key:"other",    label:"Other",    icon:"📝", color:"var(--ink-faint)",    bg:"var(--bg2)",
-    desc:"Any other reason" },
+    desc:L("Any other reason") },
 ]
 
 export default function Wastage() {
@@ -40,8 +43,8 @@ export default function Wastage() {
   function set(k, v)    { setForm(f => ({ ...f, [k]: v })) }
 
   async function save() {
-    if (!form.productId) return showNotif("Select a product")
-    if (!form.qty || +form.qty <= 0) return showNotif("Enter valid quantity")
+    if (!form.productId) return showNotif(L("Select a product"))
+    if (!form.qty || +form.qty <= 0) return showNotif(L("Enter valid quantity"))
     setSaving(true)
     try {
       await WastageDB.record({
@@ -50,7 +53,7 @@ export default function Wastage() {
         reason:    form.reason,
         note:      form.note || null,
       })
-      showNotif("Wastage recorded — stock updated!")
+      showNotif(L("Wastage recorded — stock updated!"))
       setModal(false)
       setForm({ productId:"", qty:"1", reason:"expired", note:"" })
       await load()
@@ -80,17 +83,17 @@ export default function Wastage() {
           onClick={e => e.target === e.currentTarget && setModal(false)}>
           <div className="bg-white rounded-2xl p-5 shadow-xl animate-slide-up" style={{ width: 384, maxWidth: "95vw" }}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-semibold">Record Wastage</h3>
+              <h3 className="text-sm font-semibold">{L("Record Wastage")}</h3>
               <button onClick={() => setModal(false)} className="text-gray-300 hover:text-gray-500 text-xl">×</button>
             </div>
 
             <div className="space-y-3">
               {/* Product select */}
               <div>
-                <label className="label">Product *</label>
+                <label className="label">{L("Product *")}</label>
                 <select className="input" value={form.productId}
                   onChange={e => set("productId", e.target.value)}>
-                  <option value="">Select product...</option>
+                  <option value="">{L("Select product...")}</option>
                   {products.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.name} — {p.stock} {p.unit||"pc"} in stock
@@ -107,7 +110,7 @@ export default function Wastage() {
 
               {/* Quantity */}
               <div>
-                <label className="label">Quantity wasted *</label>
+                <label className="label">{L("Quantity wasted *")}</label>
                 <input className="input" type="number" min="0.1" step="0.1"
                   value={form.qty} onChange={e => set("qty", e.target.value)}
                   placeholder="1" />
@@ -123,7 +126,7 @@ export default function Wastage() {
 
               {/* Reason */}
               <div>
-                <label className="label">Reason *</label>
+                <label className="label">{L("Reason *")}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {REASONS.map(r => (
                     <button key={r.key}
@@ -137,7 +140,7 @@ export default function Wastage() {
                       }}>
                       <span>{r.icon}</span>
                       <div>
-                        <div>{r.label}</div>
+                        <div>{L(r.label)}</div>
                         <div style={{ fontSize:9, opacity:0.7 }}>{r.desc}</div>
                       </div>
                     </button>
@@ -150,28 +153,28 @@ export default function Wastage() {
                 <label className="label">Note (optional)</label>
                 <input className="input" value={form.note}
                   onChange={e => set("note", e.target.value)}
-                  placeholder="e.g. Milk packets torn in delivery" />
+                  placeholder={L("e.g. Milk packets torn in delivery")} />
               </div>
 
               {/* Loss preview */}
               {selectedProduct && form.qty && (
                 <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs">
                   <div className="flex justify-between mb-1">
-                    <span className="text-gray-500">Product</span>
+                    <span className="text-gray-500">{L("Product")}</span>
                     <span className="font-medium">{selectedProduct.name}</span>
                   </div>
                   <div className="flex justify-between mb-1">
-                    <span className="text-gray-500">Qty wasted</span>
+                    <span className="text-gray-500">{L("Qty wasted")}</span>
                     <span className="font-medium">{form.qty} {selectedProduct.unit||"pc"}</span>
                   </div>
                   <div className="flex justify-between mb-1">
-                    <span className="text-gray-500">Stock after</span>
+                    <span className="text-gray-500">{L("Stock after")}</span>
                     <span className="font-medium">
                       {Math.max(0, (selectedProduct.stock||0) - +form.qty)} {selectedProduct.unit||"pc"}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-red-100 pt-1.5 mt-1.5">
-                    <span className="text-red-600 font-semibold">Total loss</span>
+                    <span className="text-red-600 font-semibold">{L("Total loss")}</span>
                     <span className="text-red-600 font-bold">
                       {INR(+form.qty * (selectedProduct.cost_price||0))}
                     </span>
@@ -182,7 +185,7 @@ export default function Wastage() {
               <button onClick={save} disabled={saving}
                 className="btn w-full py-2.5 text-xs font-semibold mt-1"
                 style={{ background:"#E24B4A", color:"var(--bg1)", border:"none" }}>
-                {saving ? "Recording..." : "Record Wastage — Deduct Stock"}
+                {saving ? "Recording..." : L("Record Wastage — Deduct Stock")}
               </button>
             </div>
           </div>
@@ -192,12 +195,12 @@ export default function Wastage() {
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Wastage Recording 🗑️</h1>
-          <p className="text-[10px] text-gray-400">Track expired, damaged or stolen items</p>
+          <h1 className="text-sm font-semibold">{L("Wastage Recording 🗑️")}</h1>
+          <p className="text-[10px] text-gray-400">{L("Track expired, damaged or stolen items")}</p>
         </div>
         <button onClick={() => setModal(true)} className="btn btn-sm"
           style={{ background:"#E24B4A", color:"var(--bg1)", border:"none" }}>
-          + Record Wastage
+          {L("+ Record Wastage")}
         </button>
       </div>
 
@@ -208,14 +211,14 @@ export default function Wastage() {
           { label:"Total Loss",      value: INR(summary.total_loss),  color:"#EF9F27", bg:"#FAEEDA", icon:"💸" },
           { label:"Total Records",   value: summary.total_items,      color:"#7F77DD", bg:"#EEEDFE", icon:"📋" },
           { label:"Top Reason",
-            value: Object.keys(summary.by_reason).sort((a,b) => summary.by_reason[b]-summary.by_reason[a])[0]
-                   || "—",
+            value: (k => k ? L(reasonInfo(k).label) : "—")(
+                     Object.keys(summary.by_reason).sort((a,b) => summary.by_reason[b]-summary.by_reason[a])[0]),
             color:"var(--ink-faint)", bg:"var(--bg2)", icon:"⚠" },
         ].map((s,i) => (
           <div key={i} className="stat-card">
             <div className="stat-bar" style={{ background:s.color }} />
             <div className="stat-icon-box" style={{ background:s.bg }}>{s.icon}</div>
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{s.label}</div>
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{L(s.label)}</div>
             <div className="text-lg font-bold text-gray-800">{loading ? "—" : s.value}</div>
           </div>
         ))}
@@ -224,7 +227,7 @@ export default function Wastage() {
       {/* Reason breakdown */}
       {Object.keys(summary.by_reason).length > 0 && (
         <div className="card mb-4">
-          <div className="text-xs font-semibold text-gray-700 mb-3">Loss by reason</div>
+          <div className="text-xs font-semibold text-gray-700 mb-3">{L("Loss by reason")}</div>
           <div className="grid grid-cols-4 gap-2">
             {REASONS.map(r => {
               const val = summary.by_reason[r.key] || 0
@@ -239,7 +242,7 @@ export default function Wastage() {
                         background: r.color
                       }} />
                   </div>
-                  <div className="text-[10px] font-medium" style={{ color:r.color }}>{r.label}</div>
+                  <div className="text-[10px] font-medium" style={{ color:r.color }}>{L(r.label)}</div>
                   <div className="text-[10px] text-gray-400">{INR(val)}</div>
                 </div>
               )
@@ -251,8 +254,8 @@ export default function Wastage() {
       {/* Records list */}
       <div className="card">
         <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-          <div className="text-xs font-semibold text-gray-700">Wastage History</div>
-          <input className="input py-1" style={{ width: 140 }} placeholder="Search..."
+          <div className="text-xs font-semibold text-gray-700">{L("Wastage History")}</div>
+          <input className="input py-1" style={{ width: 140 }} placeholder={L("Search...")}
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
@@ -264,7 +267,7 @@ export default function Wastage() {
           <div className="text-center py-10">
             <div className="text-4xl mb-3">✅</div>
             <div className="text-xs text-gray-400">
-              {search ? "No matching records" : "No wastage recorded yet — great!"}
+              {search ? L("No matching records") : L("No wastage recorded yet — great!")}
             </div>
           </div>
         ) : filteredRecords.map(r => {
@@ -279,7 +282,7 @@ export default function Wastage() {
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-semibold text-gray-800">{r.product_name}</div>
                 <div className="text-[10px] text-gray-500">
-                  {r.qty} {r.unit} · {ri.label}
+                  {r.qty} {r.unit} · {L(ri.label)}
                   {r.note && <span> · {r.note}</span>}
                 </div>
                 <div className="text-[10px] text-gray-400">{fmtDt(r.created_at)}</div>

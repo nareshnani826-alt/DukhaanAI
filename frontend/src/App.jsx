@@ -9,6 +9,9 @@ import Layout            from "./components/Layout"
 import UpgradeWall       from "./components/UpgradeWall"
 import InstallPrompt     from "./components/InstallPrompt"
 import OfflineBanner     from "./components/OfflineBanner"
+import { tr, uiLang } from "./i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const Dashboard         = lazy(() => import("./pages/Dashboard"))
 const Inventory         = lazy(() => import("./pages/Inventory"))
@@ -63,9 +66,9 @@ function NotFound() {
     <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", gap:12, padding:32, textAlign:"center", color:"var(--ink)" }}>
       <div style={{ fontSize:44 }}>🧭</div>
-      <div style={{ fontSize:18, fontWeight:800 }}>Page not found</div>
-      <div style={{ fontSize:13, color:"var(--ink-faint)" }}>This page doesn't exist or has moved.</div>
-      <a href="/dashboard" className="btn btn-primary btn-sm" style={{ marginTop:8 }}>Go to Home</a>
+      <div style={{ fontSize:18, fontWeight:800 }}>{L("Page not found")}</div>
+      <div style={{ fontSize:13, color:"var(--ink-faint)" }}>{L("This page doesn't exist or has moved.")}</div>
+      <a href="/dashboard" className="btn btn-primary btn-sm" style={{ marginTop:8 }}>{L("Go to Home")}</a>
     </div>
   )
 }

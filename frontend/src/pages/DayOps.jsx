@@ -2,6 +2,11 @@ import { useEffect, useState, useCallback } from "react"
 import { api, isCloud } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { Products, Sales, Invoices } from "../sync/db.js"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
+// Sentences with numbers: Lf("{n} items currently low on stock", { n: 3 })
+const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 
 const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 const PCT = n => (n > 0 ? "+" : "") + Math.round(n || 0) + "%"
@@ -161,7 +166,7 @@ export default function DayOps() {
       // Nudge after 3 seconds if day not opened
       setTimeout(() => {
         if (!sess) {
-          showNotif("👋 Don't forget to open today's day to track stock & profit!")
+          showNotif(L("👋 Don't forget to open today's day to track stock & profit!"))
         }
       }, 3000)
     })
@@ -175,13 +180,13 @@ export default function DayOps() {
         : await localOpenDay(products)
       setSession(sess)
       playAlert("open")
-      showNotif("✓ Day opened! Stock snapshot taken.")
+      showNotif(L("✓ Day opened! Stock snapshot taken."))
     } catch(e) { showNotif("Error: " + e.message) }
     finally { setActing(false) }
   }
 
   async function closeDay() {
-    if (!confirm("Close today's day? This will record your final stock and profits.")) return
+    if (!confirm(L("Close today's day? This will record your final stock and profits."))) return
     setActing(true)
     try {
       const sess = isCloud()
@@ -189,7 +194,7 @@ export default function DayOps() {
         : await localCloseDay(todaySales, products)
       setSession(sess)
       playAlert("close")
-      showNotif("✓ Day closed! Summary ready.")
+      showNotif(L("✓ Day closed! Summary ready."))
 
       // Low stock alert notification
       const low = sess.low_stock_items || []
@@ -255,7 +260,7 @@ _Sent from DukaanAI_`
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between gap-2 flex-wrap mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Day Operations</h1>
+          <h1 className="text-sm font-semibold">{L("Day Operations")}</h1>
           <p className="text-[10px] text-gray-400">{fmtDate()}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -268,7 +273,7 @@ _Sent from DukaanAI_`
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-xs text-gray-400">Loading...</div>
+        <div className="flex items-center justify-center h-48 text-xs text-gray-400">{L("Loading...")}</div>
       ) : (
         <div className="space-y-3">
 
@@ -283,12 +288,12 @@ _Sent from DukaanAI_`
                 <div className={`text-base font-semibold ${
                   isClosed ? "text-gray-700" : isOpen ? "text-primary-dark" : "text-amber-700"
                 }`}>
-                  {isClosed ? "Day Closed" : isOpen ? "Day is Open" : "Day Not Started"}
+                  {isClosed ? L("Day Closed") : isOpen ? L("Day is Open") : L("Day Not Started")}
                 </div>
                 <div className="text-[10px] text-gray-500 mt-0.5">
                   {isClosed  ? `Opened ${fmt(session.opened_at)} · Closed ${fmt(session.closed_at)}` :
                    isOpen    ? `Opened at ${fmt(session.opened_at)}` :
-                               "Tap 'Open Day' to start tracking"}
+                               L("Tap 'Open Day' to start tracking")}
                 </div>
               </div>
 
@@ -296,16 +301,16 @@ _Sent from DukaanAI_`
                 {notOpened && (
                   <button onClick={openDay} disabled={acting}
                     className="btn btn-primary px-5 py-2 text-xs font-semibold">
-                    {acting ? "Opening..." : "Open Day"}
+                    {acting ? "Opening..." : L("Open Day")}
                   </button>
                 )}
                 {isOpen && (
                   <>
-                    <button onClick={load} className="btn btn-sm">Refresh</button>
+                    <button onClick={load} className="btn btn-sm">{L("Refresh")}</button>
                     <button onClick={closeDay} disabled={acting}
                       className="btn px-5 py-2 text-xs font-semibold"
                       style={{ background:"#185FA5", color:"var(--bg1)", border:"none" }}>
-                      {acting ? "Closing..." : "Close Day"}
+                      {acting ? "Closing..." : L("Close Day")}
                     </button>
                   </>
                 )}
@@ -314,7 +319,7 @@ _Sent from DukaanAI_`
                     <button onClick={sendCloseWhatsApp}
                       className="btn btn-sm py-1.5 text-[10px] font-medium"
                       style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
-                      Share Report
+                      {L("Share Report")}
                     </button>
                   </div>
                 )}
@@ -325,10 +330,10 @@ _Sent from DukaanAI_`
             {(isOpen || isClosed) && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {[
-                  { label:"Opening Stock Value", value: INR(openingValue),        sub: `${session?.opening_stock?.length || products.length} products` },
-                  { label:"Today's Sales",        value: INR(session?.total_sales || todaySales?.total), sub: `${session?.total_invoices || todaySales?.count || 0} invoices`, green: true },
-                  { label:"Gross Profit",         value: INR(session?.gross_profit || 0), sub: `${profitPct}% margin`, green: (session?.gross_profit || 0) > 0 },
-                  { label:isClosed ? "Closing Stock Value" : "Current Stock Value",
+                  { label:L("Opening Stock Value"), value: INR(openingValue),        sub: `${session?.opening_stock?.length || products.length} products` },
+                  { label:L("Today's Sales"),        value: INR(session?.total_sales || todaySales?.total), sub: `${session?.total_invoices || todaySales?.count || 0} invoices`, green: true },
+                  { label:L("Gross Profit"),         value: INR(session?.gross_profit || 0), sub: `${profitPct}% margin`, green: (session?.gross_profit || 0) > 0 },
+                  { label:isClosed ? L("Closing Stock Value") : L("Current Stock Value"),
                     value: INR(closingValue ?? openingValue),
                     sub: isClosed ? "end of day" : "live" },
                 ].map(s => (
@@ -352,14 +357,14 @@ _Sent from DukaanAI_`
                   <span className="text-sm">⚠</span>
                   <span className="text-xs font-semibold text-red-700">
                     {isClosed
-                      ? `${lowAtClose.length} items need reorder — order before tomorrow!`
-                      : `${lowStock.length} items currently low on stock`}
+                      ? Lf("{n} items need reorder — order before tomorrow!", { n: lowAtClose.length })
+                      : Lf("{n} items currently low on stock", { n: lowStock.length })}
                   </span>
                 </div>
                 <button onClick={sendLowStockWhatsApp}
                   className="btn btn-sm text-[10px] font-medium"
                   style={{ background:"#25D366", color:"var(--bg1)", border:"none" }}>
-                  Send Reorder List on WhatsApp
+                  {L("Send Reorder List on WhatsApp")}
                 </button>
               </div>
               <div className="space-y-1.5">
@@ -372,7 +377,7 @@ _Sent from DukaanAI_`
                     <div className="flex items-center gap-2">
                       <span>{p.stock <= 0 ? "🔴" : p.stock < p.min_stock * 0.3 ? "🔴" : "🟡"}</span>
                       <span className="font-medium text-gray-700">{p.name}</span>
-                      <span className="text-gray-400">{p.category}</span>
+                      <span className="text-gray-400">{L(p.category)}</span>
                     </div>
                     <div className="text-right">
                       <span className="font-semibold text-red-600">{p.stock} {p.unit||"units"}</span>
@@ -389,7 +394,7 @@ _Sent from DukaanAI_`
             <div className="card">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs font-medium text-gray-600">
-                  Opening Stock Snapshot
+                  {L("Opening Stock Snapshot")}
                   <span className="badge badge-green ml-2">
                     {session.opening_stock?.length} products
                   </span>
@@ -400,12 +405,12 @@ _Sent from DukaanAI_`
               <table className="w-full" style={{ minWidth: 520 }}>
                 <thead>
                   <tr>
-                    <th className="th">Product</th>
-                    <th className="th">Category</th>
-                    <th className="th text-right">Opening Stock</th>
-                    <th className="th text-right">Current Stock</th>
-                    <th className="th text-right">Sold Today</th>
-                    <th className="th text-right">Stock Value</th>
+                    <th className="th">{L("Product")}</th>
+                    <th className="th">{L("Category")}</th>
+                    <th className="th text-right">{L("Opening Stock")}</th>
+                    <th className="th text-right">{L("Current Stock")}</th>
+                    <th className="th text-right">{L("Sold Today")}</th>
+                    <th className="th text-right">{L("Stock Value")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -418,7 +423,7 @@ _Sent from DukaanAI_`
                         current?.stock < current?.min_stock ? "bg-red-50" : ""
                       }`}>
                         <td className="td font-medium text-xs">{p.name}</td>
-                        <td className="td text-xs text-gray-500">{p.category}</td>
+                        <td className="td text-xs text-gray-500">{L(p.category)}</td>
                         <td className="td text-right text-xs">{p.stock} {p.unit||""}</td>
                         <td className={`td text-right text-xs font-medium ${
                           current?.stock < p.min_stock ? "text-red-600" : "text-primary"
@@ -441,8 +446,8 @@ _Sent from DukaanAI_`
             <div className="card">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs font-medium text-gray-600">
-                  Day Close Summary
-                  <span className="badge badge-blue ml-2">Final</span>
+                  {L("Day Close Summary")}
+                  <span className="badge badge-blue ml-2">{L("Final")}</span>
                 </div>
                 <span className="text-[10px] text-gray-400">Closed at {fmt(session.closed_at)}</span>
               </div>
@@ -450,12 +455,12 @@ _Sent from DukaanAI_`
               <table className="w-full" style={{ minWidth: 480 }}>
                 <thead>
                   <tr>
-                    <th className="th">Product</th>
-                    <th className="th text-right">Opening</th>
-                    <th className="th text-right">Closing</th>
-                    <th className="th text-right">Sold</th>
-                    <th className="th text-right">Revenue</th>
-                    <th className="th text-right">Status</th>
+                    <th className="th">{L("Product")}</th>
+                    <th className="th text-right">{L("Opening")}</th>
+                    <th className="th text-right">{L("Closing")}</th>
+                    <th className="th text-right">{L("Sold")}</th>
+                    <th className="th text-right">{L("Revenue")}</th>
+                    <th className="th text-right">{L("Status")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -479,7 +484,7 @@ _Sent from DukaanAI_`
                         </td>
                         <td className="td text-right">
                           {isLow
-                            ? <span className="badge badge-red text-[9px]">Reorder</span>
+                            ? <span className="badge badge-red text-[9px]">{L("Reorder")}</span>
                             : <span className="badge badge-green text-[9px]">OK</span>
                           }
                         </td>
@@ -496,9 +501,9 @@ _Sent from DukaanAI_`
           {notOpened && !loading && (
             <div className="card text-center py-10">
               <div className="text-5xl mb-3">🏪</div>
-              <div className="text-sm font-semibold text-gray-700 mb-1">Ready to open your store?</div>
+              <div className="text-sm font-semibold text-gray-700 mb-1">{L("Ready to open your store?")}</div>
               <div className="text-xs text-gray-400 mb-6 max-w-xs mx-auto">
-                Opening the day takes a snapshot of all your stock levels and costs — so you can track exactly what was sold and the profit at end of day.
+                {L("Opening the day takes a snapshot of all your stock levels and costs — so you can track exactly what was sold and the profit at end of day.")}
               </div>
               <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto mb-6">
                 {[
@@ -509,13 +514,13 @@ _Sent from DukaanAI_`
                   <div key={s.label} className="bg-gray-50 rounded-xl p-3 text-center">
                     <div className="text-lg">{s.icon}</div>
                     <div className="text-xs font-semibold text-gray-700 mt-1">{s.value}</div>
-                    <div className="text-[10px] text-gray-400">{s.label}</div>
+                    <div className="text-[10px] text-gray-400">{L(s.label)}</div>
                   </div>
                 ))}
               </div>
               <button onClick={openDay} disabled={acting}
                 className="btn btn-primary px-8 py-2.5 text-xs font-semibold">
-                {acting ? "Opening..." : "Open Day Now"}
+                {acting ? "Opening..." : L("Open Day Now")}
               </button>
             </div>
           )}

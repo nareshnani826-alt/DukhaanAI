@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { Invoices, Products, isCloud } from "../sync/db"
 import InvoiceView from "../components/InvoiceView"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -80,9 +83,9 @@ function BillCard({ inv, onView, onVoid }) {
             </span>
             {isCancelled
               ? <span style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, fontWeight: 700,
-                  background: "#fee2e2", color: "#dc2626" }}>VOIDED</span>
+                  background: "#fee2e2", color: "#dc2626" }}>{L("VOIDED")}</span>
               : <span style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, fontWeight: 600,
-                  background: pc.bg, color: pc.color }}>{inv.payment_mode}</span>
+                  background: pc.bg, color: pc.color }}>{L(inv.payment_mode)}</span>
             }
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
@@ -148,7 +151,7 @@ function BillCard({ inv, onView, onVoid }) {
                 style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none",
                   background: "linear-gradient(135deg,#1D9E75,#0a7a58)",
                   color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                View Invoice
+                {L("View Invoice")}
               </button>
               <button onClick={() => {
                 const text = [
@@ -169,7 +172,7 @@ function BillCard({ inv, onView, onVoid }) {
                 style={{ padding: "8px 12px", borderRadius: 8,
                   border: "1px solid #fca5a5", background: "#fff1f2",
                   color: "#dc2626", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                🚫 Void
+                {L("🚫 Void")}
               </button>
             </div>
           )}
@@ -304,7 +307,7 @@ export default function History() {
       setShowVoid(null)
       // Refresh summary
       fetchInvoices()
-    } catch (e) { alert("Could not void: " + e.message) }
+    } catch (e) { alert(L("Could not void") + ": " + e.message) }
     finally { setVoiding(false) }
   }
 
@@ -321,7 +324,7 @@ export default function History() {
       <div className="page-sticky-header flex items-center justify-between gap-2 flex-wrap mb-4">
         <div>
           <h1 className="text-sm font-semibold">Bill History · Kirana Store</h1>
-          <p className="text-[11px] text-gray-400 mt-0.5">Search, filter and view all past invoices</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">{L("Search, filter and view all past invoices")}</p>
         </div>
       </div>
 
@@ -339,17 +342,17 @@ export default function History() {
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#92400e" }}>
                   {summary.partial_cost
                     ? `Cost prices missing for ${100 - summary.cost_coverage}% of products`
-                    : "No cost prices set — profit cannot be calculated"}
+                    : L("No cost prices set — profit cannot be calculated")}
                 </div>
                 <div style={{ fontSize: 11, color: "#b45309", marginTop: 2 }}>
-                  Go to Inventory → edit each product → set Cost Price to track real profit.
+                  {L("Go to Inventory → edit each product → set Cost Price to track real profit.")}
                 </div>
               </div>
               <button onClick={() => navigate("/inventory")}
                 style={{ padding: "6px 14px", borderRadius: 8, border: "none",
                   background: "#1D9E75", color: "#fff", fontSize: 11, fontWeight: 700,
                   cursor: "pointer", flexShrink: 0 }}>
-                Fix now →
+                {L("Fix now →")}
               </button>
             </div>
           )}
@@ -359,7 +362,7 @@ export default function History() {
             <div style={{ background: "var(--bg1)", border: "1px solid var(--rule)",
               borderRadius: 14, padding: "14px 16px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)",
-                textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>Total Sales</div>
+                textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>{L("Total Sales")}</div>
               <div style={{ fontSize: 20, fontWeight: 900, color: "var(--jade)", lineHeight: 1 }}>
                 {INR(summary.revenue)}
               </div>
@@ -372,7 +375,7 @@ export default function History() {
             <div style={{ background: "var(--bg1)", borderRadius: 14, padding: "14px 16px",
               border: summary.cost_known ? "1px solid var(--rule)" : "1px solid rgba(202,138,4,0.4)" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)",
-                textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>Profit</div>
+                textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>{L("Profit")}</div>
               {summary.cost_known ? (
                 <>
                   <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1,
@@ -389,7 +392,7 @@ export default function History() {
                   <div style={{ fontSize: 9, color: "#b45309", marginTop: 4 }}>
                     {summary.partial_cost
                       ? `Only ${summary.cost_coverage}% of costs known`
-                      : "Set cost prices in Inventory"}
+                      : L("Set cost prices in Inventory")}
                   </div>
                 </>
               )}
@@ -399,12 +402,12 @@ export default function History() {
             <div style={{ background: "var(--bg1)", borderRadius: 14, padding: "14px 16px",
               border: "1px solid var(--rule)" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)",
-                textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>Stock Value</div>
+                textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>{L("Stock Value")}</div>
               <div style={{ fontSize: 20, fontWeight: 900, color: "var(--ink)", lineHeight: 1 }}>
                 {summary.stock_value > 0 ? INR(summary.stock_value) : "—"}
               </div>
               <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
-                Current inventory
+                {L("Current inventory")}
               </div>
             </div>
           </div>
@@ -416,7 +419,7 @@ export default function History() {
         <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
           fontSize: 16, color: "var(--ink-faint)", pointerEvents: "none" }}>🔍</span>
         <input value={search} onChange={e => handleSearch(e.target.value)}
-          placeholder="Search by customer, phone or invoice number…"
+          placeholder={L("Search by customer, phone or invoice number…")}
           style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 12,
             padding: "10px 12px 10px 38px", fontSize: 13, outline: "none",
             background: "var(--bg2)", color: "var(--ink)", boxSizing: "border-box" }}
@@ -439,7 +442,7 @@ export default function History() {
               border: dateOpt === idx ? "none" : "1px solid var(--rule)",
               background: dateOpt === idx ? "var(--jade)" : "var(--bg2)",
               color: dateOpt === idx ? "#fff" : "var(--ink-dim)", cursor: "pointer" }}>
-            {opt.label}
+            {L(opt.label)}
           </button>
         ))}
       </div>
@@ -466,7 +469,7 @@ export default function History() {
                 border: payMode === p ? "none" : "1px solid var(--rule)",
                 background: payMode === p ? "var(--jade)" : "var(--bg2)",
                 color: payMode === p ? "#fff" : "var(--ink-dim)", cursor: "pointer" }}>
-              {p === "All" ? "All payments" : p}
+              {p === "All" ? L("All payments") : L(p)}
             </button>
           ))}
         </div>
@@ -474,7 +477,7 @@ export default function History() {
         <select value={sort} onChange={e => { setSort(e.target.value); setOffset(0) }}
           style={{ border: "1px solid var(--rule)", borderRadius: 8, padding: "5px 10px",
             fontSize: 11, background: "var(--bg2)", color: "var(--ink)", outline: "none", cursor: "pointer" }}>
-          {SORT_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          {SORT_OPTS.map(s => <option key={s.value} value={s.value}>{L(s.label)}</option>)}
         </select>
       </div>
 
@@ -483,11 +486,11 @@ export default function History() {
         <div style={{ display: "flex", gap: 16, padding: "8px 14px", marginBottom: 12,
           background: "var(--bg2)", borderRadius: 10, border: "1px solid var(--rule)", fontSize: 12 }}>
           <span style={{ color: "var(--ink-faint)" }}>
-            Showing <b style={{ color: "var(--ink)" }}>{invoices.length}</b>
-            {total > invoices.length && ` of ${total}`} invoices
+            {L("Showing")} <b style={{ color: "var(--ink)" }}>{invoices.length}</b>
+            {total > invoices.length && ` / ${total}`} {L("invoices")}
           </span>
           <span style={{ color: "var(--jade)", fontWeight: 700, marginLeft: "auto" }}>
-            {INR(summary?.revenue ?? 0)} total
+            {INR(summary?.revenue ?? 0)} {L("total")}
           </span>
         </div>
       )}
@@ -495,7 +498,7 @@ export default function History() {
       {/* ── Content ───────────────────────────────────────── */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ink-faint)", fontSize: 13 }}>
-          Loading invoices…
+          {L("Loading invoices…")}
         </div>
       ) : error ? (
         <div style={{ textAlign: "center", padding: "40px 0", color: "#dc2626", fontSize: 13 }}>
@@ -504,15 +507,15 @@ export default function History() {
           <button onClick={fetchInvoices}
             style={{ marginTop: 10, padding: "6px 16px", borderRadius: 8, border: "none",
               background: "var(--jade)", color: "#fff", fontSize: 12, cursor: "pointer" }}>
-            Retry
+            {L("Retry")}
           </button>
         </div>
       ) : invoices.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ink-faint)" }}>
           <div style={{ fontSize: 42, marginBottom: 12 }}>🧾</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No invoices found</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>{L("No invoices found")}</div>
           <div style={{ fontSize: 12 }}>
-            {dSearch ? `No results for "${dSearch}"` : "Try a different date range or filter"}
+            {dSearch ? `No results for "${dSearch}"` : L("Try a different date range or filter")}
           </div>
         </div>
       ) : (
@@ -547,7 +550,7 @@ export default function History() {
                   background: "var(--bg1)", fontSize: 12, fontWeight: 600,
                   color: offset === 0 ? "var(--ink-faint)" : "var(--ink)",
                   cursor: offset === 0 ? "default" : "pointer" }}>
-                ← Previous
+                {L("← Previous")}
               </button>
               <span style={{ fontSize: 12, color: "var(--ink-faint)", alignSelf: "center" }}>
                 {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
@@ -557,7 +560,7 @@ export default function History() {
                   background: "var(--bg1)", fontSize: 12, fontWeight: 600,
                   color: offset + LIMIT >= total ? "var(--ink-faint)" : "var(--ink)",
                   cursor: offset + LIMIT >= total ? "default" : "pointer" }}>
-                Next →
+                {L("Next →")}
               </button>
             </div>
           )}
@@ -576,20 +579,20 @@ export default function History() {
             </div>
             <div style={{ fontSize: 12, color: "var(--ink-faint)", textAlign: "center",
               marginBottom: 20, lineHeight: 1.5 }}>
-              This marks the invoice as cancelled. Revenue totals will update. This cannot be undone.
+              {L("This marks the invoice as cancelled. Revenue totals will update. This cannot be undone.")}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <button onClick={() => setShowVoid(null)}
                 style={{ padding: 10, borderRadius: 10, border: "1px solid var(--rule)",
                   background: "var(--bg2)", fontSize: 12, fontWeight: 600,
                   cursor: "pointer", color: "var(--ink-dim)" }}>
-                Keep it
+                {L("Keep it")}
               </button>
               <button onClick={() => handleVoid(showVoid)} disabled={voiding}
                 style={{ padding: 10, borderRadius: 10, border: "none",
                   background: "#dc2626", fontSize: 12, fontWeight: 700,
                   cursor: "pointer", color: "#fff", opacity: voiding ? 0.6 : 1 }}>
-                {voiding ? "Voiding…" : "Yes, void"}
+                {voiding ? "Voiding…" : L("Yes, void")}
               </button>
             </div>
           </div>
@@ -610,7 +613,7 @@ export default function History() {
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => window.print()}
                   style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid var(--rule)",
-                    background: "transparent", fontSize: 11, cursor: "pointer" }}>🖨 Print</button>
+                    background: "transparent", fontSize: 11, cursor: "pointer" }}>{L("🖨 Print")}</button>
                 <button onClick={() => setViewing(null)}
                   style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--rule)",
                     background: "transparent", fontSize: 18, cursor: "pointer",
