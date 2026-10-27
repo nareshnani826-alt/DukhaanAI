@@ -2,6 +2,11 @@ import { useEffect, useState } from "react"
 import { getUpcomingFestivalsAsync, getCurrentSeason, computeUrgentAlerts, SEASONS } from "../data/indianCalendar.js"
 import { Products, api, API_BASE } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
+import { tr, uiLang } from "../i18n/kiranaStrings"
+
+const L = k => tr(k, uiLang())
+const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
+const Lmany = list => list.map(L).join(", ")
 
 const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 
@@ -104,31 +109,31 @@ export default function DemandIntelligence() {
     days === 0 ? "#E24B4A" : days <= 3 ? "#E24B4A" : days <= 7 ? "#EF9F27" : "var(--jade)"
 
   const urgencyLabel = days =>
-    days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `${days} days`
+    days === 0 ? L("TODAY") : days === 1 ? L("TOMORROW") : Lf("{n} days", { n: days })
 
   const allAlerts = [
     ...urgentAlerts.map(f => ({
       type:    "festival_low_stock",
-      title:   `⚠ ${f.name} ${f.daysAway === 0 ? "is today" : f.daysAway === 1 ? "is tomorrow" : `in ${f.daysAway} days`} — low stock on key items`,
-      body:    `Stock up: ${f.lowItems.join(", ")}`,
-      tip:     f.tip,
+      title:   `⚠ ${L(f.name)} ${f.daysAway === 0 ? L("is today") : f.daysAway === 1 ? L("is tomorrow") : Lf("in {n} days", { n: f.daysAway })} — ${L("low stock on key items")}`,
+      body:    `${L("Stock up")}: ${Lmany(f.lowItems)}`,
+      tip:     L(f.tip),
       color:   urgencyColor(f.daysAway),
       urgent:  f.daysAway <= 7,
       daysAway:f.daysAway,
     })),
     ...newsAlerts.map(n => ({
       type:  "news",
-      title: n.signal,
-      body:  `Stock up: ${n.products.join(", ")}`,
-      tip:   `${n.count} news articles in last 3 days — demand likely to spike`,
+      title: L(n.signal),
+      body:  `${L("Stock up")}: ${Lmany(n.products)}`,
+      tip:   Lf("{n} news articles in last 3 days — demand likely to spike", { n: n.count }),
       color: n.color,
       urgent:true,
     })),
     ...patterns.filter(p => p.urgency === "critical").map(p => ({
       type:  "low_stock",
-      title: `🔴 ${p.name} critically low`,
-      body:  `Only ${p.stock} left (min: ${p.min})`,
-      tip:   "Reorder immediately before you run out",
+      title: `🔴 ${p.name} ${L("critically low")}`,
+      body:  Lf("Only {n} left (min: {min})", { n: p.stock, min: p.min }),
+      tip:   L("Reorder immediately before you run out"),
       color: "#E24B4A",
       urgent:true,
     })),
@@ -139,12 +144,12 @@ export default function DemandIntelligence() {
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Demand Intelligence 🧠</h1>
+          <h1 className="text-sm font-semibold">{L("Demand Intelligence 🧠")}</h1>
           <p className="text-[10px] text-gray-400">
-            Festival alerts · News signals · Stock recommendations
+            {L("Festival alerts · News signals · Stock recommendations")}
           </p>
         </div>
-        <span className="badge badge-green">Free · No API cost</span>
+        <span className="badge badge-green">{L("Free · No API cost")}</span>
       </div>
 
       {/* Season banner */}
@@ -154,14 +159,14 @@ export default function DemandIntelligence() {
           <span className="text-2xl">{season.icon}</span>
           <div className="flex-1">
             <div className="text-xs font-semibold" style={{ color: season.color }}>
-              {season.name} Season
+              {L(season.name + " Season")}
             </div>
-            <div className="text-[10px] text-gray-600 mt-0.5">{season.tip}</div>
+            <div className="text-[10px] text-gray-600 mt-0.5">{L(season.tip)}</div>
             <div className="flex flex-wrap gap-1 mt-2">
               {season.products.map(p => (
                 <span key={p} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                   style={{ background: season.color + "20", color: season.color }}>
-                  {p}
+                  {L(p)}
                 </span>
               ))}
             </div>
@@ -172,11 +177,11 @@ export default function DemandIntelligence() {
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-white rounded-xl p-1 border border-gray-100 flex-wrap">
         {[
-          { id:"alerts",   label:`🚨 Alerts (${allAlerts.length})` },
-          { id:"festivals",label:`🎉 Festivals` },
-          { id:"news",     label:"📰 News" },
-          { id:"patterns", label:"📊 Patterns" },
-          { id:"velocity", label:"⚡ Velocity" },
+          { id:"alerts",   label:`🚨 ${L("Alerts")} (${allAlerts.length})` },
+          { id:"festivals",label:`🎉 ${L("Festivals")}` },
+          { id:"news",     label:`📰 ${L("News")}` },
+          { id:"patterns", label:`📊 ${L("Patterns")}` },
+          { id:"velocity", label:`⚡ ${L("Velocity")}` },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
@@ -197,10 +202,9 @@ export default function DemandIntelligence() {
           ) : allAlerts.length === 0 ? (
             <div className="card text-center py-10">
               <div className="text-4xl mb-3">✅</div>
-              <div className="text-sm font-medium text-gray-600 mb-1">No urgent alerts right now</div>
+              <div className="text-sm font-medium text-gray-600 mb-1">{L("No urgent alerts right now")}</div>
               <div className="text-xs text-gray-400">
-                No festivals in the next 7 days and no news signals detected.
-                Check the Festivals tab to plan ahead for upcoming events.
+                {L("No festivals in the next 7 days and no news signals detected. Check the Festivals tab to plan ahead for upcoming events.")}
               </div>
             </div>
           ) : allAlerts.map((alert, i) => (
@@ -223,7 +227,7 @@ export default function DemandIntelligence() {
                 {alert.urgent && (
                   <span className="text-[9px] font-bold px-2 py-1 rounded-full flex-shrink-0"
                     style={{ background: alert.color, color: "var(--bg1)" }}>
-                    URGENT
+                    {L("URGENT")}
                   </span>
                 )}
               </div>
@@ -237,28 +241,28 @@ export default function DemandIntelligence() {
         <div className="space-y-3">
           {festivals.length === 0 ? (
             <div className="card text-center py-8 text-gray-400 text-xs">
-              No festivals in the next 45 days
+              {L("No festivals in the next 45 days")}
             </div>
           ) : festivals.map((fest, i) => (
             <div key={i} className="card animate-fade-in" style={{ animationDelay:`${i*0.05}s` }}>
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <div className="text-xs font-semibold text-gray-800">{fest.name}</div>
-                  <div className="text-[10px] text-gray-400">{fest.region}</div>
+                  <div className="text-xs font-semibold text-gray-800">{L(fest.name)}</div>
+                  <div className="text-[10px] text-gray-400">{L(fest.region)}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-bold" style={{ color: urgencyColor(fest.daysAway) }}>
                     {urgencyLabel(fest.daysAway)}
                   </div>
                   <div className="text-[9px] text-gray-400">
-                    {fest.date?.toLocaleDateString("en-IN",{day:"numeric",month:"short"})}
+                    {fest.date?.toLocaleDateString(uiLang(),{day:"numeric",month:"short"})}
                   </div>
                 </div>
               </div>
 
               {/* Demand boost bar */}
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] text-gray-400 w-20">Demand spike</span>
+                <span className="text-[10px] text-gray-400 w-20">{L("Demand spike")}</span>
                 <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all"
                     style={{
@@ -286,7 +290,7 @@ export default function DemandIntelligence() {
                         background: isLow ? "#FCEBEB" : inInv ? "#E1F5EE" : "var(--bg2)",
                         color:      isLow ? "#A32D2D" : inInv ? "#085041" : "var(--ink-faint)",
                       }}>
-                      {isLow ? "⚠ " : inInv ? "✓ " : ""}{p}
+                      {isLow ? "⚠ " : inInv ? "✓ " : ""}{L(p)}
                     </span>
                   )
                 })}
@@ -294,7 +298,7 @@ export default function DemandIntelligence() {
 
               {/* Tip */}
               <div className="text-[10px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">
-                💡 {fest.tip}
+                💡 {L(fest.tip)}
               </div>
             </div>
           ))}
@@ -307,17 +311,16 @@ export default function DemandIntelligence() {
           {newsLoading ? (
             <div className="space-y-3">
               <div className="text-xs text-gray-400 text-center py-2">
-                Checking latest news from India...
+                {L("Checking latest news from India...")}
               </div>
               {[1,2,3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-2xl animate-pulse" />)}
             </div>
           ) : newsAlerts.length === 0 ? (
             <div className="card text-center py-10">
               <div className="text-4xl mb-3">📰</div>
-              <div className="text-sm font-medium text-gray-600 mb-1">No urgent news signals</div>
+              <div className="text-sm font-medium text-gray-600 mb-1">{L("No urgent news signals")}</div>
               <div className="text-xs text-gray-400 max-w-xs mx-auto">
-                No major commodity price changes or weather alerts detected in the last 3 days.
-                Check back daily for updates.
+                {L("No major commodity price changes or weather alerts detected in the last 3 days. Check back daily for updates.")}
               </div>
             </div>
           ) : (
@@ -327,17 +330,17 @@ export default function DemandIntelligence() {
                   <div className="flex items-start gap-3">
                     <div className="text-xl">📰</div>
                     <div className="flex-1">
-                      <div className="text-xs font-semibold text-gray-800 mb-1">{alert.signal}</div>
+                      <div className="text-xs font-semibold text-gray-800 mb-1">{L(alert.signal)}</div>
                       <div className="flex flex-wrap gap-1 mb-2">
                         {alert.products.map(p => (
                           <span key={p} className="text-[10px] px-2 py-0.5 rounded-full"
                             style={{ background: alert.color+"20", color: alert.color }}>
-                            {p}
+                            {L(p)}
                           </span>
                         ))}
                       </div>
                       <div className="text-[10px] text-gray-400">
-                        {alert.count} news articles in last 3 days · Source: Google News India
+                        {Lf("{n} news articles in last 3 days · Source: Google News India", { n: alert.count })}
                       </div>
                     </div>
                   </div>
@@ -347,12 +350,12 @@ export default function DemandIntelligence() {
           )}
 
           <div className="card mt-3 bg-gray-50 border-gray-100">
-            <div className="text-[10px] font-medium text-gray-500 mb-2">How news signals work</div>
+            <div className="text-[10px] font-medium text-gray-500 mb-2">{L("How news signals work")}</div>
             <div className="text-[10px] text-gray-400 space-y-1">
-              <div>• Checks Google News India every time you open this page</div>
-              <div>• Looks for heatwave, flood, price rise, shortage news</div>
-              <div>• If 2+ articles in 3 days → demand spike predicted</div>
-              <div>• Completely free — no API key, no subscription</div>
+              <div>{L("• Checks Google News India every time you open this page")}</div>
+              <div>{L("• Looks for heatwave, flood, price rise, shortage news")}</div>
+              <div>{L("• If 2+ articles in 3 days → demand spike predicted")}</div>
+              <div>{L("• Completely free — no API key, no subscription")}</div>
             </div>
           </div>
         </div>
@@ -363,14 +366,14 @@ export default function DemandIntelligence() {
         <div className="space-y-3">
           <div className="card">
             <div className="text-xs font-medium text-gray-700 mb-3">
-              Products running low — reorder soon
+              {L("Products running low — reorder soon")}
             </div>
             {loading ? (
-              <div className="text-xs text-gray-400">Loading...</div>
+              <div className="text-xs text-gray-400">{L("Loading...")}</div>
             ) : patterns.length === 0 ? (
               <div className="text-center py-6">
                 <div className="text-2xl mb-2">✅</div>
-                <div className="text-xs text-gray-400">All products have healthy stock levels</div>
+                <div className="text-xs text-gray-400">{L("All products have healthy stock levels")}</div>
               </div>
             ) : patterns.map((p, i) => (
               <div key={i} className="flex items-center gap-3 p-3 rounded-xl mb-2"
@@ -379,12 +382,12 @@ export default function DemandIntelligence() {
                 <div className="flex-1">
                   <div className="text-xs font-semibold text-gray-800">{p.name}</div>
                   <div className="text-[10px] text-gray-500">
-                    {p.stock} left · min stock: {p.min}
+                    {Lf("{n} left · min stock: {min}", { n: p.stock, min: p.min })}
                   </div>
                 </div>
                 <div className="text-xs font-bold"
                   style={{ color: p.urgency==="critical" ? "#E24B4A" : "#EF9F27" }}>
-                  {p.urgency==="critical" ? "Order now!" : "Order soon"}
+                  {L(p.urgency==="critical" ? "Order now!" : "Order soon")}
                 </div>
               </div>
             ))}
@@ -392,20 +395,20 @@ export default function DemandIntelligence() {
 
           <div className="card mb-3">
             <div className="text-xs font-medium text-gray-700 mb-3">
-              💡 Pro tip — build seasonal stock habits
+              {L("💡 Pro tip — build seasonal stock habits")}
             </div>
             {SEASONS.map((s, i) => (
               <div key={i} className="mb-3 last:mb-0">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span>{s.icon}</span>
-                  <span className="text-xs font-medium" style={{ color: s.color }}>{s.name}</span>
+                  <span className="text-xs font-medium" style={{ color: s.color }}>{L(s.name)}</span>
                 </div>
-                <div className="text-[10px] text-gray-500 mb-1">{s.tip}</div>
+                <div className="text-[10px] text-gray-500 mb-1">{L(s.tip)}</div>
                 <div className="flex flex-wrap gap-1">
                   {s.products.map(p => (
                     <span key={p} className="text-[10px] px-2 py-0.5 rounded-full"
                       style={{ background: s.color+"15", color: s.color }}>
-                      {p}
+                      {L(p)}
                     </span>
                   ))}
                 </div>
@@ -421,8 +424,8 @@ export default function DemandIntelligence() {
           {!vendor ? (
             <div className="card text-center py-10">
               <div className="text-4xl mb-3">🔒</div>
-              <div className="text-sm font-medium text-gray-600 mb-1">Login required</div>
-              <div className="text-xs text-gray-400">Sales velocity uses your live sales history. Please log in to see this.</div>
+              <div className="text-sm font-medium text-gray-600 mb-1">{L("Login required")}</div>
+              <div className="text-xs text-gray-400">{L("Sales velocity uses your live sales history. Please log in to see this.")}</div>
             </div>
           ) : velLoading ? (
             <div className="space-y-3">
@@ -435,7 +438,7 @@ export default function DemandIntelligence() {
                 <div className="card animate-fade-in"
                   style={{ background:"rgba(232,119,34,0.06)", border:"1.5px solid rgba(232,119,34,0.3)" }}>
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-semibold text-gray-800">🛒 Smart Reorder List</div>
+                    <div className="text-xs font-semibold text-gray-800">{L("🛒 Smart Reorder List")}</div>
                     <span className="text-[9px] font-bold px-2 py-1 rounded-full"
                       style={{ background:"var(--saffron)", color:"#fff" }}>
                       {reorder.count} items
@@ -454,14 +457,14 @@ export default function DemandIntelligence() {
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-semibold text-gray-800 truncate">{item.name}</div>
                           <div className="text-[10px] text-gray-500">
-                            {item.days_of_stock_left != null ? `${item.days_of_stock_left}d left · ` : "Out of stock · "}
-                            Selling {item.daily_rate} {item.unit}/day
+                            {item.days_of_stock_left != null ? `${Lf("{n}d left", { n: item.days_of_stock_left })} · ` : `${L("Out of stock")} · `}
+                            {Lf("Selling {n} {unit}/day", { n: item.daily_rate, unit: item.unit })}
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-xs font-bold"
                             style={{ color: item.urgency === "critical" ? "#c0392b" : "#d97706" }}>
-                            Order {item.suggested_order_qty} {item.unit}
+                            {Lf("Order {n} {unit}", { n: item.suggested_order_qty, unit: item.unit })}
                           </div>
                           {item.estimated_cost > 0 && (
                             <div className="text-[10px] text-gray-400">{INR(item.estimated_cost)}</div>
@@ -475,11 +478,11 @@ export default function DemandIntelligence() {
 
               {/* Velocity list */}
               <div className="card">
-                <div className="text-xs font-medium text-gray-700 mb-3">⚡ Sales Velocity — last 30 days</div>
+                <div className="text-xs font-medium text-gray-700 mb-3">{L("⚡ Sales Velocity — last 30 days")}</div>
                 {velocity.length === 0 ? (
                   <div className="text-center py-6">
                     <div className="text-2xl mb-2">📊</div>
-                    <div className="text-xs text-gray-400">No sales in last 30 days to compute velocity.</div>
+                    <div className="text-xs text-gray-400">{L("No sales in last 30 days to compute velocity.")}</div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -498,14 +501,14 @@ export default function DemandIntelligence() {
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-medium text-gray-800 truncate">{item.name}</span>
                               <span className="text-[10px] text-gray-400 flex-shrink-0 ml-2">
-                                {item.days_until_stockout != null ? `${item.days_until_stockout}d left` : "∞"}
+                                {item.days_until_stockout != null ? Lf("{n}d left", { n: item.days_until_stockout }) : "∞"}
                               </span>
                             </div>
                             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                               <div className="h-full rounded-full transition-all" style={{ width: pct + "%", background: barColor }}/>
                             </div>
                             <div className="text-[10px] text-gray-400 mt-1">
-                              {item.daily_rate} {item.unit}/day · {item.total_qty_30d} sold in 30d · {item.stock} in stock
+                              {Lf("{rate} {unit}/day · {sold} sold in 30d · {stock} in stock", { rate: item.daily_rate, unit: item.unit, sold: item.total_qty_30d, stock: item.stock })}
                             </div>
                           </div>
                         </div>
@@ -518,8 +521,8 @@ export default function DemandIntelligence() {
               {reorder?.count === 0 && (
                 <div className="card text-center py-8">
                   <div className="text-3xl mb-2">✅</div>
-                  <div className="text-xs font-medium text-gray-600">No reorders needed</div>
-                  <div className="text-[10px] text-gray-400 mt-1">All fast-moving products have 7+ days of stock</div>
+                  <div className="text-xs font-medium text-gray-600">{L("No reorders needed")}</div>
+                  <div className="text-[10px] text-gray-400 mt-1">{L("All fast-moving products have 7+ days of stock")}</div>
                 </div>
               )}
             </>
