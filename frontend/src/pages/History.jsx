@@ -411,6 +411,36 @@ export default function History() {
               </div>
             </div>
           </div>
+
+          {/* Why profit is low/negative: products sold below their cost price */}
+          {summary.loss_items?.length > 0 && (
+            <div style={{ background: "var(--ember-bg)", border: "1px solid rgba(192,57,43,0.25)",
+              borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ember)", marginBottom: 2 }}>
+                {L("Sold below buying price")}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--ink-dim)", marginBottom: 10 }}>
+                {L("These products have a buying price higher than the price you sold at. Usually the buying price was entered wrong — fix it and profit corrects itself.")}
+              </div>
+              {summary.loss_items.map(it => (
+                <div key={it.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0",
+                  borderTop: "1px solid rgba(192,57,43,0.15)" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+                      {L("Sold at")} {INR(it.sold_at)} · {L("Buying price")} {INR(it.cost_price)} · {it.qty} {L("sold")}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ember)", whiteSpace: "nowrap" }}>{INR(it.loss)}</div>
+                  <button onClick={() => navigate(`/inventory?q=${encodeURIComponent(it.name)}`)}
+                    className="btn btn-sm" style={{ borderColor: "var(--ember)", color: "var(--ember)" }}>
+                    {L("Fix price")}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 

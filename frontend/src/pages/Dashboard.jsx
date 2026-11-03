@@ -8,6 +8,7 @@ const L = k => tr(k, currentLang())
 // Sentences with numbers: Lf("{n} items running low", { n: 3 })
 const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 import { MIN_FONT_SIZE } from "../styles/textScale"
+import { AnimatedAmount } from "../components/billing/billMotion"
 
 const INR = n => "₹" + (n || 0).toLocaleString("en-IN")
 
@@ -803,7 +804,7 @@ export default function Dashboard() {
               letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>{t("Today's Takings")}</div>
             <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
               fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
-              {loading ? "—" : INR(today.total)}
+              {loading ? "—" : <AnimatedAmount value={Math.round((today.total || 0) * 100) / 100} from={0}/>}
             </div>
 
             {/* Profit clarity row */}
@@ -824,6 +825,16 @@ export default function Dashboard() {
                   </span>
                 </div>
               </div>
+            )}
+            {/* Points straight at the cause when products are sold below their buying price */}
+            {profit?.loss_items?.length > 0 && (
+              <button onClick={() => navigate("/history")}
+                style={{ display:"flex", alignItems:"center", gap:6, marginTop:6, padding:0, border:"none",
+                  background:"none", cursor:"pointer", color:"var(--ember)", fontSize:12, fontWeight:700, textAlign:"left" }}>
+                ⚠ {profit.loss_items.length === 1
+                  ? `${profit.loss_items[0].name} ${t("is sold below its buying price")}`
+                  : `${profit.loss_items.length} ${t("products sold below buying price")}`} · {t("See & fix")} →
+              </button>
             )}
 
             <div style={{ display:"flex", gap:20, marginTop:10, fontSize:12, flexWrap:"wrap" }}>

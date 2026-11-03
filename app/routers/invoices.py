@@ -9,6 +9,7 @@ from app.core.security import get_current_vendor
 from app.core.whatsapp import send_invoice_notification
 from app.schemas.schemas import InvoiceCreate, InvoiceOut, SendInvoiceWhatsAppRequest, MessageResponse
 
+from app.core.profit import bill_profit
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
@@ -202,41 +203,16 @@ async def list_invoices(
             ]
 
         # ── Summary for the full filtered set ───────────────────
-        paid   = [r for r in rows if r.get("status") != "cancelled"]
-        revenue = round(sum(float(r.get("total") or 0) for r in paid), 2)
-        total_bills = len(paid)
-
-        # Profit: use the sales table — sales records always have product_id,
-        # unlike invoice items which may be null for manually-typed entries.
-        sales_q = db.table("sales").select("product_id,qty") \
-            .eq("vendor_id", vendor["id"])
-        if date_from:
-            sales_q = sales_q.gte("sold_at", date_from + "T00:00:00+00:00")
-        if date_to:
-            sales_q = sales_q.lte("sold_at", date_to   + "T23:59:59+00:00")
-        if payment_mode:
-            sales_q = sales_q.eq("payment_mode", payment_mode)
-        sales_rows = sales_q.execute().data or []
-
-        sale_pids = list({s["product_id"] for s in sales_rows if s.get("product_id")})
-        prod_cost: dict = {}
-        if sale_pids:
-            prows = db.table("products").select("id,cost_price") \
-                .in_("id", sale_pids).eq("vendor_id", vendor["id"]).execute().data or []
-            prod_cost = {p["id"]: float(p.get("cost_price") or 0) for p in prows}
-
-        sales_with_cost = sum(1 for s in sales_rows if prod_cost.get(s.get("product_id", ""), 0) > 0)
-        coverage = sales_with_cost / len(sales_rows) if sales_rows else 0
-
-        cost = round(sum(
-            float(s.get("qty") or 0) * prod_cost.get(s.get("product_id", ""), 0)
-            for s in sales_rows
-        ), 2)
-
-        cost_known = coverage > 0
+        # Profit comes from the items of these same bills (see app/core/profit.py), so
+        # cancelled bills, the search box and the date range apply to sales and cost alike.
+        # It used to subtract the cost of every sales-log row in the date range — including
+        # cancelled bills — from the filtered bill total, which showed losses that weren't real.
+        bp = bill_profit(db, vendor["id"], rows)
+        revenue, total_bills = bp["revenue"], bp["bills"]
+        coverage   = bp["cost_coverage"]
+        cost_known = bp["profit"] is not None
         partial    = 0 < coverage < 0.80
-        profit     = round(revenue - cost, 2) if cost_known else None
-        margin_pct = round(profit / revenue * 100, 1) if (cost_known and revenue > 0) else None
+        profit, margin_pct = bp["profit"], bp["margin_pct"]
 
         # Stock value — all active products × cost_price
         sv_rows = db.table("products").select("stock,cost_price") \
@@ -255,6 +231,7 @@ async def list_invoices(
             "cost_coverage": round(coverage * 100, 0),
             "total_bills":   total_bills,
             "stock_value":   stock_value,
+            "loss_items":    bp["loss_items"],
         }
 
         total_count = len(rows)

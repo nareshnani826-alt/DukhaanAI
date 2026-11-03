@@ -5,9 +5,10 @@ import { motion, useMotionValue, useTransform, animate } from "motion/react"
 
 const inr = (v, decimals) => "₹" + v.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 
-// Rupee amount that springs to each new value instead of jumping
-export function AnimatedAmount({ value, style, className }) {
-  const mv = useMotionValue(value)
+// Rupee amount that springs to each new value instead of jumping.
+// Pass from={0} to count up when it first appears (dashboard figures).
+export function AnimatedAmount({ value, from, style, className }) {
+  const mv = useMotionValue(from ?? value)
   const decimals = useMotionValue(Number.isInteger(value) ? 0 : 2)   // whole rupees stay whole while counting
   const text = useTransform(() => inr(decimals.get() ? mv.get() : Math.round(mv.get()), decimals.get()))
   useEffect(() => {

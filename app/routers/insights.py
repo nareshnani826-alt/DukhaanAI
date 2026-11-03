@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.database import get_db
 from app.core.security import get_current_vendor
 
+from app.core.profit import bill_profit
 router = APIRouter(prefix="/insights", tags=["insights"])
 
 
@@ -117,33 +118,18 @@ async def profit_summary(vendor=Depends(get_current_vendor)):
     today_str       = date.today().isoformat()
     month_start_str = date.today().replace(day=1).isoformat()
 
-    products    = db.table("products").select("id,cost_price").eq("vendor_id", vendor["id"]).execute().data or []
-    cost_map    = {p["id"]: float(p.get("cost_price") or 0) for p in products}
-
-    today_sales = (
-        db.table("sales").select("product_id,qty,unit_price")
-        .eq("vendor_id", vendor["id"]).gte("sold_at", f"{today_str}T00:00:00")
+    # From the bills themselves — cancelled bills and GST stay out (see app/core/profit.py)
+    month_bills = (
+        db.table("invoices").select("status,total,items,created_at")
+        .eq("vendor_id", vendor["id"]).gte("created_at", f"{month_start_str}T00:00:00+00:00")
         .execute().data or []
     )
-    month_sales = (
-        db.table("sales").select("product_id,qty,unit_price")
-        .eq("vendor_id", vendor["id"]).gte("sold_at", f"{month_start_str}T00:00:00")
-        .execute().data or []
-    )
-
-    def calc(sales):
-        rev  = sum(float(s.get("unit_price") or 0) * float(s.get("qty") or 0) for s in sales)
-        cost = sum(cost_map.get(s.get("product_id", ""), 0) * float(s.get("qty") or 0) for s in sales)
-        prof = round(rev - cost, 2)
-        mar  = round(prof / rev * 100, 1) if rev > 0 else 0
-        return round(rev, 2), prof, mar
-
-    t_rev, t_prof, t_mar = calc(today_sales)
-    m_rev, m_prof, m_mar = calc(month_sales)
+    t = bill_profit(db, vendor["id"], [b for b in month_bills if (b.get("created_at") or "")[:10] >= today_str])
+    m = bill_profit(db, vendor["id"], month_bills)
 
     return {
-        "today": {"revenue": t_rev, "profit": t_prof, "margin_pct": t_mar},
-        "month": {"revenue": m_rev, "profit": m_prof, "margin_pct": m_mar},
+        "today": {"revenue": t["sales_ex_gst"], "profit": t["profit"] or 0, "margin_pct": t["margin_pct"] or 0},
+        "month": {"revenue": m["sales_ex_gst"], "profit": m["profit"] or 0, "margin_pct": m["margin_pct"] or 0},
     }
 
 
@@ -598,13 +584,6 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
         .eq("vendor_id", vendor["id"]).eq("is_active", True)
         .execute().data or []
     )
-    cost_map = {p["id"]: float(p.get("cost_price") or 0) for p in products}
-
-    today_sales = (
-        db.table("sales").select("product_id,qty,unit_price")
-        .eq("vendor_id", vendor["id"]).gte("sold_at", f"{today_str}T00:00:00")
-        .execute().data or []
-    )
     sales_90d = (
         db.table("sales").select("product_id,qty,sold_at")
         .eq("vendor_id", vendor["id"]).gte("sold_at", f"{since_90_str}T00:00:00")
@@ -636,11 +615,18 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
     dead       = [p for p in products if float(p.get("stock") or 0) > 0 and p["id"] not in sold_30d_ids]
     dead_value = round(sum(float(p.get("stock") or 0) * float(p.get("cost_price") or 0) for p in dead), 2)
 
-    # Today's profit
-    t_rev  = sum(float(s.get("unit_price") or 0) * float(s.get("qty") or 0) for s in today_sales)
-    t_cost = sum(cost_map.get(s.get("product_id", ""), 0) * float(s.get("qty") or 0) for s in today_sales)
-    today_profit = round(t_rev - t_cost, 2)
-    today_margin = round(today_profit / t_rev * 100, 1) if t_rev > 0 else 0
+    # Today's and this month's profit — from the bills themselves, so cancelled bills don't count
+    # (the sales log keeps their rows) and GST isn't mistaken for income. See app/core/profit.py.
+    month_bills = (
+        db.table("invoices").select("status,total,items,created_at")
+        .eq("vendor_id", vendor["id"]).gte("created_at", f"{month_start_str}T00:00:00+00:00")
+        .execute().data or []
+    )
+    t_bp = bill_profit(db, vendor["id"], [b for b in month_bills if (b.get("created_at") or "")[:10] >= today_str])
+    m_bp = bill_profit(db, vendor["id"], month_bills)
+    t_rev        = t_bp["sales_ex_gst"]
+    today_profit = t_bp["profit"] or 0
+    today_margin = t_bp["margin_pct"] or 0
 
     # EWMA velocity — stockout predictions
     daily_maps  = build_daily_map(sales_90d, today, lookback_days=90)
@@ -680,6 +666,9 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
             "today":         today_profit,
             "today_revenue": round(t_rev, 2),
             "margin_pct":    today_margin,
+            "month":         {"revenue": m_bp["sales_ex_gst"], "profit": m_bp["profit"] or 0,
+                              "margin_pct": m_bp["margin_pct"] or 0},
+            "loss_items":    m_bp["loss_items"],   # this month
         },
         "stock_value":    stock_value,
         "total_products": len(products),
