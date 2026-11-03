@@ -286,8 +286,9 @@ input, select, textarea, button {
     min-width: 0; width: 100%;
     -webkit-overflow-scrolling: touch;
   }
-  /* app-main scrolls on mobile, so let the page wrapper grow with its content */
-  .page-transition { min-height: auto; }
+  /* The wrapper stays screen-height (min-height:0 above) so pages with their own
+     bottom bar — Billing's Pay bar — keep it on screen. Taller pages simply
+     overflow it and app-main scrolls as before. */
 
   /* Layout top bar — not sticky on mobile, pages have their own headers */
   .mobile-header {
