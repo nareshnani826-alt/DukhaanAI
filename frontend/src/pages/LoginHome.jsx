@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { isTokenValid, clearAuth } from "../sync/db"
 import { tr } from "../i18n/kiranaStrings"
+import HomeSections from "../components/HomeSections"
 
 // Language is picked during onboarding, before this page is ever shown
 // (see FirstRunGuard in App.jsx), so it's already in localStorage here.
@@ -1402,6 +1403,30 @@ export default function LoginHome() {
   function handleAuthSuccess(mods) { setAllowedMods(mods || ["kirana"]); setPhase("pick") }
   function handleLocalMode()       { setAllowedMods(["kirana","bangle_fancy"]); setPhase("pick") }
   function handlePick(m)           { localStorage.setItem("storeMode", m.id); navigate(m.route, { replace:true }) }
+
+  // Website visitors get the full marketing homepage around the same sign-in card;
+  // the Android app keeps the focused login screen below.
+  if (!window.Capacitor?.isNativePlatform?.()) {
+    return (
+      <>
+        <HomeSections formCard={
+          <div className="lh-form-card" style={{ width:"100%", background:"#fff", borderRadius:22,
+            padding:"32px 28px",
+            boxShadow:"0 12px 48px rgba(180,100,20,0.15), 0 2px 8px rgba(0,0,0,0.06)",
+            border:"1px solid rgba(232,119,34,0.12)" }}>
+            {phase === "auth" && <AuthForm onSuccess={handleAuthSuccess} onLocalMode={handleLocalMode} />}
+            {phase === "pick" && <ModulePicker allowedModules={allowedMods} onPick={handlePick} />}
+          </div>
+        }/>
+        <style>{`
+          input, select, textarea { font-size: 16px !important; }
+          @media (max-width: 640px) { .lh-form-card { padding: 24px 18px !important; } }
+          html, body { height: 100%; overflow: hidden; }
+          #root      { height: 100%; overflow: auto; }
+        `}</style>
+      </>
+    )
+  }
 
   return (
     <div style={{ display:"flex", minHeight:"100dvh" }}>
