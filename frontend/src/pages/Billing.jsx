@@ -968,7 +968,8 @@ Thank you for shopping! 🙏`
         {notif && (
           <div style={{ position:"fixed", bottom:180, left:"50%", transform:"translateX(-50%)", zIndex:300,
             background: notif.startsWith("✓") || notif.startsWith("🎤") ? "var(--jade)" : "#b45309",
-            color:"#fff", padding:"12px 20px", borderRadius:999, fontSize:16, fontWeight:800, maxWidth:"92vw", pointerEvents:"none" }}>
+            color:"#fff", padding:"9px 16px", borderRadius:999, fontSize:14, fontWeight:800, maxWidth:"86vw", pointerEvents:"none",
+            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", boxShadow:"0 4px 16px rgba(0,0,0,0.18)" }}>
             {notif}
           </div>
         )}
@@ -1007,50 +1008,54 @@ Thank you for shopping! 🙏`
           </motion.div>
         )}
 
-        {/* Top: speak + scan, and the switch back */}
-        <div style={{ padding:"10px 12px 6px", display:"flex", gap:10, flexShrink:0 }}>
-          <button onClick={voiceActive ? undefined : startVoiceSearch}
-            style={{ flex:1, height:64, borderRadius:18, fontSize:20, fontWeight:900, cursor:"pointer",
-              border: voiceActive ? "3px solid #dc2626" : "2px solid var(--rule)",
-              background: voiceActive ? "#fee2e2" : "var(--bg2)", color: voiceActive ? "#b91c1c" : "var(--ink)" }}>
-            🎤 {voiceActive ? "…" : L("Speak")}
-          </button>
-          <button onClick={() => setScanner(true)}
-            style={{ flex:1, height:64, borderRadius:18, border:"none", fontSize:20, fontWeight:900, cursor:"pointer",
-              color:"#fff", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))" }}>
-            📷 {L("Scan")}
-          </button>
-        </div>
-        <div style={{ padding:"0 14px 6px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
-          <span style={{ fontSize:13, color:"var(--ink-faint)", fontWeight:700 }}>{L("Tap a picture to add")}</span>
-          <button onClick={() => switchBillMode("default")}
-            style={{ background:"none", border:"none", color:"var(--saffron)", fontSize:13, fontWeight:800, cursor:"pointer" }}>
-            {L("Full mode")} ⇄
-          </button>
-        </div>
-
-        {/* Find: type a name, or pick a category */}
-        <div style={{ padding:"0 12px 8px", flexShrink:0 }}>
-          <div style={{ position:"relative", marginBottom:8 }}>
+        {/* One row: search + Speak + Scan (stacked rows left only a third of a phone screen for products) */}
+        <div style={{ padding:"8px 12px 6px", display:"flex", gap:8, alignItems:"stretch", flexShrink:0 }}>
+          <div style={{ position:"relative", flex:1, minWidth:0 }}>
             <input value={easyQ} onChange={e => setEasyQ(e.target.value)} placeholder={"🔍 " + L("Search item…")}
-              className="input" style={{ width:"100%", fontSize:18, padding:"12px 48px 12px 14px", borderRadius:14 }} />
+              className="input" style={{ width:"100%", height:52, fontSize:17, padding:"0 44px 0 14px", borderRadius:14 }} />
             {easyQ && (
               <button onClick={() => setEasyQ("")} aria-label="Clear search"
-                style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", width:40, height:40,
-                  borderRadius:10, border:"none", background:"var(--bg2)", fontSize:18, color:"var(--ink-dim)" }}>✕</button>
+                style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", width:36, height:36,
+                  borderRadius:10, border:"none", background:"var(--bg2)", fontSize:16, color:"var(--ink-dim)" }}>✕</button>
             )}
           </div>
-          <div style={{ display:"flex", gap:8, overflowX:"auto", scrollbarWidth:"none" }}>
-            {cats.map(c => (
-              <button key={c} onClick={() => setCatFilter(c)}
-                style={{ padding:"10px 16px", borderRadius:22, border:"none", cursor:"pointer", flexShrink:0,
-                  fontSize:15, fontWeight:800,
-                  background: catFilter === c ? "var(--saffron)" : "var(--bg2)",
-                  color:      catFilter === c ? "#fff" : "var(--ink-dim)" }}>
-                {c === "Frequent" ? "⭐ " + L("All") : L(c)}
-              </button>
-            ))}
-          </div>
+          <motion.button whileTap={{ scale:0.94 }} onClick={voiceActive ? undefined : startVoiceSearch} aria-label={L("Speak")}
+            style={{ width:60, height:52, borderRadius:14, cursor:"pointer", flexShrink:0,
+              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
+              border: voiceActive ? "2.5px solid #dc2626" : "1.5px solid var(--rule)",
+              background: voiceActive ? "#fee2e2" : "var(--bg2)", color: voiceActive ? "#b91c1c" : "var(--ink)",
+              animation: voiceActive ? "micPulse 1s infinite" : "none" }}>
+            <BillIcon name="mic" size={20}/>
+            <span style={{ fontSize:11, fontWeight:800 }}>{voiceActive ? "…" : L("Speak")}</span>
+          </motion.button>
+          <motion.button whileTap={{ scale:0.94 }} onClick={() => setScanner(true)} aria-label={L("Scan")}
+            style={{ width:60, height:52, borderRadius:14, border:"none", cursor:"pointer", flexShrink:0, color:"#fff",
+              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
+              background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))", boxShadow:"0 4px 12px rgba(232,119,34,0.3)" }}>
+            <BillIcon name="scan" size={20}/>
+            <span style={{ fontSize:11, fontWeight:800 }}>{L("Scan")}</span>
+          </motion.button>
+        </div>
+
+        {/* Categories, with the switch to Full mode at the end */}
+        <div style={{ padding:"0 12px 8px", display:"flex", gap:6, overflowX:"auto", scrollbarWidth:"none", flexShrink:0 }}>
+          {cats.map(c => (
+            <button key={c} onClick={() => setCatFilter(c)}
+              style={{ position:"relative", padding:"8px 14px", borderRadius:20, border:"none", cursor:"pointer", flexShrink:0,
+                fontSize:14, fontWeight:800, background: catFilter === c ? "transparent" : "var(--bg2)",
+                color: catFilter === c ? "#fff" : "var(--ink-dim)" }}>
+              {catFilter === c && (
+                <motion.span layoutId="easy-cat-pill" transition={{ type:"spring", bounce:0.2, visualDuration:0.3 }}
+                  style={{ position:"absolute", inset:0, borderRadius:20, background:"var(--saffron)" }}/>
+              )}
+              <span style={{ position:"relative" }}>{c === "Frequent" ? "⭐ " + L("All") : L(c)}</span>
+            </button>
+          ))}
+          <button onClick={() => switchBillMode("default")}
+            style={{ padding:"8px 12px", borderRadius:20, border:"1.5px dashed var(--saffron)", background:"transparent",
+              color:"var(--saffron)", fontSize:13, fontWeight:800, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>
+            {L("Full mode")} ⇄
+          </button>
         </div>
 
         {/* Pictures */}
@@ -1095,19 +1100,21 @@ Thank you for shopping! 🙏`
         </div>
 
         {/* Total + PAID */}
-        <div style={{ flexShrink:0, background:"var(--bg2)", borderTop:"1px solid var(--rule)", padding:"10px 12px",
-          display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{ flexShrink:0, background:"var(--bg2)", borderTop:"1px solid var(--rule)", padding:"8px 12px",
+          display:"flex", alignItems:"center", gap:8 }}>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:14, color:"var(--ink-dim)", fontWeight:800 }}>{count} {L("items")}</div>
-            <div style={{ fontSize:32, fontWeight:900, color:"var(--ink)", lineHeight:1.05 }}>₹{grandTotal}</div>
+            <div style={{ fontSize:13, color:"var(--ink-dim)", fontWeight:800 }}>{count} {L(count === 1 ? "item" : "items")}</div>
+            <div style={{ fontSize:26, fontWeight:900, color:"var(--ink)", lineHeight:1.05, whiteSpace:"nowrap" }}>
+              <AnimatedAmount value={grandTotal}/>
+            </div>
           </div>
           {count > 0 && (
             <button onClick={clearBill} aria-label={L("Clear")}
-              style={{ width:58, height:72, borderRadius:16, border:"1.5px solid rgba(192,57,43,0.3)", background:"var(--ember-bg)",
-                color:"var(--ember)", fontSize:24, fontWeight:900 }}>✕</button>
+              style={{ width:52, height:58, borderRadius:14, border:"1.5px solid rgba(192,57,43,0.3)", background:"var(--ember-bg)",
+                color:"var(--ember)", display:"flex", alignItems:"center", justifyContent:"center" }}><BillIcon name="x" size={22}/></button>
           )}
           <button onClick={finishEasyBill} disabled={saving || count === 0}
-            style={{ flex:1.4, height:72, borderRadius:18, border:"none", fontSize:24, fontWeight:900, color:"#fff",
+            style={{ flex:1.4, height:58, borderRadius:16, border:"none", fontSize:22, fontWeight:900, color:"#fff",
               background: count ? "linear-gradient(135deg,#16a34a,#15803d)" : "var(--rule)", opacity: saving ? 0.7 : 1,
               boxShadow: count ? "0 8px 20px rgba(22,163,74,0.35)" : "none" }}>
             {saving ? "…" : "✅ " + L("PAID")}
