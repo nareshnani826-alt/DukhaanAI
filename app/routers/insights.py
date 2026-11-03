@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.database import get_db
 from app.core.security import get_current_vendor
 
+from concurrent.futures import ThreadPoolExecutor
 from app.core.profit import bill_profit
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -112,7 +113,7 @@ def day_of_week_multiplier(day_map: dict, today: date, lookback: int = 90) -> fl
 # ══════════════════════════════════════════════════════════════
 
 @router.get("/profit")
-async def profit_summary(vendor=Depends(get_current_vendor)):
+def profit_summary(vendor=Depends(get_current_vendor)):
     """Today's and this month's gross profit based on cost_price."""
     db = get_db()
     today_str       = date.today().isoformat()
@@ -134,7 +135,7 @@ async def profit_summary(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/dead-stock")
-async def dead_stock(
+def dead_stock(
     days: int = Query(30, ge=7, le=90),
     vendor=Depends(get_current_vendor),
 ):
@@ -170,7 +171,7 @@ async def dead_stock(
 
 
 @router.get("/velocity")
-async def sales_velocity(vendor=Depends(get_current_vendor)):
+def sales_velocity(vendor=Depends(get_current_vendor)):
     """
     Daily sales rate per product + predicted days until stockout.
     Uses EWMA (recent days weighted higher) + day-of-week multiplier.
@@ -224,7 +225,7 @@ async def sales_velocity(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/reorder")
-async def reorder_suggestions(
+def reorder_suggestions(
     days_cover: int = Query(7, ge=1, le=30),
     vendor=Depends(get_current_vendor),
 ):
@@ -295,7 +296,7 @@ async def reorder_suggestions(
 
 
 @router.get("/margin-alerts")
-async def margin_alerts(
+def margin_alerts(
     threshold: float = Query(10.0),
     vendor=Depends(get_current_vendor),
 ):
@@ -322,7 +323,7 @@ async def margin_alerts(
 
 
 @router.get("/leakage")
-async def leakage_detection(vendor=Depends(get_current_vendor)):
+def leakage_detection(vendor=Depends(get_current_vendor)):
     """Stolen wastage records + products with high unexplained loss in last 30 days."""
     db    = get_db()
     since = (date.today() - timedelta(days=30)).isoformat()
@@ -368,7 +369,7 @@ async def leakage_detection(vendor=Depends(get_current_vendor)):
 # ══════════════════════════════════════════════════════════════
 
 @router.get("/churn")
-async def customer_churn(vendor=Depends(get_current_vendor)):
+def customer_churn(vendor=Depends(get_current_vendor)):
     """
     Customers who are overdue for a visit based on their historical visit frequency.
     Uses average inter-visit gap to flag at-risk regulars.
@@ -425,7 +426,7 @@ async def customer_churn(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/wastage-anomaly")
-async def wastage_anomaly(vendor=Depends(get_current_vendor)):
+def wastage_anomaly(vendor=Depends(get_current_vendor)):
     """
     Detect products with abnormally high wastage this week using z-score.
     z > 2.0 = warning, z > 3.0 = critical (statistically unusual loss).
@@ -489,7 +490,7 @@ async def wastage_anomaly(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/min-stock-suggestions")
-async def min_stock_suggestions(vendor=Depends(get_current_vendor)):
+def min_stock_suggestions(vendor=Depends(get_current_vendor)):
     """
     Suggest better min_stock thresholds based on 90-day peak demand.
     Uses 75th-percentile weekly demand so the buffer covers busy weeks, not just average.
@@ -569,7 +570,7 @@ async def min_stock_suggestions(vendor=Depends(get_current_vendor)):
 # ══════════════════════════════════════════════════════════════
 
 @router.get("/briefing")
-async def morning_briefing(vendor=Depends(get_current_vendor)):
+def morning_briefing(vendor=Depends(get_current_vendor)):
     """All-in-one morning intelligence card — now includes festival boost + churn signals."""
     db    = get_db()
     today = date.today()
@@ -579,28 +580,27 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
     since_90_str    = (today - timedelta(days=90)).isoformat()
     month_start_str = today.replace(day=1).isoformat()
 
-    products = (
-        db.table("products").select("id,name,stock,min_stock,unit,cost_price,mrp,category")
-        .eq("vendor_id", vendor["id"]).eq("is_active", True)
-        .execute().data or []
-    )
-    sales_90d = (
-        db.table("sales").select("product_id,qty,sold_at")
-        .eq("vendor_id", vendor["id"]).gte("sold_at", f"{since_90_str}T00:00:00")
-        .execute().data or []
-    )
-    udhar_top = (
-        db.table("udhar_customers").select("name,total_due")
-        .eq("vendor_id", vendor["id"]).gt("total_due", 0)
-        .order("total_due", desc=True).limit(5)
-        .execute().data or []
-    )
-    udhar_collected_today = (
-        db.table("udhar_transactions").select("amount")
-        .eq("vendor_id", vendor["id"]).eq("type", "payment")
-        .gte("created_at", f"{today_str}T00:00:00")
-        .execute().data or []
-    )
+    # The five reads don't depend on each other: run them side by side instead of paying
+    # the database round trip five times in a row
+    vid = vendor["id"]
+    reads = {
+        "products": lambda: db.table("products").select("id,name,stock,min_stock,unit,cost_price,mrp,category")
+            .eq("vendor_id", vid).eq("is_active", True).execute().data or [],
+        "sales_90d": lambda: db.table("sales").select("product_id,qty,sold_at")
+            .eq("vendor_id", vid).gte("sold_at", f"{since_90_str}T00:00:00").execute().data or [],
+        "udhar_top": lambda: db.table("udhar_customers").select("name,total_due")
+            .eq("vendor_id", vid).gt("total_due", 0).order("total_due", desc=True).limit(5).execute().data or [],
+        "udhar_collected_today": lambda: db.table("udhar_transactions").select("amount")
+            .eq("vendor_id", vid).eq("type", "payment").gte("created_at", f"{today_str}T00:00:00").execute().data or [],
+        "month_bills": lambda: db.table("invoices").select("status,total,items,created_at")
+            .eq("vendor_id", vid).gte("created_at", f"{month_start_str}T00:00:00+00:00").execute().data or [],
+    }
+    with ThreadPoolExecutor(max_workers=len(reads)) as pool:
+        futures = {k: pool.submit(fn) for k, fn in reads.items()}
+        got = {k: f.result() for k, f in futures.items()}
+    products, sales_90d = got["products"], got["sales_90d"]
+    udhar_top, udhar_collected_today, month_bills = got["udhar_top"], got["udhar_collected_today"], got["month_bills"]
+    cost_of = {str(p["id"]): float(p.get("cost_price") or 0) for p in products}
 
     # Stock health
     low_stock    = [p for p in products if 0 < float(p.get("stock") or 0) < float(p.get("min_stock") or 0)]
@@ -617,13 +617,8 @@ async def morning_briefing(vendor=Depends(get_current_vendor)):
 
     # Today's and this month's profit — from the bills themselves, so cancelled bills don't count
     # (the sales log keeps their rows) and GST isn't mistaken for income. See app/core/profit.py.
-    month_bills = (
-        db.table("invoices").select("status,total,items,created_at")
-        .eq("vendor_id", vendor["id"]).gte("created_at", f"{month_start_str}T00:00:00+00:00")
-        .execute().data or []
-    )
-    t_bp = bill_profit(db, vendor["id"], [b for b in month_bills if (b.get("created_at") or "")[:10] >= today_str])
-    m_bp = bill_profit(db, vendor["id"], month_bills)
+    t_bp = bill_profit(db, vid, [b for b in month_bills if (b.get("created_at") or "")[:10] >= today_str], cost_of)
+    m_bp = bill_profit(db, vid, month_bills, cost_of)
     t_rev        = t_bp["sales_ex_gst"]
     today_profit = t_bp["profit"] or 0
     today_margin = t_bp["margin_pct"] or 0

@@ -59,7 +59,7 @@ async def list_products(
 
 
 @router.post("", response_model=ProductOut, status_code=201)
-async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)):
+def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
     if body.sku:
         existing = (
@@ -82,7 +82,7 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
 
 
 @router.post("/bulk", response_model=BulkImportResponse)
-async def bulk_import_products(body: BulkImportRequest, vendor=Depends(get_current_vendor)):
+def bulk_import_products(body: BulkImportRequest, vendor=Depends(get_current_vendor)):
     """Upsert products in bulk: adds new ones, adds to stock of existing ones (matched by name)."""
     db = get_db()
     existing_rows = (
@@ -132,7 +132,7 @@ async def low_stock_alerts(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/count")
-async def count_products(vendor=Depends(get_current_vendor)):
+def count_products(vendor=Depends(get_current_vendor)):
     """Lightweight count — avoids fetching full product list just for a number."""
     result = (
         get_db().table("products")
@@ -145,7 +145,7 @@ async def count_products(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/categories")
-async def list_categories(vendor=Depends(get_current_vendor)):
+def list_categories(vendor=Depends(get_current_vendor)):
     db = get_db()
     result = (
         db.table("products")
@@ -183,7 +183,7 @@ If you cannot identify this specific barcode, return: {{"name": "", "brand": "",
 
 
 @router.get("/{product_id}", response_model=ProductOut)
-async def get_product(product_id: str, vendor=Depends(get_current_vendor)):
+def get_product(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     result = (
         db.table("products")
@@ -198,7 +198,7 @@ async def get_product(product_id: str, vendor=Depends(get_current_vendor)):
 
 
 @router.patch("/{product_id}", response_model=ProductOut)
-async def update_product(
+def update_product(
     product_id: str, body: ProductUpdate, vendor=Depends(get_current_vendor)
 ):
     db = get_db()
@@ -222,7 +222,7 @@ async def update_product(
 
 
 @router.delete("/{product_id}", response_model=MessageResponse)
-async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
+def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     existing = (
         db.table("products")
@@ -240,7 +240,7 @@ async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
 
 
 @router.post("/{product_id}/adjust-stock", response_model=ProductOut)
-async def adjust_stock(
+def adjust_stock(
     product_id: str,
     adjustment: float = Query(..., description="Positive = add stock, negative = remove"),
     reason: str = Query("manual adjustment"),

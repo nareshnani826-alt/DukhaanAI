@@ -122,7 +122,7 @@ class ScanImageRequest(BaseModel):
 # ── Suppliers ─────────────────────────────────────────────────
 
 @router.get("/suppliers")
-async def list_suppliers(vendor=Depends(get_current_vendor)):
+def list_suppliers(vendor=Depends(get_current_vendor)):
     db = get_db()
     return (
         db.table("bangle_suppliers")
@@ -135,7 +135,7 @@ async def list_suppliers(vendor=Depends(get_current_vendor)):
 
 
 @router.post("/suppliers", status_code=201)
-async def create_supplier(body: SupplierCreate, vendor=Depends(get_current_vendor)):
+def create_supplier(body: SupplierCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
     return db.table("bangle_suppliers").insert({
         "vendor_id": vendor["id"],
@@ -147,7 +147,7 @@ async def create_supplier(body: SupplierCreate, vendor=Depends(get_current_vendo
 
 
 @router.patch("/suppliers/{supplier_id}")
-async def update_supplier(supplier_id: str, body: SupplierUpdate, vendor=Depends(get_current_vendor)):
+def update_supplier(supplier_id: str, body: SupplierUpdate, vendor=Depends(get_current_vendor)):
     db = get_db()
     updates = body.model_dump(exclude_none=True)
     if not updates:
@@ -160,7 +160,7 @@ async def update_supplier(supplier_id: str, body: SupplierUpdate, vendor=Depends
 
 
 @router.delete("/suppliers/{supplier_id}")
-async def delete_supplier(supplier_id: str, vendor=Depends(get_current_vendor)):
+def delete_supplier(supplier_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     db.table("bangle_suppliers").update({"is_active": False}) \
         .eq("id", supplier_id).eq("vendor_id", vendor["id"]).execute()
@@ -266,7 +266,7 @@ async def create_product(body: ProductCreate, vendor=Depends(get_current_vendor)
 
 
 @router.patch("/products/{product_id}")
-async def update_product(product_id: str, body: ProductUpdate, vendor=Depends(get_current_vendor)):
+def update_product(product_id: str, body: ProductUpdate, vendor=Depends(get_current_vendor)):
     db = get_db()
     updates = body.model_dump(exclude_none=True)
     if not updates:
@@ -296,7 +296,7 @@ async def update_product(product_id: str, body: ProductUpdate, vendor=Depends(ge
 
 
 @router.delete("/products/{product_id}")
-async def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
+def delete_product(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     db.table("bangle_products").update({"is_active": False}).eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
     _bust_bangle(vendor["id"])
@@ -497,7 +497,7 @@ async def upload_product_image(
 
 
 @router.delete("/products/{product_id}/image")
-async def delete_product_image(product_id: str, vendor=Depends(get_current_vendor)):
+def delete_product_image(product_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     existing = (
         db.table("bangle_products")
@@ -524,7 +524,7 @@ async def delete_product_image(product_id: str, vendor=Depends(get_current_vendo
 # doesn't shadow it with the shorter path pattern.
 
 @router.post("/products/{product_id}/variants/bulk", status_code=201)
-async def bulk_create_variants(product_id: str, body: BulkVariantCreate, vendor=Depends(get_current_vendor)):
+def bulk_create_variants(product_id: str, body: BulkVariantCreate, vendor=Depends(get_current_vendor)):
     """Create variants from a colour × size × design matrix."""
     db = get_db()
     p = db.table("bangle_products").select("id").eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
@@ -557,7 +557,7 @@ async def bulk_create_variants(product_id: str, body: BulkVariantCreate, vendor=
 
 
 @router.post("/products/{product_id}/variants", status_code=201)
-async def add_variant(product_id: str, body: VariantCreate, vendor=Depends(get_current_vendor)):
+def add_variant(product_id: str, body: VariantCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
     p = db.table("bangle_products").select("id").eq("id", product_id).eq("vendor_id", vendor["id"]).execute()
     if not p.data:
@@ -579,7 +579,7 @@ async def add_variant(product_id: str, body: VariantCreate, vendor=Depends(get_c
 
 
 @router.patch("/variants/{variant_id}")
-async def update_variant(variant_id: str, body: VariantUpdate, vendor=Depends(get_current_vendor)):
+def update_variant(variant_id: str, body: VariantUpdate, vendor=Depends(get_current_vendor)):
     db = get_db()
     updates = body.model_dump(exclude_none=True)
     if not updates:
@@ -598,7 +598,7 @@ async def update_variant(variant_id: str, body: VariantUpdate, vendor=Depends(ge
 
 
 @router.get("/variants/low-stock")
-async def bangle_low_stock_variants(vendor=Depends(get_current_vendor)):
+def bangle_low_stock_variants(vendor=Depends(get_current_vendor)):
     """All active variants with stock < min_stock, joined with product name."""
     db = get_db()
     variants = (
@@ -628,7 +628,7 @@ async def bangle_low_stock_variants(vendor=Depends(get_current_vendor)):
 
 
 @router.patch("/variants/{variant_id}/stock")
-async def adjust_variant_stock(
+def adjust_variant_stock(
     variant_id: str,
     adjustment: float = Query(..., description="Positive = add, negative = remove"),
     reason: str = Query("manual update"),
@@ -647,7 +647,7 @@ async def adjust_variant_stock(
 
 
 @router.delete("/variants/{variant_id}")
-async def delete_variant(variant_id: str, vendor=Depends(get_current_vendor)):
+def delete_variant(variant_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     db.table("bangle_variants").update({"is_active": False}).eq("id", variant_id).eq("vendor_id", vendor["id"]).execute()
     _bust_bangle(vendor["id"])
@@ -680,7 +680,7 @@ class BulkImportBody(BaseModel):
 
 
 @router.post("/products/bulk")
-async def bulk_import_products(body: BulkImportBody, vendor=Depends(get_current_vendor)):
+def bulk_import_products(body: BulkImportBody, vendor=Depends(get_current_vendor)):
     """Bulk-import bangle products with variants. Rows with the same name share one product."""
     db = get_db()
     existing = (
@@ -746,7 +746,7 @@ class BulkRestockBody(BaseModel):
 
 
 @router.post("/variants/bulk-restock")
-async def bulk_restock_variants(body: BulkRestockBody, vendor=Depends(get_current_vendor)):
+def bulk_restock_variants(body: BulkRestockBody, vendor=Depends(get_current_vendor)):
     """Set or add stock for multiple variants in one call."""
     db = get_db()
     updated = failed = 0
@@ -787,7 +787,7 @@ async def bulk_restock_variants(body: BulkRestockBody, vendor=Depends(get_curren
 # ── Stock summary ─────────────────────────────────────────────
 
 @router.get("/stock-summary")
-async def stock_summary(vendor=Depends(get_current_vendor)):
+def stock_summary(vendor=Depends(get_current_vendor)):
     db = get_db()
     variants = (
         db.table("bangle_variants")
@@ -861,7 +861,7 @@ class SaleCreate(BaseModel):
 # ── Sales routes ──────────────────────────────────────────────
 
 @router.post("/sales", status_code=201)
-async def create_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
+def create_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
     if not body.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
@@ -897,7 +897,7 @@ async def create_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
 
 
 @router.get("/sales/today")
-async def today_summary(vendor=Depends(get_current_vendor)):
+def today_summary(vendor=Depends(get_current_vendor)):
     db   = get_db()
     today = date_type.today().isoformat()
     sales = (
@@ -1076,7 +1076,7 @@ async def list_sales(
 
 
 @router.get("/sales/public/{sale_id}")
-async def get_public_sale(sale_id: str):
+def get_public_sale(sale_id: str):
     """
     Unauthenticated bill view for customers — linked from the WhatsApp
     bill notification. Same trust model as invoices.py's public endpoint:
@@ -1159,7 +1159,7 @@ async def send_sale_whatsapp(
 
 
 @router.get("/sales/{sale_id}")
-async def get_sale(sale_id: str, vendor=Depends(get_current_vendor)):
+def get_sale(sale_id: str, vendor=Depends(get_current_vendor)):
     db  = get_db()
     row = db.table("bangle_sales").select("*") \
         .eq("id", sale_id).eq("vendor_id", vendor["id"]).execute()
@@ -1173,7 +1173,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 @router.get("/insights/velocity")
-async def bangle_velocity(
+def bangle_velocity(
     days: int = Query(30, ge=7, le=90),
     vendor=Depends(get_current_vendor),
 ):
@@ -1208,7 +1208,7 @@ async def bangle_velocity(
 
 
 @router.get("/insights/dead-stock")
-async def bangle_dead_stock(
+def bangle_dead_stock(
     days: int = Query(30, ge=7, le=90),
     vendor=Depends(get_current_vendor),
 ):
@@ -1264,7 +1264,7 @@ async def bangle_dead_stock(
 
 
 @router.get("/insights/profit")
-async def bangle_profit(vendor=Depends(get_current_vendor)):
+def bangle_profit(vendor=Depends(get_current_vendor)):
     """Today and month-to-date profit from bangle sales."""
     db    = get_db()
     today = date_type.today()
@@ -1332,7 +1332,7 @@ async def bangle_profit(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/insights/category-breakdown")
-async def category_breakdown(
+def category_breakdown(
     period: str = Query("month", pattern="^(today|week|month)$"),
     vendor=Depends(get_current_vendor),
 ):
@@ -1386,7 +1386,7 @@ async def category_breakdown(
 
 
 @router.get("/insights/briefing")
-async def bangle_briefing(vendor=Depends(get_current_vendor)):
+def bangle_briefing(vendor=Depends(get_current_vendor)):
     """All-in-one daily briefing card for bangle store dashboard."""
     db    = get_db()
     today = date_type.today()
@@ -1505,7 +1505,7 @@ def _top_n(counter: dict, n: int) -> list:
 
 
 @router.get("/trends/community")
-async def community_trends(
+def community_trends(
     days: int = Query(7, ge=1, le=30),
     vendor=Depends(get_current_vendor),
 ):
@@ -1555,7 +1555,7 @@ async def community_trends(
 # ── Smart Reorder Analysis ────────────────────────────────────
 
 @router.get("/reorder-analysis")
-async def reorder_analysis(
+def reorder_analysis(
     days:           int = Query(30, ge=7, le=90),
     threshold_days: int = Query(7, ge=1, le=30),
     vendor=Depends(get_current_vendor),

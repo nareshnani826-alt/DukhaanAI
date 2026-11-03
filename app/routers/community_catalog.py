@@ -18,7 +18,7 @@ class ContributeProduct(BaseModel):
 
 
 @router.get("/search")
-async def search(q: str = Query(..., min_length=2)):
+def search(q: str = Query(..., min_length=2)):
     db = get_db()
     results = db.table("community_products")\
         .select("*")\
@@ -30,7 +30,7 @@ async def search(q: str = Query(..., min_length=2)):
 
 
 @router.get("/trending")
-async def trending():
+def trending():
     db = get_db()
     results = db.table("community_products")\
         .select("*")\
@@ -40,7 +40,7 @@ async def trending():
 
 
 @router.post("/contribute")
-async def contribute(body: ContributeProduct, vendor=Depends(get_current_vendor)):
+def contribute(body: ContributeProduct, vendor=Depends(get_current_vendor)):
     db = get_db()
     try:
         # Check if already exists

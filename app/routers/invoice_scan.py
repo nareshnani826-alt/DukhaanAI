@@ -1150,7 +1150,7 @@ class ApplyPayload(BaseModel):
 
 
 @router.post("/apply")
-async def apply_invoice(
+def apply_invoice(
     body:      ApplyPayload,
     vendor_id: str = Depends(_require_vendor),
 ):
@@ -1316,7 +1316,7 @@ class BangleApplyPayload(BaseModel):
 
 
 @router.post("/apply-bangle")
-async def apply_invoice_bangle(
+def apply_invoice_bangle(
     body:      BangleApplyPayload,
     vendor_id: str = Depends(_require_vendor),
 ):

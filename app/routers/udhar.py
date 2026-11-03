@@ -27,7 +27,7 @@ class TransactionCreate(BaseModel):
 # ── Customers ─────────────────────────────────────────────
 
 @router.get("/customers")
-async def list_customers(
+def list_customers(
     search: Optional[str] = Query(None),
     vendor=Depends(get_current_vendor),
 ):
@@ -45,7 +45,7 @@ async def list_customers(
 
 
 @router.post("/customers", status_code=201)
-async def add_customer(body: CustomerCreate, vendor=Depends(get_current_vendor)):
+def add_customer(body: CustomerCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
     result = db.table("udhar_customers").insert({
         "vendor_id": vendor["id"],
@@ -58,7 +58,7 @@ async def add_customer(body: CustomerCreate, vendor=Depends(get_current_vendor))
 
 
 @router.delete("/customers/{customer_id}")
-async def delete_customer(customer_id: str, vendor=Depends(get_current_vendor)):
+def delete_customer(customer_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     existing = db.table("udhar_customers").select("id")\
         .eq("id", customer_id).eq("vendor_id", vendor["id"]).execute()
@@ -72,7 +72,7 @@ async def delete_customer(customer_id: str, vendor=Depends(get_current_vendor)):
 # ── Transactions ──────────────────────────────────────────
 
 @router.get("/customers/{customer_id}/transactions")
-async def get_transactions(customer_id: str, vendor=Depends(get_current_vendor)):
+def get_transactions(customer_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     cust = db.table("udhar_customers").select("id")\
         .eq("id", customer_id).eq("vendor_id", vendor["id"]).execute()
@@ -89,7 +89,7 @@ async def get_transactions(customer_id: str, vendor=Depends(get_current_vendor))
 
 
 @router.post("/transactions", status_code=201)
-async def add_transaction(body: TransactionCreate, vendor=Depends(get_current_vendor)):
+def add_transaction(body: TransactionCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
     if body.type not in ("credit", "payment"):
         raise HTTPException(status_code=400, detail="type must be credit or payment")
@@ -134,7 +134,7 @@ async def add_transaction(body: TransactionCreate, vendor=Depends(get_current_ve
 # ── Summary ───────────────────────────────────────────────
 
 @router.get("/summary")
-async def summary(vendor=Depends(get_current_vendor)):
+def summary(vendor=Depends(get_current_vendor)):
     db = get_db()
     customers = db.table("udhar_customers").select("total_due")\
         .eq("vendor_id", vendor["id"]).execute().data
@@ -154,7 +154,7 @@ class CustomerUpdate(BaseModel):
 
 
 @router.patch("/customers/{customer_id}")
-async def update_customer(
+def update_customer(
     customer_id: str,
     body: CustomerUpdate,
     vendor=Depends(get_current_vendor),

@@ -40,7 +40,7 @@ class PatternPayload(BaseModel):
 
 
 @router.get("")
-async def load_patterns(vendor_id: str = Depends(_require_vendor)):
+def load_patterns(vendor_id: str = Depends(_require_vendor)):
     """Load all learned pattern types for this vendor."""
     db   = get_db()
     rows = (
@@ -56,7 +56,7 @@ async def load_patterns(vendor_id: str = Depends(_require_vendor)):
 
 
 @router.post("")
-async def save_patterns(
+def save_patterns(
     body: PatternPayload,
     vendor_id: str = Depends(_require_vendor),
 ):

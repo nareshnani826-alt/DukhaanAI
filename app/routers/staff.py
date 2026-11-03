@@ -11,13 +11,13 @@ _FIELDS = "id,username,role,is_active,created_at"
 
 
 @router.get("")
-async def list_staff(vendor=Depends(require_plan("wholesale"))):
+def list_staff(vendor=Depends(require_plan("wholesale"))):
     db = get_db()
     return db.table("staff").select(_FIELDS).eq("vendor_id", vendor["id"]).order("created_at").execute().data
 
 
 @router.post("", status_code=201)
-async def add_staff(body: StaffCreate, vendor=Depends(require_plan("wholesale"))):
+def add_staff(body: StaffCreate, vendor=Depends(require_plan("wholesale"))):
     db = get_db()
     taken = db.table("staff").select("id").eq("vendor_id", vendor["id"]).eq("username", body.username).execute().data
     if taken:
@@ -32,7 +32,7 @@ async def add_staff(body: StaffCreate, vendor=Depends(require_plan("wholesale"))
 
 
 @router.patch("/{staff_id}")
-async def update_staff(staff_id: str, body: StaffUpdate, vendor=Depends(require_plan("wholesale"))):
+def update_staff(staff_id: str, body: StaffUpdate, vendor=Depends(require_plan("wholesale"))):
     db = get_db()
     updates = body.model_dump(exclude_none=True)
     if "pin" in updates:
@@ -49,7 +49,7 @@ async def update_staff(staff_id: str, body: StaffUpdate, vendor=Depends(require_
 
 
 @router.delete("/{staff_id}", response_model=MessageResponse)
-async def remove_staff(staff_id: str, vendor=Depends(require_plan("wholesale"))):
+def remove_staff(staff_id: str, vendor=Depends(require_plan("wholesale"))):
     db = get_db()
     rows = db.table("staff").delete().eq("id", staff_id).eq("vendor_id", vendor["id"]).execute().data
     if not rows:

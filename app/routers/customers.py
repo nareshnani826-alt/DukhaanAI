@@ -18,7 +18,7 @@ class CustomerUpsert(BaseModel):
 
 
 @router.get("")
-async def list_customers(
+def list_customers(
     search: Optional[str] = Query(None),
     limit: int = Query(50, le=200),
     vendor=Depends(get_current_vendor),
@@ -39,7 +39,7 @@ async def list_customers(
 
 
 @router.post("/upsert")
-async def upsert_customer(body: CustomerUpsert, vendor=Depends(get_current_vendor)):
+def upsert_customer(body: CustomerUpsert, vendor=Depends(get_current_vendor)):
     """Called automatically after every invoice is generated."""
     db = get_db()
     now = datetime.now(timezone.utc).isoformat()
@@ -95,7 +95,7 @@ async def upsert_customer(body: CustomerUpsert, vendor=Depends(get_current_vendo
 
 
 @router.get("/{customer_id}")
-async def get_customer(customer_id: str, vendor=Depends(get_current_vendor)):
+def get_customer(customer_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     result = (
         db.table("customers")
@@ -110,7 +110,7 @@ async def get_customer(customer_id: str, vendor=Depends(get_current_vendor)):
 
 
 @router.get("/{customer_id}/invoices")
-async def customer_invoices(customer_id: str, vendor=Depends(get_current_vendor)):
+def customer_invoices(customer_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     # Get customer first
     cust = (
@@ -139,7 +139,7 @@ async def customer_invoices(customer_id: str, vendor=Depends(get_current_vendor)
 
 
 @router.delete("/{customer_id}")
-async def delete_customer(customer_id: str, vendor=Depends(get_current_vendor)):
+def delete_customer(customer_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     existing = (
         db.table("customers")
@@ -163,7 +163,7 @@ class CustomerUpdate(BaseModel):
 
 
 @router.patch("/{customer_id}")
-async def update_customer(
+def update_customer(
     customer_id: str,
     body: CustomerUpdate,
     vendor=Depends(get_current_vendor),

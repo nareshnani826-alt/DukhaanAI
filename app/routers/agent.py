@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -40,9 +41,12 @@ Rules:
 
 async def _gather_signals(vendor: dict) -> dict:
     """Pull the existing insights endpoints directly (no HTTP round-trip) as the agent's raw signals."""
-    reorder_data = await reorder_suggestions(days_cover=7, vendor=vendor)
-    margin_data  = await margin_alerts(threshold=10.0, vendor=vendor)
-    dead_data    = await dead_stock(days=30, vendor=vendor)
+    # These are plain (thread-pool) endpoints now; run them off the event loop, side by side
+    reorder_data, margin_data, dead_data = await asyncio.gather(
+        asyncio.to_thread(reorder_suggestions, days_cover=7, vendor=vendor),
+        asyncio.to_thread(margin_alerts, threshold=10.0, vendor=vendor),
+        asyncio.to_thread(dead_stock, days=30, vendor=vendor),
+    )
     return {
         "reorder": reorder_data,
         "margin_alerts": margin_data,
@@ -179,7 +183,7 @@ async def run_agent(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/suggestions")
-async def list_suggestions(
+def list_suggestions(
     status: str = Query("pending"),
     vendor=Depends(get_current_vendor),
 ):

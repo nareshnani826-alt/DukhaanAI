@@ -41,7 +41,7 @@ def _next_invoice_no(db, vendor_id: str) -> str:
 
 
 @router.post("", response_model=InvoiceOut, status_code=201)
-async def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendor)):
+def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
 
     # Calculate totals
@@ -242,7 +242,7 @@ async def list_invoices(
 
 
 @router.get("/today")
-async def today_invoices(vendor=Depends(get_current_vendor)):
+def today_invoices(vendor=Depends(get_current_vendor)):
     """Today's paid invoices — used by Dashboard and DayOps for revenue totals."""
     db = get_db()
     today_start = datetime.now(timezone.utc).replace(
@@ -266,7 +266,7 @@ async def today_invoices(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/public/{invoice_id}")
-async def get_public_invoice(invoice_id: str):
+def get_public_invoice(invoice_id: str):
     """
     Unauthenticated invoice view for customers — linked from the WhatsApp
     bill notification. The invoice UUID itself is the access token (same
@@ -334,7 +334,7 @@ async def send_invoice_whatsapp(
 
 
 @router.get("/{invoice_id}", response_model=InvoiceOut)
-async def get_invoice(invoice_id: str, vendor=Depends(get_current_vendor)):
+def get_invoice(invoice_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
     result = (
         db.table("invoices")
@@ -349,7 +349,7 @@ async def get_invoice(invoice_id: str, vendor=Depends(get_current_vendor)):
 
 
 @router.patch("/{invoice_id}/status")
-async def update_invoice_status(
+def update_invoice_status(
     invoice_id: str,
     status: str = Query(..., pattern="^(paid|pending|cancelled)$"),
     vendor=Depends(get_current_vendor),
@@ -375,7 +375,7 @@ async def update_invoice_status(
 
 
 @router.get("/summary/gst")
-async def gst_summary(
+def gst_summary(
     month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2024),
     vendor=Depends(get_current_vendor),

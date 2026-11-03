@@ -47,7 +47,7 @@ class LookupPayload(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────
 
 @router.post("/lookup")
-async def lookup_vocab(body: LookupPayload):
+def lookup_vocab(body: LookupPayload):
     """
     Look up multiple terms in the global shared vocab.
     No auth required — read is public.
@@ -79,7 +79,7 @@ async def lookup_vocab(body: LookupPayload):
 
 
 @router.post("/teach")
-async def teach_vocab(
+def teach_vocab(
     body: TeachPayload,
     vendor_id: Optional[str] = Depends(_optional_vendor),
 ):
@@ -141,7 +141,7 @@ async def teach_vocab(
 
 
 @router.get("/popular")
-async def popular_vocab(
+def popular_vocab(
     store_type: str = Query("kirana", max_length=20),
     limit:      int = Query(100, ge=1, le=500),
 ):
@@ -167,7 +167,7 @@ async def popular_vocab(
 
 
 @router.delete("/cleanup")
-async def cleanup_vocab(vendor_id: str = Depends(_optional_vendor)):
+def cleanup_vocab(vendor_id: str = Depends(_optional_vendor)):
     """
     Prune noisy auto-learned entries that nobody ever confirmed:
     - confidence = 1 (auto-learned only, never manually taught)

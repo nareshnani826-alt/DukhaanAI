@@ -198,7 +198,7 @@ async def register(request: Request, body: VendorRegister):
 
 @router.post("/register/confirm", response_model=TokenResponse, status_code=201)
 @limiter.limit("10/minute")
-async def register_confirm(request: Request, body: RegisterConfirm):
+def register_confirm(request: Request, body: RegisterConfirm):
     """
     Complete phone-verified registration.
     Verifies the OTP, then creates the vendor account and issues tokens.
@@ -258,7 +258,7 @@ async def register_confirm(request: Request, body: RegisterConfirm):
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("20/minute")
-async def login(request: Request, body: VendorLogin):
+def login(request: Request, body: VendorLogin):
     db = get_db()
 
     # Accept email or phone number
@@ -307,7 +307,7 @@ async def login(request: Request, body: VendorLogin):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(body: RefreshRequest):
+def refresh(body: RefreshRequest):
     db = get_db()
     token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
 
@@ -341,7 +341,7 @@ async def refresh(body: RefreshRequest):
 
 @router.post("/staff-login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-async def staff_login(request: Request, body: StaffLogin):
+def staff_login(request: Request, body: StaffLogin):
     db = get_db()
     shop = body.shop.strip()
     if "@" in shop:
@@ -366,7 +366,7 @@ async def staff_login(request: Request, body: StaffLogin):
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(body: RefreshRequest, vendor=Depends(get_current_vendor)):
+def logout(body: RefreshRequest, vendor=Depends(get_current_vendor)):
     from app.core.security import bust_vendor_cache
     db = get_db()
     token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
@@ -381,7 +381,7 @@ async def me(vendor=Depends(get_current_vendor)):
 
 
 @router.patch("/me", response_model=VendorProfile)
-async def update_profile(body: VendorUpdate, vendor=Depends(get_current_vendor)):
+def update_profile(body: VendorUpdate, vendor=Depends(get_current_vendor)):
     db = get_db()
     updates = body.model_dump(exclude_none=True)
     if not updates:
@@ -397,7 +397,7 @@ async def update_profile(body: VendorUpdate, vendor=Depends(get_current_vendor))
 
 @router.post("/forgot-password", response_model=MessageResponse)
 @limiter.limit("5/minute")
-async def forgot_password(request: Request, body: ForgotPasswordRequest):
+def forgot_password(request: Request, body: ForgotPasswordRequest):
     db = get_db()
     result = db.table("vendors").select("id,email,store_name").eq("email", body.email).execute()
 
@@ -426,7 +426,7 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest):
 
 
 @router.post("/reset-password", response_model=MessageResponse)
-async def reset_password(body: ResetPasswordRequest):
+def reset_password(body: ResetPasswordRequest):
     db = get_db()
     token_hash = hashlib.sha256(body.token.encode()).hexdigest()
 
@@ -497,7 +497,7 @@ async def send_otp(request: Request, body: SendOtpRequest):
 
 @router.post("/verify-otp", response_model=TokenResponse)
 @limiter.limit("10/minute")
-async def verify_otp(request: Request, body: VerifyOtpRequest):
+def verify_otp(request: Request, body: VerifyOtpRequest):
     db = get_db()
     phone = _normalize_phone(body.phone)
     otp = body.otp.strip()

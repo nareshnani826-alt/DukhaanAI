@@ -9,7 +9,7 @@ router = APIRouter(prefix="/sales", tags=["sales"])
 
 
 @router.post("", response_model=SaleOut, status_code=201)
-async def record_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
+def record_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
 
     # Fetch product (must belong to this vendor)
@@ -57,7 +57,7 @@ async def record_sale(body: SaleCreate, vendor=Depends(get_current_vendor)):
 
 
 @router.get("", response_model=list[SaleOut])
-async def list_sales(
+def list_sales(
     days: int = Query(30, ge=1, le=365, description="Sales from last N days"),
     product_id: str | None = Query(None),
     payment_mode: str | None = Query(None),
@@ -84,7 +84,7 @@ async def list_sales(
 
 
 @router.get("/summary")
-async def sales_summary(
+def sales_summary(
     days: int = Query(30, ge=1, le=365),
     vendor=Depends(get_current_vendor),
 ):
@@ -128,7 +128,7 @@ async def sales_summary(
 
 
 @router.get("/today")
-async def today_sales(vendor=Depends(get_current_vendor)):
+def today_sales(vendor=Depends(get_current_vendor)):
     db = get_db()
     today_start = datetime.now(timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0

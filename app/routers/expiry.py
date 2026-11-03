@@ -43,7 +43,7 @@ def _enrich(product: dict) -> dict:
 
 
 @router.get("/dashboard")
-async def expiry_dashboard(vendor=Depends(get_current_vendor)):
+def expiry_dashboard(vendor=Depends(get_current_vendor)):
     """
     Returns all active products enriched with expiry intelligence,
     grouped by risk level, plus summary stats.
@@ -91,7 +91,7 @@ async def expiry_dashboard(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/alerts")
-async def expiry_alerts(vendor=Depends(get_current_vendor)):
+def expiry_alerts(vendor=Depends(get_current_vendor)):
     """
     Returns only products needing attention (high_risk + likely_expired),
     sorted by urgency (most critical first).

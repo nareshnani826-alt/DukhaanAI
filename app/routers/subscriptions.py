@@ -97,7 +97,7 @@ async def create_subscription(body: SubscriptionCreate, vendor=Depends(get_curre
 
 
 @router.get("/me", response_model=list[SubscriptionOut])
-async def my_subscriptions(vendor=Depends(get_current_vendor)):
+def my_subscriptions(vendor=Depends(get_current_vendor)):
     db = get_db()
     return db.table("subscriptions").select("*").eq("vendor_id", vendor["id"]).order("created_at", desc=True).execute().data
 

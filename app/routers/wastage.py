@@ -20,13 +20,13 @@ class WastageCreate(BaseModel):
 
 
 @router.get("/")
-async def list_wastage(vendor=Depends(get_current_vendor)):
+def list_wastage(vendor=Depends(get_current_vendor)):
     db = get_db()
     return db.table("wastage_records").select("*").eq("vendor_id", vendor["id"]).order("created_at", desc=True).limit(100).execute().data
 
 
 @router.post("/", status_code=201)
-async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)):
+def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
     if body.reason not in REASONS:
         raise HTTPException(400, f"reason must be one of {REASONS}")
@@ -64,7 +64,7 @@ async def record_wastage(body: WastageCreate, vendor=Depends(get_current_vendor)
 
 
 @router.get("/summary")
-async def wastage_summary(vendor=Depends(get_current_vendor)):
+def wastage_summary(vendor=Depends(get_current_vendor)):
     db = get_db()
     records = db.table("wastage_records").select("*").eq("vendor_id", vendor["id"]).execute().data
     total_loss = sum(float(r["loss_value"] or 0) for r in records)

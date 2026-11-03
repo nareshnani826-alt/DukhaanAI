@@ -9,7 +9,7 @@ def _line_sale(item: dict) -> float:
     return float(item.get("subtotal") or 0) or float(item.get("unit_price") or 0) * float(item.get("qty") or 0)
 
 
-def bill_profit(db, vendor_id: str, bills: list[dict]) -> dict:
+def bill_profit(db, vendor_id: str, bills: list[dict], cost_of: dict[str, float] | None = None) -> dict:
     """Profit summary for the given invoice rows (cancelled ones are skipped).
 
     Returns revenue (bill totals incl. GST), sales_ex_gst, profit and margin_pct (both None when
@@ -18,11 +18,14 @@ def bill_profit(db, vendor_id: str, bills: list[dict]) -> dict:
     paid = [b for b in bills if b.get("status") != "cancelled"]
     items = [it for b in paid for it in (b.get("items") or [])]
     pids = list({str(it["product_id"]) for it in items if it.get("product_id")})
-    cost_of: dict[str, float] = {}
-    if pids:
+    # Callers that already loaded the products pass their cost prices; only products missing
+    # from it (e.g. since removed from stock) are fetched
+    cost_of = dict(cost_of or {})
+    missing = [pid for pid in pids if pid not in cost_of]
+    if missing:
         rows = (db.table("products").select("id,cost_price")
-                .in_("id", pids).eq("vendor_id", vendor_id).execute().data or [])
-        cost_of = {str(p["id"]): float(p.get("cost_price") or 0) for p in rows}
+                .in_("id", missing).eq("vendor_id", vendor_id).execute().data or [])
+        cost_of.update({str(p["id"]): float(p.get("cost_price") or 0) for p in rows})
 
     costed = [it for it in items if cost_of.get(str(it.get("product_id") or ""), 0) > 0]
     costed_sales = round(sum(_line_sale(it) for it in costed), 2)

@@ -75,7 +75,7 @@ def _calc_profit(snapshot_open, snapshot_close, sales_data) -> float:
 
 
 @router.get("/today")
-async def get_today_session(
+def get_today_session(
     store_type: str = Query("kirana"),
     vendor=Depends(get_current_vendor),
 ):
@@ -93,7 +93,7 @@ async def get_today_session(
 
 
 @router.post("/open")
-async def open_day(
+def open_day(
     body: dict = Body(default={}),
     vendor=Depends(get_current_vendor),
 ):
@@ -135,7 +135,7 @@ async def open_day(
 
 
 @router.post("/close")
-async def close_day(
+def close_day(
     body: dict = Body(default={}),
     vendor=Depends(get_current_vendor),
 ):
@@ -196,7 +196,7 @@ async def close_day(
 
 
 @router.post("/reopen")
-async def reopen_day(vendor=Depends(get_current_vendor)):
+def reopen_day(vendor=Depends(get_current_vendor)):
     """Reopen a closed day session — clears totals so close recalculates fresh."""
     db = get_db()
     today = date.today().isoformat()
@@ -229,7 +229,7 @@ async def reopen_day(vendor=Depends(get_current_vendor)):
 
 
 @router.get("/pending")
-async def get_pending(vendor=Depends(get_current_vendor)):
+def get_pending(vendor=Depends(get_current_vendor)):
     """
     Returns today's session + any unclosed session from a previous day.
     Used by the startup gate to prompt the user to open/close at app load.
@@ -263,7 +263,7 @@ async def get_pending(vendor=Depends(get_current_vendor)):
 
 
 @router.post("/close-prev/{session_id}")
-async def close_prev_session(session_id: str, vendor=Depends(get_current_vendor)):
+def close_prev_session(session_id: str, vendor=Depends(get_current_vendor)):
     """
     Close a previous day's unclosed session by ID.
     Calculates that day's sales and takes a current stock snapshot as closing snapshot.
@@ -325,7 +325,7 @@ async def close_prev_session(session_id: str, vendor=Depends(get_current_vendor)
 
 
 @router.get("/history")
-async def session_history(
+def session_history(
     limit: int = Query(30, le=90),
     vendor=Depends(get_current_vendor),
 ):

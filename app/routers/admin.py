@@ -8,7 +8,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/vendors")
-async def list_vendors(
+def list_vendors(
     plan: str | None = Query(None),
     search: str | None = Query(None),
     limit: int = Query(50, le=200),
@@ -30,7 +30,7 @@ async def list_vendors(
 
 
 @router.get("/revenue")
-async def revenue_dashboard(
+def revenue_dashboard(
     days: int = Query(30, ge=1, le=365),
     admin=Depends(get_current_admin),
 ):
@@ -70,7 +70,7 @@ async def revenue_dashboard(
 
 
 @router.patch("/vendors/{vendor_id}/plan")
-async def override_vendor_plan(
+def override_vendor_plan(
     vendor_id: str,
     plan: str = Query(..., pattern="^(free|pro|wholesale)$"),
     admin=Depends(get_current_admin),
@@ -92,7 +92,7 @@ async def override_vendor_plan(
 
 
 @router.patch("/vendors/{vendor_id}/suspend")
-async def suspend_vendor(vendor_id: str, admin=Depends(get_current_admin)):
+def suspend_vendor(vendor_id: str, admin=Depends(get_current_admin)):
     db = get_db()
     result = db.table("vendors").update({
         "is_active": False, "plan": "free"
@@ -103,7 +103,7 @@ async def suspend_vendor(vendor_id: str, admin=Depends(get_current_admin)):
 
 
 @router.patch("/vendors/{vendor_id}/reactivate")
-async def reactivate_vendor(vendor_id: str, admin=Depends(get_current_admin)):
+def reactivate_vendor(vendor_id: str, admin=Depends(get_current_admin)):
     db = get_db()
     result = db.table("vendors").update({
         "is_active": True
