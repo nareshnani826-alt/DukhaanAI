@@ -53,7 +53,7 @@ export default function Help() {
             <div key={section.id} className="mb-3">
               <button
                 onClick={() => { setActiveSection(section.id); setActiveArticle(0) }}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all text-xs font-semibold ${
+                className={`help-section w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all text-xs font-semibold ${
                   activeSection === section.id && !search
                     ? "text-white"
                     : "text-gray-600 hover:bg-gray-100"
@@ -67,7 +67,7 @@ export default function Help() {
                 {section.articles.map((article, idx) => (
                   <button key={idx}
                     onClick={() => openArticle(section.id, idx)}
-                    className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-all ${
+                    className={`help-article w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-all ${
                       activeSection === section.id && activeArticle === idx
                         ? "font-medium"
                         : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"

@@ -604,7 +604,7 @@ export default function BangleBulkImport() {
                           {v.stock}
                           {hasQty && <span style={{color:"var(--jade)"}}>→{newStock}</span>}
                         </div>
-                        <input type="number" min="0"
+                        <input type="number" inputMode="decimal" min="0"
                           value={qty}
                           onChange={e => setRestockChanges(prev => ({...prev, [v.id]: e.target.value}))}
                           placeholder="0"
@@ -795,7 +795,7 @@ export default function BangleBulkImport() {
                               <div style={{flex:1}}>
                                 <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
                                   marginBottom:4, letterSpacing:"0.5px"}}>STOCK PER VARIANT</div>
-                                <input type="number" min="0" value={sel.stock}
+                                <input type="number" inputMode="decimal" min="0" value={sel.stock}
                                   onChange={e => updateSel(p.name, "stock", e.target.value)}
                                   style={{width:"100%", border:"1.5px solid var(--saffron)", borderRadius:9,
                                     padding:"6px 10px", fontSize:13, fontWeight:700, outline:"none",
@@ -852,7 +852,7 @@ export default function BangleBulkImport() {
                               <div style={{flex:1}}>
                                 <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)",
                                   marginBottom:4, letterSpacing:"0.5px"}}>STOCK PER VARIANT</div>
-                                <input type="number" min="0" value={sel.stock}
+                                <input type="number" inputMode="decimal" min="0" value={sel.stock}
                                   onChange={e => updateSel(p.name, "stock", e.target.value)}
                                   style={{width:"100%", border:"1.5px solid var(--saffron)", borderRadius:9,
                                     padding:"6px 10px", fontSize:13, fontWeight:700, outline:"none",
@@ -1023,12 +1023,12 @@ export default function BangleBulkImport() {
                             </select>
                           </td>
                           <td style={{padding:"4px 8px"}}>
-                            <input type="number" min="0" value={r.mrp??""} onChange={e=>updateCsvRow(i,"mrp",e.target.value)}
+                            <input type="number" inputMode="decimal" min="0" value={r.mrp??""} onChange={e=>updateCsvRow(i,"mrp",e.target.value)}
                               style={{width:60,border:"1px solid var(--rule)",borderRadius:6,
                                 padding:"3px 6px",fontSize:11,outline:"none",background:"white",textAlign:"right"}}/>
                           </td>
                           <td style={{padding:"4px 8px"}}>
-                            <input type="number" min="0" value={r.cost??""} onChange={e=>updateCsvRow(i,"cost",e.target.value)}
+                            <input type="number" inputMode="decimal" min="0" value={r.cost??""} onChange={e=>updateCsvRow(i,"cost",e.target.value)}
                               style={{width:60,border:"1px solid var(--rule)",borderRadius:6,
                                 padding:"3px 6px",fontSize:11,outline:"none",background:"white",textAlign:"right"}}/>
                           </td>
@@ -1055,7 +1055,7 @@ export default function BangleBulkImport() {
                                 padding:"3px 6px",fontSize:11,outline:"none",background:"white"}}/>
                           </td>
                           <td style={{padding:"4px 8px"}}>
-                            <input type="number" min="0" value={r.stock??""} onChange={e=>updateCsvRow(i,"stock",e.target.value)}
+                            <input type="number" inputMode="decimal" min="0" value={r.stock??""} onChange={e=>updateCsvRow(i,"stock",e.target.value)}
                               style={{width:56,border:"1px solid var(--rule)",borderRadius:6,
                                 padding:"3px 6px",fontSize:11,outline:"none",background:"white",textAlign:"right"}}/>
                           </td>

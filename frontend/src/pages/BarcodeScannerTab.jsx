@@ -313,7 +313,7 @@ export default function BarcodeScannerTab() {
             <button onClick={() => setQty(q => Math.max(1, parseFloat(q) - 1))}
               style={{ width: 36, height: 36, borderRadius: 10, border: "1.5px solid var(--rule)",
                 background: "var(--bg2)", fontSize: 18, cursor: "pointer", fontWeight: 700 }}>−</button>
-            <input type="number" min="1" step="0.5" value={qty}
+            <input type="number" inputMode="decimal" min="1" step="0.5" value={qty}
               onChange={e => setQty(e.target.value)}
               style={{ flex: 1, textAlign: "center", border: "1.5px solid var(--jade)",
                 borderRadius: 10, padding: "8px", fontSize: 18, fontWeight: 700,
@@ -387,21 +387,21 @@ export default function BarcodeScannerTab() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4 }}>MRP (₹)</div>
-              <input type="number" min="0" step="0.5" value={mrp}
+              <input type="number" inputMode="decimal" min="0" step="0.5" value={mrp}
                 onChange={e => setMrp(e.target.value)} placeholder="0"
                 style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 9,
                   padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}/>
             </div>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4 }}>Cost (₹)</div>
-              <input type="number" min="0" step="0.5" value={cost}
+              <input type="number" inputMode="decimal" min="0" step="0.5" value={cost}
                 onChange={e => setCost(e.target.value)} placeholder="0"
                 style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 9,
                   padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}/>
             </div>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4 }}>{L("Opening Stock")}</div>
-              <input type="number" min="0" value={qty}
+              <input type="number" inputMode="decimal" min="0" value={qty}
                 onChange={e => setQty(e.target.value)} placeholder="0"
                 style={{ width: "100%", border: "1.5px solid var(--rule)", borderRadius: 9,
                   padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}/>

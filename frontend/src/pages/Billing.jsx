@@ -16,6 +16,7 @@ import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 import { parseVoiceCommand } from "../voice/nlp.js"
 import { resolveGroceryName } from "../voice/groceryAliases.js"
 import { tr, uiLang } from "../i18n/kiranaStrings"
+import { SkeletonTiles } from "../components/Skeleton"
 
 // UI text in the shop's language (falls back to English)
 const L = k => tr(k, uiLang())
@@ -135,13 +136,13 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
                         )}
                       </td>
                       <td style={{ padding:"8px 4px" }}>
-                        <input type="number" min="0.01" step="0.01" value={item.qty}
+                        <input type="number" inputMode="decimal" min="0.01" step="0.01" value={item.qty}
                           onChange={e => setItem(i, "qty", +e.target.value > 0 ? +e.target.value : 1)}
                           style={{ width:46, textAlign:"center", border:"1px solid #e5e7eb",
                             borderRadius:6, padding:"4px 2px", fontSize:12 }} />
                       </td>
                       <td style={{ padding:"8px 4px" }}>
-                        <input type="number" min="0" step="0.01" value={item.unit_price}
+                        <input type="number" inputMode="decimal" min="0" step="0.01" value={item.unit_price}
                           onChange={e => setItem(i, "unit_price", Math.max(0, +e.target.value || 0))}
                           style={{ width:72, border:"1px solid #e5e7eb", borderRadius:6,
                             padding:"4px 6px", fontSize:12 }} />
@@ -174,7 +175,7 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
                 <option value="flat">₹ Flat</option>
                 <option value="percent">% Percent</option>
               </select>
-              <input type="number" min="0" placeholder="0"
+              <input type="number" inputMode="decimal" min="0" placeholder="0"
                 value={discountVal} onChange={e => setDiscountVal(e.target.value)}
                 style={{ flex:1, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }} />
               {discountAmt > 0 && (
@@ -545,11 +546,12 @@ export default function Billing() {
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)   // kept for compat with lookupBarcode
 
+  const [productsLoaded, setProductsLoaded] = useState(false)   // skeleton tiles until the list arrives
   useEffect(() => {
     Products.list().then(p => {
       setProducts(p)
       setRows([])  // start empty — vendor adds items manually or by search
-    })
+    }).finally(() => setProductsLoaded(true))
   }, [])
 
   // Each new message gets its full time on screen (an older message's timer used to clear it early)
@@ -926,10 +928,9 @@ Thank you for shopping! 🙏`
   const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 
   // ── Day session gate ─────────────────────────────────────
-  if (dayStatus === undefined) return (
-    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-      fontSize:13, color:"var(--ink-faint)" }}>Checking day status…</div>
-  )
+  // While the day status is still being checked (dayStatus === undefined) the bill screen shows
+  // straight away — on most visits the day is already open, and a blank "Checking day status…"
+  // page held up billing on slow connections. The open-shop prompt below appears if it isn't.
   async function openDayHere() {
     setOpeningDay(true)
     try {
@@ -944,7 +945,7 @@ Thank you for shopping! 🙏`
     }
   }
 
-  if (dayStatus !== "open") return (
+  if (dayStatus !== undefined && dayStatus !== "open") return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", padding:32, textAlign:"center", gap:14, background:"var(--bg0)" }}>
       <div style={{ fontSize:48 }}>{dayStatus === "closed" ? "🌙" : "☀️"}</div>
@@ -1073,7 +1074,7 @@ Thank you for shopping! 🙏`
 
         {/* Pictures */}
         <div style={{ flex:1, overflowY:"auto", padding:"4px 12px 16px" }}>
-          {shown.length === 0 ? (
+          {!productsLoaded ? <SkeletonTiles count={9} min={104} height={128} /> : shown.length === 0 ? (
             <div style={{ textAlign:"center", padding:32, color:"var(--ink-faint)", fontSize:16 }}>{L("Nothing matches.")}</div>
           ) : (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(104px,1fr))", gap:10 }}>
@@ -1348,7 +1349,7 @@ Thank you for shopping! 🙏`
                   color:"var(--ink-faint)", marginBottom:4 }}>
                   Customer WhatsApp Number
                 </label>
-                <input value={phone} onChange={e => setPhone(e.target.value)}
+                <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)}
                   placeholder="10-digit mobile number" inputMode="numeric" maxLength={10}
                   style={{ width:"100%", padding:"10px 12px", borderRadius:10,
                     border:"1.5px solid var(--rule)", fontSize:14, background:"var(--bg2)",
@@ -1560,7 +1561,7 @@ Thank you for shopping! 🙏`
                     <input className="input" placeholder="Product name *" value={quickAdd.name} autoFocus
                       onChange={e => setQuickAdd(q => ({...q, name:e.target.value}))} />
                     <div style={{ display:"flex", gap:8 }}>
-                      <input className="input" type="number" placeholder="MRP ₹" value={quickAdd.mrp}
+                      <input className="input" type="number" inputMode="decimal" placeholder="MRP ₹" value={quickAdd.mrp}
                         onChange={e => setQuickAdd(q => ({...q, mrp:e.target.value}))} style={{ flex:1 }} />
                       <select className="input" value={quickAdd.gst_percent}
                         onChange={e => setQuickAdd(q => ({...q, gst_percent:Number(e.target.value)}))}>
@@ -1605,7 +1606,7 @@ Thank you for shopping! 🙏`
               <input value={cust} onChange={e => setCust(e.target.value)} placeholder="Customer name"
                 style={{ flex:1, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
                   padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
-              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone"
+              <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone"
                 style={{ width:130, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
                   padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
             </div>
@@ -1642,7 +1643,7 @@ Thank you for shopping! 🙏`
                 padding:"3px 8px", borderRadius:6, border:"1px solid var(--rule)", fontWeight:600 }}>{L(pay)}</span>
               <button onClick={() => setCustExpanded(true)}
                 style={{ background:"transparent", color:"var(--saffron)", border:"none",
-                  fontSize:13, fontWeight:800, cursor:"pointer" }}>
+                  fontSize:13, fontWeight:800, cursor:"pointer", padding:"10px 8px", margin:"-10px -4px" }}>
                 {L(cust ? "Edit" : "+ Add")}
               </button>
             </div>
@@ -1697,7 +1698,7 @@ Thank you for shopping! 🙏`
               <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:8,
                 scrollbarWidth:"none", marginBottom:2 }}>
                 {cats.map(c => (
-                  <button key={c} onClick={() => setCatFilter(c)}
+                  <button key={c} className="tap-chip" onClick={() => setCatFilter(c)}
                     style={{ position:"relative", padding:"8px 14px", borderRadius:20, border:"none", cursor:"pointer",
                       flexShrink:0, fontSize:13, fontWeight:700, transition:"color 0.15s",
                       background: catFilter === c ? "transparent" : "var(--bg2)",
@@ -1714,7 +1715,7 @@ Thank you for shopping! 🙏`
               </div>
 
               {/* Product grid */}
-              {shown.length === 0 ? (
+              {!productsLoaded ? <SkeletonTiles count={12} /> : shown.length === 0 ? (
                 <div style={{ textAlign:"center", padding:"32px 0", color:"var(--ink-faint)", fontSize:12 }}>
                   No products in this category
                 </div>

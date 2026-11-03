@@ -362,7 +362,7 @@ export default function BangleInvoiceScanTab() {
 
                     {/* Qty */}
                     <td style={td}>
-                      <input type="number" min="0" step="1"
+                      <input type="number" inputMode="decimal" min="0" step="1"
                         value={it.qty}
                         onChange={e => setItemField(i, "qty", e.target.value)}
                         style={{ width: 54, border: "1.5px solid var(--rule)", borderRadius: 6,
@@ -388,7 +388,7 @@ export default function BangleInvoiceScanTab() {
 
                     {/* Price */}
                     <td style={td}>
-                      <input type="number" min="0" step="0.01"
+                      <input type="number" inputMode="decimal" min="0" step="0.01"
                         value={it.unit_price || ""}
                         onChange={e => setItemField(i, "unit_price", e.target.value)}
                         placeholder="—"

@@ -259,7 +259,7 @@ _Powered by DukaanAI_ 💍`
                   <input className="input" value={form.name||""} onChange={e=>set("name",e.target.value)}
                     placeholder="Priya Sharma" autoFocus /></div>
                 <div><label className="label">Phone (for WhatsApp reminders)</label>
-                  <input className="input" value={form.phone||""} onChange={e=>set("phone",e.target.value)}
+                  <input type="tel" inputMode="tel" autoComplete="tel" className="input" value={form.phone||""} onChange={e=>set("phone",e.target.value)}
                     placeholder="9876543210" /></div>
                 <div><label className="label">Address</label>
                   <input className="input" value={form.address||""} onChange={e=>set("address",e.target.value)}
@@ -276,7 +276,7 @@ _Powered by DukaanAI_ 💍`
                 )}
                 <div>
                   <label className="label">Amount (₹) *</label>
-                  <input className="input text-lg font-semibold" type="number" step="0.01"
+                  <input className="input text-lg font-semibold" type="number" inputMode="decimal" step="0.01"
                     value={form.amount||""} onChange={e=>set("amount",e.target.value)}
                     placeholder="0.00" autoFocus />
                 </div>

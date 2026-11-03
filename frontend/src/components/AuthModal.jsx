@@ -189,7 +189,7 @@ export default function AuthModal({ onClose }) {
             {mode === "register" && (
               <div className="grid grid-cols-2 gap-2">
                 <div><label className="label">Phone</label>
-                  <input className="input" placeholder="9876543210" value={form.phone} onChange={e => set("phone", e.target.value)} /></div>
+                  <input type="tel" inputMode="tel" autoComplete="tel" className="input" placeholder="9876543210" value={form.phone} onChange={e => set("phone", e.target.value)} /></div>
                 <div><label className="label">GSTIN</label>
                   <input className="input" placeholder="Optional" value={form.gstin} onChange={e => set("gstin", e.target.value)} /></div>
               </div>
@@ -270,7 +270,7 @@ export default function AuthModal({ onClose }) {
               <label className="label">Enter 6-digit OTP *</label>
               <input
                 className={`input text-center text-xl tracking-[8px] ${regOtpErr ? "border-red-400" : ""}`}
-                type="number" placeholder="••••••" maxLength={6}
+                type="number" inputMode="decimal" placeholder="••••••" maxLength={6}
                 value={regOtpCode}
                 onChange={e => { setRegOtpCode(e.target.value.slice(0, 6)); setRegOtpErr("") }}
                 onKeyDown={e => e.key === "Enter" && handleRegisterConfirm()}
@@ -345,7 +345,7 @@ export default function AuthModal({ onClose }) {
                 <div>
                   <label className="label">Enter 6-digit OTP *</label>
                   <input className={`input text-center text-xl tracking-[8px] ${otpCodeErr ? "border-red-400" : ""}`}
-                    type="number" placeholder="••••••" maxLength={6}
+                    type="number" inputMode="decimal" placeholder="••••••" maxLength={6}
                     value={otpCode} onChange={e => { setOtpCode(e.target.value.slice(0,6)); setOtpCodeErr("") }}
                     onKeyDown={e => e.key === "Enter" && handleVerifyOtp()} />
                   {otpCodeErr && <p className="text-red-500 text-[10px] mt-0.5">{otpCodeErr}</p>}

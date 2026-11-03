@@ -162,7 +162,7 @@ export default function CustomersPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="label">Phone (WhatsApp)</label>
-                  <input className="input" value={form.phone} onChange={e => set("phone",e.target.value)}
+                  <input type="tel" inputMode="tel" autoComplete="tel" className="input" value={form.phone} onChange={e => set("phone",e.target.value)}
                     placeholder="9876543210" />
                 </div>
                 <div>

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react"
 import { backdrop, pop } from "../components/popupMotion"
 import { useAuth } from "../context/AuthContext.jsx"
 import { tr, uiLang } from "../i18n/kiranaStrings"
+import { SkeletonRows } from "../components/Skeleton"
 
 const L = k => tr(k, uiLang())
 
@@ -270,7 +271,7 @@ _Powered by DukaanAI_`
                   <input className="input" value={form.name||""} onChange={e=>set("name",e.target.value)}
                     placeholder="Ravi Kumar" autoFocus /></div>
                 <div><label className="label">Phone (for WhatsApp reminders)</label>
-                  <input className="input" value={form.phone||""} onChange={e=>set("phone",e.target.value)}
+                  <input type="tel" inputMode="tel" autoComplete="tel" className="input" value={form.phone||""} onChange={e=>set("phone",e.target.value)}
                     placeholder="9876543210" /></div>
                 <div><label className="label">Address</label>
                   <input className="input" value={form.address||""} onChange={e=>set("address",e.target.value)}
@@ -287,7 +288,7 @@ _Powered by DukaanAI_`
                 )}
                 <div>
                   <label className="label">{L("Amount (₹) *")}</label>
-                  <input className="input text-lg font-semibold" type="number" step="0.01"
+                  <input className="input text-lg font-semibold" type="number" inputMode="decimal" step="0.01"
                     value={form.amount||""} onChange={e=>set("amount",e.target.value)}
                     placeholder="0.00" autoFocus />
                 </div>
@@ -372,7 +373,7 @@ _Powered by DukaanAI_`
           <div className="card p-0 flex-1 overflow-y-auto">
             {loading ? (
               <div className="p-4 space-y-2">
-                {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />)}
+                <SkeletonRows rows={4} />
               </div>
             ) : customers.length === 0 ? (
               <div className="p-6 text-center">

@@ -9,6 +9,7 @@ const L = k => tr(k, currentLang())
 const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
 import { MIN_FONT_SIZE } from "../styles/textScale"
 import { AnimatedAmount } from "../components/billing/billMotion"
+import { SkeletonBar } from "../components/Skeleton"
 
 const INR = n => "₹" + (n || 0).toLocaleString("en-IN")
 
@@ -138,7 +139,7 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
                 {editing?.id === p.id ? (
                   <div style={{ display:"flex", gap:6, marginTop:5, alignItems:"center" }}>
-                    <input type="number" min="0" value={editVal}
+                    <input type="number" inputMode="decimal" min="0" value={editVal}
                       onChange={e => setEditVal(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && saveEdit()}
                       style={{ width:80, padding:"5px 8px", borderRadius:8, fontSize:12,
@@ -804,7 +805,7 @@ export default function Dashboard() {
               letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:6 }}>{t("Today's Takings")}</div>
             <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
               fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
-              {loading ? "—" : <AnimatedAmount value={Math.round((today.total || 0) * 100) / 100} from={0}/>}
+              {loading ? <SkeletonBar w={170} h={44} r={10} /> : <AnimatedAmount value={Math.round((today.total || 0) * 100) / 100} from={0}/>}
             </div>
 
             {/* Profit clarity row */}
@@ -962,7 +963,7 @@ export default function Dashboard() {
               <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>{t(L("RECENT SALES"))}</div>
               <button onClick={() => navigate("/billing")}
                 style={{ fontSize:MIN_FONT_SIZE, color:"var(--saffron)", fontWeight:600,
-                  background:"none", border:"none", cursor:"pointer" }}>{t(L("View all →"))}</button>
+                  background:"none", border:"none", cursor:"pointer", padding:"10px 4px", margin:"-10px -4px" }}>{t(L("View all →"))}</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14,
               border:"1px solid var(--rule)", overflow:"hidden",
@@ -1011,7 +1012,7 @@ export default function Dashboard() {
               </div>
               <button onClick={() => navigate("/inventory")}
                 style={{ fontSize:MIN_FONT_SIZE, color:"var(--saffron)", fontWeight:600,
-                  background:"none", border:"none", cursor:"pointer" }}>{t(L("View all →"))}</button>
+                  background:"none", border:"none", cursor:"pointer", padding:"10px 4px", margin:"-10px -4px" }}>{t(L("View all →"))}</button>
             </div>
             <div style={{ background:"var(--bg2)", borderRadius:14, border:"1px solid var(--rule)",
               overflow:"hidden", boxShadow:"0 4px 10px var(--shadow)" }}>

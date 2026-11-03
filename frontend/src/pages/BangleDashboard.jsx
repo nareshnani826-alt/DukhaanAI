@@ -131,7 +131,7 @@ function BangleStockPopup({ type, items, storeName, onClose, onStockUpdate }) {
                 )}
                 {editing?.id === p.id ? (
                   <div style={{ display:"flex", gap:6, marginTop:5, alignItems:"center" }}>
-                    <input type="number" min="0" value={editVal}
+                    <input type="number" inputMode="decimal" min="0" value={editVal}
                       onChange={e => setEditVal(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && saveEdit()}
                       style={{ width:80, padding:"5px 8px", borderRadius:8, fontSize:12,

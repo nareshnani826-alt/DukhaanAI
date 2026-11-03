@@ -417,7 +417,7 @@ export default function InvoiceScanTab() {
                     {/* Qty */}
                     <td style={td}>
                       <div style={{ position: "relative", display: "inline-block" }}>
-                        <input type="number" min="0" step="1"
+                        <input type="number" inputMode="decimal" min="0" step="1"
                           value={it.qty}
                           onChange={e => setItemField(i, "qty", e.target.value)}
                           title={qtyLow ? L("⚠ Low confidence — please verify this quantity") : ""}
@@ -448,7 +448,7 @@ export default function InvoiceScanTab() {
                     {/* Price */}
                     <td style={td}>
                       <div style={{ position: "relative", display: "inline-block" }}>
-                        <input type="number" min="0" step="0.01"
+                        <input type="number" inputMode="decimal" min="0" step="0.01"
                           value={it.unit_price || ""}
                           onChange={e => setItemField(i, "unit_price", e.target.value)}
                           placeholder="—"
@@ -466,7 +466,7 @@ export default function InvoiceScanTab() {
 
                     {/* GST% */}
                     <td style={td}>
-                      <input type="number" min="0" max="28"
+                      <input type="number" inputMode="decimal" min="0" max="28"
                         value={it.gst_percent ?? ""}
                         onChange={e => setItemField(i, "gst_percent", e.target.value)}
                         placeholder="—"

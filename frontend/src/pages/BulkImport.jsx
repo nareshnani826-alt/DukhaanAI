@@ -540,7 +540,7 @@ export default function BulkImport() {
                         <span style={{ fontSize:10, color:"var(--ink-faint)", whiteSpace:"nowrap" }}>
                           {restockMode === "add" ? L("Add qty") : L("Set to")}
                         </span>
-                        <input type="number" min="0"
+                        <input type="number" inputMode="decimal" min="0"
                           value={qty}
                           onChange={e => setRestockChanges(prev => ({ ...prev, [p.id]: e.target.value }))}
                           placeholder="0"
@@ -745,7 +745,7 @@ export default function BulkImport() {
                         onClick={e => e.stopPropagation()}>
                         <span style={{ fontSize:10, color:"var(--ink-dim)", whiteSpace:"nowrap" }}>{L("Qty in stock:")}</span>
                         <input
-                          type="number" min="0"
+                          type="number" inputMode="decimal" min="0"
                           value={quantities[p.name] ?? ""}
                           onChange={e => setQty(p.name, e.target.value)}
                           placeholder="0"
@@ -958,7 +958,7 @@ export default function BulkImport() {
                               </select>
                             </td>
                             <td style={{ padding:"5px 8px" }}>
-                              <input type="number" min="0" step="0.01"
+                              <input type="number" inputMode="decimal" min="0" step="0.01"
                                 value={p.mrp ?? ""}
                                 onChange={e => updateRow(i, "mrp", parseFloat(e.target.value) || 0)}
                                 style={{ width:80, border:"1px solid var(--rule)", borderRadius:6,
@@ -966,7 +966,7 @@ export default function BulkImport() {
                                   color:"var(--jade)", outline:"none", background:"white", textAlign:"right" }}/>
                             </td>
                             <td style={{ padding:"5px 8px" }}>
-                              <input type="number" min="0" step="0.01"
+                              <input type="number" inputMode="decimal" min="0" step="0.01"
                                 value={p.cost ?? ""}
                                 onChange={e => updateRow(i, "cost", parseFloat(e.target.value) || 0)}
                                 style={{ width:80, border:"1px solid var(--rule)", borderRadius:6,
@@ -974,7 +974,7 @@ export default function BulkImport() {
                                   background:"white", textAlign:"right" }}/>
                             </td>
                             <td style={{ padding:"5px 8px" }}>
-                              <input type="number" min="0" step="1"
+                              <input type="number" inputMode="decimal" min="0" step="1"
                                 value={p.stock ?? ""}
                                 onChange={e => updateRow(i, "stock", parseFloat(e.target.value) || 0)}
                                 style={{ width:62, border:"1px solid var(--rule)", borderRadius:6,

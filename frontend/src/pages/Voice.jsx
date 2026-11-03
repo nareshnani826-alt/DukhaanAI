@@ -99,14 +99,14 @@ function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
                         <div style={{ fontSize:10, color:"var(--ink-faint)", marginTop:2 }}>{item.unit}</div>
                       </td>
                       <td style={{ padding:"8px 4px" }}>
-                        <input type="number" min="0.01" step="0.01" value={item.qty}
+                        <input type="number" inputMode="decimal" min="0.01" step="0.01" value={item.qty}
                           onChange={e => setItem(i, "qty", +e.target.value || 1)}
                           style={{ width:52, textAlign:"center", border:"1px solid var(--rule)",
                             borderRadius:6, padding:"4px 2px", fontSize:12,
                             background:"var(--bg1)", color:"var(--ink)" }} />
                       </td>
                       <td style={{ padding:"8px 4px" }}>
-                        <input type="number" min="0" step="0.01" value={item.unit_price}
+                        <input type="number" inputMode="decimal" min="0" step="0.01" value={item.unit_price}
                           onChange={e => setItem(i, "unit_price", +e.target.value || 0)}
                           style={{ width:72, border:"1px solid var(--rule)", borderRadius:6,
                             padding:"4px 6px", fontSize:12,
@@ -140,7 +140,7 @@ function VoiceReviewModal({ items: initItems, onConfirm, onClose }) {
                 <option value="flat">{L("₹ Flat")}</option>
                 <option value="percent">{L("% Percent")}</option>
               </select>
-              <input type="number" min="0" placeholder="0"
+              <input type="number" inputMode="decimal" min="0" placeholder="0"
                 value={discountVal} onChange={e => setDiscountVal(e.target.value)}
                 style={{ flex:1, border:"1px solid var(--rule)", borderRadius:8, padding:"7px 10px",
                   fontSize:13, background:"var(--bg1)", color:"var(--ink)" }} />
@@ -650,7 +650,7 @@ Thank you! 🙏`
                           <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:6 }}>
                             <div style={{ flex:1 }}>
                               <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>{L("Qty")}</div>
-                              <input type="number" min="0.01" step="0.01"
+                              <input type="number" inputMode="decimal" min="0.01" step="0.01"
                                 value={editForm.qty}
                                 onChange={e => setEditForm(f => ({ ...f, qty: e.target.value }))}
                                 style={{ width:"100%", border:"1px solid var(--rule)", borderRadius:6,
@@ -659,7 +659,7 @@ Thank you! 🙏`
                             </div>
                             <div style={{ flex:1 }}>
                               <div style={{ fontSize:9, color:"var(--ink-faint)", marginBottom:2, fontWeight:600, textTransform:"uppercase" }}>{L("Price ₹")}</div>
-                              <input type="number" min="0" step="0.01"
+                              <input type="number" inputMode="decimal" min="0" step="0.01"
                                 value={editForm.mrp}
                                 onChange={e => setEditForm(f => ({ ...f, mrp: e.target.value }))}
                                 style={{ width:"100%", border:"1px solid var(--rule)", borderRadius:6,

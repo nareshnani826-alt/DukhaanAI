@@ -456,7 +456,7 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
               onChange={e => setCustomer(c => ({ ...c, name: e.target.value }))}
               style={{ border:"1.5px solid var(--rule)", borderRadius:8, padding:"6px 10px",
                 fontSize:12, background:"var(--bg2)", color:"var(--ink)", outline:"none" }} />
-            <input placeholder="Phone (optional)" value={customer.phone}
+            <input type="tel" inputMode="tel" autoComplete="tel" placeholder="Phone (optional)" value={customer.phone}
               onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))}
               style={{ border:"1.5px solid var(--rule)", borderRadius:8, padding:"6px 10px",
                 fontSize:12, background:"var(--bg2)", color:"var(--ink)", outline:"none" }} />
@@ -480,7 +480,7 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
             <span style={{ fontSize:12, color:"var(--ink-dim)", fontWeight:600 }}>Discount</span>
             <div style={{ position:"relative", flex:1 }}>
-              <input type="number" min="0" max="100" step="0.5"
+              <input type="number" inputMode="decimal" min="0" max="100" step="0.5"
                 value={discountPct || ""}
                 onChange={e => setDiscountPct(Math.min(100, Math.max(0, +e.target.value || 0)))}
                 placeholder="0"
@@ -761,7 +761,7 @@ function QuickItemModal({ onAdd, onClose, products = [] }) {
             <div style={{ position:"relative" }}>
               <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)",
                 fontSize:13, color:"var(--ink-dim)", pointerEvents:"none" }}>₹</span>
-              <input type="number" min="0" value={price}
+              <input type="number" inputMode="decimal" min="0" value={price}
                 onChange={e => setPrice(e.target.value)}
                 placeholder="0"
                 style={{ width:"100%", border:"1.5px solid var(--rule)",
@@ -779,7 +779,7 @@ function QuickItemModal({ onAdd, onClose, products = [] }) {
               <button className="qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))}
                 style={{ borderRadius:8, border:"1.5px solid var(--rule)",
                   background:"var(--bg2)", cursor:"pointer", fontSize:16, color:"var(--ink-dim)" }}>−</button>
-              <input type="number" min="1" value={qty}
+              <input type="number" inputMode="decimal" min="1" value={qty}
                 onChange={e => setQty(Math.max(1, +e.target.value || 1))}
                 style={{ flex:1, textAlign:"center", border:"1.5px solid var(--rule)",
                   borderRadius:8, padding:"6px 0", fontSize:14, fontWeight:700,
@@ -1220,7 +1220,7 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
               <button className="qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))}
                 style={{ borderRadius: 8, border: "1.5px solid var(--rule)",
                   background: "var(--bg2)", cursor: "pointer", fontSize: 16, color: "var(--ink-dim)" }}>−</button>
-              <input type="number" min="1" value={qty}
+              <input type="number" inputMode="decimal" min="1" value={qty}
                 onChange={e => setQty(Math.max(1, +e.target.value || 1))}
                 style={{ width: 60, textAlign: "center", border: "1.5px solid var(--rule)", borderRadius: 8,
                   padding: "6px 0", fontSize: 14, fontWeight: 700, color: "var(--ink)",
@@ -1245,7 +1245,7 @@ function ProductPicker({ products, onAdd, t, onScanRequest, onQuickItem, onNativ
                 <div style={{ position: "relative", flex: 1 }}>
                   <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
                     fontSize: 13, color: "var(--ink-dim)", pointerEvents: "none", zIndex: 1 }}>₹</span>
-                  <input type="number" min="0" value={sellingPrice || ""}
+                  <input type="number" inputMode="decimal" min="0" value={sellingPrice || ""}
                     onChange={e => setSellingPrice(Math.max(0, +e.target.value || 0))}
                     style={{ width: "100%", paddingLeft: 24, border: "1.5px solid var(--rule)",
                       borderRadius: 8, padding: "7px 8px 7px 24px", fontSize: 14, fontWeight: 700,
@@ -1586,7 +1586,7 @@ function ReceiptModal({ sale, storeName, onClose, onNewBill }) {
           <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 4 }}>
             Customer WhatsApp Number
           </label>
-          <input value={phone} onChange={e => setPhone(e.target.value)}
+          <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)}
             placeholder="10-digit mobile number" inputMode="numeric" maxLength={10}
             style={{ width: "100%", padding: "9px 12px", borderRadius: 9,
               border: "1.5px solid #e5e7eb", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
@@ -1693,7 +1693,7 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
                     <div style={{ position:"relative" }}>
                       <span style={{ position:"absolute", left:6, top:"50%", transform:"translateY(-50%)",
                         fontSize:11, color:"var(--ink-dim)" }}>₹</span>
-                      <input type="number" min="0" autoFocus
+                      <input type="number" inputMode="decimal" min="0" autoFocus
                         value={editPrice}
                         onChange={e => setEditPrice(e.target.value)}
                         onKeyDown={e => {
@@ -1761,7 +1761,7 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
             onChange={e => setCustomer(c => ({ ...c, name: e.target.value }))}
             style={{ border: "1.5px solid var(--rule)", borderRadius: 8, padding: "6px 10px",
               fontSize: 12, background: "var(--bg2)", color: "var(--ink)", outline: "none" }} />
-          <input placeholder={t("Phone (optional)")} value={customer.phone}
+          <input type="tel" inputMode="tel" autoComplete="tel" placeholder={t("Phone (optional)")} value={customer.phone}
             onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))}
             style={{ border: "1.5px solid var(--rule)", borderRadius: 8, padding: "6px 10px",
               fontSize: 12, background: "var(--bg2)", color: "var(--ink)", outline: "none" }} />
@@ -1786,7 +1786,7 @@ function CartPanel({ items, onRemove, onUpdatePrice, onBill, t }) {
             {t("Discount")}
           </span>
           <div style={{ position:"relative", flex:1 }}>
-            <input type="number" min="0" max="100" step="0.5"
+            <input type="number" inputMode="decimal" min="0" max="100" step="0.5"
               value={discountPct || ""}
               onChange={e => setDiscountPct(Math.min(100, Math.max(0, +e.target.value || 0)))}
               placeholder="0"
@@ -2115,7 +2115,7 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <button onClick={() => setQty(q=>Math.max(1,q-1))}
                     style={{ width:34, height:34, borderRadius:8, background:"#f9fafb", border:"1px solid #e5e7eb", color:"#555", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
-                  <input type="number" min="1" value={qty} onChange={e=>setQty(Math.max(1,+e.target.value||1))}
+                  <input type="number" inputMode="decimal" min="1" value={qty} onChange={e=>setQty(Math.max(1,+e.target.value||1))}
                     style={{ flex:1, textAlign:"center", border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 0", fontSize:15, fontWeight:700, color:"#111", background:"#fff", outline:"none" }}/>
                   <button onClick={() => setQty(q=>q+1)}
                     style={{ width:34, height:34, borderRadius:8, background:"#E87722", border:"none", color:"#fff", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
@@ -2127,7 +2127,7 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <div style={{ flex:1, position:"relative" }}>
                     <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", fontSize:13, color:"#888", pointerEvents:"none" }}>₹</span>
-                    <input type="number" min="0" value={sp||""} onChange={e=>setSp(Math.max(0,+e.target.value||0))}
+                    <input type="number" inputMode="decimal" min="0" value={sp||""} onChange={e=>setSp(Math.max(0,+e.target.value||0))}
                       style={{ width:"100%", border:`1.5px solid ${mColor}`, borderRadius:8, padding:"7px 8px 7px 22px", fontSize:14, fontWeight:700, color:"#111", background:"#fff", outline:"none", boxSizing:"border-box" }}/>
                   </div>
                   {margin!==null && <div style={{ fontSize:12, fontWeight:800, color:mColor, minWidth:36, textAlign:"center" }}>{margin.toFixed(0)}%</div>}
@@ -2271,11 +2271,11 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
                           )}
                         </td>
                         <td style={{ padding:"8px 4px" }}>
-                          <input type="number" min="1" value={item.unit_qty} onChange={e=>setRQty(i,e.target.value)}
+                          <input type="number" inputMode="decimal" min="1" value={item.unit_qty} onChange={e=>setRQty(i,e.target.value)}
                             style={{ width:46, textAlign:"center", border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 2px", fontSize:12 }}/>
                         </td>
                         <td style={{ padding:"8px 4px" }}>
-                          <input type="number" min="0" step="0.01" value={item.unit_price} onChange={e=>setRPrice(i,e.target.value)}
+                          <input type="number" inputMode="decimal" min="0" step="0.01" value={item.unit_price} onChange={e=>setRPrice(i,e.target.value)}
                             style={{ width:72, border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 6px", fontSize:12 }}/>
                         </td>
                         <td style={{ padding:"8px 4px" }}>
@@ -2300,7 +2300,7 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
                   <option value="flat">₹ Flat</option>
                   <option value="percent">% Percent</option>
                 </select>
-                <input type="number" min="0" placeholder="0" value={discountVal} onChange={e=>setDVal(e.target.value)}
+                <input type="number" inputMode="decimal" min="0" placeholder="0" value={discountVal} onChange={e=>setDVal(e.target.value)}
                   style={{ flex:1, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }}/>
                 {rDiscAmt>0 && <span style={{ fontSize:12, color:"#dc2626", fontWeight:600, whiteSpace:"nowrap" }}>− ₹{rDiscAmt}</span>}
               </div>
@@ -2518,7 +2518,7 @@ function VariantSheet({ product, onAdd, onClose, t }) {
                   style={{ width:34, height:34, borderRadius:8, background:"#f9fafb",
                     border:"1px solid #e5e7eb", color:"#555", cursor:"pointer", fontSize:18,
                     display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
-                <input type="number" min="1" value={qty}
+                <input type="number" inputMode="decimal" min="1" value={qty}
                   onChange={e => setQty(Math.max(1, +e.target.value||1))}
                   style={{ flex:1, textAlign:"center", border:"1px solid #e5e7eb", borderRadius:8,
                     padding:"7px 0", fontSize:15, fontWeight:700, color:"#111",
@@ -2537,7 +2537,7 @@ function VariantSheet({ product, onAdd, onClose, t }) {
                 <div style={{ flex:1, position:"relative" }}>
                   <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)",
                     fontSize:13, color:"#888", pointerEvents:"none" }}>₹</span>
-                  <input type="number" min="0" value={sp||""}
+                  <input type="number" inputMode="decimal" min="0" value={sp||""}
                     onChange={e => setSp(Math.max(0, +e.target.value||0))}
                     style={{ width:"100%", border:`1.5px solid ${mColor}`,
                       borderRadius:8, padding:"7px 8px 7px 22px", fontSize:14, fontWeight:700,
@@ -2691,13 +2691,13 @@ function BangleReviewModal({ cart, onClose, onConfirm }) {
                         )}
                       </td>
                       <td style={{ padding:"8px 4px" }}>
-                        <input type="number" min="1" value={item.unit_qty}
+                        <input type="number" inputMode="decimal" min="1" value={item.unit_qty}
                           onChange={e => setQty(i, e.target.value)}
                           style={{ width:46, textAlign:"center", border:"1px solid #e5e7eb",
                             borderRadius:6, padding:"4px 2px", fontSize:12 }} />
                       </td>
                       <td style={{ padding:"8px 4px" }}>
-                        <input type="number" min="0" step="0.01" value={item.unit_price}
+                        <input type="number" inputMode="decimal" min="0" step="0.01" value={item.unit_price}
                           onChange={e => setPrice(i, e.target.value)}
                           style={{ width:72, border:"1px solid #e5e7eb", borderRadius:6,
                             padding:"4px 6px", fontSize:12 }} />
@@ -2732,7 +2732,7 @@ function BangleReviewModal({ cart, onClose, onConfirm }) {
                 <option value="flat">₹ Flat</option>
                 <option value="percent">% Percent</option>
               </select>
-              <input type="number" min="0" placeholder="0" value={discountVal}
+              <input type="number" inputMode="decimal" min="0" placeholder="0" value={discountVal}
                 onChange={e => setDVal(e.target.value)}
                 style={{ flex:1, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }} />
               {discAmt > 0 && (
@@ -3278,7 +3278,7 @@ export default function BangleBilling() {
                   color:"var(--ink-faint)", marginBottom:4 }}>
                   Customer WhatsApp Number
                 </label>
-                <input value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))}
+                <input type="tel" inputMode="tel" autoComplete="tel" value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))}
                   placeholder="10-digit mobile number" inputMode="numeric" maxLength={10}
                   style={{ width:"100%", padding:"10px 12px", borderRadius:10,
                     border:"1.5px solid var(--rule)", fontSize:14, background:"var(--bg2)",
@@ -3513,7 +3513,7 @@ export default function BangleBilling() {
                 placeholder="Customer name"
                 style={{ flex:1, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
                   padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />
-              <input value={customer.phone} onChange={e => setCustomer(c=>({...c,phone:e.target.value}))}
+              <input type="tel" inputMode="tel" autoComplete="tel" value={customer.phone} onChange={e => setCustomer(c=>({...c,phone:e.target.value}))}
                 placeholder="Phone"
                 style={{ width:130, background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:9,
                   padding:"9px 12px", fontSize:13, color:"var(--ink)", outline:"none" }} />

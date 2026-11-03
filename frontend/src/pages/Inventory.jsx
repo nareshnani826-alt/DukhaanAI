@@ -19,6 +19,7 @@ import { lookupPrice, getVariants } from "../data/productPrices.js"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { tr, uiLang } from "../i18n/kiranaStrings"
 import Loading from "../components/Loading"
+import { SkeletonRows } from "../components/Skeleton"
 
 const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
 const GSTS = [0,3,5,12,18,28]  // 3% is the GST slab for gold/silver/jewelry
@@ -429,7 +430,7 @@ function RestockModal({ product, onConfirm, onClose }) {
             <button onClick={() => setQty(q => String(Math.max(1, +q - 1)))}
               style={{ width:44, height:44, borderRadius:10, border:"1px solid #e5e7eb",
                        background:"#f9fafb", fontSize:20, cursor:"pointer" }}>−</button>
-            <input type="number" value={qty} onChange={e => setQty(e.target.value)}
+            <input type="number" inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)}
               style={{ width:60, textAlign:"center", border:"1px solid #e5e7eb",
                        borderRadius:8, padding:"6px 4px", fontSize:14, fontWeight:600 }} />
             <button onClick={() => setQty(q => String(+q + 1))}
@@ -767,7 +768,7 @@ export default function Inventory() {
           {[["", L("All")], ["__low", "⚠ " + L("Low stock")], ...CATS.map(c => [c, L(c)])].map(([val, label]) => {
             const on = val === "__low" ? lowOnly : !lowOnly && cat === val
             return (
-              <button key={val || "all"} onClick={() => { if (val === "__low") { setLowOnly(v => !v) } else { setLowOnly(false); setCat(val) } }}
+              <button key={val || "all"} className="tap-chip" onClick={() => { if (val === "__low") { setLowOnly(v => !v) } else { setLowOnly(false); setCat(val) } }}
                 style={{ flexShrink:0, padding:"8px 14px", borderRadius:20, fontSize:13, fontWeight:700, border:"none",
                   background: on ? "var(--saffron)" : "var(--bg2)", color: on ? "#fff" : "var(--ink-dim)" }}>
                 {label}
@@ -780,7 +781,7 @@ export default function Inventory() {
       {/* ── Phone: product cards ── */}
       <div className="md:hidden"><div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {loading ? (
-          <div style={{ textAlign:"center", padding:32, color:"var(--ink-faint)" }}><Loading label="Loading…"/></div>
+          <SkeletonRows rows={6} />
         ) : listProducts.length === 0 ? (
           <div style={{ textAlign:"center", padding:"32px 16px", color:"var(--ink-faint)", fontSize:15 }}>
             {products.length === 0 ? "No products yet. Tap “+ Add” to add your first item." : L("Nothing matches.")}

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext"
 import { Invoices, Products, isCloud } from "../sync/db"
 import InvoiceView from "../components/InvoiceView"
 import { tr, uiLang } from "../i18n/kiranaStrings"
+import { SkeletonRows } from "../components/Skeleton"
 
 const L = k => tr(k, uiLang())
 
@@ -357,7 +358,7 @@ export default function History() {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 14 }}>
+          <div className="hist-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 14 }}>
             {/* Total Sales */}
             <div style={{ background: "var(--bg1)", border: "1px solid var(--rule)",
               borderRadius: 14, padding: "14px 16px" }}>
@@ -465,9 +466,9 @@ export default function History() {
       </div>
 
       {/* ── Date tabs ─────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+      <div className="chip-row" style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
         {DATE_OPTS.map((opt, idx) => (
-          <button key={opt.label} onClick={() => { setDateOpt(idx); setOffset(0) }}
+          <button key={opt.label} className="tap-chip" onClick={() => { setDateOpt(idx); setOffset(0) }}
             style={{ padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600,
               border: dateOpt === idx ? "none" : "1px solid var(--rule)",
               background: dateOpt === idx ? "var(--jade)" : "var(--bg2)",
@@ -492,9 +493,9 @@ export default function History() {
 
       {/* ── Filter + Sort ─────────────────────────────────── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        <div className="chip-row" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {PAY_OPTS.map(p => (
-            <button key={p} onClick={() => { setPayMode(p); setOffset(0) }}
+            <button key={p} className="tap-chip" onClick={() => { setPayMode(p); setOffset(0) }}
               style={{ padding: "4px 10px", borderRadius: 16, fontSize: 11, fontWeight: 600,
                 border: payMode === p ? "none" : "1px solid var(--rule)",
                 background: payMode === p ? "var(--jade)" : "var(--bg2)",
@@ -527,9 +528,7 @@ export default function History() {
 
       {/* ── Content ───────────────────────────────────────── */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ink-faint)", fontSize: 13 }}>
-          {L("Loading invoices…")}
-        </div>
+        <SkeletonRows rows={6} />
       ) : error ? (
         <div style={{ textAlign: "center", padding: "40px 0", color: "#dc2626", fontSize: 13 }}>
           {error}

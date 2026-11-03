@@ -111,7 +111,7 @@ export default function Wastage() {
               {/* Quantity */}
               <div>
                 <label className="label">{L("Quantity wasted *")}</label>
-                <input className="input" type="number" min="0.1" step="0.1"
+                <input className="input" type="number" inputMode="decimal" min="0.1" step="0.1"
                   value={form.qty} onChange={e => set("qty", e.target.value)}
                   placeholder="1" />
                 {selectedProduct && form.qty && (

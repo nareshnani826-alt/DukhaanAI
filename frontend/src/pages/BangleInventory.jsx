@@ -871,14 +871,14 @@ function AddProductModal({ onClose, onSaved }) {
                         </div>
                         <div>
                           <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>MRP (₹)</div>
-                          <input type="number" min="0" value={scanForm.mrp}
+                          <input type="number" inputMode="decimal" min="0" value={scanForm.mrp}
                             onChange={e => setScanForm(f=>({...f,mrp:e.target.value}))}
                             placeholder="0"
                             style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 10px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
                         </div>
                         <div>
                           <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>COST (₹)</div>
-                          <input type="number" min="0" value={scanForm.cost_price}
+                          <input type="number" inputMode="decimal" min="0" value={scanForm.cost_price}
                             onChange={e => setScanForm(f=>({...f,cost_price:e.target.value}))}
                             placeholder="0"
                             style={{width:"100%",border:"1.5px solid var(--rule)",borderRadius:8,padding:"6px 10px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
@@ -955,7 +955,7 @@ function AddProductModal({ onClose, onSaved }) {
                         <div style={{display:"flex", alignItems:"center", gap:12}}>
                           <div style={{flex:1}}>
                             <div style={{fontSize:10, fontWeight:700, color:"var(--ink-dim)", marginBottom:4}}>STOCK PER VARIANT</div>
-                            <input type="number" min="0" value={scanStock}
+                            <input type="number" inputMode="decimal" min="0" value={scanStock}
                               onChange={e=>setScanStock(e.target.value)}
                               style={{width:"100%",border:"1.5px solid var(--saffron)",borderRadius:8,padding:"6px 10px",fontSize:14,fontWeight:700,color:"var(--saffron)",textAlign:"center",outline:"none",boxSizing:"border-box"}}/>
                           </div>
@@ -1010,13 +1010,13 @@ function AddProductModal({ onClose, onSaved }) {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="label">MRP (₹)</label>
-                  <input className="input" type="number" min="0" placeholder="0"
+                  <input className="input" type="number" inputMode="decimal" min="0" placeholder="0"
                     value={form.mrp} onChange={e=>set("mrp",e.target.value)}
                     style={flash("mrp")} />
                 </div>
                 <div>
                   <label className="label">Cost (₹)</label>
-                  <input className="input" type="number" min="0" placeholder="0"
+                  <input className="input" type="number" inputMode="decimal" min="0" placeholder="0"
                     value={form.cost_price} onChange={e=>{
                       set("cost_price",e.target.value)
                       if (!form.mrp) {
@@ -1154,7 +1154,7 @@ function AddProductModal({ onClose, onSaved }) {
                 }}>
                   <label className="label">Opening Stock per Variant</label>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
-                    <input className="input" type="number" min="0" placeholder="0"
+                    <input className="input" type="number" inputMode="decimal" min="0" placeholder="0"
                       value={stockPer} onChange={e=>setStockPer(e.target.value)}
                       style={{flex:1, ...flash("stock_per")}} />
                     <span style={{fontSize:11, color:"var(--ink-faint)", whiteSpace:"nowrap"}}>
@@ -1303,7 +1303,7 @@ function AddVariantsModal({ product, onClose, onSaved }) {
               </div>
               <div>
                 <label className="label">Opening stock per variant</label>
-                <input className="input" type="number" min="0" value={stockPer}
+                <input className="input" type="number" inputMode="decimal" min="0" value={stockPer}
                   onChange={e=>setStockPer(e.target.value)} placeholder="0" />
               </div>
               {(selColours.length>0||selSizes.length>0||selDesigns.length>0) && (
@@ -1329,7 +1329,7 @@ function AddVariantsModal({ product, onClose, onSaved }) {
               ))}
               <div>
                 <label className="label">Opening Stock</label>
-                <input className="input" type="number" min="0" value={single.stock}
+                <input className="input" type="number" inputMode="decimal" min="0" value={single.stock}
                   onChange={e=>setSingle(s=>({...s,stock:e.target.value}))} />
               </div>
               {err && <p className="text-red-500 text-xs">{err}</p>}
@@ -1379,7 +1379,7 @@ function VariantRow({ variant, productMrp, productCategory, onStockChange }) {
         <button onClick={()=>{const n=Math.max(0,stock-1);setStock(n);save(n)}}
           className="w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center"
           style={{background:"var(--bg2)",color:"var(--ink-dim)"}}>−</button>
-        <input type="number" min="0" value={stock}
+        <input type="number" inputMode="decimal" min="0" value={stock}
           onChange={e=>setStock(+e.target.value)}
           onBlur={e=>save(+e.target.value)}
           className="w-12 text-center text-xs font-bold rounded-md border"
@@ -1614,14 +1614,14 @@ function EditProductModal({ product, onClose, onSaved, suppliers }) {
               <label className="label">
                 MRP {isPieceCat(form.category) ? "(₹/piece)" : "(₹/dozen)"}
               </label>
-              <input className="input" type="number" min="0" placeholder="0"
+              <input className="input" type="number" inputMode="decimal" min="0" placeholder="0"
                 value={form.mrp} onChange={e => set("mrp", e.target.value)} />
             </div>
             <div>
               <label className="label">
                 Cost Price {isPieceCat(form.category) ? "(₹/piece)" : "(₹/dozen)"}
               </label>
-              <input className="input" type="number" min="0" placeholder="0"
+              <input className="input" type="number" inputMode="decimal" min="0" placeholder="0"
                 value={form.cost_price} onChange={e => set("cost_price", e.target.value)} />
             </div>
           </div>
