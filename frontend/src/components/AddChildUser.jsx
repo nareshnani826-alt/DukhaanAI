@@ -10,7 +10,7 @@ const roleOptions = [
 ];
 
 // Owner adds staff with a username + 4-digit PIN. Staff sign in from the
-// "Staff" tab on the login screen using the shop's phone/email.
+// Sign In box on the login screen: their username, then the shop's phone/email and PIN.
 export default function AddChildUser() {
   const [staff, setStaff] = useState([]);
   const [username, setUsername] = useState("");
@@ -31,7 +31,7 @@ export default function AddChildUser() {
     setSuccess("");
     try {
       const s = await api.post("/staff", { username, pin, role });
-      setSuccess(`${s.username} ${L("added")}. ${L("They sign in from the Staff tab with your shop phone, their username and PIN.")}`);
+      setSuccess(`${s.username} ${L("added")}. ${L("They sign in by typing their username in Sign In, then your shop phone and their PIN.")}`);
       setUsername("");
       setPin("");
       load();

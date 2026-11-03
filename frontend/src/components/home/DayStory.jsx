@@ -2,20 +2,11 @@ import { useRef, useState } from "react"
 import { motion, AnimatePresence, useScroll, useSpring } from "motion/react"
 import { Icon } from "./kit"
 import { rootScroller } from "./utils"
+import { STORIES } from "./shopContent"
 
 // "A day at your dukaan" — chapters scroll past while the phone beside them
 // stays pinned and changes screen. On phones each chapter carries its own screen.
 
-const CHAPTERS = [
-  { id:"open",  time:"9:00 AM",  icon:"sun",     color:"#d98a1c", title:"Open the shop",
-    text:"Count the cash drawer and open the day in one tap. DukaanAI shows what's running low before the first customer walks in." },
-  { id:"rush",  time:"11:30 AM", icon:"zap",     color:"#d4621f", title:"The morning rush",
-    text:"Speak or scan — every item lands on the bill in a second. Send the GST bill straight to the customer's WhatsApp." },
-  { id:"udhar", time:"4:00 PM",  icon:"book",    color:"#7c5cbf", title:"Udhar, sorted",
-    text:"Regular customer short on cash? Add it to their khata. Every pending amount is there at a glance — no more notebook." },
-  { id:"close", time:"9:00 PM",  icon:"moon",    color:"#1f7a5e", title:"Close the day",
-    text:"Close the day and see today's sales, profit and best sellers. Go home knowing exactly how the shop did." },
-]
 
 const list = {
   hidden: {},
@@ -41,58 +32,29 @@ function Row({ left, sub, right, dot }) {
   )
 }
 
-function Screen({ id }) {
-  if (id === "open") return (
-    <>
-      <motion.div variants={row} className="hm-s-hero" style={{ background:"#fff4e0" }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#9a6a12" }}>DAY OPENED</div>
-        <div style={{ fontSize:22, fontWeight:800 }}>₹2,000</div>
-        <div style={{ fontSize:11, color:"#7a6346" }}>cash in drawer</div>
-      </motion.div>
-      <motion.div variants={row} className="hm-s-label">Running low</motion.div>
-      <Row left="Amul milk 500 ml" right="4 left" dot="#c0382d"/>
-      <Row left="Sugar 1 kg"       right="2 left" dot="#c0382d"/>
-      <Row left="Parle-G biscuit"  right="6 left" dot="#d98a1c"/>
-    </>
-  )
-  if (id === "rush") return (
-    <>
-      <motion.div variants={row} className="hm-s-label">Bill #46</motion.div>
-      <Row left="Tata salt 1 kg"    sub="1 pc"  right="₹28"/>
-      <Row left="Fortune oil 1 L"   sub="1 pc"  right="₹165"/>
-      <Row left="Toor dal"          sub="1 kg"  right="₹160"/>
-      <motion.div variants={row} className="hm-s-total"><span>Total</span><span>₹353</span></motion.div>
-      <motion.div variants={row} className="hm-s-chip"><Icon name="check" size={14}/> Sent on WhatsApp</motion.div>
-    </>
-  )
-  if (id === "udhar") return (
-    <>
-      <motion.div variants={row} className="hm-s-hero" style={{ background:"#f1ebfa" }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#5b3fa6" }}>TOTAL UDHAR</div>
-        <div style={{ fontSize:22, fontWeight:800 }}>₹1,830</div>
-        <div style={{ fontSize:11, color:"#7a6346" }}>3 customers</div>
-      </motion.div>
-      <Row left="Lakshmi"      sub="12 days" right="₹1,200" dot="#7c5cbf"/>
-      <Row left="Ramesh Kumar" sub="5 days"  right="₹450"   dot="#7c5cbf"/>
-      <Row left="Suresh"       sub="Today"   right="₹180"   dot="#7c5cbf"/>
-    </>
-  )
-  const bars = [38, 52, 44, 70, 58, 84, 100]
+// One phone screen, drawn from the chapter's data (see STORIES in shopContent.js)
+function Screen({ c }) {
   return (
     <>
-      <motion.div variants={row} className="hm-s-hero" style={{ background:"#e6f3ee" }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#1f7a5e" }}>TODAY'S SALES</div>
-        <div style={{ fontSize:22, fontWeight:800 }}>₹8,420</div>
-        <div style={{ fontSize:11, color:"#7a6346" }}>46 bills · ₹1,260 profit</div>
-      </motion.div>
-      <motion.div variants={row} className="hm-s-label">This week</motion.div>
-      <div className="hm-s-bars">
-        {bars.map((h, i) => (
-          <motion.div key={i} style={{ height:`${h}%`, originY:1, background: i === bars.length - 1 ? "#1f7a5e" : "#bfe0d3" }}
-            variants={{ hidden:{ scaleY:0 }, show:{ scaleY:1, transition:{ type:"spring", bounce:0.2, visualDuration:0.5, delay:0.25 + i * 0.05 } } }}/>
-        ))}
-      </div>
-      <Row left="Best seller" sub="Amul milk 500 ml" right="62 sold"/>
+      {c.hero && (
+        <motion.div variants={row} className="hm-s-hero" style={{ background:c.hero.bg }}>
+          <div style={{ fontSize:11, fontWeight:700, color:c.hero.fg }}>{c.hero.label}</div>
+          <div style={{ fontSize:22, fontWeight:800 }}>{c.hero.value}</div>
+          <div style={{ fontSize:11, color:"#7a6346" }}>{c.hero.sub}</div>
+        </motion.div>
+      )}
+      {c.label && <motion.div variants={row} className="hm-s-label">{c.label}</motion.div>}
+      {c.bars && (
+        <div className="hm-s-bars">
+          {c.bars.map((h, i) => (
+            <motion.div key={i} style={{ height:`${h}%`, originY:1, background: i === c.bars.length - 1 ? "#1f7a5e" : "#bfe0d3" }}
+              variants={{ hidden:{ scaleY:0 }, show:{ scaleY:1, transition:{ type:"spring", bounce:0.2, visualDuration:0.5, delay:0.25 + i * 0.05 } } }}/>
+          ))}
+        </div>
+      )}
+      {(c.rows || []).map(([left, sub, right, dot]) => <Row key={left} left={left} sub={sub} right={right} dot={dot}/>)}
+      {c.total && <motion.div variants={row} className="hm-s-total"><span>Total</span><span>{c.total}</span></motion.div>}
+      {c.chip && <motion.div variants={row} className="hm-s-chip"><Icon name="check" size={14}/> {c.chip}</motion.div>}
     </>
   )
 }
@@ -109,7 +71,7 @@ function Phone({ chapter, inline }) {
       </div>
       {inline ? (
         <motion.div variants={list} initial="hidden" whileInView="show" viewport={{ once:true, amount:0.4 }}>
-          <Screen id={chapter.id}/>
+          <Screen c={chapter}/>
         </motion.div>
       ) : (
         <AnimatePresence mode="wait">
@@ -117,7 +79,7 @@ function Phone({ chapter, inline }) {
             initial={{ opacity:0, x:24 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-24 }}
             transition={{ type:"spring", bounce:0, visualDuration:0.3 }}>
             <motion.div variants={list} initial="hidden" animate="show">
-              <Screen id={chapter.id}/>
+              <Screen c={chapter}/>
             </motion.div>
           </motion.div>
         </AnimatePresence>
@@ -126,7 +88,8 @@ function Phone({ chapter, inline }) {
   )
 }
 
-export default function DayStory() {
+export default function DayStory({ chapters = STORIES.kirana }) {
+  const CH = chapters
   const [active, setActive] = useState(0)
   const ref = useRef(null)
   const { scrollYProgress } = useScroll({ target: ref, container: rootScroller, offset: ["start center", "end center"] })
@@ -136,9 +99,9 @@ export default function DayStory() {
     <div className="hm-story" ref={ref}>
       <div className="hm-chapters">
         <div className="hm-rail" aria-hidden="true">
-          <motion.div className="hm-rail-fill" style={{ scaleY: fill, background: CHAPTERS[active].color }}/>
+          <motion.div className="hm-rail-fill" style={{ scaleY: fill, background: (CH[active] || CH[0]).color }}/>
         </div>
-        {CHAPTERS.map((c, i) => (
+        {CH.map((c, i) => (
           <motion.div key={c.id} className="hm-chapter"
             viewport={{ amount: 0.6 }} onViewportEnter={() => setActive(i)}
             animate={{ opacity: active === i ? 1 : 0.35 }} transition={{ duration: 0.3 }}>
@@ -153,7 +116,7 @@ export default function DayStory() {
         ))}
       </div>
       <div className="hm-story-pin">
-        <Phone chapter={CHAPTERS[active]}/>
+        <Phone chapter={CH[active] || CH[0]}/>
       </div>
     </div>
   )

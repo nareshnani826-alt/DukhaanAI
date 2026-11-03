@@ -25,6 +25,7 @@ class VendorRegister(BaseModel):
 class VendorLogin(BaseModel):
     identifier: str  # email or phone number
     password: str
+    shop_type: Optional[str] = None  # kirana | chai | bangle_fancy — which of this login's shops to open
 
 
 class TokenResponse(BaseModel):
@@ -43,6 +44,7 @@ class StaffLogin(BaseModel):
     shop: str      # shop owner's email or phone number
     username: str
     pin: str
+    shop_type: Optional[str] = None
 
 
 def _check_pin(v: str) -> str:
@@ -92,6 +94,7 @@ class SendOtpRequest(BaseModel):
 class VerifyOtpRequest(BaseModel):
     phone: str
     otp: str
+    shop_type: Optional[str] = None
 
 
 class RegisterOtpRequired(BaseModel):
@@ -109,6 +112,7 @@ class RegisterConfirm(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+    shop_type: Optional[str] = None
 
 
 class ResetPasswordRequest(BaseModel):

@@ -61,6 +61,7 @@ from app.routers import (
     vocab,
     agent,
     staff,
+    chai,
 )
 from app.core.roles import enforce_role
 
@@ -172,6 +173,7 @@ app.include_router(bangle.router)
 app.include_router(vocab.router)
 app.include_router(agent.router)
 app.include_router(staff.router)
+app.include_router(chai.router)
 app.include_router(
     voice.router,
     prefix="/api/voice",

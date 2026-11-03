@@ -45,10 +45,31 @@ const SECTIONS = [
   },
 ]
 
+// Chai shop mode has its own short list
+const CHAI_SECTIONS = [
+  {
+    label: "Sales & money",
+    items: [
+      { label:"New bill",           to:"/chai-billing",   icon:"☕", desc:"Counter and tables" },
+      { label:"Today's report",     to:"/chai-dashboard", icon:"📊", desc:"Cash, UPI, cups sold" },
+      { label:"Khata (udhaar)",     to:"/chai-khata",     icon:"📒", desc:"Regulars who pay later" },
+    ],
+  },
+  {
+    label: "Shop",
+    items: [
+      { label:"Menu & Stock",       to:"/chai-stock",     icon:"🥛", desc:"Prices, milk, sugar, cups" },
+      { label:"Settings",           to:"/settings",       icon:"⚙️", desc:"Shop details, language" },
+      { label:"Help",               to:"/help",           icon:"❓", desc:"How to use the app" },
+    ],
+  },
+]
+
 export default function More() {
   const navigate = useNavigate()
   const { vendor, cloud, logout, loggedIn, hasModule } = useAuth()
   const isBangleOnly = hasModule("bangle_fancy") && !hasModule("kirana")
+  const isChai = (() => { try { return localStorage.getItem("storeMode") === "chai" } catch { return false } })()
   const { planLabel } = usePlan()
   const { isDark, toggleTheme } = useTheme()
   const { appMode, setAppMode, isScreenVisible, APP_MODES } = useAppMode()
@@ -119,8 +140,8 @@ export default function More() {
         </div>
 
         {/* Feature sections */}
-        {SECTIONS.map(sec => {
-          const visible = sec.items.filter(item => item.chat || isScreenVisible(item.to))
+        {(isChai ? CHAI_SECTIONS : SECTIONS).map(sec => {
+          const visible = sec.items.filter(item => item.chat || isChai || isScreenVisible(item.to))
           if (visible.length === 0) return null
           return (
             <div key={sec.label} style={{ marginBottom:20 }}>

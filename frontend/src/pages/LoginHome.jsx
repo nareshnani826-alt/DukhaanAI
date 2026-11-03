@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { isTokenValid, clearAuth } from "../sync/db"
 import { tr } from "../i18n/kiranaStrings"
 import HomeSections from "../components/HomeSections"
+import { CONTENT } from "../components/home/shopContent"
+
+// Homepage version per address: dukhaanai.in/chai opens the chai shop page, and so on
+const ROUTE_SHOP  = { "/kirana":"kirana", "/chai":"chai", "/bangle":"bangle" }
+const SHOP_MODULE = { kirana:"kirana", chai:"chai", bangle:"bangle_fancy" }
+const HOME_SHOP   = "dk_home_shop"
 
 // Language is picked during onboarding, before this page is ever shown
 // (see FirstRunGuard in App.jsx), so it's already in localStorage here.
@@ -16,8 +22,43 @@ const isValidPhone = v => /^(\+91|0|91)?[6-9]\d{9}$/.test(v.replace(/\s/g, ""))
 
 const MODULES = [
   { id:"kirana",       label:"Kirana / General Store",    sub:"Grocery, FMCG, daily essentials", emoji:"🏪", route:"/dashboard",        gradient:"linear-gradient(135deg,#e87722,#c25500)", border:"rgba(232,119,34,0.4)", bg:"rgba(232,119,34,0.08)" },
+  { id:"chai",         label:"Chai / Tea Shop",           sub:"Tea, coffee, snacks · counter & tables", emoji:"☕", route:"/chai-dashboard", gradient:"linear-gradient(135deg,#8d5524,#5d3a1a)", border:"rgba(141,85,36,0.4)" },
   { id:"bangle_fancy", label:"Bangle / Jewellery Store",  sub:"Bangles, earrings, accessories",  emoji:"💍", route:"/bangle-dashboard",  gradient:"linear-gradient(135deg,#7c5cbf,#5b3fa6)", border:"rgba(124,92,191,0.4)",  bg:"rgba(124,92,191,0.08)"  },
 ]
+
+// Signed in on another shop type's page: open the shop the account has, or add this one
+function ShopMismatch({ have, want, onOpen, onCreate }) {
+  const lang = currentLang()
+  const t = k => tr(k, lang)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr]   = useState("")
+  const mine = MODULES.find(m => m.id === have[0]) || MODULES[0]
+  const other = MODULES.find(m => m.id === want)
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ fontSize:17, fontWeight:800, color:"#1a0c04" }}>{t("Welcome back!")}</div>
+      <div style={{ fontSize:14, color:"#555", lineHeight:1.5 }}>
+        {t("This account is set up as a")} <b>{mine.label}</b>.
+      </div>
+      <button type="button" disabled={busy} onClick={() => onOpen(mine)}
+        style={{ minHeight:50, borderRadius:12, border:"none", background:"linear-gradient(135deg,#e87722,#c25500)", color:"#fff",
+          fontSize:15, fontWeight:800, cursor:"pointer" }}>
+        {mine.emoji} {t("Open")} {mine.label}
+      </button>
+      {other && (<>
+        <button type="button" disabled={busy} onClick={() => { setBusy(true); onCreate(other) }}
+          style={{ minHeight:50, borderRadius:12, border:"1.5px solid #e5e7eb", background:"#fff", color:"#1a0c04",
+            fontSize:14, fontWeight:700, cursor:"pointer" }}>
+          {other.emoji} {t("Create a")} {other.label} {t("account")}
+        </button>
+        <div style={{ fontSize:12, color:"#888", lineHeight:1.5 }}>
+          {t("Each kind of shop has its own account. You can use the same email.")}
+        </div>
+      </>)}
+      {err && <div style={{ color:"#E24B4A", fontSize:12 }}>{err}</div>}
+    </div>
+  )
+}
 
 // ── Canvas promo video + scene overlay ───────────────────────
 
@@ -1135,13 +1176,16 @@ function AnimatedShowcase() {
 }
 
 // ── Auth form ─────────────────────────────────────────────────
-function AuthForm({ onSuccess, onLocalMode }) {
+function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType = null, initialTab = "login", initialEmail = "" }) {
   const { login, staffLogin, register, registerConfirm, loading, error, setError } = useAuth()
   const lang = currentLang()
   const t = k => tr(k, lang)
-  const [tab,      setTab]      = useState("login")
-  const [form,     setForm]     = useState({ identifier:"", password:"", store_name:"", username:"" })
-  const [modules,  setModules]  = useState(["kirana"])
+  const [tab,      setTab]      = useState(initialTab)
+  const [choices,  setChoices]  = useState(null)     // this login has several shops: which one?
+  const [form,     setForm]     = useState(() => ({ identifier:initialEmail, password:"", store_name:"", username:"",
+    shop: (() => { try { return localStorage.getItem("dk_staff_shop") || "" } catch { return "" } })() }))
+  // The shop picked on the homepage is the store type a new account gets (the form is keyed by it)
+  const [modules,  setModules]  = useState([defaultModule])
   const [fieldErr, setFieldErr] = useState({})
   const [otpStep,    setOtpStep]    = useState(false)
   const [otpCode,    setOtpCode]    = useState("")
@@ -1149,38 +1193,44 @@ function AuthForm({ onSuccess, onLocalMode }) {
   const [pendingTok, setPendingTok] = useState("")
 
   function set(k, v) { setForm(f => ({ ...f, [k]:v })); setError(""); setFieldErr(e => ({ ...e, [k]:"" })) }
-  function switchTab(t) { setTab(t); setForm({ identifier:"", password:"", store_name:"", username:"" }); setFieldErr({}); setError(""); setOtpStep(false) }
-  function toggleModule(id) {
-    setModules(m => m.includes(id) ? (m.length > 1 ? m.filter(x => x !== id) : m) : [...m, id])
-  }
+  function switchTab(t) { setTab(t); setForm(f => ({ identifier:"", password:"", store_name:"", username:"", shop: f.shop })); setFieldErr({}); setError(""); setOtpStep(false) }
+  // A plain name in the sign-in box ("mahesh") is a staff login: ask for the shop and a PIN.
+  // The shop is remembered on this phone so staff only type it once.
+  const isStaff = tab === "login" && /^[a-z][a-z0-9._-]{1,}$/i.test(form.identifier.trim()) && !isValidPhone(form.identifier)
+  // One shop type per account at sign-up; more can be added later in Settings
+  function toggleModule(id) { setModules([id]) }
 
-  async function submit(e) {
-    e.preventDefault()
+  async function submit(e, pickedShop) {
+    e?.preventDefault()
+    const wantShop = pickedShop ?? shopType
     const errs = {}
     if (!form.identifier) errs.identifier = t("Required")
-    else if (tab !== "register" && !isValidEmail(form.identifier) && !isValidPhone(form.identifier))
-      errs.identifier = t("Valid email or 10-digit phone")
+    else if (tab !== "register" && !isStaff && !isValidEmail(form.identifier) && !isValidPhone(form.identifier))
+      errs.identifier = t("Valid email, 10-digit phone or staff username")
     else if (tab === "register" && !isValidEmail(form.identifier))
       errs.identifier = t("Valid email required")
     if (!form.password) errs.password = t("Required")
     else if (tab === "register" && form.password.length < 8) errs.password = t("Min 8 characters")
-    else if (tab === "staff" && !/^\d{4}$/.test(form.password)) errs.password = t("4-digit PIN")
-    if (tab === "staff" && !form.username.trim()) errs.username = t("Required")
+    else if (isStaff && !/^\d{4}$/.test(form.password)) errs.password = t("4-digit PIN")
+    if (isStaff && !isValidEmail(form.shop) && !isValidPhone(form.shop)) errs.shop = t("Shop owner's phone or email")
     if (tab === "register" && !form.store_name) errs.store_name = t("Required")
     if (Object.keys(errs).length) { setFieldErr(errs); return }
     try {
-      if (tab === "login") {
-        const d = await login(form.identifier, form.password)
+      if (isStaff) {
+        const d = await staffLogin(form.shop, form.identifier, form.password, true, wantShop)
+        try { localStorage.setItem("dk_staff_shop", form.shop.trim()) } catch { /* private mode */ }
         onSuccess(d.modules || ["kirana"])
-      } else if (tab === "staff") {
-        const d = await staffLogin(form.identifier, form.username, form.password)
-        onSuccess(d.modules || ["kirana"])
+      } else if (tab === "login") {
+        const d = await login(form.identifier, form.password, true, wantShop)
+        onSuccess(d.modules || ["kirana"], form.identifier)
       } else {
         const res = await register({ ...form, email: form.identifier, modules })
         if (res?.status === "otp_required") { setPendingTok(res.pending_token); setOtpStep(true) }
         else onSuccess(res.modules || modules)
       }
-    } catch {}
+    } catch (err) {
+      if (err.status === 409 && err.detail?.choose_shop) { setError(""); setChoices(err.detail.choose_shop) }
+    }
   }
 
   async function confirmOtp(e) {
@@ -1224,12 +1274,31 @@ function AuthForm({ onSuccess, onLocalMode }) {
     </form>
   )
 
+  // One login, several shops (same email and password): pick the one to open
+  if (choices) return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ fontSize:17, fontWeight:800, color:"#1a0c04" }}>{t("Which shop do you want to open?")}</div>
+      {choices.map(id => {
+        const m = MODULES.find(x => x.id === id)
+        return (
+          <button key={id} type="button" disabled={loading} onClick={() => { setChoices(null); submit(null, id) }}
+            style={{ minHeight:54, borderRadius:12, border:"1.5px solid #e5e7eb", background:"#fff", color:"#1a0c04",
+              fontSize:15, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:10, padding:"0 16px" }}>
+            <span style={{ fontSize:22 }}>{m?.emoji}</span>{m?.label || id}
+          </button>
+        )
+      })}
+      <button type="button" onClick={() => setChoices(null)}
+        style={{ background:"none", border:"none", color:"#888", fontSize:13, cursor:"pointer", minHeight:40 }}>{t("← Back")}</button>
+    </div>
+  )
+
   return (
     <form onSubmit={submit} style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
       {/* Tab row */}
       <div style={{ display:"flex", background:"#f3f4f6", borderRadius:10, padding:3, gap:2, marginBottom:6 }}>
-        {[["login","Sign In"],["staff","Staff"],["register","Create Account"]].map(([tabKey, lbl]) => (
+        {[["login","Sign In"],["register","Create Account"]].map(([tabKey, lbl]) => (
           <button key={tabKey} type="button" onClick={() => switchTab(tabKey)}
             style={{ flex:1, padding:"9px 8px", borderRadius:8, border:"none", fontSize:12,
               fontWeight:700, cursor:"pointer", transition:"all 0.15s",
@@ -1253,28 +1322,28 @@ function AuthForm({ onSuccess, onLocalMode }) {
 
       <div>
         <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>
-          {tab === "login" ? t("Email or Phone") : tab === "staff" ? t("Shop owner's phone or email") : t("Email")}
+          {tab === "login" ? t("Email, phone or staff username") : t("Email")}
         </label>
-        <input style={inp} placeholder={tab === "register" ? "email@example.com" : "email@example.com or 9876543210"}
+        <input style={inp} placeholder={tab === "register" ? "email@example.com" : "email@example.com or 9876543210"} autoCapitalize="none"
           value={form.identifier} onChange={e => set("identifier", e.target.value)}
           onFocus={inpFocus} onBlur={inpBlur} autoComplete="username" />
         {fieldErr.identifier && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.identifier}</p>}
       </div>
 
-      {tab === "staff" && (
+      {isStaff && (
         <div>
-          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Username")}</label>
-          <input style={inp} placeholder="mahesh" autoCapitalize="none"
-            value={form.username} onChange={e => set("username", e.target.value)}
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Staff login · shop owner's phone or email")}</label>
+          <input style={inp} placeholder="9876543210" autoCapitalize="none"
+            value={form.shop} onChange={e => set("shop", e.target.value)}
             onFocus={inpFocus} onBlur={inpBlur} />
-          {fieldErr.username && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.username}</p>}
+          {fieldErr.shop && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.shop}</p>}
         </div>
       )}
 
       <div>
-        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{tab === "staff" ? t("PIN") : t("Password")}</label>
-        <input style={inp} type="password" placeholder={tab==="register" ? t("Min 8 characters") : tab==="staff" ? "••••" : "••••••••"}
-          inputMode={tab === "staff" ? "numeric" : undefined} maxLength={tab === "staff" ? 4 : undefined}
+        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{isStaff ? t("PIN") : t("Password")}</label>
+        <input style={inp} type="password" placeholder={tab==="register" ? t("Min 8 characters") : isStaff ? "••••" : "••••••••"}
+          inputMode={isStaff ? "numeric" : undefined} maxLength={isStaff ? 4 : undefined}
           value={form.password} onChange={e => set("password", e.target.value)}
           onFocus={inpFocus} onBlur={inpBlur} autoComplete={tab==="register"?"new-password":"current-password"} />
         {fieldErr.password && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.password}</p>}
@@ -1292,7 +1361,7 @@ function AuthForm({ onSuccess, onLocalMode }) {
                   transition:"all 0.15s" }}>
                 <div style={{ fontSize:22, marginBottom:5 }}>{m.emoji}</div>
                 <div style={{ fontSize:10, fontWeight:700, color:"#333", lineHeight:1.3 }}>
-                  {m.id === "kirana" ? t("Kirana Store") : t("Bangle Store")}
+                  {t({ kirana:"Kirana Store", bangle_fancy:"Bangle Store", chai:"Chai / Tea Shop" }[m.id])}
                 </div>
               </button>
             ))}
@@ -1383,39 +1452,90 @@ function ModulePicker({ allowedModules, onPick }) {
 // ── Root page ─────────────────────────────────────────────────
 export default function LoginHome() {
   const { vendor } = useAuth()
+  const [formInit, setFormInit] = useState({ tab:"login", email:"", n:0 })
+  const [loginEmail, setLoginEmail] = useState("")
+  const asking = useRef(false)      // signed in from another shop type's page: ask before opening
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const [shop, setShop] = useState(() => {
+    if (ROUTE_SHOP[pathname]) return ROUTE_SHOP[pathname]
+    try { return CONTENT[localStorage.getItem(HOME_SHOP)] ? localStorage.getItem(HOME_SHOP) : "general" } catch { return "general" }
+  })
+  // Remember the choice and show it in the address, so the page can be shared as-is
+  function pickShop(id) {
+    setShop(id)
+    try { localStorage.setItem(HOME_SHOP, id) } catch { /* private mode */ }
+    window.history.replaceState(null, "", "/" + id)
+  }
+  useEffect(() => { document.title = CONTENT[shop]?.title || "DukaanAI" }, [shop])
+  useEffect(() => () => { document.title = "DukaanAI" }, [])   // the app itself keeps a plain title
   const [phase,       setPhase]       = useState("auth")
   const [allowedMods, setAllowedMods] = useState([])
 
   useEffect(() => {
-    if (!vendor) return
+    if (!vendor || asking.current) return
     // If token is expired, clear the stale session and show login form
     if (!isTokenValid()) { clearAuth(); return }
     const saved   = localStorage.getItem("storeMode")
     const mods    = vendor.modules || ["kirana"]
-    const hasBangle = mods.includes("bangle_fancy")
-    const hasKirana = mods.includes("kirana")
-    if (saved === "bangle_fancy" && hasBangle) { navigate("/bangle-dashboard", { replace:true }); return }
-    if (saved === "kirana"       && hasKirana)  { navigate("/dashboard",        { replace:true }); return }
+    const savedMod = MODULES.find(m => m.id === saved && mods.includes(m.id))
+    if (savedMod) { navigate(savedMod.route, { replace:true }); return }
+    // A shop with one type (e.g. only a chai shop) goes straight in, no picker
+    const only = mods.length === 1 && MODULES.find(m => m.id === mods[0])
+    if (only) { handlePick(only); return }
     setAllowedMods(mods); setPhase("pick")
   }, [vendor])
 
-  function handleAuthSuccess(mods) { setAllowedMods(mods || ["kirana"]); setPhase("pick") }
-  function handleLocalMode()       { setAllowedMods(["kirana","bangle_fancy"]); setPhase("pick") }
-  function handlePick(m)           { localStorage.setItem("storeMode", m.id); navigate(m.route, { replace:true }) }
+  function handleAuthSuccess(mods, email) {
+    const list = mods || ["kirana"]
+    if (email) setLoginEmail(email)
+    // e.g. a kirana account signing in on the chai page: open theirs, or add the chai shop
+    const wanted = SHOP_MODULE[shop]
+    if (shop !== "general" && wanted && !list.includes(wanted)) {
+      asking.current = true
+      setAllowedMods(list); setPhase("mismatch")
+      return
+    }
+    const only = list.length === 1 && MODULES.find(m => m.id === list[0])
+    if (only) return handlePick(only)
+    setAllowedMods(list); setPhase("pick")
+  }
+  function handleLocalMode() {
+    // On this phone without an account: ask the shop type once, then always open that shop
+    const chosen = localStorage.getItem("dk_local_shop") && MODULES.find(m => m.id === localStorage.getItem("storeMode"))
+    if (chosen) return handlePick(chosen)
+    setAllowedMods(["kirana","bangle_fancy","chai"]); setPhase("pick")
+  }
+  function handlePick(m) {
+    localStorage.setItem("storeMode", m.id)
+    if (!vendor) localStorage.setItem("dk_local_shop", "1")
+    navigate(m.route, { replace:true })
+  }
 
   // Website visitors get the full marketing homepage around the same sign-in card;
   // the Android app keeps the focused login screen below.
   if (!window.Capacitor?.isNativePlatform?.()) {
     return (
       <>
-        <HomeSections formCard={
+        <HomeSections shop={shop} onShop={pickShop} formCard={
           <div className="lh-form-card" style={{ width:"100%", background:"#fff", borderRadius:22,
             padding:"32px 28px",
             boxShadow:"0 12px 48px rgba(180,100,20,0.15), 0 2px 8px rgba(0,0,0,0.06)",
             border:"1px solid rgba(232,119,34,0.12)" }}>
-            {phase === "auth" && <AuthForm onSuccess={handleAuthSuccess} onLocalMode={handleLocalMode} />}
+            {phase === "auth" && <AuthForm key={`${shop}-${formInit.n}`} onSuccess={handleAuthSuccess} onLocalMode={handleLocalMode}
+              defaultModule={SHOP_MODULE[shop] || "kirana"} shopType={shop === "general" ? null : SHOP_MODULE[shop]}
+              initialTab={formInit.tab} initialEmail={formInit.email} />}
             {phase === "pick" && <ModulePicker allowedModules={allowedMods} onPick={handlePick} />}
+            {phase === "mismatch" && (
+              <ShopMismatch have={allowedMods} want={SHOP_MODULE[shop]}
+                onOpen={m => { asking.current = false; handlePick(m) }}
+                onCreate={() => {
+                  // Sign out of the other shop's account and start a new one for this shop
+                  clearAuth(); window.dispatchEvent(new Event("dk:logout"))
+                  setFormInit(f => ({ tab:"register", email: loginEmail.includes("@") ? loginEmail : "", n: f.n + 1 }))
+                  setPhase("auth")
+                }} />
+            )}
           </div>
         }/>
         <style>{`
@@ -1525,6 +1645,7 @@ export default function LoginHome() {
           <div className="lh-badges" style={{ display:"flex", gap:12, marginBottom:32 }}>
             {[
               { emoji:"🏪", name:"Kirana Store", sub:"Grocery & FMCG",   nameColor:"#c25500", border:"rgba(232,119,34,0.35)", bg:"rgba(232,119,34,0.07)" },
+              { emoji:"☕", name:"Chai Shop",    sub:"Tea, coffee & snacks", nameColor:"#7a4a1e", border:"rgba(141,85,36,0.35)", bg:"rgba(141,85,36,0.07)" },
               { emoji:"💍", name:"Bangle Store", sub:"Jewellery & Fancy", nameColor:"#5b3fa6", border:"rgba(124,92,191,0.35)", bg:"rgba(124,92,191,0.07)" },
             ].map(b => (
               <div key={b.name} style={{ display:"flex", alignItems:"center", gap:10,

@@ -1,4 +1,5 @@
 import { UI_STRINGS } from "./uiStrings.js"
+import { CHAI_STRINGS } from "./chaiStrings.js"
 
 /**
  * Kirana UI translations keyed by BCP-47 locale (matches dk_voice_lang values).
@@ -797,7 +798,7 @@ const EN_PLAIN = {
 /** Translate a string. Falls back to English if no translation found. */
 export function tr(key, lang) {
   if (!lang || lang === "en-IN") return EN_PLAIN[key] ?? key
-  return KIRANA[lang]?.[key] ?? UI_STRINGS[lang]?.[key] ?? EN_PLAIN[key] ?? key
+  return KIRANA[lang]?.[key] ?? UI_STRINGS[lang]?.[key] ?? CHAI_STRINGS[lang]?.[key] ?? EN_PLAIN[key] ?? key
 }
 
 /** Current UI language (same setting the header language button changes). */

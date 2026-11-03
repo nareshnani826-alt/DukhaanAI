@@ -71,6 +71,7 @@ const RESPONSIVE_CSS = `
 function homeRoute(vendor) {
   const mods = vendor?.modules || []
   if (mods.includes("bangle_fancy") && !mods.includes("kirana")) return "/bangle-billing"
+  if (mods.includes("chai") && !mods.includes("kirana")) return "/chai-billing"
   return "/billing"
 }
 

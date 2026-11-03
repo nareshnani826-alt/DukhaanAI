@@ -19,6 +19,7 @@ _CASHIER_NO_WRITES = (
     "/products", "/wastage", "/invoice-scan", "/agent",
     "/bangle/products", "/bangle/variants", "/bangle/suppliers",
     "/bangle/scan-image", "/bangle/parse-text",
+    "/chai/menu", "/chai/materials",
 )
 
 

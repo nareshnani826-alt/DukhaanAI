@@ -55,6 +55,39 @@ def _normalize_phone_local(raw: str) -> str:
     return p
 
 
+# Each email / phone can have one account per shop type (scripts/separate_shop_accounts.sql)
+SHOP_TYPES = ("kirana", "chai", "bangle_fancy")
+SHOP_LABELS = {"kirana": "Kirana", "chai": "Chai shop", "bangle_fancy": "Bangle store"}
+
+
+def _shop_type(value) -> str | None:
+    """'chai' or ['chai'] → 'chai'; anything unknown → None."""
+    if isinstance(value, list):
+        value = next((m for m in value if m in SHOP_TYPES), None)
+    return value if value in SHOP_TYPES else None
+
+
+def _choose_account(rows: list[dict], shop_type: str | None, check, bad: HTTPException) -> dict:
+    """Pick the account to sign in to from all accounts of one email / phone.
+
+    `check(row)` says whether the password / PIN opens that account. The account of the asked
+    shop type wins; otherwise the only account the credential opens (the app then offers to open
+    it or create the missing shop). Several possible accounts → 409 so the app asks which shop.
+    """
+    ok = [r for r in rows if check(r)]
+    if not ok:
+        raise bad
+    exact = [r for r in ok if r.get("shop_type", "kirana") == shop_type]
+    if exact:
+        return exact[0]
+    if len(ok) == 1:
+        return ok[0]
+    raise HTTPException(status_code=409, detail={
+        "choose_shop": [r.get("shop_type", "kirana") for r in ok],
+        "message": "You have more than one shop with this login. Pick the shop to open.",
+    })
+
+
 def _make_pending_token(data: dict) -> str:
     """Sign a short-lived JWT carrying pending registration payload."""
     from jose import jwt as _jwt
@@ -134,6 +167,8 @@ async def register(request: Request, body: VendorRegister):
     """
     db = get_db()
     email = str(body.email)
+    shop = _shop_type(body.modules) or "kirana"
+    otp_key = f"{email}|{shop}"
 
     # Production must send real emails. In local development without SMTP, the OTP is
     # printed to the backend console instead so sign-up can still be tested.
@@ -145,9 +180,9 @@ async def register(request: Request, body: VendorRegister):
             detail="Sign-up is temporarily unavailable. Please try again later."
         )
 
-    # Reject duplicate email up front
-    if db.table("vendors").select("id").eq("email", email).execute().data:
-        raise HTTPException(status_code=409, detail="Email already registered")
+    # One account per shop type: the same email may already run a different kind of shop
+    if db.table("vendors").select("id").eq("email", email).eq("shop_type", shop).execute().data:
+        raise HTTPException(status_code=409, detail=f"This email already has a {SHOP_LABELS[shop]} account. Please sign in.")
 
     # Validate phone if provided (stored but not used for OTP)
     phone = None
@@ -155,15 +190,15 @@ async def register(request: Request, body: VendorRegister):
         phone = _normalize_phone_local(body.phone)
         if len(phone) != 10 or not phone.isdigit():
             raise HTTPException(status_code=422, detail="Enter a valid 10-digit Indian mobile number")
-        if db.table("vendors").select("id").eq("phone", phone).execute().data:
-            raise HTTPException(status_code=409, detail="Phone number already registered")
+        if db.table("vendors").select("id").eq("phone", phone).eq("shop_type", shop).execute().data:
+            raise HTTPException(status_code=409, detail=f"This phone number already has a {SHOP_LABELS[shop]} account.")
 
     # Generate OTP — store with email as key (reuses otp_codes table)
     otp        = str(secrets.randbelow(900000) + 100000)
     expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-    db.table("otp_codes").delete().eq("phone", email).execute()   # phone col used as generic key
+    db.table("otp_codes").delete().eq("phone", otp_key).execute()   # phone col used as generic key
     db.table("otp_codes").insert({
-        "phone":      email,
+        "phone":      otp_key,
         "code_hash":  _otp_hash(otp),
         "expires_at": expires_at,
         "attempts":   0,
@@ -186,7 +221,8 @@ async def register(request: Request, body: VendorRegister):
         "store_name":    body.store_name,
         "phone":         phone,
         "gstin":         body.gstin,
-        "modules":       body.modules or ["kirana"],
+        "modules":       [shop],
+        "shop_type":     shop,
     })
 
     return RegisterOtpRequired(
@@ -207,39 +243,41 @@ def register_confirm(request: Request, body: RegisterConfirm):
 
     # Decode pending registration data
     pending = _decode_pending_token(body.pending_token)
-    email   = pending["email"]   # OTP was keyed by email
+    email   = pending["email"]
+    shop    = pending.get("shop_type", "kirana")
+    otp_key = f"{email}|{shop}"   # OTP was keyed by email + shop type
     otp     = body.otp.strip()
 
     # Verify OTP — keyed by email in the phone column
-    row = db.table("otp_codes").select("*").eq("phone", email).execute()
+    row = db.table("otp_codes").select("*").eq("phone", otp_key).execute()
     if not row.data:
         raise HTTPException(status_code=400, detail="OTP expired or not found. Please start registration again.")
 
     record = row.data[0]
 
     if record["attempts"] >= 5:
-        db.table("otp_codes").delete().eq("phone", email).execute()
+        db.table("otp_codes").delete().eq("phone", otp_key).execute()
         raise HTTPException(status_code=400, detail="Too many wrong attempts. Please start registration again.")
 
     if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
-        db.table("otp_codes").delete().eq("phone", email).execute()
+        db.table("otp_codes").delete().eq("phone", otp_key).execute()
         raise HTTPException(status_code=400, detail="OTP expired. Please start registration again.")
 
     if record["code_hash"] != _otp_hash(otp):
-        db.table("otp_codes").update({"attempts": record["attempts"] + 1}).eq("phone", email).execute()
+        db.table("otp_codes").update({"attempts": record["attempts"] + 1}).eq("phone", otp_key).execute()
         remaining = 5 - record["attempts"] - 1
         raise HTTPException(status_code=400, detail=f"Incorrect OTP. {remaining} attempt(s) left.")
 
     # OTP valid — clean up
-    db.table("otp_codes").delete().eq("phone", email).execute()
+    db.table("otp_codes").delete().eq("phone", otp_key).execute()
 
     # Final duplicate checks (race condition guard)
-    if db.table("vendors").select("id").eq("email", email).execute().data:
-        raise HTTPException(status_code=409, detail="Email already registered")
+    if db.table("vendors").select("id").eq("email", email).eq("shop_type", shop).execute().data:
+        raise HTTPException(status_code=409, detail=f"This email already has a {SHOP_LABELS[shop]} account. Please sign in.")
 
     phone = pending.get("phone")
-    if phone and db.table("vendors").select("id").eq("phone", phone).execute().data:
-        raise HTTPException(status_code=409, detail="Phone number already registered")
+    if phone and db.table("vendors").select("id").eq("phone", phone).eq("shop_type", shop).execute().data:
+        raise HTTPException(status_code=409, detail=f"This phone number already has a {SHOP_LABELS[shop]} account.")
 
     # Create the verified vendor account
     vendor = db.table("vendors").insert({
@@ -249,7 +287,8 @@ def register_confirm(request: Request, body: RegisterConfirm):
         "phone":          phone,
         "gstin":          pending.get("gstin"),
         "plan":           "free",
-        "modules":        pending.get("modules", ["kirana"]),
+        "modules":        [shop],
+        "shop_type":      shop,
         "phone_verified": bool(phone),
     }).execute().data[0]
 
@@ -275,35 +314,14 @@ def login(request: Request, body: VendorLogin):
         if not result.data:
             result = db.table("vendors").select("*").eq("phone", ident).execute()
 
-    if not result.data:
-        raise HTTPException(status_code=401, detail="Invalid email/phone or password")
-
-    vendor = result.data[0]
-    if not verify_password(body.password, vendor["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid email/phone or password")
+    vendor = _choose_account(
+        result.data, _shop_type(body.shop_type),
+        lambda r: verify_password(body.password, r["password_hash"]),
+        HTTPException(status_code=401, detail="Invalid email/phone or password"),
+    )
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
-
-    access_token = create_access_token({"sub": vendor["id"], "plan": vendor["plan"]})
-    raw_refresh, hashed_refresh = create_refresh_token()
-
-    db.table("refresh_tokens").insert({
-        "vendor_id": vendor["id"],
-        "token_hash": hashed_refresh,
-        "expires_at": (
-            datetime.now(timezone.utc)
-            + timedelta(days=settings.jwt_refresh_token_expire_days)
-        ).isoformat(),
-    }).execute()
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=raw_refresh,
-        vendor_id=vendor["id"],
-        store_name=vendor["store_name"],
-        plan=vendor["plan"],
-        modules=vendor.get("modules", ["kirana"]),
-    )
+    return _issue_tokens(db, vendor)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -352,14 +370,20 @@ def staff_login(request: Request, body: StaffLogin):
     bad = HTTPException(status_code=401, detail="Wrong shop, username or PIN")
     if not found:
         raise bad
-    vendor = found[0]
-    rows = (
-        db.table("staff").select("id,username,role,is_active,pin_hash")
-        .eq("vendor_id", vendor["id"]).eq("username", body.username.strip().lower()).execute().data
+    # The owner may run several shop types; find the one this username and PIN belong to
+    staff_of = {}
+    for v in found:
+        rows = (
+            db.table("staff").select("id,username,role,is_active,pin_hash")
+            .eq("vendor_id", v["id"]).eq("username", body.username.strip().lower()).execute().data
+        )
+        if rows:
+            staff_of[v["id"]] = rows[0]
+    vendor = _choose_account(
+        [v for v in found if v["id"] in staff_of], _shop_type(body.shop_type),
+        lambda v: verify_password(body.pin, staff_of[v["id"]]["pin_hash"]), bad,
     )
-    if not rows or not verify_password(body.pin, rows[0]["pin_hash"]):
-        raise bad
-    staff = rows[0]
+    staff = staff_of[vendor["id"]]
     if not staff["is_active"] or not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="This staff login is switched off. Ask the owner.")
     return _issue_tokens(db, vendor, staff)
@@ -399,28 +423,31 @@ def update_profile(body: VendorUpdate, vendor=Depends(get_current_vendor)):
 @limiter.limit("5/minute")
 def forgot_password(request: Request, body: ForgotPasswordRequest):
     db = get_db()
-    result = db.table("vendors").select("id,email,store_name").eq("email", body.email).execute()
+    result = db.table("vendors").select("id,email,store_name,shop_type").eq("email", body.email).execute()
 
     # Always return success to prevent email enumeration
     _MSG = "If that email is registered, you'll receive a reset link shortly."
     if not result.data:
         return MessageResponse(message=_MSG)
 
-    vendor = result.data[0]
-    token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    # Each shop type is its own account with its own password: reset the asked one, else all
+    accounts = [v for v in result.data if v.get("shop_type") == _shop_type(body.shop_type)] or result.data
+    for vendor in accounts:
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
 
-    # Replace any existing token for this vendor
-    db.table("password_reset_tokens").delete().eq("vendor_id", vendor["id"]).execute()
-    db.table("password_reset_tokens").insert({
-        "vendor_id": vendor["id"],
-        "token_hash": token_hash,
-        "expires_at": expires_at,
-    }).execute()
+        # Replace any existing token for this vendor
+        db.table("password_reset_tokens").delete().eq("vendor_id", vendor["id"]).execute()
+        db.table("password_reset_tokens").insert({
+            "vendor_id": vendor["id"],
+            "token_hash": token_hash,
+            "expires_at": expires_at,
+        }).execute()
 
-    reset_url = f"{settings.frontend_url}/reset-password?token={token}"
-    _send_reset_email(vendor["email"], vendor["store_name"], reset_url)
+        reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+        name = vendor["store_name"] if len(accounts) == 1 else f'{vendor["store_name"]} ({SHOP_LABELS.get(vendor.get("shop_type"), "Shop")})'
+        _send_reset_email(vendor["email"], name, reset_url)
 
     return MessageResponse(message=_MSG)
 
@@ -529,26 +556,8 @@ def verify_otp(request: Request, body: VerifyOtpRequest):
     if not vendor_result.data:
         raise HTTPException(status_code=404, detail="Vendor not found")
 
-    vendor = vendor_result.data[0]
+    vendor = _choose_account(vendor_result.data, _shop_type(body.shop_type), lambda r: True,
+                             HTTPException(status_code=404, detail="Vendor not found"))
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
-
-    access_token = create_access_token({"sub": vendor["id"], "plan": vendor["plan"]})
-    raw_refresh, hashed_refresh = create_refresh_token()
-
-    db.table("refresh_tokens").insert({
-        "vendor_id": vendor["id"],
-        "token_hash": hashed_refresh,
-        "expires_at": (
-            datetime.now(timezone.utc)
-            + timedelta(days=settings.jwt_refresh_token_expire_days)
-        ).isoformat(),
-    }).execute()
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=raw_refresh,
-        vendor_id=vendor["id"],
-        store_name=vendor["store_name"],
-        plan=vendor["plan"],
-    )
+    return _issue_tokens(db, vendor)

@@ -46,6 +46,9 @@ const BangleBulkImport  = lazy(() => import("./pages/BangleBulkImport"))
 const BangleDayOps      = lazy(() => import("./pages/BangleDayOps"))
 const BangleHistory     = lazy(() => import("./pages/BangleHistory"))
 const BangleUdhar       = lazy(() => import("./pages/BangleUdhar"))
+const ChaiDashboard     = lazy(() => import("./pages/ChaiDashboard"))
+const ChaiBilling       = lazy(() => import("./pages/ChaiBilling"))
+const ChaiStock         = lazy(() => import("./pages/ChaiStock"))
 const ReorderHub        = lazy(() => import("./pages/ReorderHub"))
 const AgentSuggestions  = lazy(() => import("./pages/AgentSuggestions"))
 const Onboarding        = lazy(() => import("./pages/Onboarding"))
@@ -66,8 +69,8 @@ function RoleGuard({ children }) {
   const { role } = useAuth()
   const { pathname } = useLocation()
   if (role === "cashier" && !CASHIER_PATHS.includes(pathname)) {
-    const bangle = pathname.startsWith("/bangle") || localStorage.getItem("storeMode") === "bangle_fancy"
-    return <Navigate to={bangle ? "/bangle-billing" : "/billing"} replace />
+    const mode = pathname.startsWith("/bangle") ? "bangle_fancy" : pathname.startsWith("/chai") ? "chai" : localStorage.getItem("storeMode")
+    return <Navigate to={mode === "bangle_fancy" ? "/bangle-billing" : mode === "chai" ? "/chai-billing" : "/billing"} replace />
   }
   return children
 }
@@ -104,6 +107,9 @@ export default function App() {
           }>
           <Routes>
             <Route path="/" element={<FirstRunGuard><LoginHome /></FirstRunGuard>} />
+            {["/kirana", "/chai", "/bangle"].map(p => (
+              <Route key={p} path={p} element={<FirstRunGuard><LoginHome /></FirstRunGuard>} />
+            ))}
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/hero-loop" element={<HeroLoop />} />
@@ -142,6 +148,10 @@ export default function App() {
                   <Route path="/bangle-day"         element={<BangleDayOps />} />
                   <Route path="/bangle-history"     element={<BangleHistory />} />
                   <Route path="/bangle-udhar"       element={<BangleUdhar />} />
+                  <Route path="/chai-dashboard"    element={<ChaiDashboard />} />
+                  <Route path="/chai-billing"      element={<ChaiBilling />} />
+                  <Route path="/chai-stock"        element={<ChaiStock />} />
+                  <Route path="/chai-khata"        element={<UdharKhata />} />
                   <Route path="/reorder"           element={<ReorderHub />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                   <Route path="*" element={<NotFound />} />

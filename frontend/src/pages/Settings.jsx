@@ -32,6 +32,78 @@ const PLAN_INFO = {
   wholesale: { name:"Wholesale", price:"₹799",  color:"#7F77DD", bg:"#EEEDFE" },
 }
 
+const SHOP_TYPES = [
+  { id:"kirana",       icon:"🛒", label:"Kirana / General Store" },
+  { id:"chai",         icon:"☕", label:"Chai / Tea Shop" },
+  { id:"bangle_fancy", icon:"💍", label:"Bangle / Fancy Store" },
+]
+
+// Owner picks which shop types this account runs; the header then shows a switcher
+function ShopTypes() {
+  const { vendor, setModules, role } = useAuth()
+  const navigate = useNavigate()
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg]   = useState("")
+  if (vendor && role !== "owner") return null
+  const HOME = { kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard" }
+  const current = (() => { try { return localStorage.getItem("storeMode") || "kirana" } catch { return "kirana" } })()
+  // Not signed in (data on this phone): every shop type is available, pick one to open
+  const mods = vendor ? (vendor.modules || ["kirana"]) : [current]
+  const openShop = id => { localStorage.setItem("storeMode", id); window.location.assign(HOME[id]) }
+
+  // Signed in: each kind of shop is its own account, so this only explains how to add one
+  if (vendor) return (
+    <div className="card mb-4">
+      <div className="text-xs font-medium text-gray-600 mb-1">{L("Shop type")}</div>
+      <div className="text-sm" style={{ color:"var(--ink)", fontWeight:700 }}>
+        {SHOP_TYPES.find(t => t.id === mods[0])?.icon} {L(SHOP_TYPES.find(t => t.id === mods[0])?.label || "Kirana / General Store")}
+      </div>
+      <div className="text-[11px] mt-1" style={{ color:"var(--ink-faint)" }}>
+        {L("Also run another kind of shop? Sign out and create a new account for it — you can use the same email.")}
+      </div>
+    </div>
+  )
+
+  async function toggle(id) {
+    if (!vendor) return openShop(id)
+    const next = mods.includes(id) ? mods.filter(m => m !== id) : [...mods, id]
+    if (!next.length) return setMsg(L("Keep at least one shop type."))
+    setBusy(true); setMsg("")
+    try {
+      await setModules(next)
+      if (!mods.includes(id)) {
+        // Jump straight into the shop type just turned on
+        localStorage.setItem("storeMode", id)
+        navigate({ kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard" }[id])
+      }
+    } catch (e) { setMsg(e.message) }
+    setBusy(false)
+  }
+
+  return (
+    <div className="card mb-4">
+      <div className="text-xs font-medium text-gray-600 mb-1">{L("Shop type")}</div>
+      <div className="text-[11px] mb-3" style={{ color:"var(--ink-faint)" }}>{L("Your shop opens straight into its own app. Only turn on another type if you also run that kind of shop.")}</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {SHOP_TYPES.map(t => {
+          const on = mods.includes(t.id)
+          return (
+            <button key={t.id} disabled={busy} onClick={() => toggle(t.id)}
+              style={{ display:"flex", alignItems:"center", gap:10, minHeight:50, padding:"0 14px", borderRadius:12, cursor:"pointer",
+                border:"1.5px solid", borderColor: on ? "var(--jade)" : "var(--rule)", background: on ? "rgba(29,158,117,0.08)" : "var(--bg1)",
+                color:"var(--ink)", fontWeight:700, fontSize:14, textAlign:"left" }}>
+              <span style={{ fontSize:22 }}>{t.icon}</span>
+              <span style={{ flex:1 }}>{L(t.label)}</span>
+              <span style={{ fontSize:12, fontWeight:800, color: on ? "var(--jade)" : "var(--ink-faint)" }}>{on ? "✓ " + L("On") : L("Off")}</span>
+            </button>
+          )
+        })}
+      </div>
+      {msg && <div className="text-xs mt-2" style={{ color:"#c0392b" }}>{msg}</div>}
+    </div>
+  )
+}
+
 function UPISetting() {
   const [vpa,    setVpa]    = useState(getUPIVpa)
   const [draft,  setDraft]  = useState(getUPIVpa)
@@ -439,6 +511,8 @@ export default function Settings() {
           <AddChildUser />
         )}
       </div>
+
+      <ShopTypes />
 
       {/* Danger zone */}
       <div className="card border-red-100">

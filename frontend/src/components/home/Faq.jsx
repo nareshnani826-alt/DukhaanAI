@@ -42,11 +42,11 @@ function Item({ q, a, open, onToggle }) {
   )
 }
 
-export default function Faq() {
+export default function Faq({ questions = QUESTIONS }) {
   const [open, setOpen] = useState(0)
   return (
     <Reveal className="hm-faq">
-      {QUESTIONS.map((item, i) => (
+      {questions.map((item, i) => (
         <Item key={item.q} {...item} open={open === i} onToggle={() => setOpen(open === i ? -1 : i)}/>
       ))}
     </Reveal>

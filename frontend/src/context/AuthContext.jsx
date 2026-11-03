@@ -19,10 +19,22 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener("dk:logout", onLogout)
   }, [])
 
-  async function login(identifier, password, remember = true) {
+  // Owner turns shop types (kirana / bangle_fancy / chai) on or off
+  async function setModules(modules) {
+    const d = await api.patch("/auth/me", { modules })
+    const v = { ...vendor, modules: d.modules || modules }
+    setVendor(v); setVendorState(v)
+    return v
+  }
+
+  // shopType: which of this login's shops to open (kirana / chai / bangle_fancy). Left out, the shop
+  // in use on this device is asked for; null asks for none (the server picks or lists the shops).
+  const deviceShop = () => { try { return localStorage.getItem("storeMode") || null } catch { return null } }
+
+  async function login(identifier, password, remember = true, shopType) {
     setLoading(true); setError("")
     try {
-      const d = await api.post("/auth/login", { identifier, password })
+      const d = await api.post("/auth/login", { identifier, password, shop_type: shopType === undefined ? deviceShop() : shopType })
       setTokens(d.access_token, d.refresh_token, remember)
       const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
       setVendor(v); setVendorState(v)
@@ -32,10 +44,10 @@ export function AuthProvider({ children }) {
   }
 
   // Staff sign in on the shop's device with the shop's phone/email + their username + PIN
-  async function staffLogin(shop, username, pin, remember = true) {
+  async function staffLogin(shop, username, pin, remember = true, shopType) {
     setLoading(true); setError("")
     try {
-      const d = await api.post("/auth/staff-login", { shop, username, pin })
+      const d = await api.post("/auth/staff-login", { shop, username, pin, shop_type: shopType === undefined ? deviceShop() : shopType })
       setTokens(d.access_token, d.refresh_token, remember)
       const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"],
         role: d.role, staff_name: d.staff_name }
@@ -91,9 +103,9 @@ export function AuthProvider({ children }) {
     finally { setLoading(false) }
   }
 
-  async function forgotPassword(email) {
+  async function forgotPassword(email, shopType) {
     setLoading(true); setError("")
-    try { return await api.post("/auth/forgot-password", { email }) }
+    try { return await api.post("/auth/forgot-password", { email, shop_type: shopType ?? null }) }
     catch(e) { setError(e.message); throw e }
     finally { setLoading(false) }
   }
@@ -106,7 +118,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, role, loading, error, setError, login, staffLogin, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout }}>
+    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, setModules, role, loading, error, setError, login, staffLogin, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout }}>
       {children}
     </AuthCtx.Provider>
   )

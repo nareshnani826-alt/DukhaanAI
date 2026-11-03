@@ -63,6 +63,31 @@ const BANGLE_MOB_TABS = [
   { to:"/more",             label:"More",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
+// Chai shop: Home (day report), Bill, Menu & Stock, Khata, More
+const CHAI_NAV = [
+  { label:"Home",  to:"/chai-dashboard", icon:BANGLE_NAV[0].icon, sub:null },
+  { label:"Sales", to:"/chai-billing",   icon:BANGLE_NAV[2].icon, sub:[{to:"/chai-billing",label:"☕ Billing"},{to:"/chai-khata",label:"📒 Khata"}] },
+  { label:"Stock", to:"/chai-stock",     icon:BANGLE_NAV[1].icon, sub:null },
+  { label:"More",  to:"/more",           icon:BANGLE_NAV[4].icon, sub:[{to:"/settings",label:"Settings"},{to:"/help",label:"Help"},{to:"/install",label:"Install App"}] },
+]
+const CHAI_MOB_TABS = [
+  { ...BANGLE_MOB_TABS[0], to:"/chai-dashboard" },
+  { ...BANGLE_MOB_TABS[1], to:"/chai-billing" },
+  { ...BANGLE_MOB_TABS[2], to:"/chai-stock" },
+  { ...BANGLE_MOB_TABS[3], to:"/chai-khata" },
+  BANGLE_MOB_TABS[4],
+]
+
+// Each shop type's home page, nav and name
+const STORE_HOME  = { kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard" }
+const STORE_NAV   = { kirana:KIRANA_NAV, bangle_fancy:BANGLE_NAV, chai:CHAI_NAV }
+const STORE_LABEL = { kirana:"Kirana POS", bangle_fancy:"Bangle Store", chai:"Chai Shop" }
+const STORE_CHIPS = [
+  { id:"kirana",       label:"🛒 Kirana" },
+  { id:"bangle_fancy", label:"💍 Bangle" },
+  { id:"chai",         label:"☕ Chai" },
+]
+
 // Short labels for the five bottom tabs (the general translations are too long for a tab)
 const TAB_LABELS = {
   "te-IN": { Home:"హోమ్",   Bill:"బిల్",  Stock:"స్టాక్", Khata:"ఖాతా",  More:"మరిన్ని" },
@@ -83,6 +108,8 @@ const MOB_TABS = [
   { to:"/udhar",     label:"Khata", icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="7" x2="16" y2="7"/><line x1="9" y1="11" x2="14" y2="11"/></svg> },
   { to:"/more",      label:"More",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
+
+const STORE_TABS = { kirana:MOB_TABS, bangle_fancy:BANGLE_MOB_TABS, chai:CHAI_MOB_TABS }
 
 const API = import.meta.env.VITE_API_URL
 
@@ -1044,7 +1071,7 @@ function AIChatWidget() {
         // Elsewhere it opens from More → "Ask AI" (dk:open-chat).
         const onHome = ["/dashboard", "/bangle-dashboard"].includes(location.pathname)
         // Billing's Pay button sits bottom-right on every screen size
-        const onBilling = ["/billing", "/bangle-billing"].includes(location.pathname)
+        const onBilling = ["/billing", "/bangle-billing", "/chai-billing"].includes(location.pathname)
         return (
       <button onClick={() => setOpen(o => !o)} title="AI Assistant"
         className={`mob-chat-btn${onHome || open ? "" : " mob-chat-offhome"}${onBilling && !open ? " chat-hide-billing" : ""}`}
@@ -1104,7 +1131,8 @@ export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, hasModule, logout, role } = useAuth()
   const hasBangle = hasModule("bangle_fancy")
   const hasKirana = hasModule("kirana")
-  const multiStore = hasBangle && hasKirana
+  const hasChai   = hasModule("chai")
+  const multiStore = [hasBangle, hasKirana, hasChai].filter(Boolean).length > 1
 
   const [storeMode, setStoreMode] = useState("kirana")
 
@@ -1147,53 +1175,46 @@ export default function Layout({ children }) {
 
   // Re-derive mode whenever vendor changes (login/logout) or modules change
   useEffect(() => {
+    const owned = ["kirana", "bangle_fancy", "chai"].filter(m => hasModule(m))
+    const saved = localStorage.getItem("storeMode")
     let newMode = "kirana"
+    const path      = location.pathname
+    const routeMode = path.startsWith("/bangle-") || path.startsWith("/reorder") ? "bangle_fancy"
+                    : path.startsWith("/chai-") ? "chai" : "kirana"
     if (!vendor) {
-      // Logged out — restore last used mode from localStorage
-      const saved = localStorage.getItem("storeMode")
-      newMode = saved === "bangle_fancy" ? "bangle_fancy" : "kirana"
-    } else if (hasBangle && !hasKirana) {
-      newMode = "bangle_fancy"
-    } else if (multiStore) {
-      const saved = localStorage.getItem("storeMode")
-      newMode = saved === "bangle_fancy" ? "bangle_fancy" : "kirana"
+      // Not signed in (data on this phone): a shop page opened directly decides the mode,
+      // otherwise the last used one
+      newMode = routeMode !== "kirana" ? routeMode : STORE_HOME[saved] ? saved : "kirana"
+    } else if (owned.includes(saved)) {
+      newMode = saved
+    } else if (owned.length) {
+      newMode = owned[0]
     }
     setStoreMode(newMode)
 
     const SHARED_ROUTES = ["/voice", "/more", "/settings", "/help", "/install"]
     const onShared      = SHARED_ROUTES.some(r => location.pathname.startsWith(r))
-    // Every bangle-store route is prefixed "/bangle-" by convention, plus the
-    // one outlier "/reorder" — matching on the prefix (instead of hand-listing
-    // every page) means a newly added bangle-* page can't silently fall through
-    // this guard and get bounced back to /bangle-dashboard the way /bangle-day,
-    // /bangle-history and /bangle-udhar previously did.
-    const onBangleOnly  = location.pathname.startsWith("/bangle-") || location.pathname.startsWith("/reorder")
-
-    if (vendor && newMode === "bangle_fancy" && !onBangleOnly && !onShared) {
-      // On a kirana-only route while in bangle mode → go to bangle home
-      navigate("/bangle-dashboard")
-    } else if (vendor && newMode === "kirana" && onBangleOnly) {
-      // On a bangle-only route while in kirana mode → go to kirana home
-      navigate("/dashboard")
-    }
-  }, [vendor, hasBangle, hasKirana])
+    // Every bangle-store route is prefixed "/bangle-" (plus "/reorder") and every
+    // chai-shop route "/chai-", so new pages in either can't fall through this guard.
+    if (vendor && !onShared && routeMode !== newMode) navigate(STORE_HOME[newMode])
+  }, [vendor, hasBangle, hasKirana, hasChai])
 
   function switchMode(mode) {
     setStoreMode(mode)
     localStorage.setItem("storeMode", mode)
     // Navigate to the home screen of the selected store
-    navigate(mode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard")
+    navigate(STORE_HOME[mode])
   }
 
   // Cashiers see only the billing-side pages
   const allowed  = to => role !== "cashier" || CASHIER_PATHS.includes(to)
-  const NAV      = (storeMode === "bangle_fancy" ? BANGLE_NAV : KIRANA_NAV).flatMap(item => {
+  const NAV      = (STORE_NAV[storeMode] || KIRANA_NAV).flatMap(item => {
     const sub = item.sub?.filter(x => allowed(x.to)) ?? null
     if (allowed(item.to)) return [{ ...item, sub }]
     return sub?.length ? [{ ...item, to: sub[0].to, sub }] : []
   })
-  const MOB_TABS_ACTIVE = (storeMode === "bangle_fancy" ? BANGLE_MOB_TABS : MOB_TABS).filter(t => allowed(t.to))
-  const storeLabel = storeMode === "bangle_fancy" ? "Bangle Store" : "Kirana POS"
+  const MOB_TABS_ACTIVE = (STORE_TABS[storeMode] || MOB_TABS).filter(t => allowed(t.to))
+  const storeLabel = STORE_LABEL[storeMode] || "Kirana POS"
 
   const { planLabel } = usePlan()
   const { theme, toggleTheme, isDark } = useTheme()
@@ -1230,7 +1251,7 @@ export default function Layout({ children }) {
       <aside className="app-sidebar">
         <div className="sidebar-logo">
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <button onClick={() => navigate(storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard")}
+            <button onClick={() => navigate(STORE_HOME[storeMode] || "/dashboard")}
               style={{ background:"none", border:"none", padding:0, cursor:"pointer",
                 display:"flex", alignItems:"center", gap:10 }}>
               <Logo size={38} storeLabel={storeLabel} />
@@ -1248,10 +1269,7 @@ export default function Layout({ children }) {
 
         {multiStore && (
           <div style={{ display:"flex", gap:6, padding:"10px 14px 2px" }}>
-            {[
-              { id:"kirana",       label:"🛒 Kirana" },
-              { id:"bangle_fancy", label:"💍 Bangle" },
-            ].map(({ id, label }) => {
+            {STORE_CHIPS.filter(c => hasModule(c.id)).map(({ id, label }) => {
               const active = storeMode === id
               return (
                 <button key={id} onClick={() => switchMode(id)}
@@ -1375,7 +1393,7 @@ export default function Layout({ children }) {
 
       <main className="app-main">
         <div className="mobile-header">
-          <button onClick={() => navigate(storeMode === "bangle_fancy" ? "/bangle-dashboard" : "/dashboard")}
+          <button onClick={() => navigate(STORE_HOME[storeMode] || "/dashboard")}
             style={{ display:"flex", alignItems:"center", gap:8, minWidth:0, flex: multiStore ? "0 1 auto" : 1,
               background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left" }}>
             <div style={{ width:30, height:30, borderRadius:9, flexShrink:0,
@@ -1396,10 +1414,7 @@ export default function Layout({ children }) {
           {/* Store switcher — only visible when vendor has both modules */}
           {multiStore && (
             <div style={{ display:"flex", gap:5, flex:1, justifyContent:"center" }}>
-              {[
-                { id:"kirana",       label:"🛒 Kirana" },
-                { id:"bangle_fancy", label:"💍 Bangle" },
-              ].map(({ id, label }) => {
+              {STORE_CHIPS.filter(c => hasModule(c.id)).map(({ id, label }) => {
                 const active = storeMode === id
                 return (
                   <button key={id} onClick={() => switchMode(id)}
