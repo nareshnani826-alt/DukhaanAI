@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.security import decode_access_token
 from app.core.database import get_db
 from app.core.search import contains
+from app.core.grocery_words import LOCAL_TO_ENGLISH
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -54,6 +55,9 @@ _INTENTS = [
             "kya mila", "kitna kamaya",
             # Telugu
             "labham", "aaj enta", "rojuki enta", "ela undi",
+            # More languages (romanised + own script)
+            "laabam", "laabha", "nafa", "nafo",
+            "லாபம்", "ಲಾಭ", "ലാഭം", "नफा", "লাভ", "નફો", "ਮੁਨਾਫਾ", "मुनाफा", "लाभ", "లాభం",
         ],
         "tool": "get_profit_summary",
         "args": {},
@@ -69,6 +73,9 @@ _INTENTS = [
             "order chahiye", "supplier se",
             # Telugu
             "order cheyyali", "em konali", "supply",
+            # More languages
+            "order pannanum", "order maadabeku", "order cheyyanam", "order karaycha",
+            "ஆர்டர் பண்ணனும்", "ಆರ್ಡರ್ ಮಾಡಬೇಕು", "ऑर्डर करायचा", "ऑर्डर करना", "ఆర్డర్ చేయాలి",
         ],
         "tool": "get_reorder_suggestions",
         "args": {},
@@ -83,6 +90,9 @@ _INTENTS = [
             "udhaar", "baaki", "kitna baaki", "kiska baaki", "lena hai",
             # Telugu
             "adha", "ivvali", "bayatapadadam",
+            # More languages
+            "kadan", "saala", "kadam", "udhari", "dhar baki",
+            "கடன்", "ಸಾಲ", "കടം", "उधारी", "ধার", "বাকি", "ઉધાર", "ਉਧਾਰ", "उधार", "बाकी", "బాకీ", "అప్పు",
         ],
         "tool": "get_udhar_summary",
         "args": {},
@@ -97,6 +107,11 @@ _INTENTS = [
             "aaj ki bikri", "aaj kitna bika", "aaj kitni sales", "aaj ki sales",
             # Telugu
             "nenu aaj", "aaj bikri", "aaj enta ayyindi",
+            # More languages
+            "inniku vithathu", "inniku sales", "ivattu vyapara", "innathe vilpana", "aajchi vikri",
+            "ajker bikri", "aajnu vechan", "ajj di vikri",
+            "இன்று விற்பனை", "இன்னைக்கு விற்பனை", "ಇಂದಿನ ಮಾರಾಟ", "ഇന്നത്തെ വിൽപന", "आजची विक्री",
+            "আজকের বিক্রি", "આજનું વેચાણ", "ਅੱਜ ਦੀ ਵਿਕਰੀ", "आज की बिक्री", "ఈ రోజు అమ్మకాలు", "ఈరోజు అమ్మకాలు",
         ],
         "tool": "get_sales_today",
         "args": {},
@@ -112,6 +127,10 @@ _INTENTS = [
             "khatam hone wala",
             # Telugu
             "stock aipoyindi", "stock theesipoyindi", "stock ledu",
+            # More languages
+            "stock kammi", "stock kadime", "stock kuravu", "stock sampla", "stock sesh", "stock ocho",
+            "ஸ்டாக் குறைவு", "தீர்ந்து போச்சு", "ಸ್ಟಾಕ್ ಕಡಿಮೆ", "സ്റ്റോക്ക് കുറവ്", "स्टॉक संपला",
+            "স্টক শেষ", "સ્ટોક ઓછો", "ਸਟਾਕ ਘੱਟ", "स्टॉक खत्म", "स्टॉक कम", "స్టాక్ తక్కువ", "స్టాక్ లేదు",
         ],
         "tool": "get_low_stock_items",
         "args": {},
@@ -168,6 +187,9 @@ _INTENTS = [
             "is mahine", "mahine ki bikri", "mahine ki kamai",
             # Telugu
             "ee nela", "nela bikri",
+            # More languages
+            "intha maasam", "ee tingalu", "ee maasam", "ya mahinyat", "ei mase", "aa mahine",
+            "இந்த மாதம்", "ಈ ತಿಂಗಳು", "ഈ മാസം", "या महिन्यात", "এই মাসে", "આ મહિને", "ਇਸ ਮਹੀਨੇ", "इस महीने", "ఈ నెల",
         ],
         "tool": "get_monthly_sales",
         "args": {},
@@ -217,6 +239,10 @@ def _detect_intent(message: str):
             if " " in kw:
                 if kw in msg:
                     score += 2          # phrase match scores higher
+            elif not kw.isascii():
+                # Indian scripts: \b breaks on vowel signs, so plain containment
+                if kw in msg:
+                    score += 1
             else:
                 # Single-word: require word boundary on both sides
                 if re.search(r"\b" + re.escape(kw) + r"\b", msg):
@@ -370,6 +396,106 @@ def _format_local(intent_id: str, data: dict) -> str:
         return "\n".join(parts)
 
     return str(data)
+
+
+# ══════════════════════════════════════════════════════════════
+#  TIER 1b — PRODUCT QUESTIONS ("Amul milk stock", "maggi price kitna")
+#  Product name/brand + a stock or price word → answered from the shop's
+#  own list, no LLM. Works in all 10 app languages, mixed with English names.
+# ══════════════════════════════════════════════════════════════
+
+_STOCK_WORDS = {
+    "stock", "left", "available", "remaining", "how many", "kitna", "kitne", "kitni", "bacha", "bache",
+    "hai kya", "undi", "unda", "unnaya", "enni", "iruku", "irukka", "irukku", "ide", "ideya", "undo",
+    "ache", "achhe", "che", "shillak", "baki",
+    "स्टॉक", "कितना", "कितने", "बचा", "शिल्लक", "ఉందా", "ఎన్ని", "స్టాక్", "இருக்கா", "எவ்வளவு", "ஸ்டாக்",
+    "ಇದೆಯಾ", "ಎಷ್ಟು", "ಸ್ಟಾಕ್", "ഉണ്ടോ", "എത്ര", "আছে", "কত", "છે", "કેટલું", "ਹੈ", "ਕਿੰਨਾ",
+}
+_PRICE_WORDS = {
+    "price", "rate", "mrp", "cost", "daam", "dam", "keemat", "kimat", "kitne ka", "kitne ki", "kitne ko",
+    "dhara", "vela", "vilai", "bele", "bhav", "dor",
+    "दाम", "कीमत", "रेट", "भाव", "ధర", "விலை", "ಬೆಲೆ", "വില", "দাম", "ભાવ", "ਕੀਮਤ",
+}
+# Words in product names that don't identify a product on their own
+_GENERIC = {"pack", "packet", "pouch", "bottle", "small", "big", "large", "new", "the", "and",
+            "fresh", "pure", "special", "premium", "classic", "regular", "box", "jar", "tin"}
+
+
+def _has_word(msg: str, words: set) -> bool:
+    for w in words:
+        if not w.isascii() or " " in w:
+            if w in msg:
+                return True
+        elif re.search(r"\b" + re.escape(w) + r"\b", msg):
+            return True
+    return False
+
+
+def _name_tokens(name: str) -> list[str]:
+    """Identifying words of a product name: letters only, no sizes or filler words."""
+    words = re.findall(r"[a-z]+", (name or "").lower())
+    return [w for w in words if len(w) >= 3 and w not in _GENERIC and w not in {"kg", "gm", "ml", "ltr", "pcs"}]
+
+
+def _product_answer(message: str, vendor_id: str) -> Optional[str]:
+    msg = message.lower()
+    asks_price = _has_word(msg, _PRICE_WORDS)
+    # "kitne ka" is a price question even though "kitne" alone asks about stock
+    without_price = msg
+    for w in _PRICE_WORDS:
+        if " " in w:
+            without_price = without_price.replace(w, " ")
+    asks_stock = _has_word(without_price, _STOCK_WORDS)
+    msg_words = set(re.findall(r"[a-z]+", msg))
+    # Local grocery words ("gudlu", "గుడ్లు", "anda") stand in for the English product words
+    local_hits = [w for w in LOCAL_TO_ENGLISH if (w in msg if not w.isascii() else re.search(r"\b" + re.escape(w) + r"\b", msg))]
+    for w in local_hits:
+        msg_words.update(LOCAL_TO_ENGLISH[w])
+    if not msg_words:
+        return None
+    # Words of the message that aren't the question words: a local grocery word counts as one product word
+    word_list = re.findall(r"\S+", msg)
+    # A short message with no question word may just be a product name ("amul milk", "gudlu") —
+    # checked below: it must be (nearly) all product words
+    bare_name = not (asks_stock or asks_price) and len(word_list) <= 4
+    if not (asks_stock or asks_price or bare_name):
+        return None
+
+    products = (
+        get_db().table("products").select("name,stock,unit,mrp,min_stock")
+        .eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
+    )
+
+    def score(p):
+        toks = _name_tokens(p["name"])
+        # whole word, or a close spelling ("maggie" ~ "maggi") for words of 4+ letters
+        return sum(1 for t in toks if t in msg_words or
+                   (len(t) >= 4 and any(len(m) >= 4 and (m.startswith(t) or t.startswith(m)) for m in msg_words)))
+
+    scored = [(score(p), p) for p in products]
+    best = max((s for s, _ in scored), default=0)
+    if best == 0:
+        return None
+    if bare_name and best < len(word_list) - 1:   # "amul milk" yes; "is amul good for kids" no
+        return None
+    matches = [p for s, p in scored if s == best][:6]
+
+    def qty(p):
+        q = float(p.get("stock") or 0)
+        unit = {"piece": "pc", "litre": "L"}.get(p.get("unit") or "", p.get("unit") or "")
+        return f"{int(q) if q == int(q) else round(q, 2)} {unit}".strip()
+
+    lines = []
+    for p in matches:
+        stock = float(p.get("stock") or 0)
+        flag = "🔴 out of stock" if stock <= 0 else ("🟡 running low" if stock < float(p.get("min_stock") or 0) else "")
+        parts = [f"📦 {p['name']}"]
+        if asks_stock or not asks_price:
+            parts.append(f"{qty(p)} in stock")
+        if asks_price or not asks_stock:
+            parts.append(f"₹{float(p.get('mrp') or 0):g}")
+        lines.append(" — ".join([parts[0], " · ".join(parts[1:])]) + (f"  {flag}" if flag else ""))
+    return "\n".join(lines)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -877,7 +1003,15 @@ async def chat(
     store = "bangle" if store == "bangle" else "kirana"
     active_tools = _BANGLE_TOOLS if store == "bangle" else _KIRANA_TOOLS
 
-    # ── TIER 1: Local intent classifier ──────────────────────
+    # ── TIER 1: Local answers, no AI tokens ──────────────────
+    if vendor and store == "kirana":
+        try:
+            reply = _product_answer(safe_msg, vendor["id"])
+            if reply:
+                logger.info("local_product_answer vendor=%s", vendor["id"])
+                return {"response": reply, "source": "local"}
+        except Exception as e:
+            logger.warning("Local product answer failed, falling through: %s", e)
     if vendor:
         intent, score = _detect_intent(safe_msg)
         if intent:
