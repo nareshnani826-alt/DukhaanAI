@@ -5,6 +5,7 @@ import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
 import { useAppMode } from "../context/AppModeContext"
 import { useState, useEffect, useRef } from "react"
+import { motion, AnimatePresence } from "motion/react"
 import AuthModal from "./AuthModal"
 import { LANG_KEY, getSavedLang } from "../voice/i18n"
 import { getToken, getStoreName, Products, Sales, Invoices, Udhar } from "../sync/db"
@@ -1424,7 +1425,13 @@ export default function Layout({ children }) {
             )}
           </div>
         </div>
-        {children}
+        {/* Soft fade on every page change. Opacity only — a transform here would
+            break position:fixed pop-ups inside pages. */}
+        <motion.div key={location.pathname} className="page-transition"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}>
+          {children}
+        </motion.div>
       </main>
 
       <nav className="mobile-bottom-nav" style={{
@@ -1439,29 +1446,40 @@ export default function Layout({ children }) {
             ? !others.some(p => location.pathname.startsWith(p))
             : location.pathname.startsWith(tab.to)
           return (
-            <button key={tab.to} onClick={() => navigate(tab.to)}
+            <motion.button key={tab.to} onClick={() => navigate(tab.to)}
               aria-current={on ? "page" : undefined}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", bounce: 0, visualDuration: 0.15 }}
               style={{ background:"transparent", border:"none", cursor:"pointer",
                 display:"flex", flexDirection:"column", alignItems:"center", gap:3,
                 color: on ? "var(--saffron)" : "var(--ink-dim)", padding:"4px 2px",
                 flex:1, position:"relative" }}>
-              {on && <div style={{ position:"absolute", top:-8, left:"22%", right:"22%",
+              {on && <motion.div layoutId="mob-tab-indicator"
+                transition={{ type: "spring", bounce: 0.15, visualDuration: 0.3 }}
+                style={{ position:"absolute", top:-8, left:"22%", right:"22%",
                 height:3, borderRadius:"0 0 3px 3px", background:"var(--saffron)" }}/>}
               <div style={{ width:24, height:24, display:"flex", alignItems:"center", justifyContent:"center" }}>{tab.icon}</div>
               <span style={{ fontSize:12, fontWeight: on ? 800 : 600, whiteSpace:"nowrap" }}>
                 {TAB_LABELS[uiLang]?.[tab.label] || tab.label}
               </span>
-            </button>
+            </motion.button>
           )
         })}
       </nav>
 
       {/* ── Language picker sheet ─────────────────── */}
+      <AnimatePresence>
       {showLangPicker && (
-        <div style={{ position:"fixed", inset:0, zIndex:9998, background:"rgba(0,0,0,0.5)",
+        <motion.div key="lang-sheet"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          style={{ position:"fixed", inset:0, zIndex:9998, background:"rgba(0,0,0,0.5)",
           display:"flex", alignItems:"flex-end" }}
           onClick={() => setShowLangPicker(false)}>
-          <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+          <motion.div
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", bounce: 0, visualDuration: 0.3 }}
+            style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
             padding:"20px 16px 32px", boxShadow:"0 -8px 32px rgba(0,0,0,0.2)" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -1492,9 +1510,10 @@ export default function Layout({ children }) {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Groq AI chat bubble — hidden while auth modal is open */}
       {!showAuth && <AIChatWidget />}

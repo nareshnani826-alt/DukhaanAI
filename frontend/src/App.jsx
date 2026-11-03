@@ -97,9 +97,9 @@ export default function App() {
           <InstallPrompt />
           <OfflineBanner />
           <Suspense fallback={
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
-              height:"100vh", fontSize:13, color:"var(--ink-faint,#aaa)" }}>
-              Loading…
+            <div role="status" aria-label="Loading"
+              style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh" }}>
+              <div className="dk-loader"><span/><span/><span/></div>
             </div>
           }>
           <Routes>
