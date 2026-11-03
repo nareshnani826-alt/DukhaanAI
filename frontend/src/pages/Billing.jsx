@@ -13,6 +13,7 @@ import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { MIN_FONT_SIZE } from "../styles/textScale"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
+import { parseVoiceCommand } from "../voice/nlp.js"
 import { tr, uiLang } from "../i18n/kiranaStrings"
 
 // UI text in the shop's language (falls back to English)
@@ -367,6 +368,8 @@ function speakTotal(amount) {
     window.speechSynthesis.speak(u)
   } catch { /* no voice on this device */ }
 }
+// Clock read for event handlers (keeps the render-purity lint from flagging them)
+const nowMs = () => Date.now()
 const buzz = () => { try { navigator.vibrate?.(25) } catch { /* not supported */ } }
 
 // ── Loose items (sold by weight / volume from a bag or tin) ──
@@ -547,8 +550,11 @@ export default function Billing() {
     })
   }, [])
 
+  // Each new message gets its full time on screen (an older message's timer used to clear it early)
+  const notifTimer = useRef(null)
   function showNotif(m, dur = 2500) {
-    setNotif(m); setTimeout(() => setNotif(""), dur)
+    clearTimeout(notifTimer.current)
+    setNotif(m); notifTimer.current = setTimeout(() => setNotif(""), dur)
   }
 
   const getProduct = id => products.find(p => p.id === id) || null
@@ -775,25 +781,50 @@ Thank you for shopping! 🙏`
     rec.lang          = localStorage.getItem("dk_voice_lang") || "en-IN"
     rec.interimResults = false
     rec.maxAlternatives = 1
+    let heard = false
+    // Show candidates in whichever search the current screen has (Easy mode has its own box)
+    const showMatches = q => {
+      if (billMode === "easy") setEasyQ(q)
+      else { setSearchQ(q); setTimeout(() => searchRef.current?.focus(), 50) }
+    }
     rec.onresult = (e) => {
+      heard = true
       const text = e.results[0][0].transcript.trim()
       setVoiceActive(false)
       setBarcodeResult(null)
-      // check if it matches exactly one product
-      const matches = products.filter(p =>
-        p.name.toLowerCase().includes(text.toLowerCase()) ||
-        text.toLowerCase().includes(p.name.toLowerCase().split(" ")[0])
-      )
-      if (matches.length === 1) {
-        addToCart(matches[0])          // auto-add directly
-        showNotif(`🎤 "${text}" → ${matches[0].name}`)
+      const lower = text.toLowerCase()
+      // A brand or word shared by several products ("Amul") → let the shopkeeper pick
+      const sameWord = products.filter(p => p.name.toLowerCase().includes(lower))
+      if (sameWord.length > 1) {
+        showMatches(text)
+        showNotif(`🎤 "${text}" — ${sameWord.length} ${L("items found, tap one")}`)
+        return
+      }
+      // The voice matcher knows local names (gudlu → eggs), sound-alikes and quantities ("teen Parle-G")
+      const parsed = parseVoiceCommand(text, null, products)
+      const p = parsed.product
+      if (p) {
+        if (isLoose(p)) { addToCart(p); return }          // loose items: confirm the weight in the picker
+        // "Parle-G 100g" — a number that is part of the product's own name is its size, not a quantity
+        const said = parsed.qty > 0 ? Math.max(1, Math.round(parsed.qty)) : 1
+        const qty = p.name.toLowerCase().includes(String(said)) ? 1 : said
+        if (!canAdd(p, qty)) return                         // canAdd already says how many are left
+        addToCart(p, qty)
+        showNotif(`🎤 "${text}" → ${qty > 1 ? qty + " × " : ""}${p.name}`)
       } else {
-        setSearchQ(text)               // show results in dropdown
-        setTimeout(() => searchRef.current?.focus(), 50)
+        showMatches(text)
+        showNotif(`🎤 "${text}" — ${L("not found, check the list")}`)
       }
     }
-    rec.onerror = () => { setVoiceActive(false); showNotif("Mic error — check permissions") }
-    rec.onend   = () => setVoiceActive(false)
+    rec.onerror = (e) => {
+      setVoiceActive(false)
+      heard = true
+      showNotif(e?.error === "no-speech" ? L("Didn't hear anything — tap Speak and say the item") : "Mic error — check permissions")
+    }
+    rec.onend = () => {
+      setVoiceActive(false)
+      if (!heard) showNotif(L("Didn't hear anything — tap Speak and say the item"))
+    }
     rec.start()
   }
 
@@ -840,7 +871,7 @@ Thank you for shopping! 🙏`
   function holdBill() {
     if (!rows.length) { showNotif("Nothing to hold"); return }
     const held = [
-      { id: Date.now(), rows, cust: cust || "Walk-in", phone, pay, heldAt: Date.now() },
+      { id: nowMs(), rows, cust: cust || "Walk-in", phone, pay, heldAt: nowMs() },
       ...heldBills,
     ].slice(0, 10)
     setHeldBills(held)

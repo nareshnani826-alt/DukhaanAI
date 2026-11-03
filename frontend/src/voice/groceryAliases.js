@@ -236,6 +236,46 @@ export const GROCERY_ALIASES = {
   "neyyi":             "ghee",       // Telugu
   "nei":               "ghee",       // Tamil
 
+  // Eggs — were missing, so "gudlu" found nothing
+  "gudlu":             "egg",        // Telugu
+  "guddu":             "egg",
+  "గుడ్లు":            "egg",
+  "గుడ్డు":            "egg",
+  "anda":              "egg",        // Hindi/Punjabi/Gujarati
+  "ande":              "egg",
+  "अंडे":              "egg",
+  "अंडा":              "egg",
+  "muttai":            "egg",        // Tamil
+  "முட்டை":            "egg",
+  "motte":             "egg",        // Kannada
+  "ಮೊಟ್ಟೆ":            "egg",
+  "mutta":             "egg",        // Malayalam
+  "മുട്ട":             "egg",
+  "ডিম":               "egg",        // Bengali
+  "ઈંડા":              "egg",        // Gujarati
+  "ਅੰਡੇ":              "egg",        // Punjabi
+  "eggs":              "egg",
+
+  // More everyday names spoken in their own words
+  "paalu":             "milk",       // Telugu
+  "పాలు":              "milk",
+  "दूध":               "milk",
+  "பால்":              "milk",
+  "chakkera":          "sugar",      // Telugu
+  "చక్కెర":            "sugar",
+  "cheeni":            "sugar",      // Hindi
+  "चीनी":              "sugar",
+  "ullipaya":          "onion",      // Telugu
+  "ఉల్లిపాయ":          "onion",
+  "प्याज":             "onion",
+  "sabbu":             "soap",       // Telugu
+  "ఉప్పు":             "salt",
+  "नमक":               "salt",
+  "బియ్యం":            "rice",
+  "चावल":              "rice",
+  "నూనె":              "oil",
+  "तेल":               "oil",
+
   // ══════════════════════════════════════════════════════
   // COMMON PACKAGED GOODS
   // ══════════════════════════════════════════════════════
