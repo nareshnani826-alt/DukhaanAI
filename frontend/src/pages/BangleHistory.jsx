@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext"
 import { useNavigate } from "react-router-dom"
 import InvoiceView from "../components/InvoiceView"
 import { useLang } from "../hooks/useLang"
+import Loading from "../components/Loading"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -506,7 +507,7 @@ export default function BangleHistory() {
       {/* ── Content ───────────────────────────────────────── */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ink-faint)", fontSize: 13 }}>
-          {t("Loading bills…")}
+          <Loading label={t("Loading bills…")}/>
         </div>
       ) : error ? (
         <div style={{ textAlign: "center", padding: "40px 0", color: "#dc2626", fontSize: 13 }}>

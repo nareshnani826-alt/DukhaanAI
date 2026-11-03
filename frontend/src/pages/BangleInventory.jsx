@@ -13,6 +13,7 @@ import { learnProduct, suggestMRP } from "../voice/productLearner.js"
 import { BarcodeScanner as MLKitBarcodeScanner } from "@capacitor-mlkit/barcode-scanning"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
+import Loading from "../components/Loading"
 
 const isNativeApp = () =>
   typeof window !== "undefined" &&
@@ -2178,7 +2179,7 @@ export default function BangleInventory() {
       {/* Product list */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
         {loading ? (
-          <div style={{textAlign:"center",padding:48,color:"var(--ink-faint)",fontSize:13}}>{t("Loading inventory...")}</div>
+          <div style={{textAlign:"center",padding:48,color:"var(--ink-faint)",fontSize:13}}><Loading label={t("Loading inventory...")}/></div>
         ) : filtered.length === 0 ? (
           <div style={{textAlign:"center",padding:48}}>
             <div style={{fontSize:48,marginBottom:12}}>💍</div>

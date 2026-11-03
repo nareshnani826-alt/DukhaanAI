@@ -212,12 +212,12 @@ export default function Settings() {
 
         {/* Upgrade buttons */}
         {plan === "free" && (
-          <div className="mt-3 flex gap-2">
-            <button className="btn btn-primary flex-1 py-2 text-xs font-medium">
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="btn btn-primary flex-1 py-2 text-xs font-medium" style={{ whiteSpace:"normal", minWidth:150 }}>
               {L("Upgrade to Pro — ₹299/month")}
             </button>
             <button className="btn flex-1 py-2 text-xs font-medium"
-              style={{ borderColor:"#7F77DD", color:"#7F77DD" }}>
+              style={{ borderColor:"#7F77DD", color:"#7F77DD", whiteSpace:"normal", minWidth:150 }}>
               {L("Wholesale — ₹799/month")}
             </button>
           </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useAuth } from "../context/AuthContext.jsx"
 import { BangleProducts, BangleSales } from "../sync/bangleDb.js"
 import { useLang } from "../hooks/useLang"
+import Loading from "../components/Loading"
 
 const INR = n => "₹" + Math.round(n || 0).toLocaleString("en-IN")
 const LOCAL_KEY = "dk_bangle_day_session"
@@ -257,7 +258,7 @@ export default function BangleDayOps() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-xs text-gray-400">Loading…</div>
+        <div className="flex items-center justify-center h-48 text-xs text-gray-400"><Loading label="Loading…"/></div>
       ) : (
         <div className="space-y-3">
 

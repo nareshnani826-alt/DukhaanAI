@@ -689,7 +689,7 @@ Ask me anything!`,
       <div style={{
         background:"var(--bg1)", borderBottom:"1px solid var(--rule)",
         padding:"14px 20px", flexShrink:0,
-        display:"flex", alignItems:"center", justifyContent:"space-between",
+        display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10,
         boxShadow:"0 1px 6px var(--shadow,rgba(0,0,0,0.06))",
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -700,7 +700,7 @@ Ask me anything!`,
             fontSize:20, boxShadow:"0 2px 10px rgba(232,119,34,0.35)",
           }}>🤖</div>
           <div>
-            <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)" }}>{L("Shop Assistant")}</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"var(--ink)", whiteSpace:"nowrap" }}>{L("Shop Assistant")}</div>
             <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:1 }}>
               {ctxLoading ? L("Loading store data...") : Lf("{n} products · AI powered", { n: stats?.total_products || 0 })}
             </div>
@@ -718,7 +718,7 @@ Ask me anything!`,
               color:"var(--ink)", cursor:"pointer", outline:"none",
             }}>
             {LANGUAGES.map(l => (
-              <option key={l.code} value={l.code}>{l.native} {l.name}</option>
+              <option key={l.code} value={l.code}>{l.native === l.name ? l.name : `${l.native} · ${l.name}`}</option>
             ))}
           </select>
         </div>

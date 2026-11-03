@@ -5,6 +5,7 @@ import { getToken } from "../sync/db.js"
 import { useLang } from "../hooks/useLang"
 import { BANGLE_CATALOG as CATALOG, BANGLE_CATALOG_CATS } from "../data/bangleCatalog.js"
 import BangleInvoiceScanTab from "./BangleInvoiceScanTab.jsx"
+import Loading from "../components/Loading"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -536,7 +537,7 @@ export default function BangleBulkImport() {
           <div style={{flex:1, overflowY:"auto", padding:"12px 16px"}}>
             {restockLoading ? (
               <div style={{textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13}}>
-                {t("Loading inventory...")}
+                <Loading label={t("Loading inventory...")}/>
               </div>
             ) : filteredProducts.length === 0 ? (
               <div style={{textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13}}>

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { motion } from "motion/react"
 import { usePlan } from "../context/PlanContext"
 import { startVoiceTrial, getTrialDaysLeft } from "../context/PlanContext"
 import { useNavigate } from "react-router-dom"
@@ -115,20 +116,25 @@ export default function UpgradeWall({ feature, children }) {
   }
 
   // ── Plan too low ──────────────────────────────────────────
+  // Lock drops in with a wobble, features tick in one by one, price pops last
+  const item = { hidden:{ opacity:0, y:10 }, show:{ opacity:1, y:0, transition:{ type:"spring", bounce:0, visualDuration:0.35 } } }
   return (
     <div className="flex-1 flex items-center justify-center p-6">
-      <div className="max-w-sm w-full text-center">
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl">
+      <motion.div className="max-w-sm w-full text-center" initial="hidden" animate="show"
+        variants={{ show:{ transition:{ staggerChildren:0.06 } } }}>
+        <motion.div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl"
+          variants={{ hidden:{ scale:0.3, rotate:-25, opacity:0 },
+            show:{ scale:1, rotate:[ -25, 12, -6, 0 ], opacity:1, transition:{ duration:0.7, ease:"easeOut" } } }}>
           🔒
-        </div>
-        <h2 className="text-sm font-semibold text-gray-800 mb-1">
+        </motion.div>
+        <motion.h2 variants={item} className="text-sm font-semibold text-gray-800 mb-1">
           {Lf("{name} is a {plan} feature", { name: L(info.name), plan: L(reqPlan.name) })}
-        </h2>
-        <p className="text-xs text-gray-400 mb-6">
+        </motion.h2>
+        <motion.p variants={item} className="text-xs text-gray-400 mb-6">
           {L(info.desc)}. {Lf("Upgrade to {plan} to unlock this and all premium features.", { plan: L(reqPlan.name) })}
-        </p>
+        </motion.p>
 
-        <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left">
+        <motion.div variants={item} className="bg-gray-50 rounded-xl p-4 mb-6 text-left">
           <div className="text-[10px] font-medium text-gray-500 mb-3">
             {Lf("{plan} plan includes:", { plan: L(reqPlan.name) })}
           </div>
@@ -138,9 +144,9 @@ export default function UpgradeWall({ feature, children }) {
                 "Barcode scanner","Customer purchase history",
                 "Day open/close with profit report","Insights & GST reports",
                 "Unlimited invoices"].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-gray-600">
+                <motion.div key={f} variants={item} className="flex items-center gap-2 text-xs text-gray-600">
                   <span className="text-primary">✓</span> {L(f)}
-                </div>
+                </motion.div>
               ))}
             </div>
           ) : (
@@ -154,24 +160,24 @@ export default function UpgradeWall({ feature, children }) {
               ))}
             </div>
           )}
-        </div>
+        </motion.div>
 
-        <div className="mb-4">
+        <motion.div className="mb-4" variants={{ hidden:{ opacity:0, scale:0.8 }, show:{ opacity:1, scale:1, transition:{ type:"spring", bounce:0.45, visualDuration:0.4 } } }}>
           <div className="text-2xl font-semibold" style={{ color: reqPlan.color }}>
             {reqPlan.price.replace("/month", L("/month"))}
           </div>
           <div className="text-[10px] text-gray-400">{L("Cancel anytime")}</div>
-        </div>
+        </motion.div>
 
-        <button onClick={() => navigate("/settings")}
+        <motion.button variants={item} whileTap={{ scale:0.97 }} onClick={() => navigate("/settings")}
           className="btn btn-primary w-full py-2.5 text-xs font-semibold mb-2"
           style={info.plan === "wholesale" ? { background:"#7F77DD", borderColor:"#7F77DD" } : {}}>
           {Lf("Upgrade to {plan}", { plan: L(reqPlan.name) })}
-        </button>
-        <button onClick={() => navigate(-1)} className="btn w-full text-xs text-gray-400">
+        </motion.button>
+        <motion.button variants={item} onClick={() => navigate(-1)} className="btn w-full text-xs text-gray-400">
           {L("Go back")}
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
     </div>
   )
 }

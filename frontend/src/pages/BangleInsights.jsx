@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { getToken } from "../sync/db"
 import { useLang } from "../hooks/useLang"
+import Loading from "../components/Loading"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -153,7 +154,7 @@ function VelocityTab() {
         )}
       </div>
 
-      {loading && <div style={{ color: "var(--ink-faint)", fontSize: 13 }}>Loading…</div>}
+      {loading && <div style={{ padding:"24px 0", display:"flex", justifyContent:"center" }}><Loading label="Loading…"/></div>}
       {err     && <div style={{ color: "#e55", fontSize: 13 }}>{err}</div>}
 
       {data && !loading && (
@@ -236,7 +237,7 @@ function DeadStockTab() {
         ))}
       </div>
 
-      {loading && <div style={{ color: "var(--ink-faint)", fontSize: 13 }}>Loading…</div>}
+      {loading && <div style={{ padding:"24px 0", display:"flex", justifyContent:"center" }}><Loading label="Loading…"/></div>}
       {err     && <div style={{ color: "#e55", fontSize: 13 }}>{err}</div>}
 
       {data && !loading && (
@@ -424,7 +425,7 @@ function ProfitTab() {
 
   return (
     <div>
-      {loading && <div style={{ color: "var(--ink-faint)", fontSize: 13 }}>Loading…</div>}
+      {loading && <div style={{ padding:"24px 0", display:"flex", justifyContent:"center" }}><Loading label="Loading…"/></div>}
       {err     && <div style={{ color: "#e55", fontSize: 13 }}>{err}</div>}
       {data && !loading && (
         <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
@@ -810,7 +811,7 @@ function CategoryTab() {
         ))}
       </div>
 
-      {loading && <div style={{ color: "var(--ink-faint)", fontSize: 13 }}>Loading…</div>}
+      {loading && <div style={{ padding:"24px 0", display:"flex", justifyContent:"center" }}><Loading label="Loading…"/></div>}
       {err     && <div style={{ color: "#e55", fontSize: 13 }}>{err}</div>}
 
       {data && !loading && (

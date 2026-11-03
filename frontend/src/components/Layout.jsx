@@ -6,6 +6,7 @@ import { useTheme } from "../context/ThemeContext"
 import { useAppMode } from "../context/AppModeContext"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "motion/react"
+import { useAutoReveal } from "./useAutoReveal"
 import AuthModal from "./AuthModal"
 import { LANG_KEY, getSavedLang } from "../voice/i18n"
 import { getToken, getStoreName, Products, Sales, Invoices, Udhar } from "../sync/db"
@@ -1201,6 +1202,8 @@ export default function Layout({ children }) {
   const [expanded, setExpanded] = useState(null)
   const navigate  = useNavigate()
   const location  = useLocation()
+  const pageRef   = useRef(null)
+  useAutoReveal(pageRef, location.pathname)   // cards on every screen rise in as it opens
 
   useEffect(() => {
     if (location.state?.showLogin) {
@@ -1427,7 +1430,7 @@ export default function Layout({ children }) {
         </div>
         {/* Soft fade on every page change. Opacity only — a transform here would
             break position:fixed pop-ups inside pages. */}
-        <motion.div key={location.pathname} className="page-transition"
+        <motion.div key={location.pathname} ref={pageRef} className="page-transition"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: 0.18, ease: "easeOut" }}>
           {children}

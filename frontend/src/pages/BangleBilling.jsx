@@ -12,6 +12,7 @@ import { getSavedLang } from "../voice/i18n.js"
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
+import Loading from "../components/Loading"
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const UNITS = [
@@ -3193,7 +3194,7 @@ export default function BangleBilling() {
   // ── Day session gate ─────────────────────────────────────────
   if (dayStatus === undefined) return (
     <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-      fontSize:13, color:"var(--ink-faint)" }}>Checking day status…</div>
+      fontSize:13, color:"var(--ink-faint)" }}><Loading label="Checking day status…"/></div>
   )
   if (dayStatus !== "open") return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",

@@ -7,6 +7,7 @@ import { fuzzySearch } from "../data/productCatalog.js"
 import InvoiceScanTab  from "./InvoiceScanTab.jsx"
 import BarcodeScannerTab from "./BarcodeScannerTab.jsx"
 import { tr, uiLang } from "../i18n/kiranaStrings"
+import Loading from "../components/Loading"
 
 const L = k => tr(k, uiLang())
 const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
@@ -497,7 +498,7 @@ export default function BulkImport() {
           <div style={{ flex:1, overflowY:"auto", padding:"16px 24px" }}>
             {restockLoading ? (
               <div style={{ textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13 }}>
-                {L("Loading inventory...")}
+                <Loading label={L("Loading inventory...")}/>
               </div>
             ) : filteredRestock.length === 0 ? (
               <div style={{ textAlign:"center", padding:48, color:"var(--ink-faint)", fontSize:13 }}>
