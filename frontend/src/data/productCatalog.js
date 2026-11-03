@@ -1,5 +1,5 @@
 // ── Master Indian Grocery Product Catalog ─────────────────
-// 500+ products — kirana, wholesale, medical, stationery
+// 1000+ products — kirana, wholesale, medical, stationery (extra rows in catalogMoreFood.js / catalogMoreHome.js)
 // Fuzzy search aliases included for Hindi/regional names
 //
 // `gst` values are a best-effort default per HSN category (e.g. branded/
@@ -10,7 +10,11 @@
 // rather than trusted blindly. Vendors can always override gst per product
 // in Inventory.
 
-export const CATALOG = [
+import { FOOD_GROUPS } from "./catalogMoreFood.js"
+import { HOME_GROUPS } from "./catalogMoreHome.js"
+import { GENERATED_ALIASES } from "../voice/groceryDictionary.js"
+
+const BASE = [
   // ── Dairy & Eggs ──────────────────────────────────────
   { name:"Amul Milk 500ml",          category:"Dairy",        unit:"pc",  mrp:28,   cost:25,  gst:0,  aliases:["dudh","milk","amul"] },
   { name:"Amul Milk 1L",             category:"Dairy",        unit:"pc",  mrp:54,   cost:48,  gst:0,  aliases:["dudh","milk","amul"] },
@@ -289,6 +293,16 @@ export const CATALOG = [
   { name:"Amul Kulfi",               category:"Ice Cream",    unit:"pc",  mrp:20,   cost:16,  gst:18, aliases:["kulfi","ice cream","amul"] },
 ]
 
+// Expand the compact group rows; cost defaults to ~88% of MRP. Names already in BASE win.
+const baseNames = new Set(BASE.map(p => p.name.toLowerCase()))
+const MORE = [...FOOD_GROUPS, ...HOME_GROUPS].flatMap(g => g.rows.map(([name, mrp, aliases = "", o = {}]) => ({
+  name, category: g.cat, unit: o.unit || g.unit || "pc", mrp,
+  cost: Math.round(mrp * 0.88 * 100) / 100, gst: o.gst ?? g.gst,
+  aliases: aliases ? aliases.split(",") : [],
+}))).filter(p => !baseNames.has(p.name.toLowerCase()) && baseNames.add(p.name.toLowerCase()))
+
+export const CATALOG = [...BASE, ...MORE]
+
 export const CATEGORIES = [...new Set(CATALOG.map(p => p.category))].sort()
 
 export function getCatalogByCategory(cat) {
@@ -296,25 +310,25 @@ export function getCatalogByCategory(cat) {
 }
 
 // ── Smart fuzzy search ────────────────────────────────────
+// Does a catalog product match the search text? Checks name, aliases and category, and
+// also the English word for a local name ("gudlu" → egg, "kandi pappu" → toor dal).
+export function catalogMatches(p, query) {
+  const q = (query || "").toLowerCase().trim()
+  if (!q) return true
+  const english = GENERATED_ALIASES[q]
+  const name    = p.name.toLowerCase()
+  const aliases = (p.aliases || []).join(" ").toLowerCase()
+  const cat     = p.category.toLowerCase()
+  return [q, english].filter(Boolean).some(t =>
+    name.includes(t) || aliases.includes(t) || cat.includes(t) ||
+    t.split(/\s+/).every(w => w.length < 3 || name.includes(w) || aliases.includes(w)))
+}
+
 export function fuzzySearch(query) {
   if (!query || query.length < 2) return []
   const q = query.toLowerCase().trim()
 
-  return CATALOG.filter(p => {
-    const name    = p.name.toLowerCase()
-    const aliases = (p.aliases || []).join(" ").toLowerCase()
-    const cat     = p.category.toLowerCase()
-
-    // Exact match
-    if (name.includes(q)) return true
-    // Alias match (Hindi/regional names)
-    if (aliases.includes(q)) return true
-    // Category match
-    if (cat.includes(q)) return true
-    // Word-by-word match
-    const words = q.split(/\s+/)
-    return words.every(w => w.length < 3 || name.includes(w) || aliases.includes(w))
-  }).sort((a, b) => {
+  return CATALOG.filter(p => catalogMatches(p, q)).sort((a, b) => {
     // Prioritize exact name match
     const aExact = a.name.toLowerCase().startsWith(q) ? 0 : 1
     const bExact = b.name.toLowerCase().startsWith(q) ? 0 : 1

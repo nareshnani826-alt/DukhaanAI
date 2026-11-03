@@ -3,7 +3,7 @@ import * as XLSX from "xlsx"
 import { Products } from "../sync/db.js"
 import { CATALOG, CATEGORIES, getCatalogByCategory } from "../data/productCatalog.js"
 import { CommunityCatalog } from "../sync/db.js"
-import { fuzzySearch } from "../data/productCatalog.js"
+import { fuzzySearch, catalogMatches } from "../data/productCatalog.js"
 import InvoiceScanTab  from "./InvoiceScanTab.jsx"
 import BarcodeScannerTab from "./BarcodeScannerTab.jsx"
 import { tr, uiLang } from "../i18n/kiranaStrings"
@@ -266,9 +266,12 @@ export default function BulkImport() {
   }
 
   // ── Catalog tab ───────────────────────────────────────────
-  const filtered = getCatalogByCategory(category).filter(p =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = getCatalogByCategory(category).filter(p => catalogMatches(p, search))
+  // 1000+ products: draw them a page at a time so the screen stays quick on phones
+  // (the count starts over whenever the category or search changes)
+  const listKey = category + "|" + search
+  const [page, setPage] = useState({ key: listKey, n: 120 })
+  const shown = page.key === listKey ? page.n : 120
 
   function toggleSelect(name) {
     setSelected(s => {
@@ -414,7 +417,7 @@ export default function BulkImport() {
             {L("📦 Bulk Stock Import")}
           </div>
           <div style={{ fontSize:11, color:"var(--ink-faint)" }}>
-            {L("Add 200+ products or restock existing inventory in seconds")}
+            {L("Add 1000+ products or restock existing inventory in seconds")}
           </div>
         </div>
         {(tab === "catalog" || tab === "excel") && selectedItems.length > 0 && (
@@ -435,7 +438,7 @@ export default function BulkImport() {
           { id:"restock", label:"♻️ Restock Existing",    sub:"Update stock after delivery" },
           { id:"scan",    label:"📸 AI Invoice Scan",     sub:"Photo → auto stock update" },
           { id:"barcode", label:"📱 Barcode Scanner",      sub:"Scan product barcode" },
-          { id:"catalog", label:"📋 Product Catalog",      sub:"200+ grocery products" },
+          { id:"catalog", label:"📋 Product Catalog",      sub:"1000+ grocery products" },
           { id:"excel",   label:"📊 Excel / CSV Import",  sub:"Upload your price list (.csv, .xlsx)" },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -698,7 +701,7 @@ export default function BulkImport() {
               </div>
             )}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10 }}>
-              {filtered.map(p => {
+              {filtered.slice(0, shown).map(p => {
                 const sel = selected.has(p.name)
                 return (
                   <div key={p.name} onClick={() => toggleSelect(p.name)}
@@ -760,6 +763,19 @@ export default function BulkImport() {
                 )
               })}
             </div>
+            {filtered.length > shown && (
+              <button onClick={() => setPage({ key: listKey, n: shown + 120 })}
+                style={{ display:"block", margin:"16px auto 0", padding:"10px 22px", borderRadius:12,
+                  border:"1.5px solid var(--rule)", background:"var(--bg1)", color:"var(--ink)",
+                  fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                {L("Show more")} ({filtered.length - shown})
+              </button>
+            )}
+            {filtered.length === 0 && (
+              <div style={{ textAlign:"center", padding:30, fontSize:13, color:"var(--ink-faint)" }}>
+                {L("Not in the list? Add it from Stock with + Add.")}
+              </div>
+            )}
           </div>
 
           {/* Bottom bar */}
