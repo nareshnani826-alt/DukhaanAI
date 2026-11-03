@@ -57,3 +57,43 @@ def bill_profit(db, vendor_id: str, bills: list[dict], cost_of: dict[str, float]
         "bills":         len(paid),
         "loss_items":    loss_items,
     }
+
+
+def bangle_items_profit(sales: list[dict], variant_costs: dict[str, float], variant_divisor: dict[str, int]) -> dict:
+    """Bangle-store profit from the sale items themselves.
+
+    Item amounts are before GST (GST isn't income); items whose variant has no cost price are left
+    out rather than counted as free. variant_costs is the cost per dozen or per piece, and
+    variant_divisor turns it into a per-piece cost (12 for dozen-priced, 1 for piece-priced).
+    """
+    items = [it for s in sales for it in (s.get("items") or [])]
+    costed_sales = cost = 0.0
+    n_costed = 0
+    losses: dict[str, dict] = {}
+    for it in items:
+        vid = it.get("variant_id") or ""
+        unit_cost = variant_costs.get(vid, 0)
+        if unit_cost <= 0:
+            continue
+        pieces = float(it.get("pieces") or 0)
+        line_cost = pieces * unit_cost / variant_divisor.get(vid, 12)
+        line_sale = float(it.get("amount") or 0)
+        costed_sales += line_sale
+        cost += line_cost
+        n_costed += 1
+        if line_sale - line_cost < -0.005 and pieces > 0:
+            label = " · ".join(x for x in [it.get("product_name"), it.get("colour"), it.get("size")] if x)
+            e = losses.setdefault(vid, {"name": label or "Item", "cost_price": round(unit_cost / variant_divisor.get(vid, 12), 2),
+                                        "sold_at": round(line_sale / pieces, 2), "qty": 0.0, "loss": 0.0})
+            e["qty"] += pieces
+            e["loss"] += line_sale - line_cost
+    known = n_costed > 0
+    profit = round(costed_sales - cost, 2) if known else None
+    return {
+        "profit":        profit,
+        "margin_pct":    round(profit / costed_sales * 100, 1) if known and costed_sales > 0 else None,
+        "cost":          round(cost, 2),
+        "cost_coverage": n_costed / len(items) if items else 0,
+        "loss_items":    sorted(({**e, "qty": round(e["qty"], 2), "loss": round(e["loss"], 2)} for e in losses.values()),
+                                key=lambda e: e["loss"])[:5],
+    }

@@ -13,6 +13,7 @@ from app.core.security import get_current_vendor
 from app.core.whatsapp import send_invoice_notification
 from app.schemas.schemas import SendInvoiceWhatsAppRequest, MessageResponse
 
+from app.core.profit import bangle_items_profit
 router = APIRouter(prefix="/bangle", tags=["bangle"])
 
 _IMAGE_MAGIC: list[tuple[bytes, str]] = [
@@ -1008,25 +1009,15 @@ async def list_sales(
                 variant_costs[v["id"]]   = cost_val
                 variant_divisor[v["id"]] = 1 if category in PIECE_CATS else 12
 
-        # Count coverage after fallback
-        all_items   = [i for r in rows for i in (r.get("items") or [])]
-        items_with_cost = sum(
-            1 for i in all_items
-            if variant_costs.get(i.get("variant_id", ""), 0) > 0
-        )
-        coverage = items_with_cost / len(all_items) if all_items else 0
-
-        cost = round(sum(
-            float(i.get("pieces") or 0)
-            * variant_costs.get(i.get("variant_id", ""), 0)
-            / variant_divisor.get(i.get("variant_id", ""), 12)
-            for i in all_items
-        ), 2)
-
+        # Profit from the items themselves: pre-GST amounts minus cost, uncosted items left out
+        # (it used to subtract cost from GST-inclusive bill totals). See app/core/profit.py.
+        bp = bangle_items_profit(rows, variant_costs, variant_divisor)
+        coverage    = bp["cost_coverage"]
         cost_known  = coverage >= 0.80
         partial     = 0 < coverage < 0.80
-        profit      = round(revenue - cost, 2) if cost_known else None
-        margin_pct  = round((profit / revenue * 100), 1) if (cost_known and revenue > 0) else None
+        profit      = bp["profit"] if cost_known else None
+        margin_pct  = bp["margin_pct"] if cost_known else None
+        loss_items  = bp["loss_items"]
 
         # ── Stock value — same logic as Inventory page ─────────────
         sv_rows = db.table("bangle_variants") \
@@ -1060,6 +1051,7 @@ async def list_sales(
             "total_bills":  total_bills,
             "total_pieces": total_pieces,
             "stock_value":  stock_value,
+            "loss_items":   loss_items,       # sold below buying price → shown with "Fix price"
         }
 
         total_count = len(rows)
@@ -1307,22 +1299,16 @@ def bangle_profit(vendor=Depends(get_current_vendor)):
             variant_divisor[v["id"]] = 1 if category in PIECE_CATS else 12
 
     def calc(sale_list):
-        rev  = sum(float(s["total"]) for s in sale_list)
-        cost = sum(
-            float(item.get("pieces") or 0)
-            * variant_costs.get(item.get("variant_id", ""), 0)
-            / variant_divisor.get(item.get("variant_id", ""), 12)
-            for s in sale_list for item in (s.get("items") or [])
-        )
-        cost_known = cost > 0
-        profit = rev - cost
-        margin = (profit / rev * 100) if rev > 0 and cost_known else 0
+        # Profit from the items themselves: pre-GST amounts, uncosted items left out
+        # (it used to subtract cost from the GST-inclusive bill totals). See app/core/profit.py.
+        bp = bangle_items_profit(sale_list, variant_costs, variant_divisor)
         return {
-            "revenue":    round(rev, 2),
-            "cost":       round(cost, 2),
-            "profit":     round(profit, 2) if cost_known else None,
-            "margin_pct": round(margin, 1) if cost_known else None,
-            "cost_known": cost_known,
+            "revenue":    round(sum(float(s["total"]) for s in sale_list), 2),
+            "cost":       bp["cost"],
+            "profit":     bp["profit"],
+            "margin_pct": bp["margin_pct"],
+            "cost_known": bp["profit"] is not None,
+            "loss_items": bp["loss_items"],
         }
 
     today_str  = today.isoformat()

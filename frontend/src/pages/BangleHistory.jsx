@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext"
 import { useNavigate } from "react-router-dom"
 import InvoiceView from "../components/InvoiceView"
 import { useLang } from "../hooks/useLang"
-import Loading from "../components/Loading"
+import { SkeletonRows } from "../components/Skeleton"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -328,7 +328,7 @@ export default function BangleHistory() {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 14 }}>
+          <div className="hist-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 14 }}>
 
             {/* Total Sales */}
             <div style={{ background: "var(--bg1)", border: "1px solid var(--rule)",
@@ -408,6 +408,30 @@ export default function BangleHistory() {
               </div>
             </div>
           </div>
+          {/* Why profit is low/negative: items sold below their buying price */}
+          {summary.loss_items?.length > 0 && (
+            <div style={{ background: "var(--ember-bg)", border: "1px solid rgba(192,57,43,0.25)",
+              borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ember)", marginBottom: 2 }}>Sold below buying price</div>
+              <div style={{ fontSize: 11, color: "var(--ink-dim)", marginBottom: 10 }}>
+                These items have a buying price higher than the price you sold at. Usually the buying price was entered wrong — fix it and profit corrects itself.
+              </div>
+              {summary.loss_items.map(it => (
+                <div key={it.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0",
+                  borderTop: "1px solid rgba(192,57,43,0.15)" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+                      Sold at {INR(it.sold_at)}/pc · Buying price {INR(it.cost_price)}/pc · {it.qty} pcs
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ember)", whiteSpace: "nowrap" }}>{INR(it.loss)}</div>
+                  <button onClick={() => navigate(`/bangle-inventory?q=${encodeURIComponent(it.name.split(" · ")[0])}`)}
+                    className="btn btn-sm" style={{ borderColor: "var(--ember)", color: "var(--ember)" }}>Fix price</button>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
@@ -434,9 +458,9 @@ export default function BangleHistory() {
       </div>
 
       {/* ── Date range tabs ────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+      <div className="chip-row" style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
         {DATE_OPTS.map((opt, idx) => (
-          <button key={opt.label}
+          <button key={opt.label} className="tap-chip"
             onClick={() => { setDateOpt(idx); setOffset(0) }}
             style={{ padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600,
               border: dateOpt === idx ? "none" : "1px solid var(--rule)",
@@ -464,9 +488,9 @@ export default function BangleHistory() {
       {/* ── Filter + Sort row ─────────────────────────────── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         {/* Payment mode filter */}
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        <div className="chip-row" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {PAY_OPTS.map(p => (
-            <button key={p}
+            <button key={p} className="tap-chip"
               onClick={() => { setPayMode(p); setOffset(0) }}
               style={{ padding: "4px 10px", borderRadius: 16, fontSize: 11, fontWeight: 600,
                 border: payMode === p ? "none" : "1px solid var(--rule)",
@@ -506,9 +530,7 @@ export default function BangleHistory() {
 
       {/* ── Content ───────────────────────────────────────── */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ink-faint)", fontSize: 13 }}>
-          <Loading label={t("Loading bills…")}/>
-        </div>
+        <SkeletonRows rows={6} />
       ) : error ? (
         <div style={{ textAlign: "center", padding: "40px 0", color: "#dc2626", fontSize: 13 }}>
           {error}

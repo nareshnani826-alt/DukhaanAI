@@ -2,6 +2,9 @@ import { useEffect, useState } from "react"
 import { Udhar } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { useLang } from "../hooks/useLang"
+import { motion, AnimatePresence } from "motion/react"
+import { backdrop, pop } from "../components/popupMotion"
+import { SkeletonRows } from "../components/Skeleton"
 
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 const fmt = iso => {
@@ -239,10 +242,11 @@ _Powered by DukaanAI_ 💍`
       )}
 
       {/* Modal */}
+      <AnimatePresence>
       {modal && (
-        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center"
+        <motion.div {...backdrop} className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center"
           onClick={e => e.target===e.currentTarget && setModal(null)}>
-          <div className="bg-white rounded-2xl p-5 shadow-xl animate-slide-up" style={{ width:384, maxWidth:"95vw" }}>
+          <motion.div {...pop} className="bg-white rounded-2xl p-5 shadow-xl" style={{ width:384, maxWidth:"95vw" }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-semibold">
                 {modal==="add-customer"  ? t("Add Customer") :
@@ -308,9 +312,10 @@ _Powered by DukaanAI_ 💍`
                modal==="credit"        ? "Add Udhar" :
                                          "Record Payment"}
             </button>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between mb-4">
@@ -362,7 +367,7 @@ _Powered by DukaanAI_ 💍`
           <div className="card p-0 flex-1 overflow-y-auto">
             {loading ? (
               <div className="p-4 space-y-2">
-                {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse"/>)}
+                <SkeletonRows rows={4} />
               </div>
             ) : customers.length === 0 ? (
               <div className="p-6 text-center">

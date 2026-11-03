@@ -87,3 +87,20 @@ def test_besan_local_names():
             assert r and "Besan" in r and "Parle" not in r, (msg, r)
     finally:
         chat.get_db = lambda: type("DB", (), {"table": lambda self, _n: _Q(PRODUCTS)})()
+
+
+def test_bangle_product_answers():
+    class _BQ(_Q):
+        def __init__(self, name): self.name = name; super().__init__(BANGLE[name])
+    BANGLE = {
+        "bangle_products": [{"id": "b1", "name": "Silk Thread Bangles", "category": "Bangles", "mrp": 120}],
+        "bangle_variants": [{"product_id": "b1", "colour": "Red", "size": "2.4", "stock": 24, "min_stock": 6},
+                            {"product_id": "b1", "colour": "Green", "size": "2.6", "stock": 4, "min_stock": 6}],
+    }
+    chat.get_db = lambda: type("DB", (), {"table": lambda self, n: _BQ(n)})()
+    try:
+        r = chat._product_answer("silk thread bangles stock", "v1", "bangle")
+        assert "28 pcs in stock" in r and "2 colours/sizes" in r and "low: Green" in r, r
+        assert "₹120/dozen" in chat._product_answer("silk bangles price", "v1", "bangle")
+    finally:
+        chat.get_db = lambda: type("DB", (), {"table": lambda self, _n: _Q(PRODUCTS)})()

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { getToken, api, isCloud } from "../sync/db"
 import { useLang, LangToggle } from "../hooks/useLang"
+import { AnimatedAmount } from "../components/billing/billMotion"
+import { SkeletonBar } from "../components/Skeleton"
 
 const API = import.meta.env.VITE_API_URL ?? ""
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN")
@@ -603,7 +605,7 @@ export default function BangleDashboard() {
               display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>💍</div>
             <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Add Stock")}</div>
             <div style={{ fontSize:11, color:"var(--brass)", fontWeight:600 }}>
-              {loading ? "—" : stockSummary ? stockSummary.total_pieces + " pcs" : "Inventory"}
+              {loading ? "—" : stockSummary?.total_pieces != null ? stockSummary.total_pieces + " pcs" : "Inventory"}
             </div>
           </button>
 
@@ -724,7 +726,7 @@ export default function BangleDashboard() {
             </div>
             <div className="hero-revenue" style={{ fontFamily:"'Tiro Devanagari Hindi',serif",
               fontSize:48, fontWeight:800, color:"var(--ink)", lineHeight:1, letterSpacing:"-1px" }}>
-              {loading ? "—" : INR(tod.revenue)}
+              {loading ? <SkeletonBar w={170} h={44} r={10} /> : <AnimatedAmount value={Math.round((+tod.revenue || 0) * 100) / 100} from={0}/>}
             </div>
             {profit && (
               todProfit.cost_known === false || todProfit.profit === null ? (
@@ -761,6 +763,12 @@ export default function BangleDashboard() {
               {tod.pieces > 0 && <span style={{ color:"var(--ink-faint)" }}>{tod.pieces} pieces sold</span>}
               {tod.top_colour && <span style={{ color:"var(--saffron)", fontWeight:600 }}>🏆 {tod.top_colour}</span>}
               {profit?.month && <span style={{ color:"var(--ink-faint)" }}>Monthly: {INR(profit.month.revenue)} · {profit.month.margin_pct}% margin</span>}
+              {profit?.month?.loss_items?.length > 0 && (
+                <button onClick={() => navigate("/bangle-history")}
+                  style={{ padding:0, border:"none", background:"none", cursor:"pointer", color:"var(--ember)", fontSize:12, fontWeight:700 }}>
+                  ⚠ {profit.month.loss_items.length} item{profit.month.loss_items.length > 1 ? "s" : ""} sold below buying price · See & fix →
+                </button>
+              )}
             </div>
           </div>
         </div>

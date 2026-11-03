@@ -12,7 +12,11 @@ import { getSavedLang } from "../voice/i18n.js"
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
-import Loading from "../components/Loading"
+import { motion, AnimatePresence } from "motion/react"
+import { backdrop, sheet, pop, rise } from "../components/popupMotion"
+import { AnimatedAmount, BillIcon } from "../components/billing/billMotion"
+import { useWideBilling } from "../components/billing/billHooks"
+import { SkeletonTiles } from "../components/Skeleton"
 
 const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const UNITS = [
@@ -350,7 +354,7 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
   }
 
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:60, background:"var(--bg0)",
+    <motion.div {...rise} style={{ position:"fixed", inset:0, zIndex:60, background:"var(--bg0)",
       display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
       {/* Header */}
@@ -545,7 +549,7 @@ function ScanBillModal({ products, onBill, onAddToCart, onClose }) {
           </button>
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -655,10 +659,10 @@ function QuickItemModal({ onAdd, onClose, products = [] }) {
   }
 
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
+    <motion.div {...backdrop} style={{ position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background:"#fff", borderRadius:20, width:"100%",
+      <motion.div {...pop} style={{ background:"#fff", borderRadius:20, width:"100%",
         maxWidth:420, maxHeight:"90vh", overflowY:"auto",
         padding:"20px 20px 24px", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}>
 
@@ -800,8 +804,8 @@ function QuickItemModal({ onAdd, onClose, products = [] }) {
             color: canAdd ? "#fff" : "var(--ink-faint)" }}>
           {canAdd ? `+ Add to Cart · ${INR(amount)}` : "Enter description and price"}
         </button>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -2032,9 +2036,9 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
     : "Edit prices, apply discount, confirm GST"
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:200,
+    <motion.div {...backdrop} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:200,
       display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"16px", overflowY:"auto" }}>
-      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:520,
+      <motion.div {...pop} style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:520,
         marginTop:16, marginBottom:16, overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
 
         {/* Shared header */}
@@ -2109,23 +2113,23 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
                 ))}
               </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
-              <div>
+            <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:12, marginBottom:16 }}>
+              <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Qty</div>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <button onClick={() => setQty(q=>Math.max(1,q-1))}
                     style={{ width:34, height:34, borderRadius:8, background:"#f9fafb", border:"1px solid #e5e7eb", color:"#555", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
                   <input type="number" inputMode="decimal" min="1" value={qty} onChange={e=>setQty(Math.max(1,+e.target.value||1))}
-                    style={{ flex:1, textAlign:"center", border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 0", fontSize:15, fontWeight:700, color:"#111", background:"#fff", outline:"none" }}/>
+                    style={{ flex:1, minWidth:0, width:"100%", textAlign:"center", border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 0", fontSize:15, fontWeight:700, color:"#111", background:"#fff", outline:"none" }}/>
                   <button onClick={() => setQty(q=>q+1)}
                     style={{ width:34, height:34, borderRadius:8, background:"#E87722", border:"none", color:"#fff", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
                 </div>
                 <div style={{ fontSize:10, color:"#888", marginTop:4 }}>= {pieces} pcs</div>
               </div>
-              <div>
+              <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Selling Price / {unit}</div>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ flex:1, position:"relative" }}>
+                  <div style={{ flex:1, minWidth:0, position:"relative" }}>
                     <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", fontSize:13, color:"#888", pointerEvents:"none" }}>₹</span>
                     <input type="number" inputMode="decimal" min="0" value={sp||""} onChange={e=>setSp(Math.max(0,+e.target.value||0))}
                       style={{ width:"100%", border:`1.5px solid ${mColor}`, borderRadius:8, padding:"7px 8px 7px 22px", fontSize:14, fontWeight:700, color:"#111", background:"#fff", outline:"none", boxSizing:"border-box" }}/>
@@ -2245,7 +2249,7 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                 <thead>
                   <tr style={{ background:"#f9fafb" }}>
-                    <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"#555" }}>Product</th>
+                    <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"#555", minWidth:120 }}>Product</th>
                     <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:50 }}>Qty</th>
                     <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:80 }}>Rate ₹</th>
                     <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:60 }}>GST %</th>
@@ -2296,12 +2300,13 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
               <div style={{ fontSize:11, fontWeight:600, color:"#555", marginBottom:8 }}>Discount</div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 <select value={discountType} onChange={e=>setDType(e.target.value)}
-                  style={{ border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 8px", fontSize:12, background:"#fff" }}>
+                  style={{ flexShrink:0, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 8px", fontSize:12, background:"#fff" }}>
                   <option value="flat">₹ Flat</option>
                   <option value="percent">% Percent</option>
                 </select>
+                {/* minWidth 0 lets the box shrink so the row fits narrow phones */}
                 <input type="number" inputMode="decimal" min="0" placeholder="0" value={discountVal} onChange={e=>setDVal(e.target.value)}
-                  style={{ flex:1, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }}/>
+                  style={{ flex:1, minWidth:0, width:"100%", border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }}/>
                 {rDiscAmt>0 && <span style={{ fontSize:12, color:"#dc2626", fontWeight:600, whiteSpace:"nowrap" }}>− ₹{rDiscAmt}</span>}
               </div>
             </div>
@@ -2360,8 +2365,8 @@ function BillingFlowModal({ initialStep="select", initialProduct, cart, onAddToC
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -3060,6 +3065,8 @@ export default function BangleBilling() {
   const [bangleVoiceActive, setBangleVoiceActive] = useState(false)
   const [catFilter,     setCatFilter]     = useState("All")
   const [selProduct,    setSelProduct]    = useState(null)   // product opened in VariantSheet
+  // Wide screens keep the bill open beside the products (like kirana billing)
+  const wide = useWideBilling()
   const [custExpanded,  setCustExpanded]  = useState(false)
   const [customer,      setCustomer]      = useState({ name:"", phone:"" })
   const [payMode,       setPayMode]       = useState("cash")
@@ -3192,11 +3199,9 @@ export default function BangleBilling() {
   const INRb = n => "₹" + Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:0,maximumFractionDigits:2})
 
   // ── Day session gate ─────────────────────────────────────────
-  if (dayStatus === undefined) return (
-    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-      fontSize:13, color:"var(--ink-faint)" }}><Loading label="Checking day status…"/></div>
-  )
-  if (dayStatus !== "open") return (
+  // While the day status is still being checked (undefined) the bill screen shows straight away;
+  // the prompt below appears only once the day is confirmed not open.
+  if (dayStatus !== undefined && dayStatus !== "open") return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", padding:32, textAlign:"center", gap:16,
       background:"var(--bg0)" }}>
@@ -3217,40 +3222,113 @@ export default function BangleBilling() {
     </div>
   )
 
+  // Cart lines — shared by the phone list above the products and the wide-screen bill panel
+  function bangleCartLines() {
+    return (
+      <AnimatePresence initial={false}>
+        {cart.map(item => {
+          const last = item.unit_qty <= 1
+          return (
+            <motion.div key={item._id} layout
+              initial={{ opacity:0, x:-16 }} animate={{ opacity:1, x:0 }}
+              exit={{ opacity:0, x:24, height:0, marginBottom:0, paddingTop:0, paddingBottom:0 }}
+              transition={{ type:"spring", bounce:0.15, visualDuration:0.3 }}
+              style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px", overflow:"hidden",
+                marginBottom:8, border:"1px solid var(--rule)", display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
+                background:"var(--saffron-bg)", border:"1px solid rgba(232,119,34,0.25)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                {BCAT_EMOJI[products.find(p=>p.id===item.product_id)?.category]||"💍"}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)",
+                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.product_name}</div>
+                <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
+                  {[item.colour, item.size, item.design].filter(Boolean).map(v => (
+                    <span key={v} style={{ fontSize:10, fontWeight:600, padding:"1px 7px", borderRadius:10,
+                      background:"var(--bg0)", border:"1px solid var(--rule)", color:"var(--ink-dim)" }}>{v}</span>
+                  ))}
+                  <span style={{ fontSize:10, color:"var(--ink-faint)" }}>{item.unit}</span>
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:4,
+                background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
+                <motion.button whileTap={{ scale:0.88 }} aria-label={last ? "Remove" : "Less"}
+                  onClick={() => last ? removeFromCart(item._id) : updateQty(item._id, -1)}
+                  style={{ width:36, height:36, borderRadius:8, background:"var(--bg2)", border:"none", cursor:"pointer",
+                    color: last ? "var(--ember)" : "var(--brass-deep)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <BillIcon name={last ? "trash" : "minus"} size={last ? 16 : 17}/>
+                </motion.button>
+                <span style={{ minWidth:22, textAlign:"center", fontSize:14, fontWeight:800, color:"var(--ink)", display:"inline-grid" }}>
+                  <AnimatePresence initial={false} mode="popLayout">
+                    <motion.span key={item.unit_qty} style={{ gridArea:"1/1" }}
+                      initial={{ y:-12, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:12, opacity:0 }}
+                      transition={{ type:"spring", bounce:0.3, visualDuration:0.22 }}>
+                      {item.unit_qty}
+                    </motion.span>
+                  </AnimatePresence>
+                </span>
+                <motion.button whileTap={{ scale:0.88 }} aria-label="More" onClick={() => updateQty(item._id, 1)}
+                  style={{ width:36, height:36, borderRadius:8, background:"var(--saffron)", border:"none", cursor:"pointer",
+                    color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <BillIcon name="plus" size={17}/>
+                </motion.button>
+              </div>
+              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:14,
+                color:"var(--brass-deep)", fontWeight:800, minWidth:54, textAlign:"right" }}>
+                <AnimatedAmount value={+(+item.amount || 0).toFixed(2)}/>
+              </div>
+            </motion.div>
+          )
+        })}
+      </AnimatePresence>
+    )
+  }
+
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>
 
       {/* ── Scan toast (native barcode feedback) ─── */}
+      <AnimatePresence>
       {scanToast && (
-        <div style={{
-          position:"fixed", top:20, left:"50%", transform:"translateX(-50%)",
+        <motion.div key={scanToast.msg}
+          initial={{ opacity:0, y:-14, scale:0.94 }} animate={{ opacity:1, y:0, scale:1 }} exit={{ opacity:0, y:-10, scale:0.96 }}
+          transition={{ type:"spring", bounce:0.3, visualDuration:0.3 }}
+          style={{
+          position:"fixed", top:20, left:"50%", translateX:"-50%",
           zIndex:500, background: scanToast.ok ? "var(--jade)" : "#dc2626",
-          color:"#fff", padding:"10px 20px", borderRadius:999,
+          color:"#fff", padding:"10px 20px", borderRadius:999, maxWidth:"90vw", overflow:"hidden", textOverflow:"ellipsis",
           fontSize:13, fontWeight:700, whiteSpace:"nowrap",
           boxShadow:"0 4px 20px rgba(0,0,0,0.25)", pointerEvents:"none",
         }}>
           {scanToast.msg}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ── Modals ───────────────────────────────── */}
+      <AnimatePresence>
       {showScanner && !Capacitor.isNativePlatform() && (
         <ScanBillModal products={products}
           onBill={sale => { onBill(sale); setShowScanner(false) }}
           onAddToCart={item => { addToCart(item, true) }}
           onClose={() => setShowScanner(false)} />
       )}
+      </AnimatePresence>
+      <AnimatePresence>
       {showQuick && (
         <QuickItemModal products={products}
           onAdd={item => { addToCart(item, true) }}
           onClose={() => setShowQuick(false)} />
       )}
+      </AnimatePresence>
 
       {/* ── Receipt — matches Kirana InvoiceView ─── */}
+      <AnimatePresence>
       {receipt && (
-        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
+        <motion.div {...backdrop} style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
           display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-          <div style={{ width:"100%", maxWidth:520, height:"92dvh", background:"var(--bg1)",
+          <motion.div {...sheet} style={{ width:"100%", maxWidth:520, height:"92dvh", background:"var(--bg1)",
             borderRadius:"20px 20px 0 0", display:"flex", flexDirection:"column",
             boxShadow:"0 -8px 40px rgba(0,0,0,0.25)" }}>
             {/* Header */}
@@ -3304,11 +3382,13 @@ export default function BangleBilling() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ── Unified 3-step billing flow modal ─────── */}
+      <AnimatePresence>
       {(selProduct || showPaySheet) && (
         <BillingFlowModal
           initialStep={showPaySheet ? "cart" : "select"}
@@ -3333,12 +3413,14 @@ export default function BangleBilling() {
           t={t}
         />
       )}
+      </AnimatePresence>
 
       {/* ── Held-bills sheet ─────────────────────── */}
+      <AnimatePresence>
       {showHeld && (
-        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)",
+        <motion.div {...backdrop} style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)",
           display:"flex", alignItems:"flex-end" }} onClick={() => setShowHeld(false)}>
-          <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+          <motion.div {...sheet} style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
             padding:"20px 16px 32px", maxHeight:"65vh", overflowY:"auto" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -3368,16 +3450,21 @@ export default function BangleBilling() {
                 <div style={{ fontSize:12, color:"var(--saffron)", fontWeight:700 }}>Resume →</div>
               </button>
             ))}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
+
+      {/* Wide screens: products on the left, the live bill panel on the right */}
+      <div style={{ flex:1, minHeight:0, display:"flex" }}>
+      <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
       {/* ── COMPACT TOPBAR ───────────────────────── */}
       <div style={{ padding:"10px 14px", background:"var(--bg0)",
         borderBottom:"1px solid var(--rule)", display:"flex", alignItems:"center",
         gap:10, flexShrink:0 }}>
-        <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ flex:1, minWidth:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
           <div style={{ fontSize:11, color:"var(--ink-faint)", letterSpacing:"1px", fontWeight:700 }}>BANGLE BILLING</div>
           <div style={{ fontSize:14, color:"var(--ink)", fontWeight:800 }}>New Sale</div>
         </div>
@@ -3391,20 +3478,9 @@ export default function BangleBilling() {
             borderRadius:9, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
           Hold
         </button>
+        {/* Invoice lives in the bottom bar (phones) / bill panel (wide screens) */}
         {cart.length > 0 && (
           <>
-            <button onClick={() => setShowPaySheet(true)}
-              style={{ background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
-                border:"none", color:"#fff", borderRadius:9, padding:"6px 14px",
-                fontSize:11, fontWeight:800, cursor:"pointer",
-                boxShadow:"0 3px 10px rgba(232,119,34,0.35)",
-                display:"flex", alignItems:"center", gap:6 }}>
-              🧾 Invoice
-              <span style={{ background:"rgba(255,255,255,0.3)", borderRadius:10,
-                padding:"1px 7px", fontSize:12, fontWeight:900 }}>
-                {cart.length}
-              </span>
-            </button>
             <button onClick={() => { setCart([]); setDiscountPct(0) }}
               style={{ background:"var(--ember-bg)", border:"1px solid rgba(192,57,43,0.25)",
                 color:"var(--ember)", borderRadius:9, padding:"6px 12px",
@@ -3427,7 +3503,7 @@ export default function BangleBilling() {
             borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
             transition:"all 0.15s",
           }}>
-            <span style={{ fontSize:18, color: searchQ ? "var(--saffron)" : "var(--ink-faint)", flexShrink:0 }}>🔍</span>
+            <span style={{ color: searchQ ? "var(--saffron)" : "var(--ink-faint)", display:"flex", transition:"color .15s" }}><BillIcon name="search" size={19}/></span>
             <input
               value={searchQ}
               onChange={e => setSearchQ(e.target.value)}
@@ -3459,7 +3535,7 @@ export default function BangleBilling() {
               animation: bangleVoiceActive ? "micPulse 1s infinite" : "none",
               transition:"all 0.2s",
             }}>
-            🎤
+            <BillIcon name="mic" size={20}/>
           </button>
 
           {/* 📷 Barcode scan */}
@@ -3468,7 +3544,7 @@ export default function BangleBilling() {
               background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
               color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
               fontSize:20, boxShadow:"0 4px 14px rgba(232,119,34,0.35)" }}>
-            📷
+            <BillIcon name="scan" size={21}/>
           </button>
         </div>
 
@@ -3549,53 +3625,14 @@ export default function BangleBilling() {
       <div style={{ flex:1, overflowY:"auto", background:"var(--bg1)" }}>
 
         {/* Cart items */}
-        {cart.length > 0 && (
+        {!wide && cart.length > 0 && (
           <div style={{ padding:"4px 14px 0" }}>
             <div style={{ fontSize:10, color:"var(--ink-faint)", letterSpacing:"1.5px",
               fontWeight:800, padding:"10px 4px 8px", textTransform:"uppercase" }}>
               💍 {cart.length} {cart.length===1?"ITEM":"ITEMS"} IN CART
             </div>
 
-            {cart.map((item) => (
-              <div key={item._id} style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px",
-                marginBottom:8, border:"1px solid var(--rule)", display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:38, height:38, borderRadius:10, flexShrink:0,
-                  background:"var(--saffron-bg)", border:"1px solid rgba(232,119,34,0.25)",
-                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
-                  {BCAT_EMOJI[products.find(p=>p.id===item.product_id)?.category]||"💍"}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:"var(--ink)",
-                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.product_name}</div>
-                  <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
-                    {[item.colour, item.size, item.design].filter(Boolean).map(v => (
-                      <span key={v} style={{ fontSize:10, fontWeight:600, padding:"1px 7px", borderRadius:10,
-                        background:"var(--bg0)", border:"1px solid var(--rule)", color:"var(--ink-dim)" }}>{v}</span>
-                    ))}
-                    <span style={{ fontSize:10, color:"var(--ink-faint)" }}>{item.unit_qty} {item.unit}</span>
-                  </div>
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:4,
-                  background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
-                  <button onClick={() => item.unit_qty <= 1 ? removeFromCart(item._id) : updateQty(item._id, -1)}
-                    style={{ width:28, height:28, borderRadius:7, background:"var(--bg2)",
-                      color: item.unit_qty<=1 ? "var(--ember)" : "var(--brass-deep)",
-                      border:"none", fontSize:item.unit_qty<=1?12:16, fontWeight:800, cursor:"pointer" }}>
-                    {item.unit_qty<=1?"🗑":"−"}
-                  </button>
-                  <span style={{ minWidth:22, textAlign:"center", fontSize:14, fontWeight:800, color:"var(--ink)" }}>
-                    {item.unit_qty}
-                  </span>
-                  <button onClick={() => updateQty(item._id, 1)}
-                    style={{ width:28, height:28, borderRadius:7, background:"var(--saffron)",
-                      color:"#fff", border:"none", fontSize:16, fontWeight:800, cursor:"pointer" }}>+</button>
-                </div>
-                <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:14,
-                  color:"var(--brass-deep)", fontWeight:800, minWidth:54, textAlign:"right" }}>
-                  {INRb(item.amount)}
-                </div>
-              </div>
-            ))}
+            {bangleCartLines()}
 
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 12px" }}>
               <div style={{ flex:1, height:1, background:"var(--rule)" }}/>
@@ -3607,7 +3644,7 @@ export default function BangleBilling() {
 
         {/* Product browser */}
         {loading ? (
-          <div style={{ textAlign:"center", padding:"40px 0", color:"var(--ink-faint)", fontSize:13 }}>Loading products…</div>
+          <div style={{ padding:"4px 14px 24px" }}><SkeletonTiles count={8} min={140} height={150} /></div>
         ) : (() => {
           return (
             <div style={{ padding: cart.length > 0 ? "0 14px 24px" : "4px 14px 24px" }}>
@@ -3615,13 +3652,17 @@ export default function BangleBilling() {
               <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:8,
                 scrollbarWidth:"none", marginBottom:2 }}>
                 {uniqueCats.map(c => (
-                  <button key={c} onClick={() => setCatFilter(c)}
-                    style={{ padding:"6px 14px", borderRadius:20, border:"none", cursor:"pointer",
-                      flexShrink:0, fontSize:11, fontWeight:700, transition:"all 0.12s",
-                      background: catFilter===c ? "var(--saffron)" : "var(--bg2)",
-                      color:      catFilter===c ? "#fff"          : "var(--ink-dim)",
-                      boxShadow:  catFilter===c ? "0 3px 10px rgba(232,119,34,0.3)" : "none" }}>
-                    {c === "All" ? "💍 All" : c}
+                  <button key={c} className="tap-chip" onClick={() => setCatFilter(c)}
+                    style={{ position:"relative", padding:"8px 14px", borderRadius:20, border:"none", cursor:"pointer",
+                      flexShrink:0, fontSize:12, fontWeight:700, transition:"color 0.15s",
+                      background: catFilter===c ? "transparent" : "var(--bg2)",
+                      color:      catFilter===c ? "#fff"        : "var(--ink-dim)" }}>
+                    {catFilter === c && (
+                      <motion.span layoutId="bangle-cat-pill" transition={{ type:"spring", bounce:0.2, visualDuration:0.35 }}
+                        style={{ position:"absolute", inset:0, borderRadius:20, background:"var(--saffron)",
+                          boxShadow:"0 3px 10px rgba(232,119,34,0.3)" }}/>
+                    )}
+                    <span style={{ position:"relative" }}>{c === "All" ? "💍 All" : c}</span>
                   </button>
                 ))}
               </div>
@@ -3632,13 +3673,16 @@ export default function BangleBilling() {
                   No products in this category
                 </div>
               ) : (
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10, paddingTop:4 }}>
+                <motion.div key={catFilter} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }}
+                  transition={{ type:"spring", bounce:0, visualDuration:0.3 }}
+                  style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10, paddingTop:4 }}>
                   {gridProducts.map(p => {
                     const inCartQty = cart.filter(i => i.product_id === p.id).reduce((s,i)=>s+i.unit_qty,0)
                     const totalStock = (p.variants||[]).reduce((s,v)=>s+(v.stock||0),0)
                     const outOfStock = totalStock <= 0 && (p.variants||[]).length > 0
                     return (
-                      <button key={p.id}
+                      <motion.button key={p.id}
+                        whileTap={outOfStock ? undefined : { scale:0.95 }}
                         onClick={() => !outOfStock && setSelProduct(p)}
                         style={{
                           background:"var(--bg2)", borderRadius:14, padding:"14px 12px",
@@ -3649,18 +3693,22 @@ export default function BangleBilling() {
                           display:"flex", flexDirection:"column", alignItems:"flex-start",
                           gap:8, textAlign:"left", position:"relative", transition:"all 0.12s",
                         }}
-                        onMouseEnter={e => { if (!outOfStock) e.currentTarget.style.transform="translateY(-2px)" }}
-                        onMouseLeave={e => e.currentTarget.style.transform="none"}>
+                        whileHover={outOfStock ? undefined : { y:-2 }}>
 
-                        {inCartQty > 0 && (
-                          <div style={{ position:"absolute", top:8, right:8,
-                            minWidth:20, height:20, padding:"0 5px", borderRadius:10,
-                            background:"var(--saffron)", color:"#fff",
-                            fontSize:11, fontWeight:800,
-                            display:"flex", alignItems:"center", justifyContent:"center" }}>
-                            {inCartQty}
-                          </div>
-                        )}
+                        <AnimatePresence>
+                          {inCartQty > 0 && (
+                            <motion.div key={inCartQty}
+                              initial={{ scale:0.4, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.4, opacity:0 }}
+                              transition={{ type:"spring", bounce:0.55, visualDuration:0.3 }}
+                              style={{ position:"absolute", top:8, right:8,
+                              minWidth:22, height:22, padding:"0 6px", borderRadius:11,
+                              background:"var(--saffron)", color:"#fff",
+                              fontSize:12, fontWeight:800,
+                              display:"flex", alignItems:"center", justifyContent:"center" }}>
+                              {inCartQty}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
 
                         <div style={{ width:40, height:40, borderRadius:10, flexShrink:0,
                           background:"var(--bg0)", border:"1px solid var(--rule)",
@@ -3685,17 +3733,97 @@ export default function BangleBilling() {
                             {outOfStock && <span style={{ color:"var(--ember)", fontWeight:800, marginLeft:4 }}>OUT</span>}
                           </div>
                         </div>
-                      </button>
+                      </motion.button>
                     )
                   })}
-                </div>
+                </motion.div>
               )}
             </div>
           )
         })()}
       </div>
 
+      {/* ── BOTTOM BAR (phones): total → Invoice ── */}
+      <AnimatePresence>
+      {!wide && cart.length > 0 && (
+        <motion.div key="bar"
+          initial={{ y:40, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:40, opacity:0 }}
+          transition={{ type:"spring", bounce:0.2, visualDuration:0.35 }}
+          style={{ position:"relative", zIndex:160, background:"var(--bg2)", borderTop:"1px solid var(--rule)",
+            boxShadow:"0 -6px 20px rgba(26,12,4,0.08)", padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, color:"var(--ink-dim)", fontWeight:700 }}>{cart.length} {cart.length === 1 ? "item" : "items"}</div>
+            <motion.div key={cart.length} initial={{ scale:1 }} animate={{ scale:[1, 1.08, 1] }} transition={{ duration:0.35 }}
+              style={{ fontSize:22, color:"var(--ink)", fontWeight:900, lineHeight:1.15, transformOrigin:"0 50%" }}>
+              <AnimatedAmount value={cartTotal}/>
+            </motion.div>
+          </div>
+          <motion.button whileTap={{ scale:0.96 }} onClick={() => setShowPaySheet(true)}
+            style={{ flexShrink:0, background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))", color:"#fff",
+              border:"none", borderRadius:14, padding:"0 22px", height:56, fontSize:17, fontWeight:900,
+              boxShadow:"0 8px 20px rgba(232,119,34,0.4)", cursor:"pointer" }}>
+            Invoice →
+          </motion.button>
+        </motion.div>
+      )}
+      </AnimatePresence>
+      </div>{/* end product column */}
 
+      {/* ── BILL PANEL (wide screens) ── */}
+      {wide && (
+        <aside aria-label="Bill" style={{ width:400, flexShrink:0, display:"flex", flexDirection:"column",
+          background:"var(--bg2)", borderLeft:"1px solid var(--rule)", boxShadow:"-8px 0 24px rgba(26,12,4,0.05)" }}>
+          <div style={{ padding:"16px 18px 12px", display:"flex", alignItems:"center", gap:10, borderBottom:"1px solid var(--rule)" }}>
+            <span style={{ width:36, height:36, borderRadius:10, background:"var(--saffron-bg)", color:"var(--saffron)",
+              display:"flex", alignItems:"center", justifyContent:"center" }}><BillIcon name="receipt" size={19}/></span>
+            <div style={{ flex:1, fontSize:17, fontWeight:800, color:"var(--ink)" }}>Bill</div>
+            <AnimatePresence>
+              {cart.length > 0 && (
+                <motion.span key={cart.length}
+                  initial={{ scale:0.5, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.5, opacity:0 }}
+                  transition={{ type:"spring", bounce:0.5, visualDuration:0.3 }}
+                  style={{ background:"var(--saffron)", color:"#fff", borderRadius:999, padding:"3px 10px", fontSize:13, fontWeight:800 }}>
+                  {cart.length} {cart.length === 1 ? "item" : "items"}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+          <div style={{ flex:1, overflowY:"auto", padding:"12px 14px" }}>
+            {bangleCartLines()}
+            {cart.length === 0 && (
+              <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.25 }}
+                style={{ height:"100%", minHeight:240, display:"flex", flexDirection:"column", alignItems:"center",
+                  justifyContent:"center", gap:12, textAlign:"center", color:"var(--ink-faint)" }}>
+                <span style={{ width:72, height:72, borderRadius:20, background:"var(--bg0)", border:"1px dashed var(--rule)",
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>💍</span>
+                <div style={{ fontSize:15, fontWeight:800, color:"var(--ink-dim)" }}>Bill is empty</div>
+                <div style={{ fontSize:13, maxWidth:240, lineHeight:1.5 }}>Tap a product, pick colour and size, and it lands here.</div>
+              </motion.div>
+            )}
+          </div>
+          <div style={{ padding:"12px 18px 16px", borderTop:"1px solid var(--rule)", background:"var(--bg1)" }}>
+            {discountAmt > 0 && (
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, color:"var(--jade)", marginBottom:4 }}>
+                <span>Discount</span><span>−<AnimatedAmount value={discountAmt}/></span>
+              </div>
+            )}
+            <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:12 }}>
+              <span style={{ fontSize:14, fontWeight:700, color:"var(--ink-dim)" }}>Total</span>
+              <motion.span key={cart.length} initial={{ scale:1 }} animate={{ scale:[1, 1.1, 1] }} transition={{ duration:0.35 }}
+                style={{ fontSize:32, fontWeight:900, color:"var(--ink)", lineHeight:1, transformOrigin:"100% 50%" }}>
+                <AnimatedAmount value={cartTotal}/>
+              </motion.span>
+            </div>
+            <motion.button whileTap={{ scale:0.97 }} onClick={() => setShowPaySheet(true)} disabled={cart.length === 0}
+              style={{ width:"100%", height:56, borderRadius:14, border:"none", cursor: cart.length ? "pointer" : "not-allowed",
+                background: cart.length ? "linear-gradient(135deg,var(--saffron),var(--saffron-hot))" : "var(--rule)",
+                color:"#fff", fontSize:18, fontWeight:900, boxShadow: cart.length ? "0 8px 20px rgba(232,119,34,0.35)" : "none" }}>
+              Invoice →
+            </motion.button>
+          </div>
+        </aside>
+      )}
+      </div>{/* end wide row */}
     </div>
   )
 }

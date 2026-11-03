@@ -437,7 +437,30 @@ def _name_tokens(name: str) -> list[str]:
     return [w for w in words if len(w) >= 3 and w not in _GENERIC and w not in {"kg", "gm", "ml", "ltr", "pcs"}]
 
 
-def _product_answer(message: str, vendor_id: str) -> Optional[str]:
+def _bangle_products(vendor_id: str) -> list[dict]:
+    """Bangle products shaped like kirana ones for _product_answer: stock = all variants,
+    price per dozen (per piece for piece-sold categories), plus which colours are low."""
+    db = get_db()
+    prods = (db.table("bangle_products").select("id,name,category,mrp")
+             .eq("vendor_id", vendor_id).eq("is_active", True).execute().data or [])
+    if not prods:
+        return []
+    variants = (db.table("bangle_variants").select("product_id,colour,size,stock,min_stock")
+                .eq("vendor_id", vendor_id).eq("is_active", True).execute().data or [])
+    by_pid: dict = {}
+    for v in variants:
+        by_pid.setdefault(v["product_id"], []).append(v)
+    out = []
+    for p in prods:
+        vs = by_pid.get(p["id"], [])
+        low = sorted({v.get("colour") or v.get("size") or "" for v in vs
+                      if 0 < (v.get("stock") or 0) < (v.get("min_stock") or 0)} - {""})
+        out.append({"name": p["name"], "stock": sum(v.get("stock") or 0 for v in vs), "unit": "pcs",
+                    "mrp": p.get("mrp") or 0, "min_stock": 0, "variants": len(vs), "low_colours": low})
+    return out
+
+
+def _product_answer(message: str, vendor_id: str, store: str = "kirana") -> Optional[str]:
     msg = message.lower()
     asks_price = _has_word(msg, _PRICE_WORDS)
     # "kitne ka" is a price question even though "kitne" alone asks about stock
@@ -461,7 +484,7 @@ def _product_answer(message: str, vendor_id: str) -> Optional[str]:
     if not (asks_stock or asks_price or bare_name):
         return None
 
-    products = (
+    products = _bangle_products(vendor_id) if store == "bangle" else (
         get_db().table("products").select("name,stock,unit,mrp,min_stock")
         .eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
     )
@@ -493,7 +516,11 @@ def _product_answer(message: str, vendor_id: str) -> Optional[str]:
         if asks_stock or not asks_price:
             parts.append(f"{qty(p)} in stock")
         if asks_price or not asks_stock:
-            parts.append(f"₹{float(p.get('mrp') or 0):g}")
+            parts.append(f"₹{float(p.get('mrp') or 0):g}" + ("/dozen" if store == "bangle" else ""))
+        if store == "bangle" and p.get("variants"):
+            parts.append(f"{p['variants']} colours/sizes")
+            if p.get("low_colours"):
+                flag = "🟡 low: " + ", ".join(p["low_colours"][:4])
         lines.append(" — ".join([parts[0], " · ".join(parts[1:])]) + (f"  {flag}" if flag else ""))
     return "\n".join(lines)
 
@@ -1004,9 +1031,9 @@ async def chat(
     active_tools = _BANGLE_TOOLS if store == "bangle" else _KIRANA_TOOLS
 
     # ── TIER 1: Local answers, no AI tokens ──────────────────
-    if vendor and store == "kirana":
+    if vendor:
         try:
-            reply = _product_answer(safe_msg, vendor["id"])
+            reply = _product_answer(safe_msg, vendor["id"], store)
             if reply:
                 logger.info("local_product_answer vendor=%s", vendor["id"])
                 return {"response": reply, "source": "local"}

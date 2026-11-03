@@ -58,3 +58,20 @@ def test_loss_items_name_the_culprits():
         {**item("loss", 2, 50), "name": "Besan 500g"}, {**item("salt", 1, 28), "name": "Tata Salt"}]}]
     r = bill_profit(_DB(PRODUCTS), "v1", bills)
     assert r["loss_items"] == [{"name": "Besan 500g", "cost_price": 60, "sold_at": 50, "qty": 2, "loss": -20}]
+
+
+def test_bangle_profit_ignores_gst_and_uncosted_items():
+    from app.core.profit import bangle_items_profit
+    sales = [{"total": 1030, "items": [   # 1000 + 3% GST
+        {"variant_id": "v1", "product_name": "Silk Bangles", "colour": "Red", "pieces": 12, "amount": 600},   # cost 360/dozen
+        {"variant_id": "v2", "product_name": "Glass Set", "pieces": 12, "amount": 400},                      # no cost price
+    ]}]
+    r = bangle_items_profit(sales, {"v1": 360, "v2": 0}, {"v1": 12, "v2": 12})
+    assert r["profit"] == 240 and r["margin_pct"] == 40.0 and r["cost_coverage"] == 0.5
+
+
+def test_bangle_loss_items():
+    from app.core.profit import bangle_items_profit
+    r = bangle_items_profit([{"total": 50, "items": [{"variant_id": "v1", "product_name": "Kada", "colour": "Gold",
+                                                      "pieces": 1, "amount": 50}]}], {"v1": 60}, {"v1": 1})
+    assert r["profit"] == -10 and r["loss_items"][0]["name"] == "Kada · Gold"

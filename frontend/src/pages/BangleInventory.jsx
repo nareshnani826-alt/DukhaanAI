@@ -13,7 +13,9 @@ import { learnProduct, suggestMRP } from "../voice/productLearner.js"
 import { BarcodeScanner as MLKitBarcodeScanner } from "@capacitor-mlkit/barcode-scanning"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
-import Loading from "../components/Loading"
+import { motion, AnimatePresence } from "motion/react"
+import { backdrop, rise } from "../components/popupMotion"
+import { SkeletonRows } from "../components/Skeleton"
 
 const isNativeApp = () =>
   typeof window !== "undefined" &&
@@ -596,7 +598,7 @@ function AddProductModal({ onClose, onSaved }) {
     : { transition:"background-color 0.3s ease" }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+    <motion.div {...backdrop} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={e => e.target===e.currentTarget && onClose()}>
       <style>{`
         @keyframes voice-ring-inv {
@@ -605,7 +607,7 @@ function AddProductModal({ onClose, onSaved }) {
         }
       `}</style>
 
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl flex flex-col max-h-[92vh]">
+      <motion.div {...rise} className="bg-white rounded-2xl w-full max-w-sm shadow-xl flex flex-col max-h-[92vh]">
 
         {/* ── Sticky header ── */}
         <div className="px-5 pt-5 pb-4 border-b" style={{borderColor:"var(--rule,#e5e7eb)"}}>
@@ -1201,8 +1203,8 @@ function AddProductModal({ onClose, onSaved }) {
           )}
 
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -1251,9 +1253,9 @@ function AddVariantsModal({ product, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+    <motion.div {...backdrop} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={e => e.target===e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-y-auto max-h-[90vh]">
+      <motion.div {...rise} className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-y-auto max-h-[90vh]">
         <div className="sticky top-0 bg-white p-5 pb-3 border-b">
           <div className="flex justify-between items-center">
             <div>
@@ -1341,8 +1343,8 @@ function AddVariantsModal({ product, onClose, onSaved }) {
             </>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -1492,9 +1494,9 @@ function BarcodeLabelsModal({ product, onClose }) {
           .no-print { display: none !important; }
         }
       `}</style>
-      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      <motion.div {...backdrop} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
         onClick={e => e.target === e.currentTarget && onClose()}>
-        <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl"
+        <motion.div {...rise} className="bg-white rounded-2xl w-full max-w-lg shadow-xl"
           style={{ maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
           {/* Header */}
           <div className="no-print" style={{ padding:"16px 20px", borderBottom:"1px solid var(--rule)",
@@ -1529,8 +1531,8 @@ function BarcodeLabelsModal({ product, onClose }) {
               <BarcodeLabel key={v.id} product={product} variant={v} />
             ))}
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </>
   )
 }
@@ -1585,9 +1587,9 @@ function EditProductModal({ product, onClose, onSaved, suppliers }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+    <motion.div {...backdrop} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-y-auto max-h-[92vh]">
+      <motion.div {...rise} className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-y-auto max-h-[92vh]">
         <div className="px-5 pt-5 pb-4 border-b flex justify-between items-center" style={{borderColor:"var(--rule)"}}>
           <div>
             <div className="text-sm font-bold" style={{color:"var(--ink)"}}>Edit Product</div>
@@ -1722,8 +1724,8 @@ function EditProductModal({ product, onClose, onSaved, suppliers }) {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -1814,6 +1816,7 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated, 
 
   return (
     <div className="rounded-2xl overflow-hidden mb-3" style={{background:"var(--bg1)",border:"1px solid var(--rule)"}}>
+      <AnimatePresence>
       {showEdit && (
         <EditProductModal
           product={product}
@@ -1822,9 +1825,12 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated, 
           onSaved={updated => { onProductUpdated(updated); setShowEdit(false) }}
         />
       )}
+      </AnimatePresence>
+      <AnimatePresence>
       {showLabels && (
         <BarcodeLabelsModal product={product} onClose={() => setShowLabels(false)} />
       )}
+      </AnimatePresence>
 
       <div className="flex items-center gap-3 p-4">
         {/* Product image / placeholder — tap to upload */}
@@ -1982,12 +1988,13 @@ function ProductCard({ product, onAddVariants, onStockChange, onProductUpdated, 
 
 // ── Main Page ──────────────────────────────────────────────
 export default function BangleInventory() {
+  const linkQuery = (() => { try { return new URLSearchParams(window.location.search).get("q") || "" } catch { return "" } })()
   const navigate = useNavigate()
   const { t } = useLang()
   const [products,   setProducts]   = useState([])
   const [loading,    setLoading]    = useState(true)
   const [category,   setCategory]   = useState("All")
-  const [search,     setSearch]     = useState("")
+  const [search,     setSearch]     = useState(linkQuery)
   const [openGroup,  setOpenGroup]  = useState(null)
   const filterRef = useRef(null)
   const [showAdd,    setShowAdd]    = useState(false)
@@ -2067,8 +2074,8 @@ export default function BangleInventory() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden" style={{background:"var(--bg0)"}}>
 
-      {showAdd    && <AddProductModal onClose={()=>setShowAdd(false)} onSaved={onProductSaved} />}
-      {addVariFor && <AddVariantsModal product={addVariFor} onClose={()=>setAddVariFor(null)} onSaved={onVariantsSaved} />}
+      <AnimatePresence>{showAdd    && <AddProductModal onClose={()=>setShowAdd(false)} onSaved={onProductSaved} />}</AnimatePresence>
+      <AnimatePresence>{addVariFor && <AddVariantsModal product={addVariFor} onClose={()=>setAddVariFor(null)} onSaved={onVariantsSaved} />}</AnimatePresence>
 
       {/* Header */}
       <div style={{background:"var(--bg1)",padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid var(--rule)",flexShrink:0}}>
@@ -2179,7 +2186,7 @@ export default function BangleInventory() {
       {/* Product list */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
         {loading ? (
-          <div style={{textAlign:"center",padding:48,color:"var(--ink-faint)",fontSize:13}}><Loading label={t("Loading inventory...")}/></div>
+          <SkeletonRows rows={6} />
         ) : filtered.length === 0 ? (
           <div style={{textAlign:"center",padding:48}}>
             <div style={{fontSize:48,marginBottom:12}}>💍</div>
