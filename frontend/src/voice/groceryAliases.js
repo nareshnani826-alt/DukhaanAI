@@ -5,8 +5,12 @@
 //
 // Key  = what vendor says (original OR translated)
 // Value = standard product name to search in inventory
+//
+// The big 10-language dictionary is generated (groceryDictionary.js, from
+// app/core/grocery_dictionary.py); the hand-tuned names below win when both define a word.
+import { GENERATED_ALIASES, GENERATED_VARIANTS } from "./groceryDictionary.js"
 
-export const GROCERY_ALIASES = {
+const BASE_ALIASES = {
 
   // ══════════════════════════════════════════════════════
   // DALS / LENTILS
@@ -522,6 +526,39 @@ export const GROCERY_ALIASES = {
   "makai ka atta":     "corn flour",
   "besan":             "besan",          // already mapped probably — safe to re-add
   "chana atta":        "besan",
+  // Besan as people say it — Telugu "senaga pindi" was picking Parle-G
+  "senaga pindi":      "besan",
+  "senagapindi":       "besan",
+  "sengapindi":        "besan",
+  "senga pindi":       "besan",
+  "chenaga pindi":     "besan",
+  "chengapindi":       "besan",
+  "chenga pindi":      "besan",
+  "shanaga pindi":     "besan",
+  "sanaga pindi":      "besan",
+  "sanagapindi":       "besan",
+  "సెనగ పిండి":         "besan",
+  "శనగ పిండి":          "besan",
+  "సెనగపిండి":          "besan",
+  "శనగపిండి":           "besan",
+  "బేసన్":             "besan",
+  "बेसन":              "besan",
+  "beson":             "besan",
+  "beshon":            "besan",
+  "বেসন":              "besan",
+  "kadalai maavu":     "besan",          // Tamil
+  "kadalai mavu":      "besan",
+  "கடலை மாவு":         "besan",
+  "kadale hittu":      "besan",          // Kannada
+  "ಕಡಲೆ ಹಿಟ್ಟು":        "besan",
+  "kadala podi":       "besan",          // Malayalam
+  "കടലമാവ്":           "besan",
+  "chana no lot":      "besan",          // Gujarati
+  "ચણાનો લોટ":         "besan",
+  "vesan":             "besan",          // Punjabi
+  "ਵੇਸਣ":              "besan",
+  "gram flour":        "besan",
+  "chickpea flour":    "besan",
   "ajwain":            "carom seeds",
   "zeera":             "cumin",          // common mispronunciation
   "dhaniya":           "coriander",
@@ -654,18 +691,36 @@ export const GROCERY_ALIASES = {
   "kasuri methi":      "dried fenugreek leaves",
 }
 
+export const GROCERY_ALIASES = { ...GENERATED_ALIASES, ...BASE_ALIASES }
+export const ALIAS_VARIANTS = GENERATED_VARIANTS
+
+// Longest first, so "senaga pindi" wins over a shorter word inside it
+export const SORTED_ALIASES = Object.keys(GROCERY_ALIASES).sort((a, b) => b.length - a.length)
+
+// Romanised names match as whole words only ("anda" must not fire inside "chandan",
+// "dal" inside "sandal"); Indian-script names match anywhere (word boundaries break on vowel signs).
+const WORD_RE = new Map()
+const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+function aliasRegex(alias) {
+  let re = WORD_RE.get(alias)
+  if (!re) {
+    re = new RegExp(`(^|[^a-z0-9])${escapeRe(alias)}(?=$|[^a-z0-9])`)
+    WORD_RE.set(alias, re)
+  }
+  return re
+}
+const isRoman = s => /^[a-z0-9 .'-]+$/.test(s)
+export function aliasIn(lowerText, alias) {
+  return isRoman(alias) ? aliasRegex(alias).test(lowerText) : lowerText.includes(alias)
+}
+
 // ── Apply alias lookup to translated text ─────────────────
 // Checks both original and translated text for known aliases
 export function applyGroceryAliases(text) {
   if (!text) return text
   const lower = text.toLowerCase().trim()
-
-  // Try full phrase match first (longer matches win)
-  const sorted = Object.keys(GROCERY_ALIASES).sort((a, b) => b.length - a.length)
-  for (const alias of sorted) {
-    if (lower.includes(alias)) {
-      return text.toLowerCase().replace(alias, GROCERY_ALIASES[alias])
-    }
+  for (const alias of SORTED_ALIASES) {
+    if (aliasIn(lower, alias)) return lower.replace(alias, GROCERY_ALIASES[alias])
   }
   return text
 }
@@ -674,9 +729,8 @@ export function applyGroceryAliases(text) {
 export function resolveGroceryName(text) {
   if (!text) return text
   const lower = text.toLowerCase().trim()
-  const sorted = Object.keys(GROCERY_ALIASES).sort((a,b) => b.length - a.length)
-  for (const alias of sorted) {
-    if (lower.includes(alias)) return GROCERY_ALIASES[alias]
+  for (const alias of SORTED_ALIASES) {
+    if (aliasIn(lower, alias)) return GROCERY_ALIASES[alias]
   }
   return text
 }

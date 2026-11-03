@@ -101,6 +101,9 @@ export function phoneticMatch(query, productNames) {
   if (!query || !productNames?.length) return null
 
   const q = query.toLowerCase().trim()
+  // Sound codes only work on English letters; Indian-script words all code to "" and
+  // matched any product ("శనగ పిండి" → Country Delight Milk)
+  if (!/[a-z]{3}/.test(q)) return null
   const qSdx = soundex(q)
   const qMph = metaphone(q)
 

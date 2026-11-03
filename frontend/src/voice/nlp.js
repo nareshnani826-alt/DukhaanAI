@@ -1,6 +1,9 @@
 // ── Voice NLP Parser ──────────────────────────────────────
 import { NUMBER_WORDS, UNIT_ALIASES, ACTION_KEYWORDS } from "./languages.js"
-import { applyGroceryAliases, resolveGroceryName, GROCERY_ALIASES } from "./groceryAliases.js"
+import { applyGroceryAliases, resolveGroceryName, GROCERY_ALIASES, SORTED_ALIASES, ALIAS_VARIANTS, aliasIn } from "./groceryAliases.js"
+
+// Words too common to identify an item on their own ("dal" fits every dal)
+const GENERIC_WORDS = new Set(["dal", "oil", "flour", "powder", "rice", "leaves", "green", "red", "black", "seeds", "gram"])
 import { phoneticMatch, getConfidenceLevel } from "./phonetic.js"
 import { getFrequencyBoost, findCorrection, recordProductUse } from "./sessionMemory.js"
 
@@ -76,15 +79,24 @@ export function matchProduct(originalText, translatedText, products) {
   // ── Layer 1: Alias map ──────────────────────────────────
   for (const text of textsToCheck) {
     const lower = text.toLowerCase()
-    const aliasKeys = Object.keys(GROCERY_ALIASES).sort((a,b) => b.length - a.length)
-    for (const alias of aliasKeys) {
-      if (lower.includes(alias)) {
+    for (const alias of SORTED_ALIASES) {
+      if (aliasIn(lower, alias)) {
         const standardName = GROCERY_ALIASES[alias]
         const found = products.find(p =>
           p.name.toLowerCase().includes(standardName) ||
           standardName.includes(p.name.toLowerCase())
         )
         if (found) return { ...found, _confidence: 0.95, _method: "alias" }
+        // Shops spell items their own way ("UDAD DAL", "Haldi Powder"): try every English
+        // word for the item; the product sharing the most specific words wins
+        const variants = (ALIAS_VARIANTS[standardName] || []).filter(v => !GENERIC_WORDS.has(v))
+        let bestP = null, bestN = 0
+        for (const p of products) {
+          const name = p.name.toLowerCase()
+          const n = variants.filter(v => aliasIn(name, v)).length
+          if (n > bestN) { bestN = n; bestP = p }
+        }
+        if (bestP) return { ...bestP, _confidence: 0.9, _method: "alias-variant" }
       }
     }
   }
@@ -105,11 +117,14 @@ export function matchProduct(originalText, translatedText, products) {
       const words = name.split(/\s+/)
       let score = 0
       for (const word of words) {
-        if (word.length > 2 && t.includes(word)) score += 20
+        // whole words only — "dal" must not score inside "sandal"
+        if (word.length > 2 && aliasIn(t, word)) score += 20
       }
       if (product.sku && t.includes(product.sku.toLowerCase())) score += 50
-      // Session frequency boost — products used more today score higher
-      score += getFrequencyBoost(product.id, product.name)
+      // Session frequency boost — only breaks ties between products the words already match.
+      // On its own it could reach 30 (> the 15 threshold) and pick the most-sold item
+      // (Parle-G) for words that match nothing ("sengapindi").
+      if (score > 0) score += getFrequencyBoost(product.id, product.name)
       if (score > bestScore) { bestScore = score; best = product }
     }
   }

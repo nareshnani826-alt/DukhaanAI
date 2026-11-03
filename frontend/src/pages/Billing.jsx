@@ -14,6 +14,7 @@ import { MIN_FONT_SIZE } from "../styles/textScale"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 import { parseVoiceCommand } from "../voice/nlp.js"
+import { resolveGroceryName } from "../voice/groceryAliases.js"
 import { tr, uiLang } from "../i18n/kiranaStrings"
 
 // UI text in the shop's language (falls back to English)
@@ -538,6 +539,7 @@ export default function Billing() {
   const [openingDay, setOpeningDay] = useState(false)
   // Wide screens keep the bill open beside the products; phones use the bottom bar + sheet
   const wide = useWideBilling()
+  const roomy = useWideBilling("(min-width: 640px)")   // tablets & computers: big labelled Speak/Scan
   const { fly, layer: flyLayer } = useFlyToBill()
 
   const searchRef = useRef(null)
@@ -800,9 +802,20 @@ Thank you for shopping! 🙏`
         showNotif(`🎤 "${text}" — ${sameWord.length} ${L("items found, tap one")}`)
         return
       }
+      // A local name for an item the shop stocks in several kinds ("senaga pindi" → 2 besan packs) → let them pick
+      const std = resolveGroceryName(text)
+      if (std && std !== text) {
+        const kinds = products.filter(p => p.name.toLowerCase().includes(std.toLowerCase()))
+        if (kinds.length > 1) {
+          showMatches(std)
+          showNotif(`🎤 "${text}" → ${std}: ${kinds.length} ${L("items found, tap one")}`)
+          return
+        }
+      }
       // The voice matcher knows local names (gudlu → eggs), sound-alikes and quantities ("teen Parle-G")
       const parsed = parseVoiceCommand(text, null, products)
-      const p = parsed.product
+      // Weak sound-alike guesses ("chandan" → Chana, 35%) show choices instead of going on the bill
+      const p = parsed.product && (parsed.product._confidence ?? 1) >= 0.6 ? parsed.product : null
       if (p) {
         if (isLoose(p)) { addToCart(p); return }          // loose items: confirm the weight in the picker
         // "Parle-G 100g" — a number that is part of the product's own name is its size, not a quantity
@@ -1012,7 +1025,7 @@ Thank you for shopping! 🙏`
         <div style={{ padding:"8px 12px 6px", display:"flex", gap:8, alignItems:"stretch", flexShrink:0 }}>
           <div style={{ position:"relative", flex:1, minWidth:0 }}>
             <input value={easyQ} onChange={e => setEasyQ(e.target.value)} placeholder={"🔍 " + L("Search item…")}
-              className="input" style={{ width:"100%", height:52, fontSize:17, padding:"0 44px 0 14px", borderRadius:14 }} />
+              className="input" style={{ width:"100%", height:56, fontSize:17, padding:"0 44px 0 14px", borderRadius:14 }} />
             {easyQ && (
               <button onClick={() => setEasyQ("")} aria-label="Clear search"
                 style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", width:36, height:36,
@@ -1020,20 +1033,20 @@ Thank you for shopping! 🙏`
             )}
           </div>
           <motion.button whileTap={{ scale:0.94 }} onClick={voiceActive ? undefined : startVoiceSearch} aria-label={L("Speak")}
-            style={{ width:60, height:52, borderRadius:14, cursor:"pointer", flexShrink:0,
-              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
+            style={{ width: roomy ? 170 : 66, height:56, borderRadius:14, cursor:"pointer", flexShrink:0,
+              display:"flex", flexDirection: roomy ? "row" : "column", alignItems:"center", justifyContent:"center", gap: roomy ? 10 : 1,
               border: voiceActive ? "2.5px solid #dc2626" : "1.5px solid var(--rule)",
               background: voiceActive ? "#fee2e2" : "var(--bg2)", color: voiceActive ? "#b91c1c" : "var(--ink)",
               animation: voiceActive ? "micPulse 1s infinite" : "none" }}>
-            <BillIcon name="mic" size={20}/>
-            <span style={{ fontSize:11, fontWeight:800 }}>{voiceActive ? "…" : L("Speak")}</span>
+            <BillIcon name="mic" size={roomy ? 24 : 22}/>
+            <span style={{ fontSize: roomy ? 18 : 12, fontWeight:800 }}>{voiceActive ? "…" : L("Speak")}</span>
           </motion.button>
           <motion.button whileTap={{ scale:0.94 }} onClick={() => setScanner(true)} aria-label={L("Scan")}
-            style={{ width:60, height:52, borderRadius:14, border:"none", cursor:"pointer", flexShrink:0, color:"#fff",
-              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
+            style={{ width: roomy ? 170 : 66, height:56, borderRadius:14, border:"none", cursor:"pointer", flexShrink:0, color:"#fff",
+              display:"flex", flexDirection: roomy ? "row" : "column", alignItems:"center", justifyContent:"center", gap: roomy ? 10 : 1,
               background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))", boxShadow:"0 4px 12px rgba(232,119,34,0.3)" }}>
-            <BillIcon name="scan" size={20}/>
-            <span style={{ fontSize:11, fontWeight:800 }}>{L("Scan")}</span>
+            <BillIcon name="scan" size={roomy ? 24 : 22}/>
+            <span style={{ fontSize: roomy ? 18 : 12, fontWeight:800 }}>{L("Scan")}</span>
           </motion.button>
         </div>
 

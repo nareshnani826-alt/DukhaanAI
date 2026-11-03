@@ -75,3 +75,15 @@ def test_local_grocery_words_find_english_products():
         assert ask("enna stock iruku") is None     # "enna" = "what" in Tamil, not oil
     finally:
         chat.get_db = lambda: type("DB", (), {"table": lambda self, _n: _Q(PRODUCTS)})()
+
+
+def test_besan_local_names():
+    items = PRODUCTS + [{"name": "Besan 500g", "stock": 20, "unit": "piece", "mrp": 55, "min_stock": 5},
+                        {"name": "Parle G Biscuit", "stock": 50, "unit": "piece", "mrp": 10, "min_stock": 5}]
+    chat.get_db = lambda: type("DB", (), {"table": lambda self, _n: _Q(items)})()
+    try:
+        for msg in ["sengapindi", "chengapindi stock", "senaga pindi price", "శనగ పిండి ఎన్ని"]:
+            r = ask(msg)
+            assert r and "Besan" in r and "Parle" not in r, (msg, r)
+    finally:
+        chat.get_db = lambda: type("DB", (), {"table": lambda self, _n: _Q(PRODUCTS)})()
