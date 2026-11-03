@@ -1422,7 +1422,7 @@ export default function LoginHome() {
           input, select, textarea { font-size: 16px !important; }
           @media (max-width: 640px) { .lh-form-card { padding: 24px 18px !important; } }
           html, body { height: 100%; overflow: hidden; }
-          #root      { height: 100%; overflow: auto; }
+          #root      { height: 100%; overflow: auto; position: relative; }  /* scroll effects measure #root */
         `}</style>
       </>
     )

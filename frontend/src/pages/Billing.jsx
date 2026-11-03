@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { motion, AnimatePresence } from "motion/react"
+import { backdrop, sheet, pop, celebrate } from "../components/popupMotion"
+import { AnimatedAmount, BillIcon } from "../components/billing/billMotion"
+import { useFlyToBill, useWideBilling } from "../components/billing/billHooks"
 import { Products, Invoices, Customers, api, isCloud, getStoreName } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
@@ -75,13 +79,13 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
   }
 
   return (
-    <div style={{
+    <motion.div {...backdrop} style={{
       // Above the billing bottom bar (z 160) and the phone menu, so Confirm is always reachable
       position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
       zIndex:450, display:"flex", alignItems:"flex-start", justifyContent:"center",
       padding:"16px", overflowY:"auto",
     }}>
-      <div style={{
+      <motion.div {...pop} style={{
         background:"#fff", borderRadius:16, width:"100%", maxWidth:520,
         marginTop:16, marginBottom:16, overflow:"hidden",
         boxShadow:"0 20px 60px rgba(0,0,0,0.2)",
@@ -247,8 +251,8 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -428,9 +432,9 @@ function LoosePicker({ product: p, inBill, change, onPick, onClose, L }) {
   const btn = { borderRadius:16, border:"2px solid var(--rule)", background:"var(--bg2)", padding:"12px 6px",
     display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer" }
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:500, background:"rgba(0,0,0,0.45)",
+    <motion.div {...backdrop} onClick={onClose} style={{ position:"fixed", inset:0, zIndex:500, background:"rgba(0,0,0,0.45)",
       display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:520, background:"var(--bg1)",
+      <motion.div {...sheet} onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:520, background:"var(--bg1)",
         borderRadius:"22px 22px 0 0", padding:"18px 16px", paddingBottom:"max(20px, env(safe-area-inset-bottom))" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
           <div style={{ flex:1, minWidth:0 }}>
@@ -470,8 +474,8 @@ function LoosePicker({ product: p, inBill, change, onPick, onClose, L }) {
             ? `${L(change ? "Set" : "Add to bill")} · ${fmtWeight(kg, fromGrams || fromRupees)} · ₹${price(fromGrams || fromRupees)}`
             : L(change ? "Set" : "Add to bill")}
         </button>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -529,6 +533,9 @@ export default function Billing() {
     try { localStorage.setItem("dk_bill_mode", m) } catch { /* private mode */ }
   }
   const [openingDay, setOpeningDay] = useState(false)
+  // Wide screens keep the bill open beside the products; phones use the bottom bar + sheet
+  const wide = useWideBilling()
+  const { fly, layer: flyLayer } = useFlyToBill()
 
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)   // kept for compat with lookupBarcode
@@ -935,31 +942,38 @@ Thank you for shopping! 🙏`
           </div>
         )}
         {scanner && <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />}
+        <AnimatePresence>
         {loosePick && (
           <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} change={looseChange} L={L}
             onPick={q => { looseChange ? setLooseQty(loosePick, q) : addToCart(loosePick, q); buzz() }}
             onClose={() => { setLoosePick(null); setLooseChange(false) }} />
         )}
+        </AnimatePresence>
 
 
         {/* Saved → big tick, total, next customer */}
         {invoice && easyDone && (
-          <div style={{ position:"fixed", inset:0, zIndex:400, background:"var(--bg0)", display:"flex", flexDirection:"column",
+          <motion.div variants={celebrate.list} initial="hidden" animate="show"
+            style={{ position:"fixed", inset:0, zIndex:400, background:"var(--bg0)", display:"flex", flexDirection:"column",
             alignItems:"center", justifyContent:"center", gap:18, padding:24, textAlign:"center" }}>
-            <div style={{ width:120, height:120, borderRadius:"50%", background:"var(--jade)", color:"#fff",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:64 }}>✓</div>
-            <div style={{ fontSize:20, fontWeight:800, color:"var(--ink-dim)" }}>{L("Bill saved")}</div>
-            <div style={{ fontSize:56, fontWeight:900, color:"var(--ink)", lineHeight:1 }}>₹{Math.round(easyDone.total)}</div>
-            <button onClick={() => { setEasyDone(null); clearBill() }}
+            <div style={{ position:"relative", width:120, height:120 }}>
+              <motion.div variants={celebrate.ring}
+                style={{ position:"absolute", inset:0, borderRadius:"50%", border:"6px solid var(--jade)" }}/>
+              <motion.div variants={celebrate.tick} style={{ width:120, height:120, borderRadius:"50%", background:"var(--jade)", color:"#fff",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:64 }}>✓</motion.div>
+            </div>
+            <motion.div variants={celebrate.item} style={{ fontSize:20, fontWeight:800, color:"var(--ink-dim)" }}>{L("Bill saved")}</motion.div>
+            <motion.div variants={celebrate.item} style={{ fontSize:56, fontWeight:900, color:"var(--ink)", lineHeight:1 }}>₹{Math.round(easyDone.total)}</motion.div>
+            <motion.button variants={celebrate.item} whileTap={{ scale:0.97 }} onClick={() => { setEasyDone(null); clearBill() }}
               style={{ width:"100%", maxWidth:360, height:72, borderRadius:20, border:"none", fontSize:22, fontWeight:900,
                 color:"#fff", background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))", marginTop:8 }}>
               {L("Next customer")} →
-            </button>
-            <button onClick={() => setEasyDone(null)}
+            </motion.button>
+            <motion.button variants={celebrate.item} onClick={() => setEasyDone(null)}
               style={{ background:"none", border:"none", color:"var(--ink-dim)", fontSize:16, fontWeight:700, textDecoration:"underline" }}>
               {L("See bill")} · WhatsApp · {L("Print")}
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         )}
 
         {/* Top: speak + scan, and the switch back */}
@@ -1072,41 +1086,126 @@ Thank you for shopping! 🙏`
     )
   }
 
+  // Bill lines — shared by the phone bill sheet and the wide-screen bill panel
+  function billLines() {
+    return (
+      <AnimatePresence initial={false}>
+        {rows.map((row, i) => {
+          const p = getProduct(row.prodId)
+          if (!p) return null
+          const rowTotal = Math.round(p.mrp * row.qty * (1 + (applyGst ? p.gst_percent : 0) / 100) * 100) / 100
+          const loose = isLoose(p)
+          const last = loose ? !looseLess(p, row.qty) : row.qty <= 1
+          return (
+            <motion.div key={row.prodId} layout
+              initial={{ opacity:0, x:-16 }} animate={{ opacity:1, x:0 }}
+              exit={{ opacity:0, x:24, height:0, marginBottom:0, paddingTop:0, paddingBottom:0 }}
+              transition={{ type:"spring", bounce:0.15, visualDuration:0.3 }}
+              style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px",
+                marginBottom:8, border:"1px solid var(--rule)", overflow:"hidden",
+                display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)", lineHeight:1.25,
+                  overflow:"hidden", textOverflow:"ellipsis",
+                  display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</div>
+                <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
+                  {rateLabel(p)}
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:4,
+                background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
+                <motion.button whileTap={{ scale:0.88 }}
+                  onClick={() => last ? delRow(i) : setRow(i, "qty", loose ? looseLess(p, row.qty) : row.qty - 1)}
+                  aria-label={last ? "Remove" : "Less"}
+                  style={{ width:40, height:40, borderRadius:9, background:"var(--bg2)",
+                    color: last ? "var(--ember)" : "var(--brass-deep)", border:"none", cursor:"pointer",
+                    display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <BillIcon name={last ? "trash" : "minus"} size={last ? 17 : 18}/>
+                </motion.button>
+                {loose ? (
+                  <button onClick={() => { setLooseChange(true); setLoosePick(p) }} aria-label="Change weight"
+                    style={{ minWidth:22, padding:"0 4px", fontSize:15, fontWeight:800, color:"var(--ink)", whiteSpace:"nowrap",
+                      background:"none", border:"none", borderBottom:"2px dashed var(--saffron)", cursor:"pointer" }}>
+                    {fmtQty(p, row.qty)}
+                  </button>
+                ) : (
+                  <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)",
+                    whiteSpace:"nowrap", display:"inline-grid" }}>
+                    {/* Quantity rolls up/down as it changes */}
+                    <AnimatePresence initial={false} mode="popLayout">
+                      <motion.span key={row.qty} style={{ gridArea:"1/1" }}
+                        initial={{ y:-12, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:12, opacity:0 }}
+                        transition={{ type:"spring", bounce:0.3, visualDuration:0.22 }}>
+                        {fmtQty(p, row.qty)}
+                      </motion.span>
+                    </AnimatePresence>
+                  </span>
+                )}
+                <motion.button whileTap={{ scale:0.88 }}
+                  onClick={() => loose ? setLoosePick(p) : canAddOne(p) && setRow(i, "qty", row.qty + 1)} aria-label="More"
+                  style={{ width:40, height:40, borderRadius:9, background:"var(--saffron)", color:"#fff", border:"none",
+                    cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <BillIcon name="plus" size={18}/>
+                </motion.button>
+              </div>
+              <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:15,
+                color:"var(--brass-deep)", fontWeight:800, minWidth:54, textAlign:"right" }}>
+                <AnimatedAmount value={rowTotal}/>
+              </div>
+            </motion.div>
+          )
+        })}
+      </AnimatePresence>
+    )
+  }
+
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg0)", position:"relative" }}>
 
       {/* ── Toast notification ───────────────────── */}
+      <AnimatePresence>
       {notif && (
-        <div style={{ position:"fixed", bottom: rows.length ? 170 : 96, left:"50%", transform:"translateX(-50%)",
+        <motion.div key={notif}
+          initial={{ opacity:0, y:16, scale:0.92 }} animate={{ opacity:1, y:0, scale:1 }} exit={{ opacity:0, y:-8, scale:0.96 }}
+          transition={{ type:"spring", bounce:0.3, visualDuration:0.3 }}
+          style={{ position:"fixed", bottom: wide ? 28 : rows.length ? 170 : 96,
+          left: wide ? "calc(50% - 90px)" : "50%", translateX:"-50%",  // wide: centre of the product area (sidebar 220, bill 400)
           // Green for "added", amber for warnings (stock limit, errors)
           zIndex:300, background: notif.startsWith("✓") || notif.startsWith("🎤") ? "var(--jade)" : "#b45309",
           color:"#fff", maxWidth:"90vw", overflow:"hidden", textOverflow:"ellipsis",
           padding:"10px 18px", borderRadius:999, fontSize:14, fontWeight:700,
           whiteSpace:"nowrap", boxShadow:"0 4px 20px rgba(0,0,0,0.2)", pointerEvents:"none" }}>
           {notif}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
+      {flyLayer}
 
       {scanner && (
         <BarcodeScanner onDetected={handleCameraBarcode} onClose={() => setScanner(false)} />
       )}
+      <AnimatePresence>
       {loosePick && (
           <LoosePicker product={loosePick} inBill={qtyInBill(loosePick.id)} change={looseChange} L={L}
             onPick={q => { looseChange ? setLooseQty(loosePick, q) : addToCart(loosePick, q); buzz() }}
             onClose={() => { setLoosePick(null); setLooseChange(false) }} />
         )}
+      </AnimatePresence>
 
 
+      <AnimatePresence>
       {showReview && (
         <ReviewModal rows={rows} products={products} applyGst={applyGst}
           onConfirm={handleReviewConfirm} onClose={() => setShowReview(false)} />
       )}
+      </AnimatePresence>
 
       {/* ── Held-bills bottom sheet ───────────────── */}
+      <AnimatePresence>
       {showHeld && (
-        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"flex-end" }}
+        <motion.div {...backdrop} style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"flex-end" }}
           onClick={() => setShowHeld(false)}>
-          <div style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
+          <motion.div {...sheet} style={{ width:"100%", background:"var(--bg1)", borderRadius:"20px 20px 0 0",
             padding:"20px 16px 32px", maxHeight:"70vh", overflowY:"auto" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -1144,16 +1243,18 @@ Thank you for shopping! 🙏`
                 </button>
               )
             })}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ── Invoice bottom-sheet (after generation) ── */}
+      <AnimatePresence>
       {invoice && (
-        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
+        <motion.div {...backdrop} style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.55)",
           display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
           {/* Bottom sheet — fixed height, 3-section flex column */}
-          <div style={{
+          <motion.div {...sheet} style={{
             width:"100%", maxWidth:520,
             height:"92dvh",           /* fixed height — no overflow surprises */
             background:"var(--bg1)",
@@ -1225,9 +1326,14 @@ Thank you for shopping! 🙏`
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
+
+      {/* Wide screens: products on the left, the live bill panel on the right */}
+      <div style={{ flex:1, minHeight:0, display:"flex" }}>
+      <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
       {/* ── TOP ROW: held bills · hold · clear ────── */}
       <div style={{ padding:"8px 14px", background:"var(--bg0)",
@@ -1274,7 +1380,7 @@ Thank you for shopping! 🙏`
             borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
             transition:"all 0.15s",
           }}>
-            <span style={{ fontSize:18, color: searchQ ? "var(--saffron)" : "var(--ink-faint)", flexShrink:0 }}>🔍</span>
+            <span style={{ color: searchQ ? "var(--saffron)" : "var(--ink-faint)", display:"flex", transition:"color .15s" }}><BillIcon name="search" size={19}/></span>
             <input
               ref={searchRef}
               value={searchQ}
@@ -1315,7 +1421,7 @@ Thank you for shopping! 🙏`
               animation: voiceActive ? "micPulse 1s infinite" : "none",
               transition:"all 0.2s",
             }}>
-            🎤
+            <BillIcon name="mic" size={20}/>
           </button>
 
           {/* 📷 Barcode scan */}
@@ -1324,13 +1430,17 @@ Thank you for shopping! 🙏`
               background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
               color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
               fontSize:20, boxShadow:"0 4px 14px rgba(232,119,34,0.35)" }}>
-            📷
+            <BillIcon name="scan" size={21}/>
           </button>
         </div>
 
         {/* ── Search suggestions dropdown ─────────── */}
+        <AnimatePresence>
         {searchResults.length > 0 && (
-          <div style={{ position:"absolute", left:14, right:14, top:"calc(100% - 4px)",
+          <motion.div key="suggest"
+            initial={{ opacity:0, y:-6, scale:0.98 }} animate={{ opacity:1, y:0, scale:1 }} exit={{ opacity:0, y:-6, scale:0.98 }}
+            transition={{ type:"spring", bounce:0, visualDuration:0.2 }}
+            style={{ position:"absolute", left:14, right:14, top:"calc(100% - 4px)", transformOrigin:"50% 0",
             background:"var(--bg1)", border:"1px solid var(--rule)",
             borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.18)", overflow:"hidden" }}>
             {searchResults.map((p, i) => (
@@ -1356,8 +1466,9 @@ Thank you for shopping! 🙏`
                 <div style={{ fontSize:13, color:"var(--saffron)", fontWeight:800, flexShrink:0 }}>+ Add</div>
               </button>
             ))}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
         {/* ── Barcode result banner ─────────────────── */}
         {barcodeResult && (
@@ -1489,11 +1600,12 @@ Thank you for shopping! 🙏`
       </div>
 
       {/* ── BILL SHEET (tap the bottom bar) ──────── */}
-      {showCart && rows.length > 0 && !invoice && (
-        <div onClick={() => setShowCart(false)}
+      <AnimatePresence>
+      {!wide && showCart && rows.length > 0 && !invoice && (
+        <motion.div {...backdrop} onClick={() => setShowCart(false)}
           style={{ position:"fixed", inset:0, zIndex:150, background:"rgba(0,0,0,0.4)",
             display:"flex", alignItems:"flex-end" }}>
-          <div onClick={e => e.stopPropagation()}
+          <motion.div {...sheet} onClick={e => e.stopPropagation()}
             style={{ width:"100%", maxHeight:"72dvh", overflowY:"auto", background:"var(--bg1)",
               borderRadius:"20px 20px 0 0", padding:"14px 14px 168px", boxShadow:"0 -8px 32px rgba(0,0,0,0.2)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -1504,61 +1616,7 @@ Thank you for shopping! 🙏`
                 style={{ width:40, height:40, borderRadius:10, background:"var(--bg2)", border:"1px solid var(--rule)",
                   color:"var(--ink-dim)", fontSize:18, cursor:"pointer" }}>✕</button>
             </div>
-            {rows.map((row, i) => {
-              const p = getProduct(row.prodId)
-              if (!p) return null
-              const rowTotal = Math.round(p.mrp * row.qty * (1 + (applyGst ? p.gst_percent : 0) / 100) * 100) / 100
-              return (
-                <div key={i} style={{ background:"var(--bg2)", borderRadius:14, padding:"12px 14px",
-                  marginBottom:8, border:"1px solid var(--rule)",
-                  display:"flex", alignItems:"center", gap:12 }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)", lineHeight:1.25,
-                      overflow:"hidden", textOverflow:"ellipsis",
-                      display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.name}</div>
-                    <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2, fontWeight:600 }}>
-                      {rateLabel(p)}
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:4,
-                    background:"var(--bg0)", border:"1px solid var(--rule)", borderRadius:10, padding:3 }}>
-{(() => {
-                    const loose = isLoose(p)
-                    const last = loose ? !looseLess(p, row.qty) : row.qty <= 1
-                    return (<>
-                    <button onClick={() => last ? delRow(i) : setRow(i, "qty", loose ? looseLess(p, row.qty) : row.qty - 1)}
-                      aria-label={last ? "Remove" : "Less"}
-                      style={{ width:40, height:40, borderRadius:9, background:"var(--bg2)",
-                        color: last ? "var(--ember)" : "var(--brass-deep)",
-                        border:"none", fontSize: last ? 13 : 18, fontWeight:800, cursor:"pointer" }}>
-                      {last ? "🗑" : "−"}
-                    </button>
-                    {loose ? (
-                      <button onClick={() => { setLooseChange(true); setLoosePick(p) }} aria-label="Change weight"
-                        style={{ minWidth:22, padding:"0 4px", fontSize:15, fontWeight:800, color:"var(--ink)", whiteSpace:"nowrap",
-                          background:"none", border:"none", borderBottom:"2px dashed var(--saffron)", cursor:"pointer" }}>
-                        {fmtQty(p, row.qty)}
-                      </button>
-                    ) : (
-                      <span style={{ minWidth:22, textAlign:"center", fontSize:15, fontWeight:800, color:"var(--ink)", whiteSpace:"nowrap" }}>
-                        {fmtQty(p, row.qty)}
-                      </span>
-                    )}
-                    </>)
-                  })()}
-                    <button onClick={() => isLoose(p) ? setLoosePick(p) : canAddOne(p) && setRow(i, "qty", row.qty + 1)} aria-label="More"
-                      style={{ width:40, height:40, borderRadius:9, background:"var(--saffron)",
-                        color:"#fff", border:"none", fontSize:18, fontWeight:800, cursor:"pointer" }}>
-                      +
-                    </button>
-                  </div>
-                  <div style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:15,
-                    color:"var(--brass-deep)", fontWeight:800, minWidth:54, textAlign:"right" }}>
-                    {INR(rowTotal)}
-                  </div>
-                </div>
-              )
-            })}
+            {billLines()}
 
             <label style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 4px 0",
               fontSize:14, color:"var(--ink-dim)", cursor:"pointer" }}>
@@ -1566,9 +1624,10 @@ Thank you for shopping! 🙏`
                 style={{ width:20, height:20, accentColor:"var(--saffron)" }} />
               {L("Add GST to this bill")}
             </label>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ── PRODUCT BROWSER ─────────────────────── */}
       <div style={{ flex:1, overflowY:"auto", background:"var(--bg1)" }}>
@@ -1588,12 +1647,17 @@ Thank you for shopping! 🙏`
                 scrollbarWidth:"none", marginBottom:2 }}>
                 {cats.map(c => (
                   <button key={c} onClick={() => setCatFilter(c)}
-                    style={{ padding:"8px 14px", borderRadius:20, border:"none", cursor:"pointer",
-                      flexShrink:0, fontSize:13, fontWeight:700, transition:"all 0.12s",
-                      background: catFilter === c ? "var(--saffron)" : "var(--bg2)",
-                      color:      catFilter === c ? "#fff"          : "var(--ink-dim)",
-                      boxShadow:  catFilter === c ? "0 3px 10px rgba(232,119,34,0.3)" : "none" }}>
-                    {c === "Frequent" ? "⭐ " + L("All") : L(c)}
+                    style={{ position:"relative", padding:"8px 14px", borderRadius:20, border:"none", cursor:"pointer",
+                      flexShrink:0, fontSize:13, fontWeight:700, transition:"color 0.15s",
+                      background: catFilter === c ? "transparent" : "var(--bg2)",
+                      color:      catFilter === c ? "#fff"        : "var(--ink-dim)" }}>
+                    {/* The orange highlight glides to the chosen category */}
+                    {catFilter === c && (
+                      <motion.span layoutId="bill-cat-pill" transition={{ type:"spring", bounce:0.2, visualDuration:0.35 }}
+                        style={{ position:"absolute", inset:0, borderRadius:20, background:"var(--saffron)",
+                          boxShadow:"0 3px 10px rgba(232,119,34,0.3)" }}/>
+                    )}
+                    <span style={{ position:"relative" }}>{c === "Frequent" ? "⭐ " + L("All") : L(c)}</span>
                   </button>
                 ))}
               </div>
@@ -1604,14 +1668,23 @@ Thank you for shopping! 🙏`
                   No products in this category
                 </div>
               ) : (
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8, paddingTop:4 }}>
+                <motion.div key={catFilter} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }}
+                  transition={{ type:"spring", bounce:0, visualDuration:0.3 }}
+                  style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8, paddingTop:4 }}>
                   {shown.map(p => {
                     const inCart = rows.find(r => r.prodId === p.id)
                     const outOfStock = p.stock <= 0
                     const leftAfterBill = Math.max(0, stockOf(p) - (inCart?.qty || 0))
                     return (
-                      <button key={p.id}
-                        onClick={() => !outOfStock && addToCart(p)}
+                      <motion.button key={p.id}
+                        whileTap={outOfStock ? undefined : { scale:0.95 }}
+                        transition={{ type:"spring", bounce:0.4, visualDuration:0.2 }}
+                        onClick={e => {
+                          if (outOfStock) return
+                          // Packets fly into the bill; loose items open the weight picker instead
+                          if (!isLoose(p) && canAddOne(p)) fly(e.currentTarget, p.name.length > 18 ? p.name.slice(0, 16) + "…" : p.name)
+                          addToCart(p)
+                        }}
                         style={{
                           background: inCart ? "var(--saffron-bg)" : "var(--bg2)", borderRadius:12, padding:"10px 10px",
                           border: inCart ? "2px solid var(--saffron)" : "1px solid var(--rule)",
@@ -1620,14 +1693,19 @@ Thank you for shopping! 🙏`
                           display:"flex", flexDirection:"column", justifyContent:"space-between",
                           gap:4, textAlign:"left", position:"relative",
                         }}>
-                        {inCart && (
-                          <div style={{ position:"absolute", top:6, right:6,
-                            minWidth:24, height:24, padding:"0 7px", borderRadius:12,
-                            background:"var(--saffron)", color:"#fff", fontSize:13, fontWeight:800,
-                            display:"flex", alignItems:"center", justifyContent:"center" }}>
-                            {fmtQty(p, inCart.qty)}
-                          </div>
-                        )}
+                        <AnimatePresence>
+                          {inCart && (
+                            <motion.div key={inCart.qty}
+                              initial={{ scale:0.4, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.4, opacity:0 }}
+                              transition={{ type:"spring", bounce:0.55, visualDuration:0.3 }}
+                              style={{ position:"absolute", top:6, right:6,
+                              minWidth:24, height:24, padding:"0 7px", borderRadius:12,
+                              background:"var(--saffron)", color:"#fff", fontSize:13, fontWeight:800,
+                              display:"flex", alignItems:"center", justifyContent:"center" }}>
+                              {fmtQty(p, inCart.qty)}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                         <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)", lineHeight:1.25,
                           paddingRight: inCart ? 26 : 0, overflow:"hidden", textOverflow:"ellipsis",
                           display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
@@ -1640,19 +1718,23 @@ Thank you for shopping! 🙏`
                             {outOfStock ? L("Out of stock") : fmtQty(p, round6(leftAfterBill)) + " " + L("left")}
                           </span>
                         </div>
-                      </button>
+                      </motion.button>
                     )
                   })}
-                </div>
+                </motion.div>
               )}
             </div>
           )
         })()}
       </div>
 
-      {/* ── BOTTOM BAR: items + total → bill sheet · Pay ── */}
-      {rows.length > 0 && !invoice && !showReview && (
-        <div style={{ position:"relative", zIndex:160, background:"var(--bg2)",
+      {/* ── BOTTOM BAR (phones): items + total → bill sheet · Pay ── */}
+      <AnimatePresence>
+      {!wide && rows.length > 0 && !invoice && !showReview && (
+        <motion.div key="bar"
+          initial={{ y:40, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:40, opacity:0 }}
+          transition={{ type:"spring", bounce:0.2, visualDuration:0.35 }}
+          style={{ position:"relative", zIndex:160, background:"var(--bg2)",
           borderTop:"1px solid var(--rule)", boxShadow:"0 -6px 20px rgba(26,12,4,0.08)",
           padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
           <button onClick={() => setShowCart(c => !c)}
@@ -1661,20 +1743,97 @@ Thank you for shopping! 🙏`
             <div style={{ fontSize:12, color:"var(--ink-dim)", fontWeight:700 }}>
               {itemCount} {L("items")} · {showCart ? L("hide bill") + " ▼" : L("see bill") + " ▲"}
             </div>
-            <div style={{ fontSize:22, color:"var(--ink)", fontWeight:900, lineHeight:1.15 }}>
-              ₹{grandTotal}
+            {/* Bumps when a flying item lands */}
+            <motion.div key={itemCount} data-bill-target
+              initial={{ scale:1 }} animate={{ scale:[1, 1, 1.08, 1] }}
+              transition={{ duration:0.7, times:[0, 0.7, 0.85, 1] }}
+              style={{ fontSize:22, color:"var(--ink)", fontWeight:900, lineHeight:1.15, transformOrigin:"0 50%" }}>
+              <AnimatedAmount value={grandTotal}/>
               {applyGst && <span style={{ fontSize:11, color:"var(--ink-faint)", fontWeight:600, marginLeft:6 }}>{L("incl. GST")}</span>}
-            </div>
+            </motion.div>
           </button>
-          <button onClick={() => { setShowCart(false); openPay() }} disabled={saving}
+          <motion.button whileTap={{ scale:0.96 }} onClick={() => { setShowCart(false); openPay() }} disabled={saving}
             style={{ flexShrink:0, background:"linear-gradient(135deg,var(--saffron),var(--saffron-hot))",
               color:"#fff", border:"none", borderRadius:14, padding:"0 22px", height:58,
               fontSize:18, fontWeight:900, boxShadow:"0 8px 20px rgba(232,119,34,0.4)", cursor:"pointer",
               opacity: saving ? 0.7 : 1 }}>
             {saving ? "…" : L("Pay →")}
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       )}
+      </AnimatePresence>
+      </div>{/* end product column */}
+
+      {/* ── BILL PANEL (wide screens): always-open bill with total and Pay ── */}
+      {wide && (
+        <aside aria-label={L("Bill")} style={{ width:400, flexShrink:0, display:"flex", flexDirection:"column",
+          background:"var(--bg2)", borderLeft:"1px solid var(--rule)", boxShadow:"-8px 0 24px rgba(26,12,4,0.05)" }}>
+          <div style={{ padding:"16px 18px 12px", display:"flex", alignItems:"center", gap:10,
+            borderBottom:"1px solid var(--rule)" }}>
+            <span style={{ width:36, height:36, borderRadius:10, background:"var(--saffron-bg)", color:"var(--saffron)",
+              display:"flex", alignItems:"center", justifyContent:"center" }}><BillIcon name="receipt" size={19}/></span>
+            <div style={{ flex:1, fontSize:17, fontWeight:800, color:"var(--ink)" }}>{L("Bill")}</div>
+            <AnimatePresence>
+              {itemCount > 0 && (
+                <motion.span key={itemCount}
+                  initial={{ scale:0.5, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.5, opacity:0 }}
+                  transition={{ type:"spring", bounce:0.5, visualDuration:0.3 }}
+                  style={{ background:"var(--saffron)", color:"#fff", borderRadius:999, padding:"3px 10px",
+                    fontSize:13, fontWeight:800 }}>
+                  {itemCount} {L(itemCount === 1 ? "item" : "items")}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div style={{ flex:1, overflowY:"auto", padding:"12px 14px" }}>
+            {billLines()}
+            {rows.length === 0 && (
+              <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.25 }}
+                style={{ height:"100%", minHeight:240, display:"flex", flexDirection:"column", alignItems:"center",
+                  justifyContent:"center", gap:12, textAlign:"center", color:"var(--ink-faint)" }}>
+                <span style={{ width:72, height:72, borderRadius:20, background:"var(--bg0)", border:"1px dashed var(--rule)",
+                  display:"flex", alignItems:"center", justifyContent:"center", color:"var(--brass)" }}>
+                  <BillIcon name="cart" size={32} stroke={1.8}/>
+                </span>
+                <div style={{ fontSize:15, fontWeight:800, color:"var(--ink-dim)" }}>{L("Bill is empty")}</div>
+                <div style={{ fontSize:13, maxWidth:240, lineHeight:1.5 }}>{L("Tap a product, scan a barcode or speak to add items.")}</div>
+              </motion.div>
+            )}
+          </div>
+
+          <div style={{ padding:"12px 18px 16px", borderTop:"1px solid var(--rule)", background:"var(--bg1)" }}>
+            <label style={{ display:"flex", alignItems:"center", gap:10, fontSize:14, color:"var(--ink-dim)",
+              cursor:"pointer", marginBottom:10 }}>
+              <input type="checkbox" checked={applyGst} onChange={e => setApplyGst(e.target.checked)}
+                style={{ width:18, height:18, accentColor:"var(--saffron)" }} />
+              {L("Add GST to this bill")}
+            </label>
+            {applyGst && totals.tax > 0 && (
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, color:"var(--ink-faint)", marginBottom:4 }}>
+                <span>{L("GST")}</span><AnimatedAmount value={Math.round(totals.tax * 100) / 100}/>
+              </div>
+            )}
+            <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:12 }}>
+              <span style={{ fontSize:14, fontWeight:700, color:"var(--ink-dim)" }}>{L("Total")}</span>
+              <motion.span key={itemCount} data-bill-target
+                initial={{ scale:1 }} animate={{ scale:[1, 1, 1.1, 1] }}
+                transition={{ duration:0.7, times:[0, 0.7, 0.85, 1] }}
+                style={{ fontSize:32, fontWeight:900, color:"var(--ink)", lineHeight:1, transformOrigin:"100% 50%" }}>
+                <AnimatedAmount value={grandTotal}/>
+              </motion.span>
+            </div>
+            <motion.button whileTap={{ scale:0.97 }} onClick={openPay} disabled={saving || rows.length === 0}
+              style={{ width:"100%", height:58, borderRadius:14, border:"none", cursor: rows.length ? "pointer" : "not-allowed",
+                background: rows.length ? "linear-gradient(135deg,var(--saffron),var(--saffron-hot))" : "var(--rule)",
+                color:"#fff", fontSize:18, fontWeight:900,
+                boxShadow: rows.length ? "0 8px 20px rgba(232,119,34,0.35)" : "none", opacity: saving ? 0.7 : 1 }}>
+              {saving ? "…" : L("Pay →")}
+            </motion.button>
+          </div>
+        </aside>
+      )}
+      </div>{/* end wide row */}
     </div>
   )
 }

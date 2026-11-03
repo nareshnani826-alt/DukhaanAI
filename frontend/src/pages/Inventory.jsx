@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
+import { motion, AnimatePresence } from "motion/react"
+import { backdrop, pop, rise } from "../components/popupMotion"
 import { Products } from "../sync/db.js"
 import BarcodeGenerator from "../components/BarcodeGenerator.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
@@ -222,10 +224,10 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose,
   const big = { fontSize:17, padding:"12px 14px", borderRadius:12 }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center"
+    <motion.div {...backdrop} className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center"
       style={{ zIndex:300 }}  // above the phone bottom menu (z 100) so Save is never hidden
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white shadow-xl w-full md:w-[460px] md:rounded-2xl max-h-[92dvh] overflow-y-auto"
+      <motion.div {...rise} className="bg-white shadow-xl w-full md:w-[460px] md:rounded-2xl max-h-[92dvh] overflow-y-auto"
         style={{ borderRadius:"20px 20px 0 0" }}>
 
         {/* Header */}
@@ -389,8 +391,8 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose,
             </button>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -408,11 +410,11 @@ function RestockModal({ product, onConfirm, onClose }) {
   }
 
   return (
-    <div style={{
+    <motion.div {...backdrop} style={{
       position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
       zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:16,
     }}>
-      <div style={{ background:"#fff", borderRadius:16, padding:24, width:"100%", maxWidth:360 }}>
+      <motion.div {...pop} style={{ background:"#fff", borderRadius:16, padding:24, width:"100%", maxWidth:360 }}>
         <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>{L("Add stock")}</div>
         <div style={{ fontSize:14, color:"#555", marginBottom:16 }}>{product.name}</div>
 
@@ -448,8 +450,8 @@ function RestockModal({ product, onConfirm, onClose }) {
             {saving ? "Saving…" : `Add ${qty || 0} → ${(product.stock||0) + (+qty||0)} ${product.unit||"pc"}`}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -688,6 +690,7 @@ export default function Inventory() {
         </div>
       )}
 
+      <AnimatePresence>
       {modal && (
         <ProductModal
           editId={editId}
@@ -699,6 +702,7 @@ export default function Inventory() {
           products={products}
         />
       )}
+      </AnimatePresence>
 
       {barcodeProduct && (
         <BarcodeGenerator
@@ -723,6 +727,7 @@ export default function Inventory() {
         />
       )}
 
+      <AnimatePresence>
       {restockTarget && (
         <RestockModal
           product={restockTarget}
@@ -730,6 +735,7 @@ export default function Inventory() {
           onClose={() => setRestockTarget(null)}
         />
       )}
+      </AnimatePresence>
 
       {/* ── Phone: title, add, search, category chips ── */}
       <div className="md:hidden"><div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:12 }}>
