@@ -61,8 +61,9 @@ function currentLang() {
 // that straight to `new Error()` used to render as "[object Object]". When
 // there's no detail at all (network blip, 500 with no body), fall back to a
 // translated generic message instead of a bare "HTTP 500".
-function friendlyErrorMessage(detail, status) {
-  if (typeof detail === "string" && detail) return detail
+export function friendlyErrorMessage(detail, status) {
+  // Short, human messages only — never a raw server page or stack text
+  if (typeof detail === "string" && detail && detail.length <= 160 && !/[<{]|Traceback|APIError/.test(detail)) return detail
   if (Array.isArray(detail) && detail.length) {
     const msg = detail[0]?.msg || ""
     return msg.replace(/^Value error,\s*/i, "") || tr("Something went wrong. Please try again.", currentLang())

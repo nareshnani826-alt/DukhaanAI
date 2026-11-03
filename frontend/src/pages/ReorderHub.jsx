@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { getToken, tryRefresh, clearAuth } from "../sync/db"
+import { getToken, tryRefresh, clearAuth, friendlyErrorMessage } from "../sync/db"
 
 const API = import.meta.env.VITE_API_URL
 
@@ -168,6 +168,12 @@ export default function ReorderHub() {
   const load = useCallback(async () => {
     setLoading(true)
     setError("")
+    // Reorder analysis runs on the server — "local only" shops have no data there yet
+    if (!getToken()) {
+      setError("Sign in to use the Reorder Agent — it reads your sales history from the cloud.")
+      setLoading(false)
+      return
+    }
     try {
       const doFetch = () => fetch(
         `${API}/bangle/reorder-analysis?days=${days}&threshold_days=${threshold}`,
@@ -179,7 +185,10 @@ export default function ReorderHub() {
         if (ok) res = await doFetch()
         else { clearAuth(); window.location.href = "/"; return }
       }
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(friendlyErrorMessage(body.detail, res.status))
+      }
       setData(await res.json())
     } catch (e) {
       setError(e.message || "Failed to load reorder data")

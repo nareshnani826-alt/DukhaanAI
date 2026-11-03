@@ -137,7 +137,9 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logging.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
-    response = JSONResponse(status_code=500, content={"detail": str(exc) or "Internal server error"})
+    # The details stay in the server log; the app shows its own translated "server trouble" message.
+    # (Sending str(exc) leaked raw database/Cloudflare HTML pages onto shopkeepers' screens.)
+    response = JSONResponse(status_code=500, content={"error": "internal"})
     # Manually inject CORS headers so the browser can read the error body.
     # Without this, ServerErrorMiddleware intercepts 500s before CORSMiddleware
     # can add Access-Control-Allow-Origin, causing opaque network errors on the client.

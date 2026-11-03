@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.core.database import get_db
 from app.core.security import get_current_admin
+from app.core.search import contains
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -22,7 +23,7 @@ async def list_vendors(
     if plan:
         q = q.eq("plan", plan)
     if search:
-        q = q.ilike("store_name", f"%{search}%")
+        q = q.ilike("store_name", contains(search))
 
     result = q.execute()
     return {"vendors": result.data, "count": len(result.data)}

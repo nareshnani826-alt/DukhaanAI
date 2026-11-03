@@ -17,6 +17,7 @@ from app.core.ai_quota import use_ai_quota
 from app.core.config import settings
 from app.core.security import decode_access_token
 from app.core.database import get_db
+from app.core.search import contains
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -532,7 +533,7 @@ def _run_tool(name: str, args: dict, vendor_id: str, store: str = "kirana") -> d
                 db.table("bangle_products")
                 .select("name,category,selling_price,cost_price,total_stock,min_stock")
                 .eq("vendor_id", vendor_id).eq("is_active", True)
-                .ilike("name", f"%{query}%").limit(10).execute()
+                .ilike("name", contains(query)).limit(10).execute()
             )
             products = result.data or []
             if not products:
@@ -550,7 +551,7 @@ def _run_tool(name: str, args: dict, vendor_id: str, store: str = "kirana") -> d
                 db.table("products")
                 .select("name,stock,unit,mrp,cost_price,min_stock,category")
                 .eq("vendor_id", vendor_id).eq("is_active", True)
-                .ilike("name", f"%{query}%").limit(10).execute()
+                .ilike("name", contains(query)).limit(10).execute()
             )
             products = result.data or []
             if not products:

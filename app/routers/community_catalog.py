@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from app.core.database import get_db
 from app.core.security import get_current_vendor
+from app.core.search import contains
 
 router = APIRouter(prefix="/community-catalog", tags=["community"])
 
@@ -21,7 +22,7 @@ async def search(q: str = Query(..., min_length=2)):
     db = get_db()
     results = db.table("community_products")\
         .select("*")\
-        .ilike("name", f"%{q}%")\
+        .ilike("name", contains(q))\
         .eq("verified", True)\
         .order("usage_count", desc=True)\
         .limit(10).execute()

@@ -18,6 +18,7 @@ const L = k => tr(k, uiLang())
 import { lookupPrice, getVariants } from "../data/productPrices.js"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { tr, uiLang } from "../i18n/kiranaStrings"
+import Loading from "../components/Loading"
 
 const CATS = ["Staples","Dairy","Oils","Beverages","Snacks","Personal Care","Other"]
 const GSTS = [0,3,5,12,18,28]  // 3% is the GST slab for gold/silver/jewelry
@@ -490,7 +491,11 @@ export default function Inventory() {
     debounceTimer.current = setTimeout(() => setDebouncedSearch(val), 300)
   }
 
+  // Only the newest request may fill the list: on a slow connection the first full list
+  // can arrive after a search reply and used to overwrite the results ("eggs" showed everything).
+  const loadSeq = useRef(0)
   async function load(pageNum = 0, append = false) {
+    const seq = ++loadSeq.current
     if (!append) setLoading(true)
     try {
       const list = await Products.list({
@@ -499,10 +504,13 @@ export default function Inventory() {
         limit:    PAGE_SIZE,
         offset:   pageNum * PAGE_SIZE,
       })
+      if (seq !== loadSeq.current) return
       setProducts(prev => append ? [...prev, ...list] : list)
       setHasMore(list.length === PAGE_SIZE)
       setPage(pageNum)
-    } finally { if (!append) setLoading(false) }
+    } catch (e) {
+      if (seq === loadSeq.current) showNotif(e.message || "Could not load products — check your internet")
+    } finally { if (!append && seq === loadSeq.current) setLoading(false) }
   }
 
   useEffect(() => { load(0, false) }, [debouncedSearch, cat])
@@ -652,15 +660,18 @@ export default function Inventory() {
   ]
 
   const displayProducts = useMemo(() => {
-    if (dateFilter === "all") return products
+    // Narrow the list as you type, before the server replies to the search
+    const q = search.trim().toLowerCase()
+    const typed = q ? products.filter(p => p.name.toLowerCase().includes(q) || (p.sku || "").includes(q)) : products
+    if (dateFilter === "all") return typed
     const now = Date.now()
     const cutoff = dateFilter === "today"
       ? (() => { const s = new Date(); s.setHours(0,0,0,0); return s.getTime() })()
       : dateFilter === "week"  ? now - 7  * 86400000
       : dateFilter === "month" ? now - 30 * 86400000
       : 0
-    return products.filter(p => p.updated_at && new Date(p.updated_at).getTime() >= cutoff)
-  }, [products, dateFilter])
+    return typed.filter(p => p.updated_at && new Date(p.updated_at).getTime() >= cutoff)
+  }, [products, dateFilter, search])
   const listProducts = lowOnly ? displayProducts.filter(p => p.stock < (p.min_stock || 0)) : displayProducts
 
   const pct    = p => Math.max(4, Math.min(100, Math.round(p.stock / Math.max(p.min_stock*2,1) * 100)))
@@ -769,7 +780,7 @@ export default function Inventory() {
       {/* ── Phone: product cards ── */}
       <div className="md:hidden"><div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {loading ? (
-          <div style={{ textAlign:"center", padding:32, color:"var(--ink-faint)" }}>Loading…</div>
+          <div style={{ textAlign:"center", padding:32, color:"var(--ink-faint)" }}><Loading label="Loading…"/></div>
         ) : listProducts.length === 0 ? (
           <div style={{ textAlign:"center", padding:"32px 16px", color:"var(--ink-faint)", fontSize:15 }}>
             {products.length === 0 ? "No products yet. Tap “+ Add” to add your first item." : L("Nothing matches.")}
@@ -879,7 +890,7 @@ export default function Inventory() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="11" className="td text-center py-8 text-gray-400 text-xs">Loading...</td></tr>
+              <tr><td colSpan="11" className="td text-center py-8 text-gray-400 text-xs"><Loading compact label="Loading..."/></td></tr>
             ) : displayProducts.length === 0 ? (
               <tr><td colSpan="11" className="td text-center py-8 text-gray-400 text-xs">
                 {products.length === 0

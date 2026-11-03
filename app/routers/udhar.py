@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.security import get_current_vendor
+from app.core.search import contains
 
 router = APIRouter(prefix="/udhar", tags=["udhar"])
 
@@ -39,7 +40,7 @@ async def list_customers(
     )
     if search:
         safe = "".join(c for c in search if c.isalnum() or c in " -+.")
-        q = q.or_(f"name.ilike.%{safe}%,phone.ilike.%{safe}%")
+        q = q.or_(f"name.ilike.{contains(safe)},phone.ilike.{contains(safe)}")
     return q.execute().data
 
 

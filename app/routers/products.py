@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.database import get_db
 from app.core.security import get_current_vendor
 from app.core.cache import cache_get, cache_set, cache_bust
+from app.core.search import contains
 from app.schemas.schemas import (
     ProductCreate, ProductUpdate, ProductOut, MessageResponse,
     BulkImportRequest, BulkImportResponse,
@@ -49,7 +50,7 @@ async def list_products(
         if category:
             q = q.eq("category", category)
         if search:
-            q = q.ilike("name", f"%{search}%")
+            q = q.ilike("name", contains(search))
         return q.order("name").range(offset, offset + limit - 1).execute().data
 
     data = await asyncio.to_thread(_query)
