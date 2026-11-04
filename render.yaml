@@ -11,7 +11,7 @@ services:
       - key: APP_ENV
         value: production
       - key: APP_NAME
-        value: DukaanAI
+        value: DukhaanAI
       - key: FRONTEND_URL
         value: https://dukhaanai.in
       - key: ALLOWED_ORIGINS

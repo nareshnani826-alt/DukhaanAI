@@ -8,6 +8,7 @@ import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr
 
 import httpx
 
@@ -28,7 +29,7 @@ def send_email(to_email: str, subject: str, text: str, html: str) -> bool:
                 _BREVO_URL,
                 headers={"api-key": settings.brevo_api_key, "accept": "application/json"},
                 json={
-                    "sender":      {"name": settings.app_name, "email": settings.smtp_from},
+                    "sender":      {"name": "DukhaanAI", "email": settings.smtp_from},   # brand name, not the APP_NAME env
                     "to":          [{"email": to_email}],
                     "subject":     subject,
                     "textContent": text,
@@ -44,7 +45,7 @@ def send_email(to_email: str, subject: str, text: str, html: str) -> bool:
         if settings.smtp_host:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"]    = settings.smtp_from
+            msg["From"]    = formataddr(("DukhaanAI", settings.smtp_from))
             msg["To"]      = to_email
             msg.attach(MIMEText(text, "plain"))
             msg.attach(MIMEText(html, "html"))
