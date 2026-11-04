@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_pass: str = ""
-    smtp_from: str = "noreply@dukhaanai.com"   # also the Brevo sender address
+    smtp_from: str = "support@dukhaanai.in"    # also the Brevo sender — must be a sender verified in Brevo
     # Brevo transactional email API (HTTPS) — preferred over SMTP when set
     brevo_api_key: str = ""
 
