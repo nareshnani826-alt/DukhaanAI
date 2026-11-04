@@ -8,9 +8,9 @@ export const HELP_SECTIONS = [
     title: { en: "Getting started", te: "మొదలుపెట్టడం", hi: "शुरुआत" },
     articles: [
       {
-        title: { en: "What is DukaanAI?", te: "DukaanAI అంటే ఏమిటి?", hi: "DukaanAI क्या है?" },
+        title: { en: "What is DukhaanAI?", te: "DukhaanAI అంటే ఏమిటి?", hi: "DukhaanAI क्या है?" },
         content: {
-          en: `DukaanAI is a billing and stock app for kirana shops.
+          en: `DukhaanAI is a billing and stock app for kirana shops.
 
 The menu at the bottom:
 • Home — today's sales, what needs attention
@@ -20,7 +20,7 @@ The menu at the bottom:
 • More — everything else: past bills, damaged goods, expiry, reports, settings, help
 
 You can use it without an account (data stays on this phone only), or log in to keep your data safe online and use it on more than one phone.`,
-          te: `DukaanAI కిరాణా దుకాణాల కోసం బిల్లింగ్, స్టాక్ యాప్.
+          te: `DukhaanAI కిరాణా దుకాణాల కోసం బిల్లింగ్, స్టాక్ యాప్.
 
 కింద ఉన్న మెనూ:
 • హోమ్ — ఈరోజు అమ్మకాలు, చూడాల్సినవి
@@ -30,7 +30,7 @@ You can use it without an account (data stays on this phone only), or log in to 
 • మరిన్ని — పాత బిల్లులు, పాడైన సరుకు, గడువు, రిపోర్టులు, సెట్టింగ్స్, సహాయం
 
 ఖాతా లేకుండా కూడా వాడవచ్చు (డేటా ఈ ఫోన్‌లోనే ఉంటుంది), లేదా లాగిన్ అయితే డేటా ఆన్‌లైన్‌లో సురక్షితంగా ఉంటుంది, ఎక్కువ ఫోన్లలో వాడవచ్చు.`,
-          hi: `DukaanAI किराना दुकानों के लिए बिलिंग और स्टॉक ऐप है।
+          hi: `DukhaanAI किराना दुकानों के लिए बिलिंग और स्टॉक ऐप है।
 
 नीचे का मेनू:
 • होम — आज की बिक्री, ध्यान देने वाली बातें
@@ -43,7 +43,7 @@ You can use it without an account (data stays on this phone only), or log in to 
         },
       },
       {
-        title: { en: "Free, Pro and Wholesale plans", te: "ఉచిత, Pro, హోల్‌సేల్ ప్లాన్లు", hi: "मुफ़्त, Pro और होलसेल प्लान" },
+        title: { en: "Free and Pro plans", te: "ఉచిత, Pro ప్లాన్లు", hi: "मुफ़्त और Pro प्लान" },
         content: {
           en: `Free (₹0):
 • Billing, stock and khata on one phone
@@ -54,11 +54,8 @@ Pro (₹299/month):
 • Barcode scanner, customer history
 • Day open/close with profit report
 • Reports and GST summary, low stock alerts
-
-Wholesale (₹799/month):
-• Everything in Pro
-• Staff logins (owner, manager, cashier)
-• Product photo scanner (AI), staff activity log, data export
+• Staff logins (manager, cashier)
+• AI invoice and photo scanner, staff activity log, data export
 
 → See or change your plan in More → Settings.`,
           te: `ఉచిత (₹0):
@@ -70,10 +67,7 @@ Pro (నెలకు ₹299):
 • బార్‌కోడ్ స్కానర్, కస్టమర్ చరిత్ర
 • దుకాణం తెరువు/మూసివేయి, లాభం రిపోర్ట్
 • రిపోర్టులు, GST లెక్క, తక్కువ స్టాక్ అలర్ట్
-
-హోల్‌సేల్ (నెలకు ₹799):
-• Proలో ఉన్నవన్నీ
-• సిబ్బంది లాగిన్ (యజమాని, మేనేజర్, క్యాషియర్)
+• సిబ్బంది లాగిన్ (మేనేజర్, క్యాషియర్)
 • ఫోటోతో సరుకు గుర్తింపు (AI), సిబ్బంది పనుల లెక్క, డేటా డౌన్‌లోడ్
 
 → మీ ప్లాన్ మరిన్ని → సెట్టింగ్స్‌లో చూడండి.`,
@@ -86,10 +80,7 @@ Pro (₹299/महीना):
 • बारकोड स्कैनर, ग्राहक का हिसाब
 • दुकान खोलें/बंद करें, मुनाफ़ा रिपोर्ट
 • रिपोर्ट, GST हिसाब, कम स्टॉक अलर्ट
-
-होलसेल (₹799/महीना):
-• Pro की सारी सुविधाएं
-• स्टाफ लॉगिन (मालिक, मैनेजर, कैशियर)
+• स्टाफ लॉगिन (मैनेजर, कैशियर)
 • फ़ोटो से सामान पहचान (AI), स्टाफ के कामों का हिसाब, डेटा डाउनलोड
 
 → अपना प्लान और → सेटिंग्स में देखें।`,
@@ -380,7 +371,7 @@ Where to use it:
         title: { en: "Microphone not working", te: "మైక్ పనిచేయడం లేదు", hi: "माइक नहीं चल रहा" },
         content: {
           en: `"Microphone blocked":
-→ In the app: phone Settings → Apps → DukaanAI → Permissions → Microphone → Allow
+→ In the app: phone Settings → Apps → DukhaanAI → Permissions → Microphone → Allow
 → In Chrome: tap the 🔒 next to the address → Microphone → Allow, then reload
 
 Item not found by voice:
@@ -390,7 +381,7 @@ Item not found by voice:
 iPhone:
 → Use Safari: Settings → Safari → Microphone → Allow`,
           te: `"మైక్ బ్లాక్ అయింది" అని వస్తే:
-→ యాప్‌లో: ఫోన్ Settings → Apps → DukaanAI → Permissions → Microphone → Allow
+→ యాప్‌లో: ఫోన్ Settings → Apps → DukhaanAI → Permissions → Microphone → Allow
 → Chromeలో: అడ్రస్ పక్కన 🔒 నొక్కి → Microphone → Allow, తర్వాత పేజీ రీలోడ్
 
 వాయిస్‌తో సరుకు దొరకకపోతే:
@@ -400,7 +391,7 @@ iPhone:
 iPhone:
 → Safari వాడండి: Settings → Safari → Microphone → Allow`,
           hi: `"माइक ब्लॉक" दिखे तो:
-→ ऐप में: फ़ोन Settings → Apps → DukaanAI → Permissions → Microphone → Allow
+→ ऐप में: फ़ोन Settings → Apps → DukhaanAI → Permissions → Microphone → Allow
 → Chrome में: पते के पास 🔒 दबाएं → Microphone → Allow, फिर पेज रीलोड करें
 
 आवाज़ से सामान न मिले तो:
@@ -513,7 +504,7 @@ More → Settings → Feature Settings turns single features on or off. Turning 
           en: `Without an account:
 • Everything stays on this phone only. Uninstalling the app or clearing browser data deletes it.
 
-With Pro or Wholesale:
+With Pro:
 • Products, bills, khata and customers are saved online
 • Log in with the same email on another phone and everything is there
 
@@ -521,7 +512,7 @@ With Pro or Wholesale:
           te: `ఖాతా లేకుండా:
 • అంతా ఈ ఫోన్‌లోనే. యాప్ తీసేసినా, బ్రౌజర్ డేటా క్లియర్ చేసినా పోతుంది.
 
-Pro లేదా హోల్‌సేల్‌తో:
+Proతో:
 • సరుకులు, బిల్లులు, ఖాతా, కస్టమర్లు ఆన్‌లైన్‌లో సేవ్ అవుతాయి
 • వేరే ఫోన్‌లో అదే ఈమెయిల్‌తో లాగిన్ అయితే అన్నీ వస్తాయి
 
@@ -529,7 +520,7 @@ Pro లేదా హోల్‌సేల్‌తో:
           hi: `बिना खाते के:
 • सब कुछ सिर्फ़ इस फ़ोन में। ऐप हटाने या ब्राउज़र डेटा साफ़ करने पर मिट जाएगा।
 
-Pro या होलसेल के साथ:
+Pro के साथ:
 • सामान, बिल, खाता और ग्राहक ऑनलाइन सेव होते हैं
 • दूसरे फ़ोन पर उसी ईमेल से लॉगिन करें तो सब मिल जाएगा
 

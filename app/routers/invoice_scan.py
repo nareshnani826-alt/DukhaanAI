@@ -1278,7 +1278,7 @@ async def lookup_barcode(
         ("https://world.openbeautyfacts.org/api/v2/product/{code}.json",  "openbeautyfacts"),
         ("https://world.openproductsfacts.org/api/v2/product/{code}.json","openproductsfacts"),
     ]
-    ua = {"User-Agent": "DukaanAI/1.0 (+https://dukaanai.app)"}
+    ua = {"User-Agent": "DukhaanAI/1.0 (+https://dukhaanai.in)"}
 
     async def _fetch_off(url: str, source: str):
         try:

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
+import { shopEnabled, liveModules } from "../utils/features"
 import { useAuth } from "../context/AuthContext"
 import { isTokenValid, clearAuth } from "../sync/db"
 import { tr } from "../i18n/kiranaStrings"
@@ -7,7 +8,7 @@ import HomeSections from "../components/HomeSections"
 import { CONTENT } from "../components/home/shopContent"
 
 // Homepage version per address: dukhaanai.in/chai opens the chai shop page, and so on
-const ROUTE_SHOP  = { "/kirana":"kirana", "/chai":"chai", "/bangle":"bangle" }
+const ROUTE_SHOP  = { "/kirana":"kirana", "/chai":"chai", ...(shopEnabled("bangle") ? { "/bangle":"bangle" } : {}) }
 const SHOP_MODULE = { kirana:"kirana", chai:"chai", bangle:"bangle_fancy" }
 const HOME_SHOP   = "dk_home_shop"
 
@@ -24,7 +25,7 @@ const MODULES = [
   { id:"kirana",       label:"Kirana / General Store",    sub:"Grocery, FMCG, daily essentials", emoji:"🏪", route:"/dashboard",        gradient:"linear-gradient(135deg,#e87722,#c25500)", border:"rgba(232,119,34,0.4)", bg:"rgba(232,119,34,0.08)" },
   { id:"chai",         label:"Chai / Tea Shop",           sub:"Tea, coffee, snacks · counter & tables", emoji:"☕", route:"/chai-dashboard", gradient:"linear-gradient(135deg,#8d5524,#5d3a1a)", border:"rgba(141,85,36,0.4)" },
   { id:"bangle_fancy", label:"Bangle / Jewellery Store",  sub:"Bangles, earrings, accessories",  emoji:"💍", route:"/bangle-dashboard",  gradient:"linear-gradient(135deg,#7c5cbf,#5b3fa6)", border:"rgba(124,92,191,0.4)",  bg:"rgba(124,92,191,0.08)"  },
-]
+].filter(m => shopEnabled(m.id))
 
 // Signed in on another shop type's page: open the shop the account has, or add this one
 function ShopMismatch({ have, want, onOpen, onCreate }) {
@@ -1177,7 +1178,7 @@ function AnimatedShowcase() {
 
 // ── Auth form ─────────────────────────────────────────────────
 function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType = null, initialTab = "login", initialEmail = "" }) {
-  const { login, staffLogin, register, registerConfirm, loading, error, setError } = useAuth()
+  const { login, staffLogin, register, registerConfirm, forgotPassword, loading, error, setError } = useAuth()
   const lang = currentLang()
   const t = k => tr(k, lang)
   const [tab,      setTab]      = useState(initialTab)
@@ -1191,6 +1192,9 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
   const [otpCode,    setOtpCode]    = useState("")
   const [otpErr,     setOtpErr]     = useState("")
   const [pendingTok, setPendingTok] = useState("")
+  const [forgot,     setForgot]     = useState(null)   // null | "ask" | "sent" — reset password by email
+  const [fpEmail,    setFpEmail]    = useState("")
+  const [fpErr,      setFpErr]      = useState("")
 
   function set(k, v) { setForm(f => ({ ...f, [k]:v })); setError(""); setFieldErr(e => ({ ...e, [k]:"" })) }
   function switchTab(t) { setTab(t); setForm(f => ({ identifier:"", password:"", store_name:"", username:"", shop: f.shop })); setFieldErr({}); setError(""); setOtpStep(false) }
@@ -1293,6 +1297,55 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
     </div>
   )
 
+  async function sendReset(e) {
+    e?.preventDefault()
+    if (!isValidEmail(fpEmail.trim())) { setFpErr(t("Enter a valid email")); return }
+    setFpErr("")
+    try { await forgotPassword(fpEmail.trim().toLowerCase(), shopType); setForgot("sent") }
+    catch (err) { setFpErr(err.message || t("Could not send. Check your internet and try again.")) }
+  }
+  const closeForgot = () => { setForgot(null); setFpErr(""); setError("") }
+
+  // Forgot password: email → reset link (valid 1 hour) → /reset-password on the website
+  if (forgot) return (
+    <form onSubmit={sendReset} noValidate style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div>
+        <div style={{ fontSize:17, fontWeight:800, color:"#111" }}>{t("Forgot password?")}</div>
+        <div style={{ fontSize:12, color:"#777", marginTop:4, lineHeight:1.5 }}>
+          {forgot === "sent"
+            ? t("If that email has an account, we've sent a reset link. It works for 1 hour — check your inbox and spam folder.")
+            : t("Enter your account email. We'll send you a link to set a new password.")}
+        </div>
+      </div>
+      {forgot === "ask" && (
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Email")}</label>
+          <input style={inp} type="email" placeholder="email@example.com" autoCapitalize="none" autoComplete="email"
+            value={fpEmail} onChange={e => { setFpEmail(e.target.value); setFpErr("") }}
+            onFocus={inpFocus} onBlur={inpBlur} autoFocus />
+          {fpErr && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fpErr}</p>}
+        </div>
+      )}
+      {forgot === "ask" ? (
+        <button type="submit" disabled={loading}
+          style={{ width:"100%", padding:"14px", borderRadius:12, border:"none",
+            background:"linear-gradient(135deg,#e87722,#c25500)", color:"#fff",
+            fontSize:14, fontWeight:700, cursor:loading?"default":"pointer", opacity:loading?0.7:1 }}>
+          {loading ? t("Please wait…") : t("Send reset link")}
+        </button>
+      ) : (
+        <button type="button" onClick={() => setForgot("ask")}
+          style={{ background:"none", border:"none", color:"#c25500", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+          {t("Didn't get it? Send again")}
+        </button>
+      )}
+      <button type="button" onClick={closeForgot}
+        style={{ background:"none", border:"none", color:"#888", fontSize:12, cursor:"pointer", textDecoration:"underline" }}>
+        ← {t("Back to Sign In")}
+      </button>
+    </form>
+  )
+
   return (
     <form onSubmit={submit} style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
@@ -1347,6 +1400,15 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
           value={form.password} onChange={e => set("password", e.target.value)}
           onFocus={inpFocus} onBlur={inpBlur} autoComplete={tab==="register"?"new-password":"current-password"} />
         {fieldErr.password && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.password}</p>}
+        {tab === "login" && !isStaff && (
+          <div style={{ textAlign:"right", marginTop:6 }}>
+            <button type="button"
+              onClick={() => { setFpEmail(isValidEmail(form.identifier.trim()) ? form.identifier.trim() : ""); setFpErr(""); setError(""); setForgot("ask") }}
+              style={{ background:"none", border:"none", padding:0, color:"#c25500", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+              {t("Forgot password?")}
+            </button>
+          </div>
+        )}
       </div>
 
       {tab === "register" && (
@@ -1467,8 +1529,8 @@ export default function LoginHome() {
     try { localStorage.setItem(HOME_SHOP, id) } catch { /* private mode */ }
     window.history.replaceState(null, "", "/" + id)
   }
-  useEffect(() => { document.title = CONTENT[shop]?.title || "DukaanAI" }, [shop])
-  useEffect(() => () => { document.title = "DukaanAI" }, [])   // the app itself keeps a plain title
+  useEffect(() => { document.title = CONTENT[shop]?.title || "DukhaanAI" }, [shop])
+  useEffect(() => () => { document.title = "DukhaanAI" }, [])   // the app itself keeps a plain title
   const [phase,       setPhase]       = useState("auth")
   const [allowedMods, setAllowedMods] = useState([])
 
@@ -1477,7 +1539,7 @@ export default function LoginHome() {
     // If token is expired, clear the stale session and show login form
     if (!isTokenValid()) { clearAuth(); return }
     const saved   = localStorage.getItem("storeMode")
-    const mods    = vendor.modules || ["kirana"]
+    const mods    = liveModules(vendor.modules)
     const savedMod = MODULES.find(m => m.id === saved && mods.includes(m.id))
     if (savedMod) { navigate(savedMod.route, { replace:true }); return }
     // A shop with one type (e.g. only a chai shop) goes straight in, no picker
@@ -1487,7 +1549,7 @@ export default function LoginHome() {
   }, [vendor])
 
   function handleAuthSuccess(mods, email) {
-    const list = mods || ["kirana"]
+    const list = liveModules(mods)
     if (email) setLoginEmail(email)
     // e.g. a kirana account signing in on the chai page: open theirs, or add the chai shop
     const wanted = SHOP_MODULE[shop]
@@ -1504,7 +1566,7 @@ export default function LoginHome() {
     // On this phone without an account: ask the shop type once, then always open that shop
     const chosen = localStorage.getItem("dk_local_shop") && MODULES.find(m => m.id === localStorage.getItem("storeMode"))
     if (chosen) return handlePick(chosen)
-    setAllowedMods(["kirana","bangle_fancy","chai"]); setPhase("pick")
+    setAllowedMods(MODULES.map(m => m.id)); setPhase("pick")
   }
   function handlePick(m) {
     localStorage.setItem("storeMode", m.id)
@@ -1646,8 +1708,8 @@ export default function LoginHome() {
             {[
               { emoji:"🏪", name:"Kirana Store", sub:"Grocery & FMCG",   nameColor:"#c25500", border:"rgba(232,119,34,0.35)", bg:"rgba(232,119,34,0.07)" },
               { emoji:"☕", name:"Chai Shop",    sub:"Tea, coffee & snacks", nameColor:"#7a4a1e", border:"rgba(141,85,36,0.35)", bg:"rgba(141,85,36,0.07)" },
-              { emoji:"💍", name:"Bangle Store", sub:"Jewellery & Fancy", nameColor:"#5b3fa6", border:"rgba(124,92,191,0.35)", bg:"rgba(124,92,191,0.07)" },
-            ].map(b => (
+              { emoji:"💍", name:"Bangle Store", sub:"Jewellery & Fancy", nameColor:"#5b3fa6", border:"rgba(124,92,191,0.35)", bg:"rgba(124,92,191,0.07)", id:"bangle_fancy" },
+            ].filter(b => shopEnabled(b.id || "kirana")).map(b => (
               <div key={b.name} style={{ display:"flex", alignItems:"center", gap:10,
                 background:b.bg, border:`1.5px solid ${b.border}`,
                 borderRadius:16, padding:"12px 18px",

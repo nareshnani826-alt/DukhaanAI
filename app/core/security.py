@@ -92,12 +92,12 @@ async def get_current_vendor(
         db = get_db()
         return db.table("vendors").select(
             "id,email,store_name,gstin,phone,address,plan,modules,plan_expires_at,is_active,is_admin"
-        ).eq("id", vendor_id).single().execute()
+        ).eq("id", vendor_id).limit(1).execute()
 
     result = await asyncio.to_thread(_fetch)
-    if not result.data:
+    if not result.data:  # account deleted (or never existed) — sign the device out
         raise HTTPException(status_code=401, detail="Vendor not found")
-    vendor = result.data
+    vendor = result.data[0]
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
     _cache_set(vendor_id, vendor)

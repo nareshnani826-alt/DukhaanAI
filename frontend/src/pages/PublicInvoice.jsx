@@ -117,7 +117,7 @@ export default function PublicInvoice() {
 
         <div style={{ padding: "12px 22px", background: "#fafafa", borderTop: "1px solid #f0f0f0",
           textAlign: "center", fontSize: 11, color: "#999" }}>
-          Thank you for your business! 🙏 · Powered by DukaanAI
+          Thank you for your business! 🙏 · Powered by DukhaanAI
         </div>
       </div>
     </div>

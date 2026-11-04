@@ -31,7 +31,7 @@ export default function InstallGuide() {
   function shareLink() {
     if (navigator.share) {
       navigator.share({
-        title: "DukaanAI — Inventory & Billing",
+        title: "DukhaanAI — Inventory & Billing",
         text: "Kirana shop ke liye best free app! Voice mein inventory manage karo.",
         url: "https://dukhaanai.in"
       })
@@ -45,12 +45,12 @@ export default function InstallGuide() {
       icon: "1️⃣",
       title: "Open Chrome browser",
       desc: "Make sure you are using Chrome (not Firefox or other browsers)",
-      tip: "Chrome has the DukaanAI icon on it — blue circle with colorful dots",
+      tip: "Chrome has the DukhaanAI icon on it — blue circle with colorful dots",
       img: "🌐"
     },
     {
       icon: "2️⃣",
-      title: "Open DukaanAI website",
+      title: "Open DukhaanAI website",
       desc: "Type this in Chrome address bar:",
       highlight: "dukhaanai.in",
       tip: "Or tap the Share button below to send the link to yourself on WhatsApp",
@@ -74,7 +74,7 @@ export default function InstallGuide() {
       icon: "5️⃣",
       title: "Tap 'Add'",
       desc: "A popup appears asking to confirm. Tap 'Add' button",
-      tip: "DukaanAI icon will appear on your home screen!",
+      tip: "DukhaanAI icon will appear on your home screen!",
       img: "✅"
     },
   ]
@@ -89,7 +89,7 @@ export default function InstallGuide() {
     },
     {
       icon: "2️⃣",
-      title: "Open DukaanAI website",
+      title: "Open DukhaanAI website",
       desc: "Type this in Safari address bar:",
       highlight: "dukhaanai.in",
       tip: "Or tap Share below to send the link to yourself",
@@ -113,7 +113,7 @@ export default function InstallGuide() {
       icon: "5️⃣",
       title: "Tap 'Add'",
       desc: "Tap 'Add' at the top right corner of the screen",
-      tip: "DukaanAI icon will appear on your iPhone home screen!",
+      tip: "DukhaanAI icon will appear on your iPhone home screen!",
       img: "✅"
     },
   ]
@@ -126,7 +126,7 @@ export default function InstallGuide() {
         <div className="max-w-sm mx-auto text-center py-12">
           <div className="text-6xl mb-4">🎉</div>
           <h1 className="text-lg font-bold text-gray-800 mb-2">
-            DukaanAI is installed!
+            DukhaanAI is installed!
           </h1>
           <p className="text-sm text-gray-500 mb-6">
             You're already using the app version. All features including voice agent work perfectly!
@@ -134,11 +134,11 @@ export default function InstallGuide() {
           <div className="card mb-4 text-left">
             <div className="text-xs font-semibold text-gray-700 mb-3">Share with other vendors</div>
             <p className="text-xs text-gray-500 mb-3">
-              Help other kirana shop owners by sharing DukaanAI with them. It's completely free!
+              Help other kirana shop owners by sharing DukhaanAI with them. It's completely free!
             </p>
             <button onClick={shareLink}
               className="btn btn-primary w-full py-3 text-sm font-semibold">
-              📤 Share DukaanAI on WhatsApp
+              📤 Share DukhaanAI on WhatsApp
             </button>
           </div>
           <div className="card text-left">
@@ -164,7 +164,7 @@ export default function InstallGuide() {
           🏪
         </div>
         <h1 className="text-base font-bold text-gray-800 mb-1">
-          Install DukaanAI on your phone
+          Install DukhaanAI on your phone
         </h1>
         <p className="text-xs text-gray-500 max-w-xs mx-auto">
           Works like a real app — home screen icon, works offline, voice agent, all features free!
@@ -266,7 +266,7 @@ export default function InstallGuide() {
           📲 Share on WhatsApp
         </button>
         <p className="text-xs text-gray-400 text-center mt-2">
-          DukaanAI is free for all vendors — help others by sharing!
+          DukhaanAI is free for all vendors — help others by sharing!
         </p>
       </div>
     </div>

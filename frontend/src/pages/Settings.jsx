@@ -4,9 +4,11 @@ import { getUPIVpa, saveUPIVpa } from "../components/UPIQRCode.jsx"
 import { getDefaultApplyGst, setDefaultApplyGst } from "../utils/gstSettings.js"
 import { LANGUAGES } from "../voice/languages.js"
 import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
-import { usePlan } from "../context/PlanContext"
+import { usePlan, normalizePlan } from "../context/PlanContext"
 import { useAuth } from "../context/AuthContext"
 import AddChildUser from "../components/AddChildUser"
+import DeleteAccount from "../components/DeleteAccount"
+import { shopEnabled, isNativeApp } from "../utils/features"
 import { useTheme } from "../context/ThemeContext"
 import { useAppMode, APP_MODES } from "../context/AppModeContext"
 import { useNavigate } from "react-router-dom"
@@ -21,22 +23,21 @@ const TOGGLE_FEATURES = [
   { key:"day_ops",          label:"Day Open/Close",      desc:"Daily profit report and stock snapshot",              plan:"pro" },
   { key:"insights",         label:"Insights",            desc:"Sales trends, GST summary, demand forecast",          plan:"pro" },
   { key:"low_stock_alerts", label:"Low Stock Alerts",    desc:"Alert when stock falls below minimum",                plan:"pro" },
-  { key:"multi_staff",      label:"Multi-staff Login",   desc:"Owner, manager, cashier roles",                       plan:"wholesale" },
-  { key:"ai_vision",        label:"AI Image Scanner",    desc:"Identify products by photo (uses AI credits)",        plan:"wholesale" },
-  { key:"audit_log",        label:"Audit Log",           desc:"Track all staff actions",                             plan:"wholesale" },
+  { key:"multi_staff",      label:"Multi-staff Login",   desc:"Owner, manager, cashier roles",                       plan:"pro" },
+  { key:"ai_vision",        label:"AI Image Scanner",    desc:"Identify products by photo (uses AI credits)",        plan:"pro" },
+  { key:"audit_log",        label:"Audit Log",           desc:"Track all staff actions",                             plan:"pro" },
 ]
 
 const PLAN_INFO = {
   free:      { name:"Free",      price:"₹0",    color:"var(--ink-faint)",    bg:"#f3f4f6" },
   pro:       { name:"Pro",       price:"₹299",  color:"var(--jade)", bg:"#E1F5EE" },
-  wholesale: { name:"Wholesale", price:"₹799",  color:"#7F77DD", bg:"#EEEDFE" },
 }
 
 const SHOP_TYPES = [
   { id:"kirana",       icon:"🛒", label:"Kirana / General Store" },
   { id:"chai",         icon:"☕", label:"Chai / Tea Shop" },
   { id:"bangle_fancy", icon:"💍", label:"Bangle / Fancy Store" },
-]
+].filter(t => shopEnabled(t.id))
 
 // Owner picks which shop types this account runs; the header then shows a switcher
 function ShopTypes() {
@@ -229,18 +230,16 @@ export default function Settings() {
   function isPlanAllowed(key) {
     // Check plan without toggle state
     const { vendor } = { vendor: null }
-    const plan = localStorage.getItem("dk_vendor")
+    let plan = localStorage.getItem("dk_vendor")
       ? JSON.parse(localStorage.getItem("dk_vendor"))?.plan || "free"
       : "free"
     const FEATURES = {
       free: ["basic_inventory","gst_billing","whatsapp_share","dashboard"],
       pro:  ["basic_inventory","gst_billing","whatsapp_share","dashboard","cloud_sync",
              "voice_agent","barcode_scanner","customer_history","day_ops","insights",
-             "low_stock_alerts","unlimited_invoices"],
-      wholesale: ["basic_inventory","gst_billing","whatsapp_share","dashboard","cloud_sync",
-                  "voice_agent","barcode_scanner","customer_history","day_ops","insights",
-                  "low_stock_alerts","unlimited_invoices","multi_staff","ai_vision","audit_log","bulk_export"],
+             "low_stock_alerts","unlimited_invoices","multi_staff","ai_vision","audit_log","bulk_export"],
     }
+    plan = normalizePlan(plan)
     return (FEATURES[plan] || FEATURES.free).includes(key)
   }
 
@@ -274,33 +273,25 @@ export default function Settings() {
               </div>
             )}
           </div>
+          {!isNativeApp() && (
           <div className="text-right">
             <div className="text-lg font-semibold" style={{ color: planI.color }}>
               {planI.price}
             </div>
             <div className="text-[10px] text-gray-400">{L("per month")}</div>
           </div>
+          )}
         </div>
 
         {/* Upgrade buttons */}
-        {plan === "free" && (
+        {plan === "free" && !isNativeApp() && (
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="btn btn-primary flex-1 py-2 text-xs font-medium" style={{ whiteSpace:"normal", minWidth:150 }}>
               {L("Upgrade to Pro — ₹299/month")}
             </button>
-            <button className="btn flex-1 py-2 text-xs font-medium"
-              style={{ borderColor:"#7F77DD", color:"#7F77DD", whiteSpace:"normal", minWidth:150 }}>
-              {L("Wholesale — ₹799/month")}
-            </button>
           </div>
         )}
         {plan === "pro" && (
-          <button className="btn w-full mt-3 py-2 text-xs font-medium"
-            style={{ borderColor:"#7F77DD", color:"#7F77DD" }}>
-            {L("Upgrade to Wholesale — ₹799/month")}
-          </button>
-        )}
-        {plan === "wholesale" && (
           <div className="mt-3 text-[10px] text-gray-400 text-center">
             {L("You have the highest plan — all features unlocked!")}
           </div>
@@ -442,6 +433,12 @@ export default function Settings() {
                     style={{ borderColor:"var(--jade)", color:"var(--jade)" }}>
                     {L("Enable")}
                   </button>
+                ) : isNativeApp() ? (
+                  // Android app: no in-app selling (Play Billing rules) — just name the plan
+                  <span className="flex-shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg font-medium"
+                    style={{ color: reqPlan.color, background:"var(--bg2)" }}>
+                    {L(reqPlan.name)}
+                  </span>
                 ) : (
                   // Plan doesn't allow — show Upgrade button
                   <button
@@ -457,8 +454,8 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Plans comparison */}
-      <div className="card mb-4">
+      {/* Plans comparison — website only (no prices in the Play Store app) */}
+      {!isNativeApp() && <div className="card mb-4">
         <div className="text-xs font-medium text-gray-600 mb-3">{L("Plan Comparison")}</div>
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(PLAN_INFO).map(([key, p]) => (
@@ -481,7 +478,7 @@ export default function Settings() {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Account settings */}
       <div className="card mb-4">
@@ -502,12 +499,12 @@ export default function Settings() {
           <div className="flex justify-between text-xs py-2">
             <span className="text-gray-500">{L("App version")}</span>
             <span className="font-medium text-gray-400">
-              DukaanAI v{__APP_VERSION__}{window.Capacitor?.isNativePlatform?.() ? " (app)" : " (web)"}
+              DukhaanAI v{__APP_VERSION__}{window.Capacitor?.isNativePlatform?.() ? " (app)" : " (web)"}
             </span>
           </div>
         </div>
         {/* Add Child User UI for admins/owners */}
-        {vendor?.plan === "wholesale" && !vendor?.role && (
+        {normalizePlan(vendor?.plan) === "pro" && !vendor?.role && (
           <AddChildUser />
         )}
       </div>
@@ -521,6 +518,12 @@ export default function Settings() {
           className="btn w-full text-xs text-red-500 hover:bg-red-50 border-red-200 py-2">
           {L("Logout from this device")}
         </button>
+        <DeleteAccount />
+        <div className="text-[11px] mt-3 text-center" style={{ color:"var(--ink-faint)" }}>
+          <a href="/privacy" style={{ color:"inherit", textDecoration:"underline" }}>{L("Privacy policy")}</a>
+          {" · "}
+          <a href="/delete-account" style={{ color:"inherit", textDecoration:"underline" }}>{L("Account deletion help")}</a>
+        </div>
       </div>
     </div>
   )

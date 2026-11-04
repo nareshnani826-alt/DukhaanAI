@@ -905,7 +905,7 @@ function SettingsScreen() {
           <div style={{width:34,height:34,borderRadius:9,background:T.saffron,color:"#1a0c04",
             display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14}}>★</div>
           <div style={{flex:1}}>
-            <div style={{fontSize:12,fontWeight:700,color:T.ink}}>Wholesale plan · active</div>
+            <div style={{fontSize:12,fontWeight:700,color:T.ink}}>Pro plan · active</div>
             <div style={{fontSize:10,color:T.inkDim,marginTop:2}}>All features · cloud sync · multi-staff</div>
           </div>
           <button style={{background:T.saffron,color:"#1a0c04",border:"none",

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { motion } from "motion/react"
+import { isNativeApp } from "../utils/features"
 import { usePlan } from "../context/PlanContext"
 import { startVoiceTrial, getTrialDaysLeft } from "../context/PlanContext"
 import { useNavigate } from "react-router-dom"
@@ -98,6 +99,7 @@ export default function UpgradeWall({ feature, children }) {
           <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 16 }}>
             {L("No credit card · No sign-up · Just try it")}
           </div>
+          {!isNativeApp() && (
           <button onClick={() => navigate("/settings")}
             style={{ width: "100%", padding: "11px", borderRadius: 12,
               border: "1.5px solid var(--rule)", background: "transparent",
@@ -105,6 +107,7 @@ export default function UpgradeWall({ feature, children }) {
               marginBottom: 8 }}>
             {L("Upgrade to Pro — ₹299/month")}
           </button>
+          )}
           <button onClick={() => navigate(-1)}
             style={{ width: "100%", padding: "8px", background: "none", border: "none",
               color: "var(--ink-faint)", fontSize: 12, cursor: "pointer" }}>
@@ -131,37 +134,26 @@ export default function UpgradeWall({ feature, children }) {
           {Lf("{name} is a {plan} feature", { name: L(info.name), plan: L(reqPlan.name) })}
         </motion.h2>
         <motion.p variants={item} className="text-xs text-gray-400 mb-6">
-          {L(info.desc)}. {Lf("Upgrade to {plan} to unlock this and all premium features.", { plan: L(reqPlan.name) })}
+          {L(info.desc)}.{!isNativeApp() && <> {Lf("Upgrade to {plan} to unlock this and all premium features.", { plan: L(reqPlan.name) })}</>}
         </motion.p>
 
         <motion.div variants={item} className="bg-gray-50 rounded-xl p-4 mb-6 text-left">
           <div className="text-[10px] font-medium text-gray-500 mb-3">
             {Lf("{plan} plan includes:", { plan: L(reqPlan.name) })}
           </div>
-          {info.plan === "pro" ? (
-            <div className="space-y-2">
-              {["Voice agent in 10 Indian languages","Cloud sync across devices",
-                "Barcode scanner","Customer purchase history",
-                "Day open/close with profit report","Insights & GST reports",
-                "Unlimited invoices"].map(f => (
-                <motion.div key={f} variants={item} className="flex items-center gap-2 text-xs text-gray-600">
-                  <span className="text-primary">✓</span> {L(f)}
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {["Everything in Pro","Multi-staff login (owner, cashier)",
-                "AI product image recognition","Staff audit log",
-                "Bulk data export","Priority support"].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-gray-600">
-                  <span style={{ color:"#7F77DD" }}>✓</span> {L(f)}
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="space-y-2">
+            {["Voice billing in 10 Indian languages","Cloud sync across devices",
+              "Barcode & AI invoice scanner","Customer purchase history",
+              "Staff logins (manager, cashier)","Day open/close with profit report",
+              "Insights, GST reports & data export"].map(f => (
+              <motion.div key={f} variants={item} className="flex items-center gap-2 text-xs text-gray-600">
+                <span className="text-primary">✓</span> {L(f)}
+              </motion.div>
+            ))}
+          </div>
         </motion.div>
 
+        {!isNativeApp() && <>
         <motion.div className="mb-4" variants={{ hidden:{ opacity:0, scale:0.8 }, show:{ opacity:1, scale:1, transition:{ type:"spring", bounce:0.45, visualDuration:0.4 } } }}>
           <div className="text-2xl font-semibold" style={{ color: reqPlan.color }}>
             {reqPlan.price.replace("/month", L("/month"))}
@@ -171,9 +163,10 @@ export default function UpgradeWall({ feature, children }) {
 
         <motion.button variants={item} whileTap={{ scale:0.97 }} onClick={() => navigate("/settings")}
           className="btn btn-primary w-full py-2.5 text-xs font-semibold mb-2"
-          style={info.plan === "wholesale" ? { background:"#7F77DD", borderColor:"#7F77DD" } : {}}>
+          >
           {Lf("Upgrade to {plan}", { plan: L(reqPlan.name) })}
         </motion.button>
+        </>}
         <motion.button variants={item} onClick={() => navigate(-1)} className="btn w-full text-xs text-gray-400">
           {L("Go back")}
         </motion.button>

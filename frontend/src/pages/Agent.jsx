@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Products, Sales, Invoices, Udhar, Wastage, Customers, getToken, API_BASE } from "../sync/db"
+import ReportAnswer from "../components/ReportAnswer"
 import { BangleProducts } from "../sync/bangleDb.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
@@ -386,7 +387,7 @@ async function askAI(messages, storeContext, lang = "en-IN") {
 }
 
 // ── Message bubble ───────────────────────────────────────
-function Bubble({ msg, isLast }) {
+function Bubble({ msg, isLast, question }) {
   const isUser = msg.role === "user"
   return (
     <div style={{
@@ -420,6 +421,9 @@ function Bubble({ msg, isLast }) {
         wordBreak:"break-word",
       }}>
         {msg.text}
+        {!isUser && question && (
+          <div style={{ marginTop:4 }}><ReportAnswer question={question} answer={msg.text} /></div>
+        )}
       </div>
       {isUser && (
         <div style={{
@@ -525,7 +529,7 @@ export default function Agent() {
         return
       }
       const welcomes = {
-        "te-IN": `నమస్కారం! 🙏 నేను మీ DukaanAI దుకాణ సహాయకుడిని.
+        "te-IN": `నమస్కారం! 🙏 నేను మీ DukhaanAI దుకాణ సహాయకుడిని.
 
 మీ దుకాణం ఇప్పుడు:
 • ${s.total_products} ఉత్పత్తులు
@@ -533,7 +537,7 @@ export default function Agent() {
 • ఈరోజు అమ్మకాలు: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} బిల్లులు)
 
 ఏదైనా అడగండి!`,
-        "hi-IN": `नमस्ते! 🙏 मैं आपका DukaanAI दुकान सहायक हूँ।
+        "hi-IN": `नमस्ते! 🙏 मैं आपका DukhaanAI दुकान सहायक हूँ।
 
 आपकी दुकान अभी:
 • ${s.total_products} उत्पाद
@@ -541,7 +545,7 @@ export default function Agent() {
 • आज की बिक्री: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} बिल)
 
 कुछ भी पूछें!`,
-        "ta-IN": `வணக்கம்! 🙏 நான் உங்கள் DukaanAI கடை உதவியாளர்.
+        "ta-IN": `வணக்கம்! 🙏 நான் உங்கள் DukhaanAI கடை உதவியாளர்.
 
 உங்கள் கடை இப்போது:
 • ${s.total_products} பொருட்கள்
@@ -549,7 +553,7 @@ export default function Agent() {
 • இன்றைய விற்பனை: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} பில்கள்)
 
 எதையும் கேளுங்கள்!`,
-        "kn-IN": `ನಮಸ್ಕಾರ! 🙏 ನಾನು ನಿಮ್ಮ DukaanAI ಅಂಗಡಿ ಸಹಾಯಕ.
+        "kn-IN": `ನಮಸ್ಕಾರ! 🙏 ನಾನು ನಿಮ್ಮ DukhaanAI ಅಂಗಡಿ ಸಹಾಯಕ.
 
 ನಿಮ್ಮ ಅಂಗಡಿ ಈಗ:
 • ${s.total_products} ಉತ್ಪನ್ನಗಳು
@@ -557,7 +561,7 @@ export default function Agent() {
 • ಇಂದಿನ ಮಾರಾಟ: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} ಬಿಲ್‌ಗಳು)
 
 ಏನಾದರೂ ಕೇಳಿ!`,
-        "ml-IN": `നമസ്കാരം! 🙏 ഞാൻ നിങ്ങളുടെ DukaanAI കട സഹായി.
+        "ml-IN": `നമസ്കാരം! 🙏 ഞാൻ നിങ്ങളുടെ DukhaanAI കട സഹായി.
 
 നിങ്ങളുടെ കട ഇപ്പോൾ:
 • ${s.total_products} ഉൽപ്പന്നങ്ങൾ
@@ -565,7 +569,7 @@ export default function Agent() {
 • ഇന്നത്തെ വില്പന: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} ബില്ലുകൾ)
 
 എന്തും ചോദിക്കൂ!`,
-        "mr-IN": `नमस्कार! 🙏 मी तुमचा DukaanAI दुकान सहायक आहे.
+        "mr-IN": `नमस्कार! 🙏 मी तुमचा DukhaanAI दुकान सहायक आहे.
 
 तुमचे दुकान आत्ता:
 • ${s.total_products} उत्पादने
@@ -573,7 +577,7 @@ export default function Agent() {
 • आजची विक्री: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} बिले)
 
 काहीही विचारा!`,
-        "bn-IN": `নমস্কার! 🙏 আমি আপনার DukaanAI দোকান সহায়ক।
+        "bn-IN": `নমস্কার! 🙏 আমি আপনার DukhaanAI দোকান সহায়ক।
 
 আপনার দোকান এখন:
 • ${s.total_products} পণ্য
@@ -581,7 +585,7 @@ export default function Agent() {
 • আজকের বিক্রয়: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} বিল)
 
 যেকোনো প্রশ্ন করুন!`,
-        "gu-IN": `નમસ્તે! 🙏 હું તમારો DukaanAI દુકાન સહાયક છું.
+        "gu-IN": `નમસ્તે! 🙏 હું તમારો DukhaanAI દુકાન સહાયક છું.
 
 તમારી દુકાન અત્યારે:
 • ${s.total_products} ઉત્પાદનો
@@ -589,7 +593,7 @@ export default function Agent() {
 • આજનું વેચાણ: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} બિલ)
 
 કંઈ પણ પૂછો!`,
-        "pa-IN": `ਸਤ ਸ੍ਰੀ ਅਕਾਲ! 🙏 ਮੈਂ ਤੁਹਾਡਾ DukaanAI ਦੁਕਾਨ ਸਹਾਇਕ ਹਾਂ।
+        "pa-IN": `ਸਤ ਸ੍ਰੀ ਅਕਾਲ! 🙏 ਮੈਂ ਤੁਹਾਡਾ DukhaanAI ਦੁਕਾਨ ਸਹਾਇਕ ਹਾਂ।
 
 ਤੁਹਾਡੀ ਦੁਕਾਨ ਹੁਣ:
 • ${s.total_products} ਉਤਪਾਦ
@@ -597,7 +601,7 @@ export default function Agent() {
 • ਅੱਜ ਦੀ ਵਿਕਰੀ: ₹${s.today_revenue?.toLocaleString("en-IN")} (${s.today_invoices} ਬਿੱਲ)
 
 ਕੁਝ ਵੀ ਪੁੱਛੋ!`,
-        "en-IN": `Namaste! 🙏 I'm your DukaanAI shop assistant.
+        "en-IN": `Namaste! 🙏 I'm your DukhaanAI shop assistant.
 
 Your store right now:
 • ${s.total_products} products
@@ -774,7 +778,8 @@ Ask me anything!`,
         minHeight:0,
       }}>
         {messages.map((m, i) => (
-          <Bubble key={i} msg={m} isLast={i === messages.length - 1} />
+          <Bubble key={i} msg={m} isLast={i === messages.length - 1}
+            question={i > 0 ? messages.slice(0, i).reverse().find(x => x.role === "user")?.text : null} />
         ))}
         {loading && <TypingDots/>}
         <div ref={bottomRef}/>

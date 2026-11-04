@@ -77,7 +77,7 @@ if _missing:
     logging.warning("⚠ Missing environment variables: %s — database operations will fail", ", ".join(_missing))
 
 app = FastAPI(
-    title="DukaanAI API",
+    title="DukhaanAI API",
     description="Inventory & Billing Agent for Kirana and Wholesale vendors",
     version="1.0.0",
     docs_url="/docs"  if _is_dev else None,

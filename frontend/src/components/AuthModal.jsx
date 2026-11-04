@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { useAuth } from "../context/AuthContext"
+import { shopEnabled } from "../utils/features"
 import Logo from "./Logo"
 
 const isValidEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
@@ -202,7 +203,7 @@ export default function AuthModal({ onClose }) {
                     { id: "kirana",       label: "Kirana / Grocery store",  icon: "🛒" },
                     { id: "bangle_fancy", label: "Bangles / Fancy store",   icon: "💍" },
                     { id: "chai",         label: "Chai / Tea shop",         icon: "☕" },
-                  ].map(({ id, label, icon }) => {
+                  ].filter(o => shopEnabled(o.id)).map(({ id, label, icon }) => {
                     const checked = modules.includes(id)
                     return (
                       <label key={id} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg border transition-colors"
@@ -264,7 +265,7 @@ export default function AuthModal({ onClose }) {
               fontSize: 11, color: "#1D9E75", lineHeight: 1.5
             }}>
               📱 <b>Check your phone</b> — open Gmail or your email app,
-              a message from DukaanAI is waiting with your code.
+              a message from DukhaanAI is waiting with your code.
             </div>
 
             <div>

@@ -242,7 +242,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
       {/* Nav */}
       <header className={`hm-nav ${scrolled ? "is-scrolled" : ""}`}>
         <div className="hm-wrap hm-nav-in">
-          <a href="/" className="hm-brand" aria-label="DukaanAI home">
+          <a href="/" className="hm-brand" aria-label="DukhaanAI home">
             <LogoMark size={34}/>
             <span style={{ fontFamily:"'Tiro Devanagari Hindi',serif", fontSize:22, fontWeight:800, color:"#1a0800" }}>
               दुकान<span style={{ color:"#d4621f" }}>•AI</span>
@@ -352,7 +352,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
       <section id="story" className="hm-section hm-story-section">
         <div className="hm-wrap">
           <SectionHead key={shop} kicker={C.storyKicker} title={C.storyTitle}
-            sub="Scroll through a day at the counter and see where DukaanAI saves you time."/>
+            sub="Scroll through a day at the counter and see where DukhaanAI saves you time."/>
           <DayStory key={shop} chapters={STORIES[C.story]}/>
         </div>
       </section>
@@ -485,7 +485,11 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
             <LogoMark size={28}/>
             <span>© 2026 DukhaanAI · Built for Bharat</span>
           </div>
-          <a href="mailto:support@dukhaanai.in">support@dukhaanai.in</a>
+          <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+            <a href="/privacy">Privacy policy</a>
+            <a href="/delete-account">Delete account</a>
+            <a href="mailto:support@dukhaanai.in">support@dukhaanai.in</a>
+          </div>
         </div>
       </footer>
 

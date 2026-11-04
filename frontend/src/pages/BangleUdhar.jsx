@@ -130,7 +130,7 @@ Dhanyawaad! 💍`
     ).join("\n")
     const msg =
 `📒 *Udhar Statement — ${c.name}*
-Store: ${vendor?.store_name || "DukaanAI Bangle Store"}
+Store: ${vendor?.store_name || "DukhaanAI Bangle Store"}
 Date: ${fmt(new Date().toISOString())}
 
 Transactions:
@@ -152,7 +152,7 @@ ${c.total_due > 0 ? "Kripya jaldi payment karein 🙏" : "✅ Account clear hai!
 Receipt No: *#UD-${txnId}*
 Date: ${fmtTime(txn.created_at)}
 ━━━━━━━━━━━━━━━━━━━━
-Store: *${vendor?.store_name || "DukaanAI Bangle Store"}*
+Store: *${vendor?.store_name || "DukhaanAI Bangle Store"}*
 Customer: *${c.name}*
 ${c.phone ? `Phone: ${c.phone}` : ""}
 ${c.address ? `Address: ${c.address}` : ""}
@@ -166,7 +166,7 @@ Balance after: *${INR(c.total_due)}*
 ✅ This message is your proof of ${txn.type === "credit" ? "purchase on credit" : "payment"}.
 Please save this message for your records.
 
-_Powered by DukaanAI_ 💍`
+_Powered by DukhaanAI_ 💍`
     WA(c.phone, msg)
     showNotif("Proof sent on WhatsApp!")
   }
@@ -190,7 +190,7 @@ _Powered by DukaanAI_ 💍`
         </style>
       </head><body>
         <div class="center">
-          <div class="bold" style="font-size:16px">${vendor?.store_name || "DukaanAI Bangle Store"}</div>
+          <div class="bold" style="font-size:16px">${vendor?.store_name || "DukhaanAI Bangle Store"}</div>
           <div style="font-size:11px;color:#666">${vendor?.gstin ? "GSTIN: "+vendor.gstin : ""}</div>
         </div>
         <div class="divider"></div>
@@ -225,7 +225,7 @@ _Powered by DukaanAI_ 💍`
             Print Receipt
           </button>
         </div>
-        <div class="center" style="margin-top:8px;font-size:10px;color:#aaa">Powered by DukaanAI 💍</div>
+        <div class="center" style="margin-top:8px;font-size:10px;color:#aaa">Powered by DukhaanAI 💍</div>
       </body></html>
     `)
     win.document.close()

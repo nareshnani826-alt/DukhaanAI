@@ -36,7 +36,7 @@ export default function InstallPrompt() {
     }}>
       <span style={{ fontSize:24 }}>🏪</span>
       <div style={{ flex:1 }}>
-        <div style={{ fontSize:13, fontWeight:600 }}>Install DukaanAI App</div>
+        <div style={{ fontSize:13, fontWeight:600 }}>Install DukhaanAI App</div>
         <div style={{ fontSize:11, opacity:0.85 }}>Works offline · Home screen icon</div>
       </div>
       <button onClick={install} style={{

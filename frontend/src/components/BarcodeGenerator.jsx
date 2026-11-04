@@ -13,7 +13,7 @@ function loadJsBarcode() {
   })
 }
 
-// Generate a unique DukaanAI barcode from product id
+// Generate a unique DukhaanAI barcode from product id
 function generateCode(product) {
   // Use existing SKU if it looks like a barcode (all digits, 8-13 chars)
   if (product.sku && /^\d{8,13}$/.test(product.sku)) return product.sku

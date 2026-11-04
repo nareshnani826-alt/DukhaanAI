@@ -1,16 +1,19 @@
 import { createContext, useContext, useState, useEffect } from "react"
+import { liveModules, shopEnabled } from "../utils/features"
 import { api, setTokens, setVendor, clearAuth, getVendor, getToken, isCloud, getRefresh } from "../sync/db"
 
 const AuthCtx = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [vendor, setVendorState] = useState(getVendor)
+  const [vendorRaw, setVendorState] = useState(getVendor)
+  // Switched-off shop types (see utils/features.js) never reach the rest of the app
+  const vendor = vendorRaw && { ...vendorRaw, modules: liveModules(vendorRaw.modules) }
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState("")
 
   const loggedIn   = !!vendor
   const cloud      = !!vendor && ["pro","wholesale"].includes(vendor?.plan)
-  const hasModule  = (m) => vendor?.modules?.includes(m) ?? (m === "kirana")
+  const hasModule  = (m) => shopEnabled(m) && (vendor?.modules?.includes(m) ?? (m === "kirana"))
   const role       = vendor?.role || "owner"   // staff sign-ins carry "manager" / "cashier"
 
   useEffect(() => {

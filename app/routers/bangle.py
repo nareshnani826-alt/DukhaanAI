@@ -1081,7 +1081,7 @@ def get_public_sale(sale_id: str):
     sale = result.data[0]
 
     vendor_row = db.table("vendors").select("store_name").eq("id", sale["vendor_id"]).execute()
-    store_name = vendor_row.data[0]["store_name"] if vendor_row.data else "DukaanAI"
+    store_name = vendor_row.data[0]["store_name"] if vendor_row.data else "DukhaanAI"
 
     # Normalise bangle sale items into the same shape the public invoice
     # page already renders for Kirana invoices.

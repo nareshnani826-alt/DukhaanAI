@@ -116,7 +116,7 @@ export class AssemblyVoiceEngine {
       const perm = await NativeSpeech.requestPermissions()
       const granted = perm?.speechRecognition === "granted" || perm?.microphone === "granted"
       if (!granted) {
-        this.onError?.("Microphone permission denied. Allow it in Settings → Apps → DukaanAI → Permissions.")
+        this.onError?.("Microphone permission denied. Allow it in Settings → Apps → DukhaanAI → Permissions.")
         return
       }
 
@@ -162,7 +162,7 @@ export class AssemblyVoiceEngine {
       this.onEnd?.()
       const msg = (e?.message || "").toLowerCase()
       if (msg.includes("permission") || msg.includes("not_allowed")) {
-        this.onError?.("Microphone permission denied. Allow mic in Settings → Apps → DukaanAI → Permissions.")
+        this.onError?.("Microphone permission denied. Allow mic in Settings → Apps → DukhaanAI → Permissions.")
       } else if (msg.includes("no match") || msg.includes("nomatch") || msg.includes("no_match")) {
         this.onError?.("Couldn't understand. Please speak clearly and try again.")
       } else if (msg.includes("speech timeout") || msg.includes("timeout") || msg.includes("no speech")) {

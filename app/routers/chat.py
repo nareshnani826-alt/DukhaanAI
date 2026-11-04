@@ -974,7 +974,7 @@ _STORE_TOOLS = _KIRANA_TOOLS
 def _cloud_prompt(lang_name: str, store_hint: str = "", store: str = "kirana") -> str:
     store_type = "bangle/jewellery and beauty accessories store" if store == "bangle" else "kirana/grocery retail store"
     hint = f"\nSTORE SNAPSHOT: {store_hint}" if store_hint else ""
-    return f"""You are DukaanAI's smart shop assistant for an Indian {store_type} owner.
+    return f"""You are DukhaanAI's smart shop assistant for an Indian {store_type} owner.
 LANGUAGE RULE: Reply ONLY in {lang_name}. Every word must be in {lang_name}.
 Use the available tools to fetch LIVE store data before answering. Use ₹ for prices, bullet points for lists. Keep answers short and helpful.{hint}"""
 
@@ -998,7 +998,7 @@ def _local_prompt(lang_name: str, ctx: dict) -> str:
         lines = "\n".join(f"- {c.get('name','?')} owes ₹{c.get('amount_due', c.get('total_due', 0))}" for c in (udhar.get("overdue_customers") or [])[:15])
         udhar_sec = f"\nUDHAAR: Total ₹{udhar.get('total_due',0)} from {udhar.get('customer_count',0)} customers\n{lines}"
 
-    return f"""You are DukaanAI's smart shop assistant for an Indian kirana/retail store owner.
+    return f"""You are DukhaanAI's smart shop assistant for an Indian kirana/retail store owner.
 LANGUAGE RULE: Reply ONLY in {lang_name}.
 STORE: {store_sum.get('total_products', len(products))} products | Low: {store_sum.get('low_stock_count', len(low_stock))} | Revenue today: ₹{store_sum.get('today_revenue', 0)}
 PRODUCTS:\n{prod_lines}
@@ -1135,3 +1135,30 @@ async def chat(
             status_code=503,
             detail="Both AI providers are currently busy. Please try again in a minute."
         )
+
+
+# ══════════════════════════════════════════════════════════════
+#  REPORT AN AI ANSWER (Google Play AI-generated content policy:
+#  users must be able to flag offensive AI output inside the app)
+# ══════════════════════════════════════════════════════════════
+
+class ReportRequest(BaseModel):
+    question: str = ""
+    answer: str
+    reason: str = ""
+
+
+@router.post("/report")
+@limiter.limit("10/minute")
+async def report_answer(request: Request, req: ReportRequest, vendor=Depends(_optional_vendor)):
+    from html import escape
+    from app.core.mailer import send_email
+
+    q, a, why = req.question[:2000], req.answer[:4000], req.reason[:500]
+    shop = vendor["id"] if vendor else "not signed in"
+    logging.warning("AI answer reported (shop %s): %r -> %r (%s)", shop, q[:200], a[:200], why)
+    text = f"An AI answer was reported in the app.\n\nShop: {shop}\nReason: {why or '-'}\n\nQuestion:\n{q}\n\nAI answer:\n{a}\n"
+    html = (f"<p>An AI answer was reported in the app.</p><p><b>Shop:</b> {escape(shop)}<br><b>Reason:</b> {escape(why or '-')}</p>"
+            f"<p><b>Question:</b><br>{escape(q)}</p><p><b>AI answer:</b><br>{escape(a)}</p>")
+    await asyncio.to_thread(send_email, "support@dukhaanai.in", "Reported AI answer — DukhaanAI", text, html)
+    return {"message": "Thanks — we will review this answer."}

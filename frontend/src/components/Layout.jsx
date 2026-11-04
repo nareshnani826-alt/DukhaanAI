@@ -1,5 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom"
 import Logo from "./Logo"
+import { shopEnabled } from "../utils/features"
+import ReportAnswer from "./ReportAnswer"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
@@ -86,7 +88,7 @@ const STORE_CHIPS = [
   { id:"kirana",       label:"🛒 Kirana" },
   { id:"bangle_fancy", label:"💍 Bangle" },
   { id:"chai",         label:"☕ Chai" },
-]
+].filter(c => shopEnabled(c.id))
 
 // Short labels for the five bottom tabs (the general translations are too long for a tab)
 const TAB_LABELS = {
@@ -892,7 +894,7 @@ function AIChatWidget() {
             display:"flex", flexDirection:"column", gap:8,
             background:"var(--bg1, #f7f4f2)", scrollbarWidth:"none" }}>
 
-            {messages.map(msg => (
+            {messages.map((msg, mi) => (
               <div key={msg.id} style={{ display:"flex", alignItems:"flex-end", gap:6,
                 flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
                 {msg.role === "assistant" && (
@@ -941,6 +943,10 @@ function AIChatWidget() {
                     </div>
                   )}
 
+                  {msg.role === "assistant" && mi > 0 && (
+                    <ReportAnswer answer={msg.text}
+                      question={messages.slice(0, mi).reverse().find(m => m.role === "user")?.text} />
+                  )}
                   <div style={{ fontSize:9, color:"var(--ink-faint, #bbb)", marginTop:2,
                     textAlign: msg.role === "user" ? "right" : "left" }}>{msg.time}</div>
                 </div>
@@ -1403,7 +1409,7 @@ export default function Layout({ children }) {
             <div style={{ minWidth:0 }}>
               <div style={{ fontSize:15, fontWeight:800, color:"var(--ink)", lineHeight:1.15,
                 overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                {getStoreName(vendor) || "DukaanAI"}
+                {getStoreName(vendor) || "DukhaanAI"}
               </div>
               <div style={{ fontSize:10, color: cloud ? "var(--jade)" : "var(--ink-faint)", marginTop:1 }}>
                 {tNav(cloud ? "● Online" : "● On this phone only")}

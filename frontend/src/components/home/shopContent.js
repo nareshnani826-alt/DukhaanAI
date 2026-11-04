@@ -1,14 +1,16 @@
 // What the homepage says for each kind of shop. "general" is dukhaanai.in before the
 // visitor picks a shop; /kirana, /chai and /bangle open straight on their own version.
 
+import { shopEnabled } from "../../utils/features"
+
 export const SHOPS = [
   { id:"kirana", label:"Kirana",     icon:"store",  module:"kirana",       sub:"Grocery & general store" },
   { id:"chai",   label:"Chai / Tea", icon:"coffee", module:"chai",         sub:"Tea stall, café & snacks" },
   { id:"bangle", label:"Bangle",     icon:"gem",    module:"bangle_fancy", sub:"Bangles, fancy & jewellery" },
-]
+].filter(s => shopEnabled(s.module))
 
 const COMMON_FAQ = [
-  { q:"Is DukaanAI really free?",
+  { q:"Is DukhaanAI really free?",
     a:"Yes. The Free plan costs nothing and has no time limit. Move to Pro (₹299/month) only when you want cloud sync across devices and the extra tools." },
   { q:"Which languages does it understand?",
     a:"Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi and English — including the mixed way most of us speak at the counter." },
@@ -18,13 +20,13 @@ const COMMON_FAQ = [
 
 export const CONTENT = {
   general: {
-    title: "DukaanAI — billing app for Indian shops",
-    pill: "Made for Indian kirana, chai & bangle shops",
+    title: "DukhaanAI — billing app for Indian shops",
+    pill: "Made for Indian kirana & chai shops",
     h1: ["Run your dukaan", "by voice"],
     lead: "Billing, stock and udhar khata in one simple app. Speak in your own language, take UPI, and keep billing even when the internet is down.",
     stats: [
       { to:10, label:"Indian languages" },
-      { to:3,  label:"shop types — kirana, chai & bangle" },
+      { to:2,  label:"shop types — kirana & chai" },
       { to:3,  label:"ways to bill — speak, scan, tap" },
       { to:0,  prefix:"₹", label:"to get started" },
     ],
@@ -50,19 +52,19 @@ export const CONTENT = {
       { icon:"chart", title:"Daily sales & profit", wide:true, text:"See sales, profit and best sellers at a glance — and close the day knowing exactly how the shop did." },
     ],
     steps: [
-      { n:"1", title:"Pick your shop type", text:"Kirana, chai stall or bangle store — the app opens set up for it." },
+      { n:"1", title:"Pick your shop type", text:"Kirana store or chai stall — the app opens set up for it." },
       { n:"2", title:"Add what you sell",   text:"Pick from ready lists, scan barcodes or import Excel." },
       { n:"3", title:"Start billing",       text:"Speak, scan or tap. Sales, stock and khata update by themselves." },
     ],
     proBlurb:"For busy shops",
     proItems:["Everything in Free", "Cloud sync across your devices", "Customer history & insights", "Low stock alerts", "Unlimited bills"],
     faq: [...COMMON_FAQ,
-      { q:"Which kinds of shops is it for?", a:"Kirana and general stores, chai and tea stalls, and bangle and fancy stores. Each gets its own screens — pick yours when you sign up." }],
+      { q:"Which kinds of shops is it for?", a:"Kirana and general stores, and chai and tea stalls. Each gets its own screens — pick yours when you sign up." }],
     final:"Your shop, in your pocket.",
   },
 
   kirana: {
-    title: "DukaanAI for kirana stores — voice billing, GST, udhar khata",
+    title: "DukhaanAI for kirana stores — voice billing, GST, udhar khata",
     pill: "Made for Indian kirana & general stores",
     h1: ["Run your kirana", "by voice"],
     lead: "Billing, stock and udhar khata in one simple app. Speak in your own language, scan with your phone camera, and keep billing even when the internet is down.",
@@ -74,7 +76,7 @@ export const CONTENT = {
     ],
     demo: {
       kicker:"Voice billing", title:"Speak. The bill writes itself.",
-      sub:"No typing, no searching through lists. Say the item and quantity the way you normally would — DukaanAI finds the product, the price, and adds it to the bill.",
+      sub:"No typing, no searching through lists. Say the item and quantity the way you normally would — DukhaanAI finds the product, the price, and adds it to the bill.",
       checks:["Understands Hinglish, Telugu, Tamil and more", "Knows loose items: kilo, gram, litre, dozen", "Running total updates as you speak"],
       lines:[
         { said:"Teen Parle-G",   item:"Parle-G biscuit",   qty:"3 pc", amount:30  },
@@ -108,7 +110,7 @@ export const CONTENT = {
   },
 
   chai: {
-    title: "DukaanAI for chai shops — tap or speak billing, UPI, milk tracking",
+    title: "DukhaanAI for chai shops — tap or speak billing, UPI, milk tracking",
     pill: "Made for chai stalls, tea shops & cafés",
     h1: ["Bill every chai", "in one tap"],
     lead: "Tap or speak — “rendu tea, oka samosa” — and the bill is ready. Take UPI with a QR, keep regulars' khata, and know how much milk to buy tomorrow.",
@@ -120,7 +122,7 @@ export const CONTENT = {
     ],
     demo: {
       kicker:"Speak the order", title:"“Rendu tea, oka samosa” — done.",
-      sub:"In the morning rush, say the order the way the customer said it. DukaanAI adds the cups and snacks and shows the total.",
+      sub:"In the morning rush, say the order the way the customer said it. DukhaanAI adds the cups and snacks and shows the total.",
       checks:["Telugu, Hindi, Tamil, Kannada and English", "Works without internet — no AI bill", "Or just tap: big buttons, 15 items on one screen"],
       lines:[
         { said:"Rendu tea",     item:"Tea",        qty:"2 cups", amount:24 },
@@ -157,7 +159,7 @@ export const CONTENT = {
   },
 
   bangle: {
-    title: "DukaanAI for bangle & fancy stores — colours, sizes, dozens",
+    title: "DukhaanAI for bangle & fancy stores — colours, sizes, dozens",
     pill: "Made for bangle, fancy & jewellery stores",
     h1: ["Every colour and size", "billed by voice"],
     lead: "Bangles by colour, size and dozen — stock that knows them all. Bill in your language, keep khata, and get ready for every festival season.",
@@ -169,7 +171,7 @@ export const CONTENT = {
     ],
     demo: {
       kicker:"Voice billing", title:"Say it. Colour, size and dozen.",
-      sub:"“Ek dozen laal kangan, size 2.4” — DukaanAI finds the right colour and size and works out the price per dozen or piece.",
+      sub:"“Ek dozen laal kangan, size 2.4” — DukhaanAI finds the right colour and size and works out the price per dozen or piece.",
       checks:["Colours and sizes for every design", "Dozen, set and piece pricing", "Telugu, Hindi, Tamil and more"],
       lines:[
         { said:"Ek dozen laal kangan", item:"Glass bangles · Red · 2.4", qty:"1 dozen", amount:120 },
@@ -206,7 +208,7 @@ export const CONTENT = {
 export const STORIES = {
   kirana: [
     { id:"open", time:"9:00 AM", icon:"sun", color:"#d98a1c", title:"Open the shop",
-      text:"Count the cash drawer and open the day in one tap. DukaanAI shows what's running low before the first customer walks in.",
+      text:"Count the cash drawer and open the day in one tap. DukhaanAI shows what's running low before the first customer walks in.",
       hero:{ label:"DAY OPENED", value:"₹2,000", sub:"cash in drawer", bg:"#fff4e0", fg:"#9a6a12" },
       label:"Running low", rows:[["Amul milk 500 ml", "", "4 left", "#c0382d"], ["Sugar 1 kg", "", "2 left", "#c0382d"], ["Parle-G biscuit", "", "6 left", "#d98a1c"]] },
     { id:"rush", time:"11:30 AM", icon:"zap", color:"#d4621f", title:"The morning rush",

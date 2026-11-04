@@ -85,7 +85,7 @@ function cols3(left, mid, right, width = 32) {
 }
 
 // ── Main receipt builder ──────────────────────────────────────
-export function buildReceipt(invoice, storeName = "DukaanAI", opts = {}) {
+export function buildReceipt(invoice, storeName = "DukhaanAI", opts = {}) {
   const W = opts.width || 32   // 32 for 58mm, 48 for 80mm
   const parts = []
 
@@ -193,7 +193,7 @@ export function buildReceipt(invoice, storeName = "DukaanAI", opts = {}) {
   // ── Footer ───────────────────────────────────────────────
   add(bytes(CMD.ALIGN_CENTER))
   add(center("Thank you! Visit again!", W))
-  add(center("Powered by DukaanAI", W))
+  add(center("Powered by DukhaanAI", W))
   add(bytes([LF]))
 
   // ── Feed + cut ───────────────────────────────────────────

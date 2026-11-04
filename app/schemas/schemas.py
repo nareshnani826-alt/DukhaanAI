@@ -115,6 +115,10 @@ class ForgotPasswordRequest(BaseModel):
     shop_type: Optional[str] = None
 
 
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
@@ -343,7 +347,7 @@ class InvoiceOut(BaseModel):
 # ── Subscription ─────────────────────────────────────────────
 
 class SubscriptionCreate(BaseModel):
-    plan: Literal["pro", "wholesale"]
+    plan: Literal["pro"]   # one paid plan; "wholesale" was folded into Pro
     billing_cycle: Literal["monthly", "yearly"]
 
 

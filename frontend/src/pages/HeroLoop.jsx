@@ -50,7 +50,7 @@ export default function HeroLoop() {
       <iframe
         src="/hero-loop.html"
         style={{ flex: 1, border: "none", width: "100%", display: "block" }}
-        title="DukaanAI Hero Loop"
+        title="DukhaanAI Hero Loop"
       />
     </div>
   )

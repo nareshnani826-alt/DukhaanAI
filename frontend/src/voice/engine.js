@@ -209,7 +209,7 @@ export class VoiceEngine {
     if (this.isCapacitor) {
       const hasPerm = await requestMicPermission()
       if (!hasPerm) {
-        this.onError?.("Mic blocked. Go to phone Settings → Apps → DukaanAI → Permissions → Microphone → Allow")
+        this.onError?.("Mic blocked. Go to phone Settings → Apps → DukhaanAI → Permissions → Microphone → Allow")
         return
       }
     }

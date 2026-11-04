@@ -2,52 +2,23 @@ import { createContext, useContext, useState, useEffect } from "react"
 import { useAuth } from "./AuthContext"
 
 // ── Plan feature map ──────────────────────────────────────
+// One paid plan: Pro (₹299) has every feature. Shops still marked "wholesale" in the
+// database (the old ₹799 plan) are treated exactly like Pro.
+const PRO_FEATURES = [
+  "basic_inventory", "gst_billing", "whatsapp_share", "dashboard",
+  "cloud_sync", "voice_agent", "barcode_scanner", "customer_history", "day_ops",
+  "insights", "low_stock_alerts", "unlimited_invoices",
+  "multi_staff", "ai_vision", "audit_log", "bulk_export", "custom_branding",
+]
 const PLAN_FEATURES = {
-  free: [
-    "basic_inventory",
-    "gst_billing",
-    "whatsapp_share",
-    "dashboard",
-  ],
-  pro: [
-    "basic_inventory",
-    "gst_billing",
-    "whatsapp_share",
-    "dashboard",
-    "cloud_sync",
-    "voice_agent",
-    "barcode_scanner",
-    "customer_history",
-    "day_ops",
-    "insights",
-    "low_stock_alerts",
-    "unlimited_invoices",
-  ],
-  wholesale: [
-    "basic_inventory",
-    "gst_billing",
-    "whatsapp_share",
-    "dashboard",
-    "cloud_sync",
-    "voice_agent",
-    "barcode_scanner",
-    "customer_history",
-    "day_ops",
-    "insights",
-    "low_stock_alerts",
-    "unlimited_invoices",
-    "multi_staff",
-    "ai_vision",
-    "audit_log",
-    "bulk_export",
-    "custom_branding",
-  ],
+  free: ["basic_inventory", "gst_billing", "whatsapp_share", "dashboard"],
+  pro:  PRO_FEATURES,
 }
+export const normalizePlan = p => (p === "wholesale" ? "pro" : p) || "free"
 
 const PLAN_LABELS = {
   free:      { name:"Free",      price:"₹0/month",    color:"#888" },
   pro:       { name:"Pro",       price:"₹299/month",  color:"#1D9E75" },
-  wholesale: { name:"Wholesale", price:"₹799/month",  color:"#7F77DD" },
 }
 
 const FEATURE_LABELS = {
@@ -58,10 +29,10 @@ const FEATURE_LABELS = {
   insights:          { name:"Insights & Reports", desc:"Sales trends and GST summary", plan:"pro" },
   cloud_sync:        { name:"Cloud Sync",         desc:"Access from any device",       plan:"pro" },
   unlimited_invoices:{ name:"Unlimited Invoices", desc:"No daily invoice limit",       plan:"pro" },
-  multi_staff:       { name:"Multi-staff Login",  desc:"Owner, manager, cashier roles",plan:"wholesale" },
-  ai_vision:         { name:"AI Image Scanner",   desc:"Identify products by photo",   plan:"wholesale" },
-  audit_log:         { name:"Audit Log",          desc:"Track all staff actions",      plan:"wholesale" },
-  bulk_export:       { name:"Bulk Export",        desc:"Export data to Excel/CSV",     plan:"wholesale" },
+  multi_staff:       { name:"Multi-staff Login",  desc:"Owner, manager, cashier roles",plan:"pro" },
+  ai_vision:         { name:"AI Image Scanner",   desc:"Identify products by photo",   plan:"pro" },
+  audit_log:         { name:"Audit Log",          desc:"Track all staff actions",      plan:"pro" },
+  bulk_export:       { name:"Bulk Export",        desc:"Export data to Excel/CSV",     plan:"pro" },
 }
 
 const PlanCtx = createContext(null)
@@ -94,7 +65,7 @@ function getToggles() {
 
 export function PlanProvider({ children }) {
   const { vendor } = useAuth()
-  const plan     = vendor?.plan || "free"
+  const plan     = normalizePlan(vendor?.plan)
   const features = PLAN_FEATURES[plan] || PLAN_FEATURES.free
   const [toggles, setToggles] = useState(getToggles)
 

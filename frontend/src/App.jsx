@@ -1,5 +1,6 @@
 import { useEffect, lazy, Suspense }     from "react"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
+import { BANGLE_ENABLED } from "./utils/features"
 import { initializeSeedTraining }        from "./voice-ai/seedTraining"
 import { ThemeProvider }    from "./context/ThemeContext"
 import { AuthProvider, useAuth } from "./context/AuthContext"
@@ -37,6 +38,8 @@ const LoginHome         = lazy(() => import("./pages/LoginHome"))
 const AITest            = lazy(() => import("./pages/AITest"))
 const More              = lazy(() => import("./pages/More"))
 const ResetPassword     = lazy(() => import("./pages/ResetPassword"))
+const PrivacyPolicy     = lazy(() => import("./pages/Legal").then(m => ({ default: m.PrivacyPolicy })))
+const DeleteAccountInfo = lazy(() => import("./pages/Legal").then(m => ({ default: m.DeleteAccountInfo })))
 const BangleInventory   = lazy(() => import("./pages/BangleInventory"))
 const BangleBilling     = lazy(() => import("./pages/BangleBilling"))
 const BangleFestivals   = lazy(() => import("./pages/BangleFestivals"))
@@ -107,11 +110,14 @@ export default function App() {
           }>
           <Routes>
             <Route path="/" element={<FirstRunGuard><LoginHome /></FirstRunGuard>} />
-            {["/kirana", "/chai", "/bangle"].map(p => (
+            {!BANGLE_ENABLED && <Route path="/bangle" element={<Navigate to="/" replace />} />}
+            {["/kirana", "/chai", ...(BANGLE_ENABLED ? ["/bangle"] : [])].map(p => (
               <Route key={p} path={p} element={<FirstRunGuard><LoginHome /></FirstRunGuard>} />
             ))}
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/delete-account" element={<DeleteAccountInfo />} />
             <Route path="/hero-loop" element={<HeroLoop />} />
             <Route path="/invoice/:id" element={<PublicInvoice />} />
             <Route path="/*" element={
@@ -139,20 +145,20 @@ export default function App() {
                   <Route path="/insights"   element={<Gated feature="insights"><Insights /></Gated>} />
                   <Route path="/ai-suggestions" element={<Gated feature="insights"><AgentSuggestions /></Gated>} />
                   <Route path="/more"             element={<More />} />
-                  <Route path="/bangle-inventory"  element={<BangleInventory />} />
-                  <Route path="/bangle-billing"    element={<BangleBilling />} />
-                  <Route path="/bangle-festivals"  element={<BangleFestivals />} />
-                  <Route path="/bangle-insights"    element={<BangleInsights />} />
-                  <Route path="/bangle-dashboard"   element={<BangleDashboard />} />
-                  <Route path="/bangle-bulk-import" element={<BangleBulkImport />} />
-                  <Route path="/bangle-day"         element={<BangleDayOps />} />
-                  <Route path="/bangle-history"     element={<BangleHistory />} />
-                  <Route path="/bangle-udhar"       element={<BangleUdhar />} />
+                  <Route path="/bangle-inventory"  element={BANGLE_ENABLED ? <BangleInventory /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-billing"    element={BANGLE_ENABLED ? <BangleBilling /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-festivals"  element={BANGLE_ENABLED ? <BangleFestivals /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-insights"    element={BANGLE_ENABLED ? <BangleInsights /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-dashboard"   element={BANGLE_ENABLED ? <BangleDashboard /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-bulk-import" element={BANGLE_ENABLED ? <BangleBulkImport /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-day"         element={BANGLE_ENABLED ? <BangleDayOps /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-history"     element={BANGLE_ENABLED ? <BangleHistory /> : <Navigate to="/" replace />} />
+                  <Route path="/bangle-udhar"       element={BANGLE_ENABLED ? <BangleUdhar /> : <Navigate to="/" replace />} />
                   <Route path="/chai-dashboard"    element={<ChaiDashboard />} />
                   <Route path="/chai-billing"      element={<ChaiBilling />} />
                   <Route path="/chai-stock"        element={<ChaiStock />} />
                   <Route path="/chai-khata"        element={<UdharKhata />} />
-                  <Route path="/reorder"           element={<ReorderHub />} />
+                  <Route path="/reorder"           element={BANGLE_ENABLED ? <ReorderHub /> : <Navigate to="/" replace />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

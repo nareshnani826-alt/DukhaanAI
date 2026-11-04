@@ -108,12 +108,12 @@ function buildReorderWA(lowStock, storeName) {
   const lines = lowStock.map(v =>
     `  • ${v.product_name}${v.color ? ` (${v.color})` : ""}${v.size ? ` [${v.size}]` : ""} — ${v.stock} pcs (min ${v.min_stock})`
   ).join("\n")
-  return `🚨 *Low Stock Alert — ${storeName || "DukaanAI"}*\nDate: ${fmtDate()}\n\nPlease reorder:\n${lines}\n\n_Sent from DukaanAI_`
+  return `🚨 *Low Stock Alert — ${storeName || "DukhaanAI"}*\nDate: ${fmtDate()}\n\nPlease reorder:\n${lines}\n\n_Sent from DukhaanAI_`
 }
 
 function buildCloseWA(session, storeName) {
   const low = session.low_stock_items || []
-  return `📊 *Day Close Report — ${storeName || "DukaanAI"}*
+  return `📊 *Day Close Report — ${storeName || "DukhaanAI"}*
 Date: ${fmtDate(session.date)}
 
 💰 Today's Sales: ${INR(session.total_sales)}
@@ -125,7 +125,7 @@ ${low.length > 0
   ? `⚠ Low Stock (${low.length} variants):\n${low.map(v => `  • ${v.product_name} ${v.color} [${v.size}] — ${v.stock} pcs`).join("\n")}`
   : "✅ All stock levels healthy"}
 
-_Sent from DukaanAI_`
+_Sent from DukhaanAI_`
 }
 
 // ── Main component ────────────────────────────────────────────

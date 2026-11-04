@@ -372,7 +372,7 @@ export default function Voice() {
       `• ${i.name} × ${i.qty} = ${INR(i.total)}`
     ).join("\n")
     const msg =
-`🧾 *Invoice from ${vendor?.store_name || "DukaanAI"}*
+`🧾 *Invoice from ${vendor?.store_name || "DukhaanAI"}*
 Invoice No: ${invoice.invoice_no}
 Customer: ${invoice.customer_name}
 Date: ${new Date().toLocaleDateString("en-IN")}

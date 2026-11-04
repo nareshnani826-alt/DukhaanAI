@@ -1,4 +1,4 @@
-// ── DukaanAI UI Translations ──────────────────────────────
+// ── DukhaanAI UI Translations ──────────────────────────────
 // All UI strings in 10 Indian languages
 // Key: English identifier → translations per language code
 

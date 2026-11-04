@@ -10,7 +10,7 @@ export function saveUPIVpa(v)      { try { localStorage.setItem(UPI_KEY, v.trim(
 function buildUPIUrl(vpa, storeName, amount, invoiceNo) {
   const params = new URLSearchParams({
     pa: vpa,
-    pn: storeName || "DukaanAI",
+    pn: storeName || "DukhaanAI",
     am: Number(amount || 0).toFixed(2),
     cu: "INR",
     tn: `Payment for ${invoiceNo || "Invoice"}`,

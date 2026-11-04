@@ -13,7 +13,7 @@ function formatDate(iso) {
 function fmtInvoiceWA(invoice, storeName, storeGstin) {
   const lines = (invoice.items||[]).map(i => `  • ${i.name} × ${i.qty} = ₹${i.total}`).join("\n")
   return `🧾 *Invoice ${invoice.invoice_no}*
-Store: ${storeName||"DukaanAI"}
+Store: ${storeName||"DukhaanAI"}
 GSTIN: ${storeGstin||"—"}
 Date: ${formatDate(invoice.created_at)}
 

@@ -54,7 +54,7 @@ export default function ResetPassword() {
         <div className="text-center mb-6">
           <div className="text-3xl mb-2">🔒</div>
           <div className="text-base font-semibold text-primary">Reset Your Password</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">Enter a new password for your DukaanAI account</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">Enter a new password for your DukhaanAI account</div>
         </div>
 
         {done ? (

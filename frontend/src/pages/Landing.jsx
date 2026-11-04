@@ -178,7 +178,7 @@ export default function Landing() {
 
         <p className="lp-subtext" style={{ lineHeight:1.6, color:"#b9a382", maxWidth:680, margin:"0 auto" }}>
           India's first voice‑first POS for kirana stores. Speak items in
-          Hindi, Telugu, Tamil — any of <b style={{ color:"#f4e4c1" }}>10 languages</b> — and DukaanAI
+          Hindi, Telugu, Tamil — any of <b style={{ color:"#f4e4c1" }}>10 languages</b> — and DukhaanAI
           bills, tracks stock, and warns you about demand spikes.
         </p>
 
@@ -479,7 +479,7 @@ export default function Landing() {
             </div>
             {[
               ["Product", [["Voice billing","/voice"],["Demand AI","/demand"],["Udhaar Khata","/udhar"],["Day operations","/day"],["Bulk import","/bulk-import"]]],
-              ["Support", [["Install guide","/install"],["Help center","/help"],["WhatsApp","#"],["Privacy","#"]]],
+              ["Support", [["Install guide","/install"],["Help center","/help"],["WhatsApp","#"],["Privacy","/privacy"]]],
               ["Company", [["About","#"],["Hindi blog","#"],["Careers","#"],["Press kit","#"]]],
             ].map(([title,links]) => (
               <div key={title}>
@@ -496,7 +496,7 @@ export default function Landing() {
             ))}
           </div>
           <div className="lp-footer-bottom" style={{ paddingTop:24, borderTop:"1px solid rgba(244,228,193,0.10)", fontSize:12, color:"#7a6a51" }}>
-            <span>© 2026 DukaanAI · Made with ☕ in Hyderabad</span>
+            <span>© 2026 DukhaanAI · Made with ☕ in Hyderabad</span>
             <span>व्यापार में लक्ष्मी।</span>
           </div>
         </div>

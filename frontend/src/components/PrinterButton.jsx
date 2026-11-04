@@ -53,7 +53,7 @@ export default function PrinterButton({ invoice, size = "md", label }) {
     try {
       await printer.printInvoice(
         invoice,
-        vendor?.store_name || "DukaanAI",
+        vendor?.store_name || "DukhaanAI",
         {
           width:   32,
           address: vendor?.address  || "",

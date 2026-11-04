@@ -7,7 +7,7 @@ _WEAK_SECRETS = {"", "change-me", "change-me-in-production", "secret", "password
 
 class Settings(BaseSettings):
     # App
-    app_name: str = "DukaanAI"
+    app_name: str = "DukhaanAI"
     app_env: str = "development"
     frontend_url: str = "http://localhost:3000"
     # Comma-separated extra origins (e.g. "https://dukhaanai.onrender.com,https://app.dukhaanai.com")
@@ -92,9 +92,5 @@ PLAN_PRICING = {
     "pro": {
         "monthly": {"amount": 29900, "label": "₹299/month"},
         "yearly":  {"amount": 239000, "label": "₹2,390/year"},
-    },
-    "wholesale": {
-        "monthly": {"amount": 99900, "label": "₹999/month"},
-        "yearly":  {"amount": 799000, "label": "₹7,990/year"},
     },
 }

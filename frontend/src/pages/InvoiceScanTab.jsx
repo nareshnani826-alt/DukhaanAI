@@ -550,7 +550,7 @@ export default function InvoiceScanTab() {
       {backendOk === false && (
         <div style={{ marginBottom: 16, padding: "12px 16px", background: "#fef2f2",
           color: "#dc2626", borderRadius: 10, fontSize: 12 }}>
-          <strong>{L("⚠ Can't reach the DukaanAI server.")}</strong><br/>
+          <strong>{L("⚠ Can't reach the DukhaanAI server.")}</strong><br/>
           <span style={{ color: "#991b1b" }}>
             {L("Check your internet and try again.")}
           </span>

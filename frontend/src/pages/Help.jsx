@@ -1,11 +1,14 @@
 import { useState, useRef } from "react"
 import { HELP_SECTIONS } from "./helpArticles"
 import { tr, uiLang } from "../i18n/kiranaStrings"
+import { isNativeApp } from "../utils/features"
 
 // The guide is in helpArticles.js — { en, te, hi } per title and article
 const SECTIONS = HELP_SECTIONS
 const L = k => tr(k, uiLang())
-const pick = v => typeof v === "string" ? v : (v[uiLang().slice(0, 2)] || v.en)
+const pickRaw = v => typeof v === "string" ? v : (v[uiLang().slice(0, 2)] || v.en)
+// Android app: no plan prices (Play Billing rules) — "Pro (₹299/month):" becomes "Pro:"
+const pick = v => isNativeApp() ? pickRaw(v).replace(/\s*\([^()]*₹[^()]*\)/g, "") : pickRaw(v)
 
 export default function Help() {
   const [activeSection, setActiveSection] = useState("getting-started")
@@ -37,7 +40,7 @@ export default function Help() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-sm font-semibold">{L("Help")}</h1>
-          <p className="text-[10px] text-gray-400">{L("How to use DukaanAI, step by step")}</p>
+          <p className="text-[10px] text-gray-400">{L("How to use DukhaanAI, step by step")}</p>
         </div>
       </div>
 

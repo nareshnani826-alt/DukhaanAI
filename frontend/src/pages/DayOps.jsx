@@ -27,10 +27,10 @@ function buildReorderWA(lowStock, storeName) {
   const lines = lowStock.map(p =>
     `  • ${p.name} — only ${p.stock} ${p.unit || "units"} left (min: ${p.min_stock})`
   ).join("\n")
-  return `🚨 *Low Stock Alert — ${storeName || "DukaanAI"}*\n` +
+  return `🚨 *Low Stock Alert — ${storeName || "DukhaanAI"}*\n` +
     `Date: ${fmtDate()}\n\n` +
     `Please reorder these items:\n${lines}\n\n` +
-    `_Sent from DukaanAI_`
+    `_Sent from DukhaanAI_`
 }
 
 // ── Local fallback (free plan) ────────────────────────────
@@ -216,7 +216,7 @@ export default function DayOps() {
     if (!session) return
     const low = session.low_stock_items || []
     const msg =
-`📊 *Day Close Report — ${vendor?.store_name || "DukaanAI"}*
+`📊 *Day Close Report — ${vendor?.store_name || "DukhaanAI"}*
 Date: ${fmtDate(session.date)}
 
 💰 Today's Sales: ${INR(session.total_sales)}
@@ -225,7 +225,7 @@ Date: ${fmtDate(session.date)}
 
 ${low.length > 0 ? `⚠ Low Stock (${low.length} items):\n${low.map(p => `  • ${p.name} — ${p.stock} ${p.unit||"units"} left`).join("\n")}` : "✅ All stock levels healthy"}
 
-_Sent from DukaanAI_`
+_Sent from DukhaanAI_`
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank")
   }
 

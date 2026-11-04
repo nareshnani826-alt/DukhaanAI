@@ -1,5 +1,5 @@
 /**
- * DukaanAI Logo — pure SVG, no external dependencies.
+ * DukhaanAI Logo — pure SVG, no external dependencies.
  *
  * Usage:
  *   <Logo />              icon + wordmark (sidebar)
@@ -15,7 +15,7 @@ export default function Logo({ iconOnly = false, size = 40, storeLabel = "" }) {
       viewBox="0 0 48 48" fill="none"
       xmlns="http://www.w3.org/2000/svg"
       style={{ flexShrink: 0, borderRadius: size * 0.23 }}
-      aria-label="DukaanAI"
+      aria-label="DukhaanAI"
     >
       <defs>
         {/* Main background gradient: saffron → deep amber */}

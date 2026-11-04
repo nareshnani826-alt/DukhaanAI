@@ -884,7 +884,7 @@ export default function ExpiryIntelligence() {
         <div style={{margin:"0 24px 32px", padding:"20px 24px",
           borderRadius:16, background:"var(--bg2,#f9fafb)", border:"1px solid var(--rule,#eee)"}}>
           <div style={{fontWeight:700, fontSize:14, marginBottom:14, display:"flex", gap:8}}>
-            {L("💡 How voice works in DukaanAI")}
+            {L("💡 How voice works in DukhaanAI")}
           </div>
           <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px,1fr))", gap:16}}>
             {[

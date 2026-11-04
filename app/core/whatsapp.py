@@ -10,7 +10,7 @@ Setup checklist (one-time):
 4. Create an OTP template:
    - Category: AUTHENTICATION
    - Name: otp_authentication  (must match WHATSAPP_OTP_TEMPLATE in .env)
-   - Body: "{{1}} is your DukaanAI OTP. Valid for 10 minutes. Do not share."
+   - Body: "{{1}} is your DukhaanAI OTP. Valid for 10 minutes. Do not share."
    - Add a "Copy Code" button (optional but recommended)
 5. Create an invoice-notification template:
    - Category: UTILITY
@@ -87,7 +87,7 @@ async def send_otp(phone: str, otp: str) -> bool:
             "type": "text",
             "text": {
                 "body": (
-                    f"*DukaanAI Verification*\n\n"
+                    f"*DukhaanAI Verification*\n\n"
                     f"Your OTP is: *{otp}*\n\n"
                     f"Valid for 10 minutes. Do not share this code."
                 )
@@ -135,7 +135,7 @@ async def send_invoice_notification(
                     "type": "body",
                     "parameters": [
                         {"type": "text", "text": customer_name or "Customer"},
-                        {"type": "text", "text": store_name or "DukaanAI"},
+                        {"type": "text", "text": store_name or "DukhaanAI"},
                         {"type": "text", "text": invoice_no},
                         {"type": "text", "text": f"{total:.2f}"},
                         {"type": "text", "text": link},

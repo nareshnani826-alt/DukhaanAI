@@ -47,8 +47,6 @@ def _get_plan_id(plan: str, billing_cycle: str) -> str:
     mapping = {
         ("pro", "monthly"):       settings.razorpay_pro_monthly_plan_id,
         ("pro", "yearly"):        settings.razorpay_pro_yearly_plan_id,
-        ("wholesale", "monthly"): settings.razorpay_wholesale_monthly_plan_id,
-        ("wholesale", "yearly"):  settings.razorpay_wholesale_yearly_plan_id,
     }
     plan_id = mapping.get((plan, billing_cycle))
     if not plan_id:
@@ -63,9 +61,7 @@ async def list_plans():
             {"id": "free", "name": "Local (Free)", "price_monthly": 0, "price_yearly": 0,
              "features": ["Full inventory management", "GST invoice generation", "AI agent (local logic)", "Single device only"]},
             {"id": "pro", "name": "Pro", "price_monthly": 299, "price_yearly": 2390,
-             "features": ["Everything in Free", "Cloud sync + auto backup", "Up to 3 devices", "Real AI (Claude API)", "WhatsApp invoice share", "Email support"]},
-            {"id": "wholesale", "name": "Wholesale", "price_monthly": 999, "price_yearly": 7990,
-             "features": ["Everything in Pro", "Unlimited staff accounts", "Multi-branch support", "Tally / Busy integration", "99.9% SLA uptime"]},
+             "features": ["Everything in Free", "Cloud sync + auto backup", "Voice billing in 10 languages", "AI shop assistant & invoice scanner", "Staff logins (manager, cashier)", "Reports, GST summary & data export", "WhatsApp invoice share"]},
         ]
     }
 

@@ -20,7 +20,7 @@ from app.schemas.schemas import (
     RefreshRequest, VendorProfile, VendorUpdate, MessageResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
     SendOtpRequest, VerifyOtpRequest,
-    RegisterOtpRequired, RegisterConfirm, StaffLogin,
+    RegisterOtpRequired, RegisterConfirm, StaffLogin, DeleteAccountRequest,
 )
 from app.core.config import settings
 from app.core.mailer import email_configured, send_email
@@ -30,18 +30,18 @@ from app.core.whatsapp import send_otp as _send_whatsapp_otp, _normalize_phone
 def _send_reset_email(to_email: str, store_name: str, reset_url: str) -> None:
     text = (
         f"Hi {store_name},\n\n"
-        f"Reset your DukaanAI password by visiting:\n{reset_url}\n\n"
+        f"Reset your DukhaanAI password by visiting:\n{reset_url}\n\n"
         "This link expires in 1 hour. If you didn't request this, ignore this email."
     )
     html = f"""<div style="font-family:sans-serif;max-width:480px">
-<h2 style="color:#1D9E75">DukaanAI Password Reset</h2>
+<h2 style="color:#1D9E75">DukhaanAI Password Reset</h2>
 <p>Hi <b>{store_name}</b>,</p>
 <p>Click the button below to reset your password:</p>
 <p><a href="{reset_url}" style="display:inline-block;background:#1D9E75;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600">Reset Password</a></p>
 <p style="font-size:12px;color:#666">Or copy this link: {reset_url}</p>
 <p style="font-size:12px;color:#888">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
 </div>"""
-    send_email(to_email, "Reset your DukaanAI password", text, html)
+    send_email(to_email, "Reset your DukhaanAI password", text, html)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -58,6 +58,8 @@ def _normalize_phone_local(raw: str) -> str:
 # Each email / phone can have one account per shop type (scripts/separate_shop_accounts.sql)
 SHOP_TYPES = ("kirana", "chai", "bangle_fancy")
 SHOP_LABELS = {"kirana": "Kirana", "chai": "Chai shop", "bangle_fancy": "Bangle store"}
+# Shop types not open for sign-up yet (the app hides them too: frontend/src/utils/features.js)
+NEW_SIGNUPS_OFF = {"bangle_fancy"}
 
 
 def _shop_type(value) -> str | None:
@@ -141,11 +143,11 @@ def _send_otp_email(to_email: str, store_name: str, otp: str) -> bool:
     """Send a 6-digit OTP to the user's email. Returns False if it couldn't be sent."""
     text = (
         f"Hi {store_name},\n\n"
-        f"Your DukaanAI verification code is: {otp}\n\n"
+        f"Your DukhaanAI verification code is: {otp}\n\n"
         f"Valid for 10 minutes. Do not share this code with anyone."
     )
     html = f"""<div style="font-family:sans-serif;max-width:480px;margin:auto">
-<h2 style="color:#1D9E75">DukaanAI Verification</h2>
+<h2 style="color:#1D9E75">DukhaanAI Verification</h2>
 <p>Hi <b>{store_name}</b>,</p>
 <p>Use the code below to complete your registration:</p>
 <div style="text-align:center;margin:28px 0;padding:20px;background:#f0faf6;border-radius:12px">
@@ -154,7 +156,7 @@ def _send_otp_email(to_email: str, store_name: str, otp: str) -> bool:
 <p style="font-size:12px;color:#666">Valid for <b>10 minutes</b>. Do not share this code.</p>
 <p style="font-size:11px;color:#aaa">If you didn't request this, ignore this email.</p>
 </div>"""
-    return send_email(to_email, f"🔐 {otp} is your DukaanAI verification code", text, html)
+    return send_email(to_email, f"🔐 {otp} is your DukhaanAI verification code", text, html)
 
 
 @router.post("/register")
@@ -168,6 +170,8 @@ async def register(request: Request, body: VendorRegister):
     db = get_db()
     email = str(body.email)
     shop = _shop_type(body.modules) or "kirana"
+    if shop in NEW_SIGNUPS_OFF:
+        raise HTTPException(status_code=403, detail=f"{SHOP_LABELS[shop]} accounts are not open yet. Please choose Kirana or Chai shop.")
     otp_key = f"{email}|{shop}"
 
     # Production must send real emails. In local development without SMTP, the OTP is
@@ -423,7 +427,7 @@ def update_profile(body: VendorUpdate, vendor=Depends(get_current_vendor)):
 @limiter.limit("5/minute")
 def forgot_password(request: Request, body: ForgotPasswordRequest):
     db = get_db()
-    result = db.table("vendors").select("id,email,store_name,shop_type").eq("email", body.email).execute()
+    result = db.table("vendors").select("id,email,store_name,shop_type").eq("email", str(body.email).strip().lower()).execute()
 
     # Always return success to prevent email enumeration
     _MSG = "If that email is registered, you'll receive a reset link shortly."
@@ -471,6 +475,75 @@ def reset_password(body: ResetPasswordRequest):
     db.table("password_reset_tokens").delete().eq("token_hash", token_hash).execute()
 
     return MessageResponse(message="Password updated successfully. You can now log in.")
+
+
+# ── Delete account (Google Play: users must be able to delete their account) ──
+
+# Shop data, children before parents. Every table also cascades from vendors,
+# but deleting explicitly means a table created without the cascade can't block it.
+_VENDOR_TABLES = (
+    "sales", "invoices", "bangle_sales", "bangle_variants", "bangle_products",
+    "bangle_suppliers", "chai_orders", "chai_menu", "chai_materials",
+    "udhar_transactions", "udhar_customers", "customers", "wastage_records",
+    "day_sessions", "agent_suggestions", "vendor_learned_patterns", "ai_usage",
+    "staff", "refresh_tokens", "password_reset_tokens", "subscriptions",
+    "vendor_contacts", "products",
+)
+
+
+def _wipe_vendor(vendor_id: str, email: str | None, phone: str | None) -> None:
+    db = get_db()
+    for table in _VENDOR_TABLES:
+        try:
+            db.table(table).delete().eq("vendor_id", vendor_id).execute()
+        except Exception as exc:  # table missing in this database, or already cascaded
+            logging.warning("delete account: %s skipped (%s)", table, exc)
+    # Shared tables: keep the rows other shops use, drop the link to this shop
+    for table, col in (("community_products", "added_by"), ("global_vocab", "created_by"),
+                       ("payment_events", "vendor_id")):
+        try:
+            db.table(table).update({col: None}).eq(col, vendor_id).execute()
+        except Exception as exc:
+            logging.warning("delete account: %s unlink skipped (%s)", table, exc)
+    for key in filter(None, (email, phone)):
+        try:
+            db.table("otp_codes").delete().eq("phone", key).execute()
+        except Exception:
+            pass
+    db.table("vendors").delete().eq("id", vendor_id).execute()
+
+
+@router.post("/me/delete", response_model=MessageResponse)
+@limiter.limit("5/minute")
+async def delete_account(request: Request, body: DeleteAccountRequest, vendor=Depends(get_current_vendor)):
+    """Permanently delete this shop account and all its data. Owner only (roles.py
+    blocks staff from writes under /auth/me) and the password must be typed again."""
+    import asyncio
+    from app.core.security import bust_vendor_cache
+
+    def _check():
+        db = get_db()
+        rows = db.table("vendors").select("id,password_hash,email,phone").eq("id", vendor["id"]).execute().data
+        if not rows or not rows[0].get("password_hash") or not verify_password(body.password, rows[0]["password_hash"]):
+            raise HTTPException(status_code=401, detail="Wrong password")
+        subs = db.table("subscriptions").select("razorpay_sub_id").eq("vendor_id", vendor["id"]).eq("status", "active").execute().data
+        return rows[0], subs
+
+    row, subs = await asyncio.to_thread(_check)
+
+    # Stop future Razorpay charges before the record of the subscription is gone
+    if subs:
+        from app.routers.subscriptions import _rz_cancel
+        for s in subs:
+            if s.get("razorpay_sub_id"):
+                try:
+                    await _rz_cancel(s["razorpay_sub_id"])
+                except Exception as exc:
+                    logging.error("delete account: Razorpay cancel failed for %s (%s)", s["razorpay_sub_id"], exc)
+
+    await asyncio.to_thread(_wipe_vendor, vendor["id"], row.get("email"), row.get("phone"))
+    bust_vendor_cache(vendor["id"])
+    return MessageResponse(message="Your account and shop data have been deleted.")
 
 
 # ── WhatsApp OTP login ─────────────────────────────────────────

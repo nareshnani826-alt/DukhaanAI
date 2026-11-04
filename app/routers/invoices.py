@@ -286,7 +286,7 @@ def get_public_invoice(invoice_id: str):
     invoice = result.data[0]
 
     vendor_row = db.table("vendors").select("store_name").eq("id", invoice["vendor_id"]).execute()
-    store_name = vendor_row.data[0]["store_name"] if vendor_row.data else "DukaanAI"
+    store_name = vendor_row.data[0]["store_name"] if vendor_row.data else "DukhaanAI"
 
     return {**invoice, "store_name": store_name}
 
