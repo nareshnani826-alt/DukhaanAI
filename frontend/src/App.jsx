@@ -10,6 +10,7 @@ import Layout            from "./components/Layout"
 import UpgradeWall       from "./components/UpgradeWall"
 import InstallPrompt     from "./components/InstallPrompt"
 import OfflineBanner     from "./components/OfflineBanner"
+import AndroidBackButton from "./components/AndroidBackButton"
 import { tr, uiLang } from "./i18n/kiranaStrings"
 import { CASHIER_PATHS } from "./utils/roles"
 
@@ -102,6 +103,7 @@ export default function App() {
         <BrowserRouter>
           <InstallPrompt />
           <OfflineBanner />
+          <AndroidBackButton />
           <Suspense fallback={
             <div role="status" aria-label="Loading"
               style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh" }}>

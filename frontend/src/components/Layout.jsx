@@ -670,6 +670,13 @@ function AIChatWidget() {
   const isBangle = storeMode === "bangle_fancy"
 
   const [open, setOpen]           = useState(false)
+  // Android back button closes the chat instead of leaving the screen
+  useEffect(() => {
+    if (!open) return
+    const onBack = e => { e.preventDefault(); setOpen(false) }
+    window.addEventListener("dk:back", onBack)
+    return () => window.removeEventListener("dk:back", onBack)
+  }, [open])
   // More → "Ask AI" opens the panel on phones, where the bubble is only shown on Home
   useEffect(() => {
     const openChat = () => setOpen(true)
