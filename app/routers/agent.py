@@ -15,7 +15,7 @@ from app.routers.insights import reorder_suggestions, margin_alerts, dead_stock
 router = APIRouter(prefix="/agent", tags=["agent"])
 logger = logging.getLogger(__name__)
 
-_GROQ_MODEL = "llama-3.3-70b-versatile"
+_GROQ_MODEL = settings.groq_model
 _VALID_KINDS = ("reorder", "festival_prep", "margin", "dead_stock")
 _VALID_URGENCY = ("critical", "high", "medium")
 
@@ -66,7 +66,8 @@ async def _correlate_with_llm(signals: dict) -> list[dict]:
     try:
         response = await client.chat.completions.create(
             model=_GROQ_MODEL, messages=messages,
-            response_format={"type": "json_object"}, max_tokens=1500, temperature=0.2,
+            response_format={"type": "json_object"}, max_tokens=3000, temperature=0.2,
+            **({"extra_body": {"reasoning_effort": "low"}} if "gpt-oss" in _GROQ_MODEL else {}),
         )
     except Exception as e:
         logger.error("agent: Groq call failed: %s", e)

@@ -25,8 +25,10 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 _bearer = HTTPBearer(auto_error=False)
-_GROQ_MODEL   = "llama-3.3-70b-versatile"
+_GROQ_MODEL   = settings.groq_model
 _GEMINI_MODEL = "gemini-2.5-flash"
+# Reasoning models (gpt-oss) think before answering and that counts toward max_tokens: keep it short
+_REASONING = {"extra_body": {"reasoning_effort": "low"}} if "gpt-oss" in _GROQ_MODEL else {}
 
 LANG_NAMES = {
     "en-IN": "English", "te-IN": "Telugu",  "hi-IN": "Hindi",
@@ -543,7 +545,7 @@ async def _call_groq_with_tools(
     if tools and vendor_id:
         response = await client.chat.completions.create(
             model=_GROQ_MODEL, messages=messages,
-            tools=tools, tool_choice="auto", max_tokens=1024,
+            tools=tools, tool_choice="auto", max_tokens=2048, **_REASONING,
         )
         seen_tool_calls: set = set()
         for _ in range(5):
@@ -577,12 +579,12 @@ async def _call_groq_with_tools(
                 })
             response = await client.chat.completions.create(
                 model=_GROQ_MODEL, messages=messages,
-                tools=tools, tool_choice="auto", max_tokens=1024,
+                tools=tools, tool_choice="auto", max_tokens=2048, **_REASONING,
             )
         return response.choices[0].message.content
 
     response = await client.chat.completions.create(
-        model=_GROQ_MODEL, messages=messages, max_tokens=1024,
+        model=_GROQ_MODEL, messages=messages, max_tokens=2048, **_REASONING,
     )
     return response.choices[0].message.content
 

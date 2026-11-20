@@ -27,6 +27,9 @@ class Settings(BaseSettings):
 
     # Groq AI — primary LLM (free tier: 30 RPM, 14,400 req/day — Llama 3.3 70B)
     groq_api_key: str = ""
+    # Groq retires models (llama-3.3-70b-versatile was shut down 2026-08-16). Set GROQ_MODEL in
+    # Render to switch without a code change; see console.groq.com/docs/deprecations.
+    groq_model: str = "openai/gpt-oss-120b"
 
     # Google Gemini — fallback LLM when Groq hits rate limit
     # Free tier: ~1,500 req/day (Gemini 1.5 Flash). Get key at aistudio.google.com

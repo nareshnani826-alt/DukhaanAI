@@ -584,10 +584,11 @@ async def _parse_with_llm(text: str) -> list:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=settings.groq_api_key)
             resp = await client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model=settings.groq_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
-                max_tokens=1024,
+                max_tokens=3000,   # reasoning models spend part of this thinking
+                **({"extra_body": {"reasoning_effort": "low"}} if "gpt-oss" in settings.groq_model else {}),
             )
             raw = resp.choices[0].message.content.strip()
             raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.M).strip()
