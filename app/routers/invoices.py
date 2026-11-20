@@ -1,6 +1,6 @@
 import logging
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.config import settings
 from app.core.database import get_db
@@ -50,12 +50,13 @@ def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendor)):
     line_items = []
 
     for item in body.items:
-        item_subtotal = round(item.unit_price * item.qty, 2)
-        # Many local vendors don't issue GST bills — apply_gst lets them
-        # generate a plain invoice with no tax line, regardless of what
-        # gst_percent each product itself carries.
-        item_tax = round(item_subtotal * item.gst_percent / 100, 2) if body.apply_gst else 0.0
-        item_total = round(item_subtotal + item_tax, 2)
+        # Prices are MRP, which in India already includes GST. A GST bill shows the tax
+        # inside the price (amount × rate ÷ (100 + rate)); it never charges more than MRP.
+        # Many local vendors don't issue GST bills at all — apply_gst=False leaves tax at 0.
+        item_total = round(item.unit_price * item.qty, 2)
+        rate = float(item.gst_percent or 0)
+        item_tax = round(item_total * rate / (100 + rate), 2) if body.apply_gst and rate > 0 else 0.0
+        item_subtotal = round(item_total - item_tax, 2)   # taxable value
         subtotal += item_subtotal
         tax_total += item_tax
         line_items.append({
@@ -92,7 +93,7 @@ def generate_invoice(body: InvoiceCreate, vendor=Depends(get_current_vendor)):
     tax_total = round(tax_total, 2)
     cgst = round(tax_total / 2, 2)
     sgst = round(tax_total - cgst, 2)  # ensures cgst + sgst == tax_total exactly
-    grand_total = round(subtotal + tax_total, 2)
+    grand_total = round(sum(li["total"] for li in line_items), 2)   # = what the customer pays (MRP)
 
     invoice_no = _next_invoice_no(db, vendor["id"])
 
@@ -357,13 +358,16 @@ def update_invoice_status(
     db = get_db()
     existing = (
         db.table("invoices")
-        .select("id")
+        .select("id,status,items,created_at")
         .eq("id", invoice_id)
         .eq("vendor_id", vendor["id"])
         .execute()
     )
     if not existing.data:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    inv = existing.data[0]
+    if inv["status"] == "cancelled" and status != "cancelled":
+        raise HTTPException(status_code=400, detail="A cancelled bill can't be reopened. Make a new bill.")
 
     result = (
         db.table("invoices")
@@ -371,7 +375,36 @@ def update_invoice_status(
         .eq("id", invoice_id)
         .execute()
     )
+    if status == "cancelled" and inv["status"] != "cancelled":
+        _undo_bill(db, vendor["id"], inv)
     return result.data[0]
+
+
+def _undo_bill(db, vendor_id: str, inv: dict) -> None:
+    """Cancelled bill: put each item back in stock and drop its sales rows, so stock,
+    sales summaries and insights no longer count it. Best effort per item."""
+    created = datetime.fromisoformat(inv["created_at"])
+    window_start = (created - timedelta(minutes=2)).isoformat()   # server and DB clocks can differ slightly
+    window_end = (created + timedelta(minutes=5)).isoformat()
+    for item in inv.get("items") or []:
+        pid = item.get("product_id")
+        if not pid:
+            continue
+        try:
+            prod = db.table("products").select("stock").eq("id", pid).eq("vendor_id", vendor_id).execute().data
+            if prod:
+                new_stock = round(float(prod[0]["stock"] or 0) + float(item.get("qty") or 0), 6)
+                db.table("products").update({"stock": new_stock}).eq("id", pid).execute()
+            # The bill's sales rows were written right after it, one per item
+            rows = (db.table("sales").select("id,qty").eq("vendor_id", vendor_id).eq("product_id", pid)
+                    .gte("sold_at", window_start).lte("sold_at", window_end)
+                    .order("sold_at").execute().data)
+            match = next((r for r in rows if abs(float(r["qty"]) - float(item.get("qty") or 0)) < 1e-6), None)
+            if match:
+                db.table("sales").delete().eq("id", match["id"]).execute()
+        except Exception as e:
+            logging.warning("Undo of cancelled bill item %s failed: %s", item.get("name"), e)
+    cache_bust(f"products:{vendor_id}:")
 
 
 @router.get("/summary/gst")

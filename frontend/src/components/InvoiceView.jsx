@@ -288,14 +288,15 @@ export default function InvoiceView({ invoice, customerPhone }) {
       {/* ══ FOOTER BAND ═════════════════════════════════════════ */}
       <div style={{
         background: `linear-gradient(90deg, ${SAFFRON2}, ${SAFFRON})`,
-        padding: "10px 24px",
+        padding: "10px 16px",
         display: "flex", justifyContent: "space-between", alignItems: "center",
+        flexWrap: "wrap", gap: "4px 12px",
       }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>
           Thank you for your business! 🙏
         </div>
-        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", letterSpacing: "1.5px" }}>
-          POWERED BY DUKAANAI
+        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.75)", letterSpacing: "1px", whiteSpace: "nowrap" }}>
+          Powered by DukhaanAI
         </div>
       </div>
 

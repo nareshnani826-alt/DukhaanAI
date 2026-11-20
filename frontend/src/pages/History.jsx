@@ -608,7 +608,7 @@ export default function History() {
             </div>
             <div style={{ fontSize: 12, color: "var(--ink-faint)", textAlign: "center",
               marginBottom: 20, lineHeight: 1.5 }}>
-              {L("This marks the invoice as cancelled. Revenue totals will update. This cannot be undone.")}
+              {L("This marks the invoice as cancelled. The items go back into stock and revenue totals update. This cannot be undone.")}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <button onClick={() => setShowVoid(null)}

@@ -989,7 +989,9 @@ export default function Dashboard() {
                       overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.customer || s.customer_name || "Walk-in"}</div>
                     <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)" }}>
                       {(() => {
-                        const qty = s.qty ?? (Array.isArray(s.items) ? s.items.reduce((n, it) => n + (+it.qty || 0), 0) : null)
+                        // A bill: number of lines (2 salt + 0.5 kg dal = 2 items, not 2.5). A single sale: its count.
+                        const qty = Array.isArray(s.items) ? s.items.length
+                          : s.qty != null ? (Number.isInteger(+s.qty) ? +s.qty : 1) : null
                         const when = new Date(s.sold_at || s.created_at)
                         return [
                           qty != null ? `${qty} ${t("items")}` : null,

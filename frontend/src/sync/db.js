@@ -240,11 +240,17 @@ export const Sales = {
   async summary({ days=30 } = {}) {
     if (isCloud()) return api.get("/sales/summary?days=" + days)
     const since = new Date(Date.now() - days*86400000)
-    const sales = localRead().sales.filter(s => new Date(s.sold_at) >= since)
+    const d = localRead()
+    // Bills made on this phone (cancelled ones left out) plus any older one-tap sales
+    const bills = (d.invoices || []).filter(i => i.status !== "cancelled" && new Date(i.created_at) >= since)
+    const oldSales = (d.sales || []).filter(s => new Date(s.sold_at) >= since)
+    const fromBills = bills
+      .flatMap(i => (i.items || []).map(it => ({ product_name: it.name, qty: +it.qty || 0, total: +it.total || 0 })))
+    const sales = [...fromBills, ...oldSales]
     const rev = Math.round(sales.reduce((s,x) => s+x.total,0)*100)/100
     const byProd = {}
     sales.forEach(s => { byProd[s.product_name] = byProd[s.product_name] || {units:0,revenue:0}; byProd[s.product_name].units += s.qty; byProd[s.product_name].revenue += s.total })
-    return { total_revenue:rev, total_units:sales.reduce((s,x) => s+x.qty,0), transaction_count:sales.length, top_products:Object.entries(byProd).map(([name,v]) => ({name,...v})).sort((a,b) => b.units-a.units).slice(0,8) }
+    return { total_revenue:rev, total_units:sales.reduce((s,x) => s+x.qty,0), transaction_count:bills.length + oldSales.length, top_products:Object.entries(byProd).map(([name,v]) => ({name,...v})).sort((a,b) => b.units-a.units).slice(0,8) }
   },
 }
 
@@ -260,12 +266,15 @@ export const Invoices = {
     // apply_gst was previously dropped here: cloud bills never got GST even with the
     // toggle on, and local bills always got it even with the toggle off.
     if (isCloud()) return api.post("/invoices", { customer_name, customer_phone, customer_gstin, payment_mode, apply_gst, items })
+    // Prices are MRP, which already includes GST: the GST is taken out of the price, never added on top
     const d = localRead(); let sub=0, tax=0
     const lineItems = items.map(item => {
-      const s = Math.round(item.unit_price*item.qty*100)/100
-      const t = apply_gst ? Math.round(s*item.gst_percent/100*100)/100 : 0
+      const amt = Math.round(item.unit_price*item.qty*100)/100
+      const r = +item.gst_percent || 0
+      const t = apply_gst && r > 0 ? Math.round(amt*r/(100+r)*100)/100 : 0
+      const s = Math.round((amt-t)*100)/100   // taxable value
       sub+=s; tax+=t
-      return { ...item, subtotal:s, tax:t, total:Math.round((s+t)*100)/100 }
+      return { ...item, subtotal:s, tax:t, total:amt }
     })
     sub=Math.round(sub*100)/100; tax=Math.round(tax*100)/100
     const cgst=Math.round(tax/2*100)/100, sgst=Math.round((tax-cgst)*100)/100
@@ -289,7 +298,18 @@ export const Invoices = {
     if (isCloud()) return api.patch(`/invoices/${id}/status?status=${status}`)
     const d = localRead()
     const idx = d.invoices.findIndex(inv => inv.id === id)
-    if (idx >= 0) { d.invoices[idx] = { ...d.invoices[idx], status }; localWrite(d) }
+    if (idx < 0) return
+    const prev = d.invoices[idx]
+    if (prev.status === "cancelled" && status !== "cancelled") throw new Error("A cancelled bill can't be reopened. Make a new bill.")
+    // Cancelling puts the sold items back in stock
+    if (status === "cancelled" && prev.status !== "cancelled") {
+      for (const item of prev.items || []) {
+        const prod = d.products.find(p => String(p.id) === String(item.product_id))
+        if (prod) prod.stock = Math.round(((+prod.stock || 0) + (+item.qty || 0)) * 10000) / 10000
+      }
+    }
+    d.invoices[idx] = { ...prev, status }; localWrite(d)
+    return d.invoices[idx]
   },
   async gstSummary(month, year) {
     if (isCloud()) return api.get(`/invoices/summary/gst?month=${month}&year=${year}`)

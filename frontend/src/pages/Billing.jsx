@@ -24,6 +24,9 @@ const L = k => tr(k, uiLang())
 const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
 // ── Pre-invoice review modal ──────────────────────────────
+// GST inside a GST-inclusive amount (MRP): amount × rate ÷ (100 + rate)
+const gstIncluded = (amount, rate) => (+rate > 0 ? Math.round(amount * rate / (100 + +rate) * 100) / 100 : 0)
+
 function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
   const [items, setItems] = useState(() =>
     rows.map(r => {
@@ -59,10 +62,11 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
   const gstTotal = !applyGst ? 0 : items.reduce((s, i) => {
     const itemSub    = Math.round(i.unit_price * i.qty * 100) / 100
     const proportion = subtotal > 0 ? itemSub / subtotal : 0
-    const taxable    = Math.round(afterDiscount * proportion * 100) / 100
-    return s + Math.round(taxable * i.gst_percent / 100 * 100) / 100
+    const lineAmt    = Math.round(afterDiscount * proportion * 100) / 100
+    return s + gstIncluded(lineAmt, i.gst_percent)
   }, 0)
-  const grandTotal = Math.round((afterDiscount + gstTotal) * 100) / 100
+  // Prices are MRP, which already includes GST — the GST is shown, never added on top
+  const grandTotal = afterDiscount
 
   const totalCost = items.reduce((s, i) => s + Math.round(i.cost_price * i.qty * 100) / 100, 0)
   const profit    = Math.round((afterDiscount - totalCost) * 100) / 100
@@ -122,8 +126,7 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
               </thead>
               <tbody>
                 {items.map((item, i) => {
-                  const effGst = applyGst ? item.gst_percent : 0
-                  const total = Math.round(item.unit_price * item.qty * (1 + effGst / 100) * 100) / 100
+                  const total = Math.round(item.unit_price * item.qty * 100) / 100
                   const itemProfit = Math.round((item.unit_price - item.cost_price) * item.qty * 100) / 100
                   return (
                     <tr key={i} style={{ borderTop:"1px solid #f0f0f0" }}>
@@ -201,13 +204,13 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
             {applyGst ? (
               <>
                 <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
-                  <span style={{ color:"#888" }}>CGST</span>
+                  <span style={{ color:"#888" }}>CGST (included)</span>
                   <span>₹{Math.round(gstTotal / 2 * 100) / 100}</span>
                 </div>
                 <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:10,
                   paddingBottom:10, borderBottom:"1px solid #f0f0f0" }}>
-                  <span style={{ color:"#888" }}>SGST</span>
-                  <span>₹{Math.round((gstTotal - gstTotal / 2) * 100) / 100}</span>
+                  <span style={{ color:"#888" }}>SGST (included)</span>
+                  <span>₹{Math.round((gstTotal - Math.round(gstTotal / 2 * 100) / 100) * 100) / 100}</span>
                 </div>
               </>
             ) : (
@@ -657,10 +660,10 @@ export default function Billing() {
   const totals = rows.reduce((acc, row) => {
     const p = getProduct(row.prodId); if (!p) return acc
     const sub = Math.round(p.mrp * row.qty * 100) / 100
-    const tax = applyGst ? Math.round(sub * p.gst_percent / 100 * 100) / 100 : 0
+    const tax = applyGst ? gstIncluded(sub, p.gst_percent) : 0   // already inside the MRP
     return { sub: acc.sub + sub, tax: acc.tax + tax }
   }, { sub: 0, tax: 0 })
-  const grandTotal = Math.round((totals.sub + totals.tax) * 100) / 100
+  const grandTotal = Math.round(totals.sub * 100) / 100
 
   // ── Generate invoice ──────────────────────────────────────
   function openReview() {
@@ -1145,7 +1148,7 @@ Thank you for shopping! 🙏`
         {rows.map((row, i) => {
           const p = getProduct(row.prodId)
           if (!p) return null
-          const rowTotal = Math.round(p.mrp * row.qty * (1 + (applyGst ? p.gst_percent : 0) / 100) * 100) / 100
+          const rowTotal = Math.round(p.mrp * row.qty * 100) / 100
           const loose = isLoose(p)
           const last = loose ? !looseLess(p, row.qty) : row.qty <= 1
           return (
@@ -1674,7 +1677,7 @@ Thank you for shopping! 🙏`
               fontSize:14, color:"var(--ink-dim)", cursor:"pointer" }}>
               <input type="checkbox" checked={applyGst} onChange={e => setApplyGst(e.target.checked)}
                 style={{ width:20, height:20, accentColor:"var(--saffron)" }} />
-              {L("Add GST to this bill")}
+              {L("GST bill (GST shown inside MRP)")}
             </label>
           </motion.div>
         </motion.div>
@@ -1859,11 +1862,11 @@ Thank you for shopping! 🙏`
               cursor:"pointer", marginBottom:10 }}>
               <input type="checkbox" checked={applyGst} onChange={e => setApplyGst(e.target.checked)}
                 style={{ width:18, height:18, accentColor:"var(--saffron)" }} />
-              {L("Add GST to this bill")}
+              {L("GST bill (GST shown inside MRP)")}
             </label>
             {applyGst && totals.tax > 0 && (
               <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, color:"var(--ink-faint)", marginBottom:4 }}>
-                <span>{L("GST")}</span><AnimatedAmount value={Math.round(totals.tax * 100) / 100}/>
+                <span>{L("GST included")}</span><AnimatedAmount value={Math.round(totals.tax * 100) / 100}/>
               </div>
             )}
             <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:12 }}>
