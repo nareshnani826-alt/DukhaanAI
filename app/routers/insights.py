@@ -266,7 +266,8 @@ def reorder_suggestions(
         if not needs_reorder:
             continue
 
-        needed    = ewma * boost_multiplier * days_cover
+        # Enough for the coming days of sales, and at least back up to the minimum stock
+        needed    = max(ewma * boost_multiplier * days_cover, min_stock)
         order_qty = max(0.0, round(needed - stock, 1))
         days_left = round(stock / ewma, 1) if ewma > 0 else None
         urgency   = "critical" if (days_left is not None and days_left < 2) or stock <= 0 else "soon"

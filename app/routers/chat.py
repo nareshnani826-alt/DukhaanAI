@@ -275,10 +275,15 @@ def _format_local(intent_id: str, data: dict) -> str:
         items = data.get("suggestions", [])[:10]
         if not items:
             return "✅ No reorders needed right now — all products have sufficient stock."
+        def _n(x):  # 7.0 → 7, 2.5 → 2.5
+            x = float(x or 0); return int(x) if x.is_integer() else x
+        def _why(i):
+            if float(i.get("current_stock") or 0) <= 0: return "out of stock"
+            if i.get("days_left") is not None: return f"{_n(i['days_left'])} days left"
+            return f"only {_n(i.get('current_stock'))} left"
         lines = [
             f"• {'🔴' if i.get('urgency') == 'critical' else '🟡'} {i['name']}: "
-            f"Order {i['suggested_order_qty']} {i.get('unit', '')} "
-            f"({i.get('days_left') or 'Out'} days left)"
+            f"order {_n(i['suggested_order_qty'])} {i.get('unit', '')} ({_why(i)})"
             for i in items
         ]
         total = data.get("estimated_total_cost", 0)
@@ -870,7 +875,8 @@ def _run_tool(name: str, args: dict, vendor_id: str, store: str = "kirana") -> d
                 if stock < min_s or (daily > 0 and stock / daily < 7):
                     suggestions.append({"name": p["name"], "unit": "pcs", "current_stock": stock,
                         "daily_rate": round(daily, 2), "days_left": round(stock / daily, 1) if daily > 0 else None,
-                        "suggested_order_qty": max(0.0, round(daily * 7 - stock, 1)),
+                        # Enough for 7 days of sales, and at least back up to the minimum stock
+                        "suggested_order_qty": max(0.0, round(max(daily * 7, min_s) - stock, 1)),
                         "urgency": "critical" if stock <= 0 or (daily > 0 and stock / daily < 2) else "soon"})
             suggestions.sort(key=lambda x: (0 if x["urgency"] == "critical" else 1, x.get("days_left") or 9999))
             return {"suggestions": suggestions[:15], "count": len(suggestions)}
@@ -881,17 +887,20 @@ def _run_tool(name: str, args: dict, vendor_id: str, store: str = "kirana") -> d
                 pid = s["product_id"]; qty_map[pid] = qty_map.get(pid, 0.0) + float(s.get("qty") or 0)
             prods = db.table("products").select("id,name,stock,unit,min_stock,cost_price").eq("vendor_id", vendor_id).eq("is_active", True).execute().data or []
             suggestions = []
+            total_cost = 0.0
             for p in prods:
                 pid = p["id"]; daily = qty_map.get(pid, 0.0) / 30
                 stock = float(p.get("stock") or 0); min_s = float(p.get("min_stock") or 0)
                 if stock < min_s or (daily > 0 and stock / daily < 7):
-                    order_qty = max(0.0, round(daily * 7 - stock, 1))
-                    suggestions.append({"name": p["name"], "unit": p.get("unit", ""), "current_stock": stock,
+                    # Enough for 7 days of sales, and at least back up to the minimum stock
+                    order_qty = max(0.0, round(max(daily * 7, min_s) - stock, 1))
+                    cost = round(order_qty * float(p.get("cost_price") or 0), 2); total_cost += cost
+                    suggestions.append({"name": p["name"], "unit": p.get("unit", ""), "current_stock": stock, "estimated_cost": cost,
                         "daily_rate": round(daily, 2), "days_left": round(stock / daily, 1) if daily > 0 else None,
                         "suggested_order_qty": order_qty,
                         "urgency": "critical" if stock <= 0 or (daily > 0 and stock / daily < 2) else "soon"})
             suggestions.sort(key=lambda x: (0 if x["urgency"] == "critical" else 1, x.get("days_left") or 9999))
-            return {"suggestions": suggestions[:15], "count": len(suggestions)}
+            return {"suggestions": suggestions[:15], "count": len(suggestions), "estimated_total_cost": round(total_cost, 2)}
 
     if name == "get_leakage_alerts":
         from datetime import timedelta

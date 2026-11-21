@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Google's ML Kit barcode scanner locks a hidden helper screen to portrait, which makes
+         Play think the app needs a portrait screen and hides it from tablets/foldables. It doesn't. -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
 
     <application
         android:allowBackup="true"
