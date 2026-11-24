@@ -1247,7 +1247,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
   const inp = { width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"12px 14px",
     fontSize:16, outline:"none", boxSizing:"border-box", background:"#fafafa",
     // The card is always white: fixed dark text, or the phone's dark mode makes typed text cream-on-white
-    color:"#1c1209", WebkitTextFillColor:"#1c1209", caretColor:"#e87722", colorScheme:"light",
+    color:"#1c1209", caretColor:"#e87722", colorScheme:"light",
     transition:"border 0.15s, box-shadow 0.15s", fontFamily:"inherit" }
   const inpFocus = e => { e.target.style.border="1.5px solid #e87722"; e.target.style.boxShadow="0 0 0 3px rgba(232,119,34,0.12)" }
   const inpBlur  = e => { e.target.style.border="1.5px solid #e5e7eb"; e.target.style.boxShadow="none" }
@@ -1262,7 +1262,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
         </div>
       </div>
       <div>
-        <input style={{ ...inp, textAlign:"center", fontSize:22, fontWeight:700, letterSpacing:"8px" }}
+        <input className="lh-inp" style={{ ...inp, textAlign:"center", fontSize:22, fontWeight:700, letterSpacing:"8px" }}
           placeholder="• • • • • •" maxLength={6}
           value={otpCode} onChange={e => { setOtpCode(e.target.value); setOtpErr("") }}
           onFocus={inpFocus} onBlur={inpBlur} autoFocus />
@@ -1322,7 +1322,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
       {forgot === "ask" && (
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Email")}</label>
-          <input style={inp} type="email" placeholder="email@example.com" autoCapitalize="none" autoComplete="email"
+          <input className="lh-inp" style={inp} type="email" placeholder="email@example.com" autoCapitalize="none" autoComplete="email"
             value={fpEmail} onChange={e => { setFpEmail(e.target.value); setFpErr("") }}
             onFocus={inpFocus} onBlur={inpBlur} autoFocus />
           {fpErr && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fpErr}</p>}
@@ -1368,7 +1368,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
       {tab === "register" && (
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Store Name")}</label>
-          <input style={inp} placeholder={t("Raju General Store")}
+          <input className="lh-inp" style={inp} placeholder={t("Raju General Store")}
             value={form.store_name} onChange={e => set("store_name", e.target.value)}
             onFocus={inpFocus} onBlur={inpBlur} />
           {fieldErr.store_name && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.store_name}</p>}
@@ -1379,7 +1379,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
         <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>
           {tab === "login" ? t("Email, phone or staff username") : t("Email")}
         </label>
-        <input style={inp} placeholder={tab === "register" ? "email@example.com" : "email@example.com or 9876543210"} autoCapitalize="none"
+        <input className="lh-inp" style={inp} placeholder={tab === "register" ? "email@example.com" : "email@example.com or 9876543210"} autoCapitalize="none"
           value={form.identifier} onChange={e => set("identifier", e.target.value)}
           onFocus={inpFocus} onBlur={inpBlur} autoComplete="username" />
         {fieldErr.identifier && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.identifier}</p>}
@@ -1388,7 +1388,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
       {isStaff && (
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Staff login · shop owner's phone or email")}</label>
-          <input style={inp} placeholder="9876543210" autoCapitalize="none"
+          <input className="lh-inp" style={inp} placeholder="9876543210" autoCapitalize="none"
             value={form.shop} onChange={e => set("shop", e.target.value)}
             onFocus={inpFocus} onBlur={inpBlur} />
           {fieldErr.shop && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.shop}</p>}
@@ -1397,7 +1397,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
 
       <div>
         <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{isStaff ? t("PIN") : t("Password")}</label>
-        <input style={inp} type="password" placeholder={tab==="register" ? t("Min 8 characters") : isStaff ? "••••" : "••••••••"}
+        <input className="lh-inp" style={inp} type="password" placeholder={tab==="register" ? t("Min 8 characters") : isStaff ? "••••" : "••••••••"}
           inputMode={isStaff ? "numeric" : undefined} maxLength={isStaff ? 4 : undefined}
           value={form.password} onChange={e => set("password", e.target.value)}
           onFocus={inpFocus} onBlur={inpBlur} autoComplete={tab==="register"?"new-password":"current-password"} />

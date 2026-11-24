@@ -491,3 +491,9 @@ input, select, textarea, button {
   /* Modal close × gets padding */
   .modal-close-btn { padding: 8px !important; min-width: 44px !important; min-height: 44px !important; }
 }
+
+/* Sign-in / sign-up boxes sit on an always-white card: typed text is dark (set inline),
+   example text stays light grey whatever the app theme */
+.lh-inp::placeholder { color: #b5aca0; -webkit-text-fill-color: #b5aca0; opacity: 1; }
+/* Phone autofill (saved email/password) keeps the same dark text */
+.lh-inp:-webkit-autofill { -webkit-text-fill-color: #1c1209; }
