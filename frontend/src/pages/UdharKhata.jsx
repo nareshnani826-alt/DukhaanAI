@@ -3,7 +3,7 @@ import { Udhar } from "../sync/db.js"
 import { motion, AnimatePresence } from "motion/react"
 import { backdrop, pop } from "../components/popupMotion"
 import { useAuth } from "../context/AuthContext.jsx"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 import { SkeletonRows } from "../components/Skeleton"
 
 const L = k => tr(k, uiLang())
@@ -11,7 +11,7 @@ const L = k => tr(k, uiLang())
 const INR = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
 const fmt = iso => {
   if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" })
+  return new Date(iso).toLocaleDateString(dateLocale(), { day:"numeric", month:"short", year:"numeric" })
 }
 const fmtTime = iso => {
   if (!iso) return ""
@@ -357,7 +357,7 @@ _Powered by DukhaanAI_`
         <div className="stat-card">
           <div className="stat-bar" style={{ background:"linear-gradient(135deg,#e87722,#ff8e35)" }} />
           <div className="stat-icon-box" style={{ background:"#E1F5EE" }}>📒</div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">Total</div>
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1 mb-1">{L("Total")}</div>
           <div className="text-xl font-bold text-gray-800">{summary.customer_count}</div>
           <div className="text-[10px] text-gray-400">{L("Customers in khata")}</div>
         </div>
@@ -417,7 +417,7 @@ _Powered by DukhaanAI_`
                     {INR(c.total_due)}
                   </div>
                   <div className="text-[9px]" style={{ color: dueColor(c.total_due) }}>
-                    {c.total_due > 0 ? "due" : "clear ✓"}
+                    {c.total_due > 0 ? L("due") : L("clear ✓")}
                   </div>
                 </div>
               </div>

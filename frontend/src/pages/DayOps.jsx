@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react"
 import { api, isCloud } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { Products, Sales, Invoices } from "../sync/db.js"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 // Sentences with numbers: Lf("{n} items currently low on stock", { n: 3 })
@@ -13,11 +13,11 @@ const PCT = n => (n > 0 ? "+" : "") + Math.round(n || 0) + "%"
 
 function fmt(iso) {
   if (!iso) return "—"
-  return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+  return new Date(iso).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" })
 }
 
 function fmtDate(iso) {
-  return new Date(iso || Date.now()).toLocaleDateString("en-IN", {
+  return new Date(iso || Date.now()).toLocaleDateString(dateLocale(), {
     weekday: "long", day: "numeric", month: "long", year: "numeric"
   })
 }

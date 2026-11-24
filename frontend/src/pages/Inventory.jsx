@@ -17,7 +17,7 @@ const savedVoiceLang = () => { try { return localStorage.getItem("dk_voice_lang"
 const L = k => tr(k, uiLang())
 import { lookupPrice, getVariants } from "../data/productPrices.js"
 import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 import Loading from "../components/Loading"
 import { SkeletonRows } from "../components/Skeleton"
 
@@ -650,8 +650,8 @@ export default function Inventory() {
     if (hrs < 24)  return `${hrs}h ago`
     const days = Math.floor(diff / 86400000)
     if (days === 1) return "Yesterday"
-    if (days < 7)  return d.toLocaleDateString("en-IN", { weekday: "short" })
-    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+    if (days < 7)  return d.toLocaleDateString(dateLocale(), { weekday: "short" })
+    return d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short" })
   }
 
   const DATE_FILTERS = [

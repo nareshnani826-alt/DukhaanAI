@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
 import { Wastage as WastageDB, Products } from "../sync/db.js"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 
 const INR    = n => "₹" + Math.round(Math.abs(n||0)).toLocaleString("en-IN")
-const fmtDt  = iso => new Date(iso).toLocaleString("en-IN",{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })
+const fmtDt  = iso => new Date(iso).toLocaleString(dateLocale(),{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })
 
 const REASONS = [
   { key:"expired",  label:"Expired",  icon:"⏰", color:"#E24B4A", bg:"#FCEBEB",
@@ -292,7 +292,7 @@ export default function Wastage() {
                   -{INR(r.loss_value)}
                 </div>
                 <div className="text-[10px] text-gray-400">
-                  Stock: {r.stock_before} → {r.stock_after}
+                  {L("Stock")}: {r.stock_before} → {r.stock_after}
                 </div>
               </div>
             </div>

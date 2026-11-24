@@ -15,7 +15,7 @@ import { getToken, getStoreName, Products, Sales, Invoices, Udhar } from "../syn
 import { BangleProducts } from "../sync/bangleDb.js"
 import { VocabDB, preloadVocab } from "../sync/vocabDb.js"
 import DaySessionGate from "./DaySessionGate.jsx"
-import { tr } from "../i18n/kiranaStrings.js"
+import { tr, dateLocale } from "../i18n/kiranaStrings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 import { CASHIER_PATHS } from "../utils/roles.js"
 
@@ -421,7 +421,7 @@ ${topLines.length ? `\n🏆 ${R.top}:\n${topLines.join("\n")}` : ""}`
     const bills = await Invoices.list().catch(() => [])
     if (!bills.length) return "No bills generated yet."
     const lines = bills.slice(0,8).map(b =>
-      `• ${b.invoice_no} — ${b.customer_name} — ₹${b.total} (${new Date(b.created_at).toLocaleDateString("en-IN")})`
+      `• ${b.invoice_no} — ${b.customer_name} — ₹${b.total} (${new Date(b.created_at).toLocaleDateString(dateLocale())})`
     )
     return `🧾 Recent Bills (${bills.length} total):\n\n${lines.join("\n")}`
   }
@@ -1359,7 +1359,7 @@ export default function Layout({ children }) {
             {getStoreName(vendor) || "DukhaanAI"}
           </div>
           <div style={{ fontSize:10, color: cloud ? "var(--jade)" : "var(--ink-faint)", marginBottom:10 }}>
-            {cloud ? "● Cloud sync ON" : loggedIn ? "● Free plan" : "● Local only"}
+            {tr(cloud ? "● Cloud sync ON" : loggedIn ? "● Free plan" : "● Local only", localStorage.getItem("dk_voice_lang") || "en-IN")}
           </div>
           {!loggedIn
             ? <button onClick={() => setShowAuth(true)} className="btn btn-primary btn-sm" style={{ width:"100%" }}>
@@ -1458,7 +1458,9 @@ export default function Layout({ children }) {
         </div>
         {/* Soft fade on every page change. Opacity only — a transform here would
             break position:fixed pop-ups inside pages. */}
-        <motion.div key={location.pathname} ref={pageRef} className="page-transition"
+        {/* Keyed by language too: pages read the language while drawing, so after a language
+            change they must be drawn again (only the header and menu switched before) */}
+        <motion.div key={location.pathname + "|" + uiLang} ref={pageRef} className="page-transition"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: 0.18, ease: "easeOut" }}>
           {children}

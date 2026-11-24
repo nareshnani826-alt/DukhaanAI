@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext.jsx"
 import { getSavedLang, saveLang } from "../voice/i18n.js"
 import { LANGUAGES } from "../voice/languages.js"
 import { AssemblyVoiceEngine } from "../voice/assemblyEngine.js"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 const Lf = (k, v) => L(k).replace(/\{(\w+)\}/g, (_, x) => v[x])
@@ -298,7 +298,7 @@ async function buildStoreContext(userQuestion = "", storeMode = "kirana") {
       customer_count: udharData.length,
       overdue_customers: udharData.filter(c => c.total_due > 0).map(c => ({
         name: c.name, phone: c.phone, amount_due: c.total_due,
-        last_txn: c.last_txn_at ? new Date(c.last_txn_at).toLocaleDateString("en-IN") : "Never",
+        last_txn: c.last_txn_at ? new Date(c.last_txn_at).toLocaleDateString(dateLocale()) : "Never",
       })).slice(0,15),
     }
   }
@@ -337,7 +337,7 @@ async function buildStoreContext(userQuestion = "", storeMode = "kirana") {
     wastage_summary: wastageData,
     recent_invoices: invoices?.slice(0,5).map(inv => ({
       no: inv.invoice_no, customer: inv.customer_name,
-      total: inv.total, date: new Date(inv.created_at).toLocaleDateString("en-IN"),
+      total: inv.total, date: new Date(inv.created_at).toLocaleDateString(dateLocale()),
     })),
   }
 

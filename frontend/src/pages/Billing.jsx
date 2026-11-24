@@ -15,7 +15,7 @@ import { getDefaultApplyGst } from "../utils/gstSettings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 import { parseVoiceCommand, splitMultiProduct } from "../voice/nlp.js"
 import { resolveGroceryName } from "../voice/groceryAliases.js"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 import { SkeletonTiles } from "../components/Skeleton"
 
 // UI text in the shop's language (falls back to English)
@@ -752,7 +752,7 @@ export default function Billing() {
 `🧾 *Invoice ${invoice.invoice_no}*
 Store: ${getStoreName(vendor) || "DukhaanAI"}
 GSTIN: ${vendor?.gstin || "—"}
-Date: ${new Date(invoice.created_at).toLocaleDateString("en-IN")}
+Date: ${new Date(invoice.created_at).toLocaleDateString(dateLocale())}
 
 Customer: *${invoice.customer_name}*
 Payment: ${invoice.payment_mode}
@@ -1354,7 +1354,7 @@ Thank you for shopping! 🙏`
                       {b.cust || "Walk-in"} · {b.rows.reduce((s,r)=>s+r.qty,0)} items
                     </div>
                     <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:2 }}>
-                      {INR(t)} · {new Date(b.heldAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
+                      {INR(t)} · {new Date(b.heldAt).toLocaleTimeString(dateLocale(),{hour:"2-digit",minute:"2-digit"})}
                     </div>
                   </div>
                   <div style={{ fontSize:12, color:"var(--saffron)", fontWeight:700 }}>Resume →</div>

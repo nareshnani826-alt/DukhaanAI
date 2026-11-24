@@ -8,7 +8,7 @@ import { backdrop, sheet } from "../components/popupMotion.js"
 import { getStoreName } from "../sync/db.js"
 import { AnimatedAmount, BillIcon } from "../components/billing/billMotion.jsx"
 import { SkeletonBar, SkeletonRows } from "../components/Skeleton.jsx"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 const INR = n => "₹" + (Math.round((+n || 0) * 100) / 100).toLocaleString("en-IN")
@@ -58,7 +58,7 @@ export default function ChaiDashboard() {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
   const plan = hist && data ? buyingList(hist, data.menu, data.materials, tomorrow) : null
   const toBuy = plan?.items.filter(x => x.buy > 0) || []
-  const dayName = tomorrow.toLocaleDateString("en-IN", { weekday:"long" })
+  const dayName = tomorrow.toLocaleDateString(dateLocale(), { weekday:"long" })
 
   function shareBuyList() {
     const lines = toBuy.map(x => `• ${x.name}: ${fmtQty(x.buy, x.unit)}`).join("\n")
@@ -78,7 +78,7 @@ export default function ChaiDashboard() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
         <div>
           <div style={{ fontSize:22, fontWeight:900 }}>{L("Chai Shop")}</div>
-          <div style={{ fontSize:13, color:"var(--ink-faint)" }}>{new Date().toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" })}</div>
+          <div style={{ fontSize:13, color:"var(--ink-faint)" }}>{new Date().toLocaleDateString(dateLocale(), { weekday:"long", day:"numeric", month:"long" })}</div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <motion.button whileTap={{ scale:0.96 }} onClick={() => setClosing(true)}
@@ -219,11 +219,11 @@ export default function ChaiDashboard() {
               <div style={{ fontWeight:800 }}>
                 #{o.order_no}{o.label ? ` · ${o.label}` : ""}{" "}
                 <span style={{ fontSize:12, fontWeight:700, color: o.status === "paid" ? "var(--jade)" : o.status === "open" ? "var(--saffron)" : "var(--ink-faint)" }}>
-                  {o.status === "paid" ? (o.payment_mode === "credit" ? `${L("Khata")} · ${o.customer_name || ""}` : o.payment_mode.toUpperCase()) : L(o.status === "open" ? "Open" : "Cancelled")}
+                  {o.status === "paid" ? (o.payment_mode === "credit" ? `${L("Khata")} · ${o.customer_name || ""}` : (o.payment_mode === "cash" ? L("Cash") : "UPI")) : L(o.status === "open" ? "Open" : "Cancelled")}
                 </span>
               </div>
               <div style={{ fontSize:12, color:"var(--ink-faint)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                {new Date(o.created_at).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" })} · {(o.items || []).map(it => `${it.name} ×${it.qty}`).join(", ")}
+                {new Date(o.created_at).toLocaleTimeString(dateLocale(), { hour:"2-digit", minute:"2-digit" })} · {(o.items || []).map(it => `${it.name} ×${it.qty}`).join(", ")}
               </div>
             </div>
             <span style={{ fontWeight:800 }}>{INR(o.total)}</span>
@@ -268,7 +268,7 @@ function CloseDaySheet({ onClose, onSaved, lowList, toBuy, dayName, openTables =
       const top = rep.items.slice(0, 3).map(it => `${it.name} ×${it.qty}`).join(", ")
       const milk = rep.used.find(u => /milk/i.test(u.name))
       const text = [
-        `📊 *${getStoreName() || "Chai Shop"}* — ${new Date().toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"short" })}`,
+        `📊 *${getStoreName() || "Chai Shop"}* — ${new Date().toLocaleDateString(dateLocale(), { weekday:"long", day:"numeric", month:"short" })}`,
         "",
         `${L("Total sales")}: *${INR(rep.total)}* (${rep.bills} ${L("bills")}, ${rep.cups} ${L("cups")})`,
         `${L("Cash")}: ${INR(rep.byMode.cash)} · UPI: ${INR(rep.byMode.upi)} · ${L("Khata")}: ${INR(rep.byMode.credit)}`,

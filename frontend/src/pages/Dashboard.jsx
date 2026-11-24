@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Products, Sales, Invoices, Udhar, api, isCloud, getStoreName } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
-import { tr, uiLang as currentLang } from "../i18n/kiranaStrings"
+import { tr, uiLang as currentLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, currentLang())
 // Sentences with numbers: Lf("{n} items running low", { n: 3 })
@@ -587,7 +587,7 @@ export default function Dashboard() {
             <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1,
               display:"flex", alignItems:"center", gap:6 }}>
               <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
-                maxWidth:120 }}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}</span>
+                maxWidth:120 }}>{new Date().toLocaleDateString(dateLocale(),{weekday:"short",day:"numeric",month:"short"})}</span>
               <span style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, padding:"2px 7px", borderRadius:20, flexShrink:0,
                 background: cloud ? "var(--jade-bg)" : "var(--bg2)",
                 color: cloud ? "var(--jade)" : "var(--ink-faint)",
@@ -717,7 +717,7 @@ export default function Dashboard() {
               color: (tiles?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
               {tiles
                 ? (tiles.udhar.collected_today > 0
-                    ? "Kaata: " + INR(tiles.udhar.collected_today)
+                    ? L("Collected") + ": " + INR(tiles.udhar.collected_today)
                     : tiles.udhar.total_due > 0
                       ? INR(tiles.udhar.total_due) + " due"
                       : L("All clear"))
@@ -891,10 +891,10 @@ export default function Dashboard() {
           const notOpened = !daySession
 
           const openedTime = daySession?.opened_at
-            ? new Date(daySession.opened_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
+            ? new Date(daySession.opened_at).toLocaleTimeString(dateLocale(),{hour:"2-digit",minute:"2-digit"})
             : null
           const closedTime = daySession?.closed_at
-            ? new Date(daySession.closed_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
+            ? new Date(daySession.closed_at).toLocaleTimeString(dateLocale(),{hour:"2-digit",minute:"2-digit"})
             : null
 
           const cardBg     = isOpen ? "var(--jade-bg,#e8f8f2)" : isClosed ? "var(--bg2)" : "#fffbeb"
@@ -1025,7 +1025,7 @@ export default function Dashboard() {
                         const when = new Date(s.sold_at || s.created_at)
                         return [
                           qty != null ? `${qty} ${t("items")}` : null,
-                          isNaN(when) ? null : when.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" }),
+                          isNaN(when) ? null : when.toLocaleTimeString(dateLocale(), { hour:"2-digit", minute:"2-digit" }),
                         ].filter(Boolean).join(" · ")
                       })()}
                     </div>
@@ -1056,7 +1056,7 @@ export default function Dashboard() {
                     : tiles.stock_value > 0
                       ? `₹${(tiles.stock_value/1000).toFixed(1)}k`
                       : "₹0",
-                  sub: loading ? "" : `${tiles?.total_products ?? total} products`,
+                  sub: loading ? "" : `${tiles?.total_products ?? total} ${L("products")}`,
                   color: "var(--brass)",
                   bg: "rgba(184,134,11,0.10)",
                 },
@@ -1077,7 +1077,7 @@ export default function Dashboard() {
                   value: loading || !tiles ? "—"
                     : `${tiles.profit?.month?.margin_pct ?? 0}%`,
                   sub: tiles?.profit?.month
-                    ? `${INR(tiles.profit.month.profit || 0)} profit`
+                    ? `${INR(tiles.profit.month.profit || 0)} ${L("profit")}`
                     : L("This month"),
                   color: (tiles?.profit?.month?.margin_pct ?? 0) > 15 ? "var(--jade)" : "var(--ember)",
                   bg: (tiles?.profit?.month?.margin_pct ?? 0) > 15

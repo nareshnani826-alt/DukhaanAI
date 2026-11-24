@@ -12,7 +12,7 @@ import { shopEnabled, isNativeApp } from "../utils/features"
 import { useTheme } from "../context/ThemeContext"
 import { useAppMode, APP_MODES } from "../context/AppModeContext"
 import { useNavigate } from "react-router-dom"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 
@@ -269,7 +269,7 @@ export default function Settings() {
             </div>
             {vendor?.plan_expires_at && (
               <div className="text-[10px] text-gray-400 mt-0.5">
-                Expires: {new Date(vendor.plan_expires_at).toLocaleDateString("en-IN")}
+                Expires: {new Date(vendor.plan_expires_at).toLocaleDateString(dateLocale())}
               </div>
             )}
           </div>

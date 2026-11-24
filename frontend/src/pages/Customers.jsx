@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react"
 import { Customers } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 
 function formatDate(iso) {
   if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" })
+  return new Date(iso).toLocaleDateString(dateLocale(), { day:"numeric", month:"short", year:"numeric" })
 }
 
 function fmtInvoiceWA(invoice, storeName, storeGstin) {

@@ -5,7 +5,7 @@ import { Invoices, Products } from "../sync/db.js"
 import { BangleProducts } from "../sync/bangleDb.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { t, getSavedLang } from "../voice/i18n.js"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 
@@ -375,7 +375,7 @@ export default function Voice() {
 `🧾 *Invoice from ${vendor?.store_name || "DukhaanAI"}*
 Invoice No: ${invoice.invoice_no}
 Customer: ${invoice.customer_name}
-Date: ${new Date().toLocaleDateString("en-IN")}
+Date: ${new Date().toLocaleDateString(dateLocale())}
 
 ${lines}
 

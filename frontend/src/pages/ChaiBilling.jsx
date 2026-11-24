@@ -16,6 +16,7 @@ import { tr, uiLang } from "../i18n/kiranaStrings"
 
 const L = k => tr(k, uiLang())
 const INR = n => "₹" + (Math.round((+n || 0) * 100) / 100).toLocaleString("en-IN")
+const CHAI_DRAFT = "dk_chai_draft"
 const TABLE_CHOICES = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"]
 
 export default function ChaiBilling() {
@@ -25,7 +26,8 @@ export default function ChaiBilling() {
   const [mode, setMode]       = useState("counter")      // counter | table
   const [openOrders, setOpen] = useState([])
   const [activeId, setActive] = useState(null)           // open table order being edited
-  const [lines, setLines]     = useState([])
+  // The counter bill being made is kept on the phone (survives a language change or the app closing)
+  const [lines, setLines]     = useState(() => { try { return JSON.parse(localStorage.getItem(CHAI_DRAFT) || "[]") } catch { return [] } })
   const [showBill, setShowBill] = useState(false)        // phone: bill sheet
   const [showPay, setShowPay]   = useState(false)
   const [newTable, setNewTable] = useState(false)
@@ -37,6 +39,13 @@ export default function ChaiBilling() {
   const [listening, setListening] = useState(false)
   const [regulars, setRegulars] = useState([])          // [{ customer, items, count }]
   const [regular, setRegular]   = useState(null)        // regular whose usual is on the bill
+
+  useEffect(() => {
+    try {
+      if (mode === "counter" && !activeId && lines.length) localStorage.setItem(CHAI_DRAFT, JSON.stringify(lines))
+      else if (mode === "counter" && !activeId) localStorage.removeItem(CHAI_DRAFT)
+    } catch { /* private mode */ }
+  }, [lines, mode, activeId])
 
   const flash = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 2200) }
   const loadOpen = () => ChaiOrders.list({ status: "open" }).then(setOpen).catch(() => {})

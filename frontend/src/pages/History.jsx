@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { Invoices, Products, Udhar, isCloud } from "../sync/db"
 import InvoiceView from "../components/InvoiceView"
-import { tr, uiLang } from "../i18n/kiranaStrings"
+import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 import { SkeletonRows } from "../components/Skeleton"
 
 const L = k => tr(k, uiLang())
@@ -12,13 +12,13 @@ const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractio
 
 function fmt(iso) {
   if (!iso) return "—"
-  return new Date(iso).toLocaleString("en-IN", {
+  return new Date(iso).toLocaleString(dateLocale(), {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit", hour12: true,
   })
 }
 function fmtDate(iso) {
-  return new Date(iso).toLocaleDateString("en-IN", {
+  return new Date(iso).toLocaleDateString(dateLocale(), {
     weekday: "short", day: "2-digit", month: "short", year: "numeric",
   })
 }
@@ -107,7 +107,7 @@ function BillCard({ inv, onView, onVoid }) {
             {INR(inv.total)}
           </div>
           <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2 }}>
-            {items.length} item{items.length !== 1 ? "s" : ""}
+            {items.length} {L(items.length !== 1 ? "items" : "item")}
           </div>
         </div>
         <span style={{ color: "var(--ink-faint)", fontSize: 16, flexShrink: 0 }}>
@@ -325,7 +325,7 @@ export default function History() {
       {/* Header */}
       <div className="page-sticky-header flex items-center justify-between gap-2 flex-wrap mb-4">
         <div>
-          <h1 className="text-sm font-semibold">Bill History · Kirana Store</h1>
+          <h1 className="text-sm font-semibold">{L("Bill History")}</h1>
           <p className="text-[11px] text-gray-400 mt-0.5">{L("Search, filter and view all past invoices")}</p>
         </div>
       </div>
@@ -369,7 +369,7 @@ export default function History() {
                 {INR(summary.revenue)}
               </div>
               <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
-                {summary.total_bills} bill{summary.total_bills !== 1 ? "s" : ""}
+                {summary.total_bills} {L(summary.total_bills !== 1 ? "bills" : "bill")}
               </div>
             </div>
 
@@ -385,7 +385,7 @@ export default function History() {
                     {(summary.profit || 0) >= 0 ? "+" : ""}{INR(summary.profit)}
                   </div>
                   <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
-                    {summary.margin_pct}% margin
+                    {summary.margin_pct}% {L("margin")}
                   </div>
                 </>
               ) : (
@@ -560,7 +560,7 @@ export default function History() {
                 </span>
                 <span style={{ fontSize: 11, color: "var(--jade)", fontWeight: 700 }}>
                   {INR(grouped[day].filter(x => x.status !== "cancelled").reduce((s, x) => s + (x.total || 0), 0))}
-                  · {grouped[day].filter(x => x.status !== "cancelled").length} bill{grouped[day].length !== 1 ? "s" : ""}
+                  · {grouped[day].filter(x => x.status !== "cancelled").length} {L(grouped[day].filter(x => x.status !== "cancelled").length !== 1 ? "bills" : "bill")}
                 </span>
               </div>
 
