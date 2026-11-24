@@ -85,6 +85,9 @@ export const ChaiMenu = {
     return local().menu.filter(m => m.active !== false).sort((a, b) => a.sort - b.sort)
   },
   async save(item) {
+    // same rules as the server (app/routers/chai.py _check_menu_item)
+    if (item.name != null && !String(item.name).trim()) throw new Error("The item needs a name")
+    if (item.price != null && item.price !== "" && !(+item.price > 0)) throw new Error("The price must be more than 0")
     if (isCloud()) return item.id ? api.patch("/chai/menu/" + item.id, item) : api.post("/chai/menu", item)
     const d = local()
     if (item.id) {
@@ -167,6 +170,10 @@ export const ChaiOrders = {
 
   // Take payment: a counter sale (no id) or an open table order (id). Credit goes to the regular's khata.
   async pay({ id, items, label, payment_mode, customer }) {
+    // same rules as the server
+    if (!items?.length) throw new Error("The bill is empty")
+    if (items.some(i => !(+i.qty > 0))) throw new Error("Every item needs a quantity above 0")
+    if (payment_mode === "credit" && !customer?.id) throw new Error("Pick the customer for a credit bill")
     let order
     if (isCloud()) {
       order = await api.post("/chai/orders/pay", { id: id || null, items, label: label || null,

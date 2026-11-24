@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { Products, Sales, Invoices, api, isCloud, getStoreName } from "../sync/db"
+import { Products, Sales, Invoices, Udhar, api, isCloud, getStoreName } from "../sync/db"
 import { useAuth } from "../context/AuthContext"
 import { tr, uiLang as currentLang } from "../i18n/kiranaStrings"
 
@@ -193,6 +193,32 @@ function StockPopup({ type, items, storeName, onClose, onStockUpdate }) {
 }
 
 // ── Morning Briefing card ─────────────────────────────────────
+// Phone-only shops: the same Udhaar / Stock Value / Dead Stock / Margin figures the server's
+// briefing gives, worked out from the data on the phone (same profit rule as app/core/profit.py)
+async function localBriefing() {
+  const [products, invoices, khata] = await Promise.all([Products.list(), Invoices.list(), Udhar.summary()])
+  const active = (Array.isArray(products) ? products : products?.data || []).filter(p => p.is_active !== false)
+  const bills = (invoices || []).filter(i => i.status !== "cancelled")
+  const now = new Date(), day = now.toDateString(), monthAgo = Date.now() - 30 * 86400000
+  const cost = Object.fromEntries(active.map(p => [String(p.id), +p.cost_price || 0]))
+  const soldRecently = new Set(bills.filter(b => new Date(b.created_at) >= monthAgo).flatMap(b => (b.items || []).map(i => String(i.product_id))))
+  const dead = active.filter(p => +p.stock > 0 && !soldRecently.has(String(p.id)) && new Date(p.created_at || 0) < monthAgo)
+  const month = bills.filter(b => { const d = new Date(b.created_at); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() })
+  const costed = month.flatMap(b => b.items || []).filter(i => cost[String(i.product_id)] > 0)
+  const sales = costed.reduce((s, i) => s + (+i.subtotal || +i.unit_price * +i.qty || 0), 0)
+  const profit = Math.round((sales - costed.reduce((s, i) => s + +i.qty * cost[String(i.product_id)], 0)) * 100) / 100
+  const txns = JSON.parse(localStorage.getItem("dukaanai_data") || "{}").udhar_txns || []
+  return {
+    udhar: { total_due: +khata.total_due || 0,
+      collected_today: txns.filter(t => t.type === "payment" && new Date(t.created_at).toDateString() === day).reduce((s, t) => s + +t.amount, 0) },
+    stock_value: Math.round(active.reduce((s, p) => s + Math.max(0, +p.stock || 0) * (+p.cost_price || 0), 0)),
+    total_products: active.length,
+    dead_stock: { count: dead.length, blocked_value: Math.round(dead.reduce((s, p) => s + +p.stock * (+p.cost_price || 0), 0)),
+      items: dead.map(p => ({ ...p, days_since_sale: null })) },
+    profit: { month: costed.length ? { profit, margin_pct: sales > 0 ? Math.round(profit / sales * 1000) / 10 : 0 } : null },
+  }
+}
+
 function BriefingCard({ briefing, navigate, onStockClick }) {
   const [open, setOpen] = useState(true)
   if (!briefing) return null
@@ -372,6 +398,8 @@ export default function Dashboard() {
   const [total,       setTotal]       = useState(0)
   const [loading,     setLoading]     = useState(true)
   const [briefing,    setBriefing]    = useState(null)
+  const [localBrief,  setLocalBrief]  = useState(null)   // phone-only shops: tiles computed on the phone
+  const tiles = briefing || localBrief
   const [showLowList,  setShowLowList]  = useState(false)
   const [stockToast,   setStockToast]   = useState(false)
 
@@ -400,9 +428,11 @@ export default function Dashboard() {
       setTotal(typeof count === "number" ? count : 0)
     }).finally(() => setLoading(false))
 
-    // Briefing only for authenticated (cloud) users
+    // Briefing only for authenticated (cloud) users; phone-only shops get the same tiles from local data
     if (vendor) {
       api.get("/insights/briefing").then(setBriefing).catch(() => {})
+    } else {
+      localBriefing().then(setLocalBrief).catch(() => {})
     }
   }, [cloud, vendor?.id])
 
@@ -474,7 +504,7 @@ export default function Dashboard() {
     try {
       if (type === "dead_stock") {
         // Use briefing dead stock items (already fetched)
-        const items = (briefing?.dead_stock?.items || []).map(p => ({
+        const items = (tiles?.dead_stock?.items || []).map(p => ({
           id: p.id, name: p.name, stock: p.stock, unit: p.unit || ""
         }))
         setStockPopup({ type, items })
@@ -552,7 +582,7 @@ export default function Dashboard() {
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:14, fontWeight:700, color:"var(--ink)",
               overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {t(greeting())}, {getStoreName(vendor).split(" ")[0] || "ji"} 👋
+              {t(greeting())}{getStoreName(vendor) ? `, ${getStoreName(vendor).split(" ")[0]}` : ""} 👋
             </div>
             <div style={{ fontSize:MIN_FONT_SIZE, color:"var(--ink-faint)", marginTop:1,
               display:"flex", alignItems:"center", gap:6 }}>
@@ -684,12 +714,12 @@ export default function Dashboard() {
             </div>
             <div style={{ fontSize:14, fontWeight:800, color:"var(--ink)" }}>{t("Udhaar")}</div>
             <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600,
-              color: (briefing?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
-              {briefing
-                ? (briefing.udhar.collected_today > 0
-                    ? "Kaata: " + INR(briefing.udhar.collected_today)
-                    : briefing.udhar.total_due > 0
-                      ? INR(briefing.udhar.total_due) + " due"
+              color: (tiles?.udhar?.total_due || 0) > 0 ? "var(--ember)" : "var(--jade)" }}>
+              {tiles
+                ? (tiles.udhar.collected_today > 0
+                    ? "Kaata: " + INR(tiles.udhar.collected_today)
+                    : tiles.udhar.total_due > 0
+                      ? INR(tiles.udhar.total_due) + " due"
                       : L("All clear"))
                 : "—"}
             </div>
@@ -718,7 +748,7 @@ export default function Dashboard() {
                 {low.length > 0 && (
                   <div style={{ position:"absolute", top:-6, right:-6,
                     minWidth:18, height:18, borderRadius:9, padding:"0 4px",
-                    background:"var(--ember,#c0392b)", color:"#fff",
+                    background:"#b3261e", color:"#fff",
                     fontSize:MIN_FONT_SIZE, fontWeight:900,
                     display:"flex", alignItems:"center", justifyContent:"center" }}>
                     {low.length}
@@ -1006,7 +1036,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Stock Health — inventory snapshot (complements briefing) */}
+          {/* Stock Health — inventory snapshot (complements tiles) */}
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
               <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:800, color:"var(--brass-deep)", letterSpacing:"1.5px", textTransform:"uppercase" }}>
@@ -1022,35 +1052,35 @@ export default function Dashboard() {
                 {
                   icon: "💰",
                   label: L("Stock Value"),
-                  value: loading || !briefing ? "—"
-                    : briefing.stock_value > 0
-                      ? `₹${(briefing.stock_value/1000).toFixed(1)}k`
+                  value: loading || !tiles ? "—"
+                    : tiles.stock_value > 0
+                      ? `₹${(tiles.stock_value/1000).toFixed(1)}k`
                       : "₹0",
-                  sub: loading ? "" : `${briefing?.total_products ?? total} products`,
+                  sub: loading ? "" : `${tiles?.total_products ?? total} products`,
                   color: "var(--brass)",
                   bg: "rgba(184,134,11,0.10)",
                 },
                 {
                   icon: "💤",
                   label: L("Dead Stock"),
-                  value: loading || !briefing ? "—" : briefing.dead_stock?.count ?? 0,
-                  sub: briefing?.dead_stock?.blocked_value > 0
-                    ? Lf("₹{k}k blocked", { k: (briefing.dead_stock.blocked_value/1000).toFixed(1) })
+                  value: loading || !tiles ? "—" : tiles.dead_stock?.count ?? 0,
+                  sub: tiles?.dead_stock?.blocked_value > 0
+                    ? Lf("₹{k}k blocked", { k: (tiles.dead_stock.blocked_value/1000).toFixed(1) })
                     : L("No dead stock"),
-                  color: briefing?.dead_stock?.count > 0 ? "var(--brass)" : "var(--jade)",
-                  bg: briefing?.dead_stock?.count > 0 ? "rgba(184,134,11,0.10)" : "rgba(26,122,74,0.10)",
-                  clickType: briefing?.dead_stock?.count > 0 ? "dead_stock" : null,
+                  color: tiles?.dead_stock?.count > 0 ? "var(--brass)" : "var(--jade)",
+                  bg: tiles?.dead_stock?.count > 0 ? "rgba(184,134,11,0.10)" : "rgba(26,122,74,0.10)",
+                  clickType: tiles?.dead_stock?.count > 0 ? "dead_stock" : null,
                 },
                 {
                   icon: "📈",
                   label: L("Monthly Margin"),
-                  value: loading || !briefing ? "—"
-                    : `${briefing.profit?.month?.margin_pct ?? 0}%`,
-                  sub: briefing?.profit?.month
-                    ? `${INR(briefing.profit.month.profit || 0)} profit`
+                  value: loading || !tiles ? "—"
+                    : `${tiles.profit?.month?.margin_pct ?? 0}%`,
+                  sub: tiles?.profit?.month
+                    ? `${INR(tiles.profit.month.profit || 0)} profit`
                     : L("This month"),
-                  color: (briefing?.profit?.month?.margin_pct ?? 0) > 15 ? "var(--jade)" : "var(--ember)",
-                  bg: (briefing?.profit?.month?.margin_pct ?? 0) > 15
+                  color: (tiles?.profit?.month?.margin_pct ?? 0) > 15 ? "var(--jade)" : "var(--ember)",
+                  bg: (tiles?.profit?.month?.margin_pct ?? 0) > 15
                     ? "rgba(26,122,74,0.10)" : "var(--ember-bg)",
                 },
               ].map((row, i) => (

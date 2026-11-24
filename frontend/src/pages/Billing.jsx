@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react"
 import { backdrop, sheet, pop, celebrate } from "../components/popupMotion"
 import { AnimatedAmount, BillIcon } from "../components/billing/billMotion"
 import { useFlyToBill, useWideBilling } from "../components/billing/billHooks"
-import { Products, Invoices, Customers, api, isCloud, getStoreName } from "../sync/db.js"
+import { Products, Invoices, Customers, Udhar, api, isCloud, getStoreName } from "../sync/db.js"
 import { useAuth } from "../context/AuthContext.jsx"
 import { usePlan } from "../context/PlanContext.jsx"
 import BarcodeScanner from "../components/BarcodeScanner.jsx"
@@ -13,7 +13,7 @@ import { lookupBarcode as lookupBarcodeAPI } from "../data/barcodeLookup.js"
 import { MIN_FONT_SIZE } from "../styles/textScale"
 import { getDefaultApplyGst } from "../utils/gstSettings.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
-import { parseVoiceCommand } from "../voice/nlp.js"
+import { parseVoiceCommand, splitMultiProduct } from "../voice/nlp.js"
 import { resolveGroceryName } from "../voice/groceryAliases.js"
 import { tr, uiLang } from "../i18n/kiranaStrings"
 import { SkeletonTiles } from "../components/Skeleton"
@@ -89,12 +89,12 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
     <motion.div {...backdrop} style={{
       // Above the billing bottom bar (z 160) and the phone menu, so Confirm is always reachable
       position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
-      zIndex:450, display:"flex", alignItems:"flex-start", justifyContent:"center",
-      padding:"16px", overflowY:"auto",
+      zIndex:450, display:"flex", alignItems:"center", justifyContent:"center",
+      padding:"16px",
     }}>
       <motion.div {...pop} style={{
-        background:"#fff", borderRadius:16, width:"100%", maxWidth:520,
-        marginTop:16, marginBottom:16, overflow:"hidden",
+        background:"#fff", color:"#1c1209", borderRadius:16, width:"100%", maxWidth:520,
+        maxHeight:"100%", overflow:"hidden", display:"flex", flexDirection:"column",
         boxShadow:"0 20px 60px rgba(0,0,0,0.2)",
       }}>
         {/* Header */}
@@ -110,62 +110,55 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
           }}>✕ Back</button>
         </div>
 
-        <div style={{ padding:"16px 20px" }}>
+        <div style={{ padding:"16px 20px", overflowY:"auto", flex:"1 1 auto", minHeight:0 }}>
           {/* Items table */}
           <div style={{ fontSize:MIN_FONT_SIZE, fontWeight:600, color:"#555", marginBottom:8 }}>Items</div>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-              <thead>
-                <tr style={{ background:"#f9fafb" }}>
-                  <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600, color:"#555" }}>Product</th>
-                  <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:50 }}>Qty</th>
-                  <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:80 }}>Rate ₹</th>
-                  <th style={{ padding:"6px 8px", fontWeight:600, color:"#555", width:60 }}>GST %</th>
-                  <th style={{ textAlign:"right", padding:"6px 8px", fontWeight:600, color:"#555" }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, i) => {
-                  const total = Math.round(item.unit_price * item.qty * 100) / 100
-                  const itemProfit = Math.round((item.unit_price - item.cost_price) * item.qty * 100) / 100
-                  return (
-                    <tr key={i} style={{ borderTop:"1px solid #f0f0f0" }}>
-                      <td style={{ padding:"8px 8px" }}>
-                        <div style={{ fontWeight:500 }}>{item.name}</div>
-                        {item.cost_price > 0 && (
-                          <div style={{ fontSize:MIN_FONT_SIZE, color: itemProfit >= 0 ? "#16a34a" : "#dc2626", marginTop:2 }}>
-                            {itemProfit >= 0 ? "+" : ""}₹{itemProfit} profit
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding:"8px 4px" }}>
-                        <input type="number" inputMode="decimal" min="0.01" step="0.01" value={item.qty}
-                          onChange={e => setItem(i, "qty", +e.target.value > 0 ? +e.target.value : 1)}
-                          style={{ width:46, textAlign:"center", border:"1px solid #e5e7eb",
-                            borderRadius:6, padding:"4px 2px", fontSize:12 }} />
-                      </td>
-                      <td style={{ padding:"8px 4px" }}>
-                        <input type="number" inputMode="decimal" min="0" step="0.01" value={item.unit_price}
-                          onChange={e => setItem(i, "unit_price", Math.max(0, +e.target.value || 0))}
-                          style={{ width:72, border:"1px solid #e5e7eb", borderRadius:6,
-                            padding:"4px 6px", fontSize:12 }} />
-                      </td>
-                      <td style={{ padding:"8px 4px" }}>
-                        <select value={item.gst_percent}
-                          onChange={e => setItem(i, "gst_percent", +e.target.value)}
-                          style={{ width:56, border:"1px solid #e5e7eb", borderRadius:6,
-                            padding:"4px 2px", fontSize:MIN_FONT_SIZE }}>
-                          {[0,3,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
-                        </select>
-                      </td>
-                      <td style={{ padding:"8px 8px", textAlign:"right", fontWeight:600, color:"#1D9E75" }}>
-                        ₹{total}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          {/* One small card per item (a 5-column table ran off the right edge on phones) */}
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {items.map((item, i) => {
+              const total = Math.round(item.unit_price * item.qty * 100) / 100
+              const itemProfit = Math.round((item.unit_price - item.cost_price) * item.qty * 100) / 100
+              const box = { width:"100%", minWidth:0, boxSizing:"border-box", border:"1px solid #e5e7eb", borderRadius:8,
+                padding:"6px 8px", fontSize:13, background:"#fff", color:"#1c1209" }
+              const cap = { fontSize:MIN_FONT_SIZE, color:"#777", marginBottom:3, fontWeight:600 }
+              return (
+                <div key={i} style={{ border:"1px solid #f0f0f0", borderRadius:10, padding:"10px 10px 8px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", gap:10, alignItems:"baseline" }}>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontWeight:600, fontSize:13, overflowWrap:"anywhere" }}>{item.name}</div>
+                      {item.cost_price > 0 && (
+                        <div style={{ fontSize:MIN_FONT_SIZE, color: itemProfit >= 0 ? "#16a34a" : "#dc2626", marginTop:2 }}>
+                          {itemProfit >= 0 ? "+" : ""}₹{itemProfit} profit
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontWeight:700, color:"#1D9E75", whiteSpace:"nowrap", fontSize:14 }}>₹{total}</div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1.3fr) minmax(0,1fr)", gap:8, marginTop:8 }}>
+                    <label style={{ minWidth:0 }}>
+                      <div style={cap}>Qty</div>
+                      <input type="number" inputMode="decimal" min="0.01" step="0.01" value={item.qty}
+                        onChange={e => setItem(i, "qty", +e.target.value > 0 ? +e.target.value : 1)}
+                        style={{ ...box, textAlign:"center" }} />
+                    </label>
+                    <label style={{ minWidth:0 }}>
+                      <div style={cap}>Rate ₹</div>
+                      <input type="number" inputMode="decimal" min="0" step="0.01" value={item.unit_price}
+                        onChange={e => setItem(i, "unit_price", Math.max(0, +e.target.value || 0))}
+                        style={box} />
+                    </label>
+                    <label style={{ minWidth:0 }}>
+                      <div style={cap}>GST</div>
+                      <select value={item.gst_percent}
+                        onChange={e => setItem(i, "gst_percent", +e.target.value)}
+                        style={box}>
+                        {[0,3,5,12,18,28].map(g => <option key={g} value={g}>{g}%</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Discount */}
@@ -180,7 +173,7 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
               </select>
               <input type="number" inputMode="decimal" min="0" placeholder="0"
                 value={discountVal} onChange={e => setDiscountVal(e.target.value)}
-                style={{ flex:1, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }} />
+                style={{ flex:1, minWidth:0, border:"1px solid #e5e7eb", borderRadius:8, padding:"7px 10px", fontSize:13 }} />
               {discountAmt > 0 && (
                 <span style={{ fontSize:12, color:"#dc2626", fontWeight:600, whiteSpace:"nowrap" }}>
                   − ₹{discountAmt}
@@ -243,19 +236,20 @@ function ReviewModal({ rows, products, applyGst, onConfirm, onClose }) {
             </div>
           )}
 
-          {/* Actions */}
-          <div style={{ display:"flex", gap:10, marginTop:16 }}>
-            <button onClick={onClose}
-              style={{ flex:1, padding:"11px", borderRadius:10, border:"1px solid #e5e7eb",
-                background:"#fff", fontSize:13, cursor:"pointer", color:"#666" }}>
-              ← Edit Bill
-            </button>
-            <button onClick={handleConfirm}
-              style={{ flex:2, padding:"11px", borderRadius:10, border:"none",
-                background:"#1D9E75", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-              Confirm & Generate Invoice
-            </button>
-          </div>
+        </div>
+
+        {/* Actions: pinned under the scrolling content, so Confirm is always on screen */}
+        <div style={{ display:"flex", gap:10, padding:"12px 20px 16px", borderTop:"1px solid #f0f0f0", flexShrink:0, background:"#fff" }}>
+          <button onClick={onClose}
+            style={{ flex:1, padding:"11px", borderRadius:10, border:"1px solid #e5e7eb",
+              background:"#fff", fontSize:13, cursor:"pointer", color:"#666" }}>
+            ← Edit Bill
+          </button>
+          <button onClick={handleConfirm}
+            style={{ flex:2, padding:"11px", borderRadius:10, border:"none",
+              background:"#1D9E75", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+            Confirm & Generate Invoice
+          </button>
         </div>
       </motion.div>
     </motion.div>
@@ -412,6 +406,22 @@ function fmtQty(p, q) {
   const info = looseInfo(p)
   return info ? fmtWeight(info.kg, +q * info.per) : String(+q)
 }
+const BILL_DRAFT = "dk_bill_draft"   // the bill being made, kept on the phone until it is generated
+
+// What a spoken quantity means for a product, in its own bill units.
+// Loose: "250 gram" / "aadha kilo" → weight ÷ the product's kg per unit (null = no weight said).
+// Packets: "teen" → 3, but a number in the product's own name is its size ("Complan 200g" → 1).
+function voiceAmount(p, parsed) {
+  const info = looseInfo(p)
+  if (info) {
+    const u = parsed.unit, q = +parsed.qty
+    if (!(q > 0) || !["kg", "g", "L", "ml"].includes(u)) return null
+    const w = u === "g" || u === "ml" ? q / 1000 : q
+    return round6(w / info.per)
+  }
+  const said = parsed.qty > 0 ? Math.max(1, Math.round(parsed.qty)) : 1
+  return p.name.toLowerCase().includes(String(said)) ? 1 : said
+}
 // price per kg / litre: "₹55.2/kg"
 const ratePer = p => { const i = looseInfo(p); return i ? Math.round(p.mrp / i.per * 100) / 100 : p.mrp }
 const perUnit = p => { const i = looseInfo(p); return i && !i.bag ? (i.kg ? "/kg" : "/L") : "" }
@@ -553,9 +563,27 @@ export default function Billing() {
   useEffect(() => {
     Products.list().then(p => {
       setProducts(p)
-      setRows([])  // start empty — vendor adds items manually or by search
+      // Bring back the bill that was being made when the app closed (Android closes apps in the
+      // background, e.g. while the owner checks PhonePe); items no longer in stock are dropped
+      let d = null
+      try { d = JSON.parse(localStorage.getItem(BILL_DRAFT) || "null") } catch { d = null }
+      const ids = new Set(p.map(x => x.id))
+      const back = (d?.rows || []).filter(r => ids.has(r.prodId))
+      setRows(back)
+      if (back.length) {
+        setCust(d.cust || ""); setPhone(d.phone || ""); setGstin(d.gstin || ""); setPay(d.pay || "Cash")
+      }
     }).finally(() => setProductsLoaded(true))
   }, [])
+
+  // Keep the bill in progress on the phone; a finished (generated) or empty bill is removed
+  useEffect(() => {
+    if (!productsLoaded) return
+    try {
+      if (invoice || !rows.length) localStorage.removeItem(BILL_DRAFT)
+      else localStorage.setItem(BILL_DRAFT, JSON.stringify({ rows, cust, phone, gstin, pay, at: Date.now() }))
+    } catch { /* private mode */ }
+  }, [rows, cust, phone, gstin, pay, invoice, productsLoaded])
 
   // Each new message gets its full time on screen (an older message's timer used to clear it early)
   const notifTimer = useRef(null)
@@ -668,6 +696,7 @@ export default function Billing() {
   // ── Generate invoice ──────────────────────────────────────
   function openReview() {
     if (!cust.trim()) return showNotif("Customer name is required")
+    if (pay === "Credit" && /^walk-?in/i.test(cust.trim())) return showNotif(L("Credit needs the customer's name"))
     const valid = rows.filter(r => getProduct(r.prodId) && +r.qty > 0)
     if (!valid.length) return showNotif("Add at least one item with valid quantity")
     setShowReview(true)
@@ -703,7 +732,11 @@ export default function Billing() {
         return sold ? { ...p, stock: Math.max(0, round6(stockOf(p) - sold)) } : p
       }))
       if (custName !== "Walk-in") await Customers.upsert({ name: custName, phone: phone||null, gstin: gstin||null, amount: inv.total })
-      showNotif(`✓ Invoice ${inv.invoice_no} generated!`)
+      // Credit bill → onto the customer's khata
+      const onKhata = await Udhar.creditFromBill(inv, { name: custName, phone }).catch(() => null)
+      if (onKhata) showNotif(`✓ ${inv.invoice_no} · ₹${inv.total} ${L("added to")} ${onKhata.name}${L("'s khata")}`)
+      else showNotif(`✓ Invoice ${inv.invoice_no} generated!`)
+
     } catch(e) { setEasyDone(null); showNotif("Error: " + e.message) }
     finally { setSaving(false) }
   }
@@ -800,6 +833,25 @@ Thank you for shopping! 🙏`
       setVoiceActive(false)
       setBarcodeResult(null)
       const lower = text.toLowerCase()
+      // Several items in one sentence ("do Parle-G aur ek Tata Salt", "Tata Salt rendu Complan okati"):
+      // add each one (only the first used to be added, sometimes with the next item's quantity)
+      const segs = splitMultiProduct(text)
+      if (segs.length > 1) {
+        const added = [], missed = []
+        for (const seg of segs) {
+          const r = parseVoiceCommand(seg, null, products)
+          const prod = r.product && (r.product._confidence ?? 1) >= 0.6 ? r.product : null
+          if (!prod) { missed.push(seg); continue }
+          const q = voiceAmount(prod, r)
+          if (q == null) { addToCart(prod); added.push(prod.name); continue }   // loose, no weight said: picker
+          if (!canAdd(prod, q)) continue
+          addToCart(prod, q)
+          added.push(`${isLoose(prod) ? fmtQty(prod, q) + " " : q > 1 ? q + " × " : ""}${prod.name}`)
+        }
+        showNotif(`🎤 ${added.join(", ") || L("nothing added")}${missed.length ? ` · ${L("not found")}: ${missed.join(", ")}` : ""}`)
+        if (missed.length && !added.length) showMatches(missed[0])
+        return
+      }
       // A brand or word shared by several products ("Amul") → let the shopkeeper pick
       const sameWord = products.filter(p => p.name.toLowerCase().includes(lower))
       if (sameWord.length > 1) {
@@ -811,7 +863,12 @@ Thank you for shopping! 🙏`
       const std = resolveGroceryName(text)
       if (std && std !== text) {
         const kinds = products.filter(p => p.name.toLowerCase().includes(std.toLowerCase()))
-        if (kinds.length > 1) {
+        // The other spoken words may already name one of them ("Amul Taaza Milk"): then no picker
+        const spoken = lower.split(/\s+/).filter(w => w.length > 2)
+        const fit = kinds.map(p => spoken.filter(w => p.name.toLowerCase().includes(w)).length)
+        const top = Math.max(0, ...fit)
+        const named = top > 1 && fit.filter(n => n === top).length === 1
+        if (kinds.length > 1 && !named) {
           showMatches(std)
           showNotif(`🎤 "${text}" → ${std}: ${kinds.length} ${L("items found, tap one")}`)
           return
@@ -822,7 +879,11 @@ Thank you for shopping! 🙏`
       // Weak sound-alike guesses ("chandan" → Chana, 35%) show choices instead of going on the bill
       const p = parsed.product && (parsed.product._confidence ?? 1) >= 0.6 ? parsed.product : null
       if (p) {
-        if (isLoose(p)) { addToCart(p); return }          // loose items: confirm the weight in the picker
+        if (isLoose(p)) {                                   // loose: a spoken weight goes straight on, else the picker
+          const amt = voiceAmount(p, parsed)
+          if (amt == null || !canAdd(p, amt)) { if (amt == null) addToCart(p); return }
+          addToCart(p, amt); showNotif(`🎤 "${text}" → ${fmtQty(p, amt)} ${p.name}`); return
+        }
         // "Parle-G 100g" — a number that is part of the product's own name is its size, not a quantity
         const said = parsed.qty > 0 ? Math.max(1, Math.round(parsed.qty)) : 1
         const qty = p.name.toLowerCase().includes(String(said)) ? 1 : said
@@ -923,6 +984,8 @@ Thank you for shopping! 🙏`
   function openPay() {
     const valid = rows.filter(r => getProduct(r.prodId) && +r.qty > 0)
     if (!valid.length) return showNotif("Add at least one item")
+    // Credit goes on someone's khata, so it needs a name
+    if (pay === "Credit" && (!cust.trim() || /^walk-?in/i.test(cust.trim()))) return showNotif(L("Credit needs the customer's name"))
     if (!cust.trim()) setCust("Walk-in")
     setShowReview(true)
   }

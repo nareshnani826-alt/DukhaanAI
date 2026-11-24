@@ -132,15 +132,24 @@ def list_menu(vendor=Depends(get_current_vendor)):
 
 
 @router.post("/menu", status_code=201)
+def _check_menu_item(body: MenuItem) -> None:
+    if body.name is not None and not body.name.strip():
+        raise HTTPException(status_code=400, detail="The item needs a name")
+    if body.price is not None and body.price <= 0:
+        raise HTTPException(status_code=400, detail="The price must be more than 0")
+
+
 def add_menu_item(body: MenuItem, vendor=Depends(get_current_vendor)):
     if not body.name or body.price is None:
         raise HTTPException(status_code=400, detail="Name and price are needed")
+    _check_menu_item(body)
     row = {k: v for k, v in body.model_dump().items() if v is not None}
     return get_db().table("chai_menu").insert({**row, "vendor_id": vendor["id"]}).execute().data[0]
 
 
 @router.patch("/menu/{item_id}")
 def update_menu_item(item_id: str, body: MenuItem, vendor=Depends(get_current_vendor)):
+    _check_menu_item(body)
     row = {k: v for k, v in body.model_dump().items() if v is not None}
     res = get_db().table("chai_menu").update(row).eq("id", item_id).eq("vendor_id", vendor["id"]).execute().data
     if not res:
@@ -269,6 +278,8 @@ def pay_order(body: PayOrder, vendor=Depends(get_current_vendor)):
         raise HTTPException(status_code=400, detail="Pick the customer for a credit bill")
     if not body.items:
         raise HTTPException(status_code=400, detail="The bill is empty")
+    if any(float(i.qty or 0) <= 0 for i in body.items):
+        raise HTTPException(status_code=400, detail="Every item needs a quantity above 0")
     db = get_db()
     items = [i.model_dump() for i in body.items]
     fields = {

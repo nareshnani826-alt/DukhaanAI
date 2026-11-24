@@ -285,7 +285,7 @@ export default function DemandIntelligence() {
                   )
                   const isLow = inInv && inInv.stock < inInv.min_stock
                   return (
-                    <span key={p} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    <span key={p} className="pastel-card text-[10px] px-2 py-0.5 rounded-full font-medium"
                       style={{
                         background: isLow ? "#FCEBEB" : inInv ? "#E1F5EE" : "var(--bg2)",
                         color:      isLow ? "#A32D2D" : inInv ? "#085041" : "var(--ink-faint)",
@@ -376,7 +376,7 @@ export default function DemandIntelligence() {
                 <div className="text-xs text-gray-400">{L("All products have healthy stock levels")}</div>
               </div>
             ) : patterns.map((p, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-xl mb-2"
+              <div key={i} className="pastel-card flex items-center gap-3 p-3 rounded-xl mb-2"
                 style={{ background: p.urgency==="critical" ? "#FCEBEB" : "#FAEEDA" }}>
                 <div className="text-lg">{p.urgency==="critical" ? "🔴" : "🟡"}</div>
                 <div className="flex-1">
@@ -449,7 +449,7 @@ export default function DemandIntelligence() {
                   </div>
                   <div className="space-y-2">
                     {reorder.items.slice(0, 8).map((item, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl"
+                      <div key={i} className="pastel-card flex items-center gap-3 p-2.5 rounded-xl"
                         style={{ background: item.urgency === "critical" ? "#FCEBEB" : "#FFF8F0" }}>
                         <span className="text-base flex-shrink-0">
                           {item.urgency === "critical" ? "🔴" : "🟠"}

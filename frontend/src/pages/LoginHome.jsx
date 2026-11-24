@@ -1274,7 +1274,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
         {loading ? t("Verifying…") : t("Confirm & Enter →")}
       </button>
       <button type="button" onClick={() => setOtpStep(false)}
-        style={{ background:"none", border:"none", color:"#aaa", fontSize:12, cursor:"pointer" }}>
+        style={{ background:"none", border:"none", color:"#857d72", fontSize:12, cursor:"pointer" }}>
         {t("← Back")}
       </button>
     </form>
@@ -1455,7 +1455,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
             try { if (form.store_name.trim()) localStorage.setItem("dk_store_name_hint", form.store_name.trim()) } catch {}
             onLocalMode()
           }}
-          style={{ background:"none", border:"none", color:"#aaa", fontSize:11,
+          style={{ background:"none", border:"none", color:"#857d72", fontSize:11,
             cursor:"pointer", textDecoration:"underline" }}>
           {t("Use without account (local only)")}
         </button>
@@ -1484,7 +1484,7 @@ function ModulePicker({ allowedModules, onPick }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ marginBottom:4 }}>
-        <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"1.5px",
+        <div style={{ fontSize:11, fontWeight:800, color:"#857d72", letterSpacing:"1.5px",
           textTransform:"uppercase", marginBottom:6 }}>Choose your store</div>
         <div style={{ fontSize:20, fontWeight:800, color:"#111", lineHeight:1.25 }}>
           Which store are you<br/>opening today?

@@ -240,7 +240,7 @@ _Powered by DukhaanAI_`
   }
 
   // Color coding by amount
-  const dueColor = due => due > 5000 ? "#E24B4A" : due > 1000 ? "#EF9F27" : "var(--jade)"
+  const dueColor = due => due > 5000 ? "#E24B4A" : due > 1000 ? "#B86E00" : "var(--jade)"
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col p-4">
@@ -366,7 +366,10 @@ _Powered by DukhaanAI_`
       <div className="flex gap-3 flex-1 overflow-hidden min-h-0" style={{ flexDirection: window.innerWidth <= 768 ? "column" : "row" }}>
 
         {/* Left — customer list */}
-        <div style={{ width: window.innerWidth <= 768 ? "100%" : "288px", flexShrink:0, display: window.innerWidth <= 768 && showDetail ? "none" : "flex", flexDirection:"column" }}>
+        {/* Phones: the column must be able to shrink to the screen, or the list below grows past
+            the clipped area and the last customers can't be reached */}
+        <div style={{ width: window.innerWidth <= 768 ? "100%" : "288px", flex: window.innerWidth <= 768 ? "1 1 0" : "0 0 288px", minHeight:0,
+          display: window.innerWidth <= 768 && showDetail ? "none" : "flex", flexDirection:"column" }}>
           <input className="input mb-2" placeholder={L("Search customer or phone...")}
             value={search} onChange={e => setSearch(e.target.value)} />
 

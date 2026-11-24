@@ -810,7 +810,7 @@ Ask me anything!`,
             }
             disabled={loading}
             style={{
-              flex:1, padding:"11px 14px", borderRadius:12,
+              flex:1, minWidth:0, padding:"11px 14px", borderRadius:12,
               border:"1.5px solid var(--rule)",
               background:"var(--bg2)", color:"var(--ink)",
               fontSize:13, outline:"none",

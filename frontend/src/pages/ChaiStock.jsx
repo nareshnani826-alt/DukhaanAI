@@ -35,7 +35,17 @@ export default function ChaiStock() {
 
   return (
     <div style={{ padding:16, display:"flex", flexDirection:"column", gap:12, maxWidth:900, width:"100%", margin:"0 auto" }}>
-      <div style={{ fontSize:22, fontWeight:900 }}>{L("Menu & Stock")}</div>
+      {/* Add button at the top, so owners don't have to scroll past the whole list to find it */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+        <div style={{ fontSize:22, fontWeight:900 }}>{L("Menu & Stock")}</div>
+        <motion.button whileTap={{ scale:0.95 }} className="btn btn-primary"
+          onClick={() => setEdit(tab === "menu"
+            ? { kind:"item", value:{ name:"", category:"Tea", price:"", emoji:"☕", recipe:[] } }
+            : { kind:"mat",  value:{ name:"", unit:"kg", stock:0, min_stock:0, cost_per_unit:0 } })}
+          style={{ minHeight:44, padding:"0 14px", borderRadius:12, fontWeight:800, whiteSpace:"nowrap" }}>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}><BillIcon name="plus" size={18} />{tab === "menu" ? L("Add item") : L("Add raw material")}</span>
+        </motion.button>
+      </div>
 
       <div style={{ display:"flex", gap:6, padding:4, borderRadius:14, background:"var(--bg2)" }}>
         {[["stock", "package", L("Raw material")], ["menu", "coffee", L("Menu")]].map(([id, icon, label]) => (
@@ -120,9 +130,10 @@ export default function ChaiStock() {
       <AnimatePresence>
         {edit && (
           <motion.div {...backdrop} onClick={() => setEdit(null)}
+            className="chai-sheet-wrap"
             style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:70, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
             <motion.div {...pop} onClick={e => e.stopPropagation()}
-              style={{ width:"100%", maxWidth:440, maxHeight:"88vh", overflowY:"auto", background:"var(--bg1)", borderRadius:20, padding:18, display:"flex", flexDirection:"column", gap:12 }}>
+              style={{ width:"100%", maxWidth:440, maxHeight:"100%", overflowY:"auto", background:"var(--bg1)", borderRadius:20, padding:18, display:"flex", flexDirection:"column", gap:12 }}>
               {edit.kind === "delivery" && <DeliveryForm mat={edit.value} onSave={q => run(() => ChaiMaterials.addStock(edit.value.id, q))} onClose={() => setEdit(null)} />}
               {edit.kind === "mat" && <MaterialForm mat={edit.value}
                 onSave={v => run(() => ChaiMaterials.save(v))}
@@ -150,7 +161,10 @@ function Field({ label, children }) {
 
 function Buttons({ onClose, onDelete, saveLabel, disabled, onSave }) {
   return (
-    <div style={{ display:"flex", gap:8, marginTop:4 }}>
+    // Pinned to the bottom of the pop-up: always visible even when the form is taller than a small phone
+    <div style={{ display:"flex", gap:8, position:"sticky", bottom:-18, zIndex:1,
+      margin:"4px -18px -18px", padding:"12px 18px 18px", background:"var(--bg1)",
+      borderTop:"1px solid var(--rule)", borderRadius:"0 0 20px 20px" }}>
       {onDelete && <button onClick={onDelete} style={{ minHeight:48, padding:"0 14px", borderRadius:12, border:"1.5px solid #c0392b", background:"transparent", color:"#c0392b", fontWeight:800, cursor:"pointer" }}>{L("Remove")}</button>}
       <button onClick={onClose} style={{ flex:1, minHeight:48, borderRadius:12, border:"1.5px solid var(--rule)", background:"var(--bg1)", color:"var(--ink)", fontWeight:800, cursor:"pointer" }}>{L("Cancel")}</button>
       <button className="btn btn-primary" disabled={disabled} onClick={onSave} style={{ flex:1, minHeight:48, borderRadius:12, fontWeight:800 }}>{saveLabel || L("Save")}</button>

@@ -460,7 +460,7 @@ export default function Settings() {
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(PLAN_INFO).map(([key, p]) => (
             <div key={key} className={`rounded-xl p-3 text-center border ${
-              plan === key ? "border-current" : "border-gray-100"
+              plan === key ? "border-current pastel-card" : "border-gray-100"
             }`}
             style={plan === key ? { borderColor: p.color, background: p.bg } : {}}>
               <div className="text-xs font-semibold mb-0.5" style={{ color: p.color }}>

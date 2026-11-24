@@ -463,7 +463,7 @@ export default function BulkImport() {
             <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}>
               <input value={restockSearch} onChange={e => setRestockSearch(e.target.value)}
                 placeholder={L("🔍 Search products...")}
-                style={{ flex:1, border:"1.5px solid #e5e7eb", borderRadius:10,
+                style={{ flex:1, minWidth:0, border:"1.5px solid #e5e7eb", borderRadius:10,
                   padding:"8px 14px", fontSize:12, outline:"none" }}/>
               {/* Mode toggle */}
               <div style={{ display:"flex", background:"var(--bg2)", borderRadius:10, padding:3, flexShrink:0 }}>
@@ -617,7 +617,7 @@ export default function BulkImport() {
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder={L("🔍 Search products...")}
-                style={{ flex:1, border:"1.5px solid #e5e7eb", borderRadius:10,
+                style={{ flex:1, minWidth:0, border:"1.5px solid #e5e7eb", borderRadius:10,
                   padding:"8px 14px", fontSize:12, outline:"none" }}/>
               <button onClick={selectAll}
                 style={{ background:"#E1F5EE", color:"var(--jade)", border:"none",

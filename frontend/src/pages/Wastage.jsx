@@ -10,7 +10,7 @@ const fmtDt  = iso => new Date(iso).toLocaleString("en-IN",{ day:"numeric", mont
 const REASONS = [
   { key:"expired",  label:"Expired",  icon:"⏰", color:"#E24B4A", bg:"#FCEBEB",
     desc:L("Product passed expiry date") },
-  { key:"damaged",  label:"Damaged",  icon:"💔", color:"#EF9F27", bg:"#FAEEDA",
+  { key:"damaged",  label:"Damaged",  icon:"💔", color:"#B86E00", bg:"#FAEEDA",
     desc:L("Broken, wet or damaged") },
   { key:"stolen",   label:"Stolen",   icon:"🚨", color:"#7F77DD", bg:"#EEEDFE",
     desc:L("Theft or missing stock") },
@@ -208,7 +208,7 @@ export default function Wastage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-4">
         {[
           { label:"This Month Loss", value: INR(summary.this_month), color:"#E24B4A", bg:"#FCEBEB", icon:"📅" },
-          { label:"Total Loss",      value: INR(summary.total_loss),  color:"#EF9F27", bg:"#FAEEDA", icon:"💸" },
+          { label:"Total Loss",      value: INR(summary.total_loss),  color:"#B86E00", bg:"#FAEEDA", icon:"💸" },
           { label:"Total Records",   value: summary.total_items,      color:"#7F77DD", bg:"#EEEDFE", icon:"📋" },
           { label:"Top Reason",
             value: (k => k ? L(reasonInfo(k).label) : "—")(
@@ -273,7 +273,7 @@ export default function Wastage() {
         ) : filteredRecords.map(r => {
           const ri = reasonInfo(r.reason)
           return (
-            <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl mb-2"
+            <div key={r.id} className={`${String(ri.bg).startsWith("#") ? "pastel-card " : ""}flex items-center gap-3 p-3 rounded-xl mb-2`}
               style={{ background: ri.bg }}>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
                 style={{ background: ri.color + "20" }}>

@@ -86,6 +86,8 @@ def test_register_success():
     mock_table = MagicMock()
     mock_db.table.return_value = mock_table
     mock_table.select.return_value.eq.return_value.execute.return_value.data = []  # no existing email
+    # register now checks email + shop type (one account per shop type): .eq().eq()
+    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
 
     captured = {}
     def fake_send_otp(to_email, store_name, otp):
@@ -274,7 +276,7 @@ def test_list_plans_public():
     r = client.get("/subscriptions/plans")
     assert r.status_code == 200
     plans = r.json()["plans"]
-    assert len(plans) == 3
+    assert len(plans) == 2          # Free + Pro (Wholesale was folded into Pro)
     assert plans[0]["id"] == "free"
     assert plans[1]["price_monthly"] == 299
 
@@ -297,3 +299,18 @@ def test_invoice_empty_items():
 def test_gst_summary_requires_auth():
     r = client.get("/invoices/summary/gst?month=5&year=2026")
     assert r.status_code == 403
+
+
+# ── Rules added 2026-11-24 (end-to-end bug sweep) ────────────────
+
+def test_khata_overpayment_refused_before_saving():
+    """Paying more than is owed is refused and nothing is written to the khata history."""
+    mock_table = MagicMock()
+    mock_db.table.return_value = mock_table
+    mock_table.select.return_value.eq.return_value.single.return_value.execute.return_value.data = make_vendor()
+    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+        {"id": "c1", "name": "Ramu", "total_due": 100}]
+    r = client.post("/udhar/transactions", headers=auth_headers(), json={
+        "customer_id": "c1", "type": "payment", "amount": 150})
+    assert r.status_code == 400
+    mock_table.insert.assert_not_called()

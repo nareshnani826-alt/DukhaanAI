@@ -267,10 +267,12 @@ export default function ChaiBilling() {
         )}
 
         {/* Category pills */}
-        <div className="chip-row" style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:10 }}>
+        {/* All categories always on screen: they share the row, and wrap on very narrow phones
+            (a sideways-scrolling row hid "Other" off the right edge with no hint it was there) */}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, paddingBottom:10 }}>
           {["All", ...CATEGORIES].map(c => (
-            <button key={c} className="tap-chip" onClick={() => setCat(c)}
-              style={{ position:"relative", flexShrink:0, padding:"8px 16px", borderRadius:20, border:"1.5px solid var(--rule)",
+            <button key={c} onClick={() => setCat(c)}
+              style={{ position:"relative", flex:"1 0 auto", minHeight:40, padding:"8px 9px", fontSize:14, borderRadius:20, border:"1.5px solid var(--rule)",
                 background:"var(--bg1)", fontWeight:700, cursor:"pointer", color: cat === c ? "#fff" : "var(--ink-dim)" }}>
               {cat === c && <motion.span layoutId="chai-cat" style={{ position:"absolute", inset:-1.5, borderRadius:20, background:"var(--ink)" }} />}
               <span style={{ position:"relative" }}>{L(c)}</span>
@@ -484,7 +486,10 @@ function PaySheet({ total, busy, regular, onPay, onClose }) {
 
   async function addRegular() {
     try {
-      const c = await Udhar.addCustomer({ name: newName.trim(), phone: newPhone.trim() || null })
+      // Number already in the khata: put the bill on that customer instead of making a copy
+      const key = newPhone.replace(/\D/g, "").slice(-10)
+      const known = key && (regulars || []).find(c => String(c.phone || "").replace(/\D/g, "").slice(-10) === key)
+      const c = known || await Udhar.addCustomer({ name: newName.trim(), phone: newPhone.trim() || null })
       onPay("credit", c)
     } catch (e) { alert(e.message) }
   }

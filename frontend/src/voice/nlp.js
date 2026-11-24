@@ -82,10 +82,15 @@ export function matchProduct(originalText, translatedText, products) {
     for (const alias of SORTED_ALIASES) {
       if (aliasIn(lower, alias)) {
         const standardName = GROCERY_ALIASES[alias]
-        const found = products.find(p =>
+        const hits = products.filter(p =>
           p.name.toLowerCase().includes(standardName) ||
           standardName.includes(p.name.toLowerCase())
         )
+        // Several products fit ("milk" → Amul Milk, Amul Taaza Milk): take the one that shares the
+        // most of the other spoken words ("taaza"); on a tie, one that is in stock
+        const spoken = lower.split(/\s+/).filter(w => w.length > 2)
+        const score = p => spoken.filter(w => aliasIn(p.name.toLowerCase(), w)).length * 10 + (+p.stock > 0 ? 1 : 0)
+        const found = hits.sort((a, b) => score(b) - score(a))[0]
         if (found) return { ...found, _confidence: 0.95, _method: "alias" }
         // Shops spell items their own way ("UDAD DAL", "Haldi Powder"): try every English
         // word for the item; the product sharing the most specific words wins
@@ -248,9 +253,37 @@ export function splitMultiProduct(text) {
   // Telugu: mariyu, inkaa, kooda
   // Tamil: mattum, um
   // Kannada: mattu, kuda
-  const connectors = /\s*(?:,|;|aur|and|also|plus|mariyu|inkaa|kooda|mattu|kuda|mattum|\bum\b)\s*/gi
-  const segments = text.split(connectors).map(s => s.trim()).filter(s => s.length > 1)
-  return segments.length > 0 ? segments : [text]
+  // Whole words only: "and" must not cut "Sandal Soap" or "Candle" in two
+  const connectors = /\s*(?:,|;|\b(?:aur|and|also|plus|mariyu|inkaa|kooda|mattu|kuda|mattum|um)\b)\s*/gi
+  const parts = text.split(connectors).map(s => s.trim()).filter(s => s.length > 1)
+  // "rendu Tata Salt oka Complan": a quantity after a product word starts the next item
+  const isNum  = w => /^\d+(\.\d+)?$/.test(w) || NUMBER_WORDS[w.toLowerCase()] !== undefined
+  const isUnit = w => UNIT_ALIASES[w.toLowerCase()] !== undefined || UNIT_ALIASES[w.toLowerCase().replace(/s$/, "")] !== undefined
+  const isQty  = w => isNum(w) || isUnit(w) || /^\d+(\.\d+)?[a-z]+$/i.test(w)   // "250g", "2kg"
+  const out = []
+  for (const part of parts) {
+    const words = part.split(/\s+/)
+    // Number first ("2 Tata Salt 1 Complan") or number last ("Tata Salt rendu Complan okati"),
+    // as Telugu and Tamil often put it. Decided by how the piece starts.
+    const numberLast = !isNum(words[0]) && words.some(isNum)
+    let cur = []
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i]
+      if (!numberLast && isNum(w) && cur.some(x => !isQty(x)) && !isQty(cur[cur.length - 1])) { out.push(cur.join(" ")); cur = [] }
+      cur.push(w)
+      // number last: the item ends after its quantity (and unit), when another word follows
+      const next = words[i + 1]
+      if (numberLast && next && (isNum(w) || (isUnit(w) && isNum(cur[cur.length - 2] || ""))) && !isUnit(next) && !isNum(next)) { out.push(cur.join(" ")); cur = [] }
+    }
+    if (cur.length) out.push(cur.join(" "))
+  }
+  // A piece that is only a quantity ("half kilo", "250 g") belongs to the item before it
+  const merged = []
+  for (const seg of out) {
+    if (merged.length && seg.split(/\s+/).every(isQty)) merged[merged.length - 1] += " " + seg
+    else merged.push(seg)
+  }
+  return merged.length > 0 ? merged : [text]
 }
 
 // ── Parse multiple products from one utterance ────────────

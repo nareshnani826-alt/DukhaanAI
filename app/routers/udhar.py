@@ -44,9 +44,27 @@ def list_customers(
     return q.execute().data
 
 
+def _phone_key(phone) -> str:
+    """Last 10 digits, so +91 98480 12345, 098480 12345 and 9848012345 match."""
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    return digits[-10:]
+
+
+def _check_phone_free(db, vendor_id: str, phone, exclude_id: Optional[str] = None) -> None:
+    """One khata customer per phone number in a shop (customers without a phone are fine)."""
+    key = _phone_key(phone)
+    if not key:
+        return
+    rows = db.table("udhar_customers").select("id,name,phone").eq("vendor_id", vendor_id).execute().data or []
+    for r in rows:
+        if r["id"] != exclude_id and _phone_key(r.get("phone")) == key:
+            raise HTTPException(status_code=409, detail=f"{key} is already saved for {r['name']}")
+
+
 @router.post("/customers", status_code=201)
 def add_customer(body: CustomerCreate, vendor=Depends(get_current_vendor)):
     db = get_db()
+    _check_phone_free(db, vendor["id"], body.phone)
     result = db.table("udhar_customers").insert({
         "vendor_id": vendor["id"],
         "name":      body.name,
@@ -104,6 +122,15 @@ def add_transaction(body: TransactionCreate, vendor=Depends(get_current_vendor))
 
     customer = cust.data[0]
 
+    # Refuse an overpayment BEFORE saving anything (it used to be saved first, then refused,
+    # so the khata history showed a payment that never reduced the balance)
+    current_due = float(customer["total_due"] or 0)
+    if body.type == "payment" and body.amount > current_due + 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Payment amount ({body.amount}) exceeds outstanding balance ({round(current_due, 2)})"
+        )
+
     # Insert transaction
     txn = db.table("udhar_transactions").insert({
         "vendor_id":   vendor["id"],
@@ -115,12 +142,6 @@ def add_transaction(body: TransactionCreate, vendor=Depends(get_current_vendor))
     }).execute().data[0]
 
     # Update customer total_due
-    current_due = float(customer["total_due"] or 0)
-    if body.type == "payment" and body.amount > current_due + 0.01:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Payment amount ({body.amount}) exceeds outstanding balance ({round(current_due, 2)})"
-        )
     delta    = body.amount if body.type == "credit" else -body.amount
     new_due  = max(0, round(current_due + delta, 2))
     db.table("udhar_customers").update({
@@ -165,6 +186,8 @@ def update_customer(
     if not existing.data:
         raise HTTPException(status_code=404, detail="Customer not found")
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "phone" in updates:
+        _check_phone_free(db, vendor["id"], updates["phone"], exclude_id=customer_id)
     result = db.table("udhar_customers").update(updates)\
         .eq("id", customer_id).execute()
     return result.data[0]

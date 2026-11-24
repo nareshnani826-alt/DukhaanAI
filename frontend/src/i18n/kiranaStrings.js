@@ -97,6 +97,8 @@ export const KIRANA = {
     "Session expired. Please sign in again.": "సెషన్ ముగిసింది. దయచేసి మళ్ళీ సైన్ ఇన్ చేయండి.",
     "Too many attempts. Please wait a moment and try again.": "చాలా ప్రయత్నాలు అయ్యాయి. కొంచెం సేపు ఆగి మళ్ళీ ప్రయత్నించండి.",
     "Server is having trouble. Please try again shortly.": "సర్వర్‌లో సమస్య ఉంది. కొద్దిసేపటిలో మళ్ళీ ప్రయత్నించండి.",
+    "You're offline. Check your internet and try again.": "మీరు ఆఫ్‌లైన్‌లో ఉన్నారు. ఇంటర్నెట్ చూసి మళ్ళీ ప్రయత్నించండి.",
+    "Can't reach DukhaanAI right now. Check your internet and try again.": "ఇప్పుడు DukhaanAI కి కనెక్ట్ కాలేదు. ఇంటర్నెట్ చూసి మళ్ళీ ప్రయత్నించండి.",
   },
   "hi-IN": {
     "Good morning":  "शुभ प्रभात",
@@ -183,6 +185,8 @@ export const KIRANA = {
     "Session expired. Please sign in again.": "सेशन समाप्त हो गया। कृपया फिर से साइन इन करें।",
     "Too many attempts. Please wait a moment and try again.": "बहुत सारी कोशिशें हो गईं। कृपया थोड़ी देर बाद फिर कोशिश करें।",
     "Server is having trouble. Please try again shortly.": "सर्वर में दिक्कत है। कृपया थोड़ी देर बाद फिर कोशिश करें।",
+    "You're offline. Check your internet and try again.": "आप ऑफ़लाइन हैं। इंटरनेट देखकर फिर से कोशिश करें।",
+    "Can't reach DukhaanAI right now. Check your internet and try again.": "अभी DukhaanAI से जुड़ नहीं पा रहे। इंटरनेट देखकर फिर से कोशिश करें।",
   },
   "ta-IN": {
     "Good morning":  "காலை வணக்கம்",
@@ -269,6 +273,8 @@ export const KIRANA = {
     "Session expired. Please sign in again.": "அமர்வு முடிந்தது. மீண்டும் உள்நுழையவும்.",
     "Too many attempts. Please wait a moment and try again.": "அதிக முயற்சிகள். சிறிது நேரம் காத்திருந்து மீண்டும் முயற்சிக்கவும்.",
     "Server is having trouble. Please try again shortly.": "சர்வரில் சிக்கல் உள்ளது. கொஞ்ச நேரத்தில் மீண்டும் முயற்சிக்கவும்.",
+    "You're offline. Check your internet and try again.": "நீங்கள் ஆஃப்லைனில் உள்ளீர்கள். இணையத்தைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.",
+    "Can't reach DukhaanAI right now. Check your internet and try again.": "இப்போது DukhaanAI-ஐ அடைய முடியவில்லை. இணையத்தைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.",
   },
   "kn-IN": {
     "Good morning":  "ಶುಭೋದಯ",
@@ -355,6 +361,8 @@ export const KIRANA = {
     "Session expired. Please sign in again.": "ಸೆಷನ್ ಮುಗಿದಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಸೈನ್ ಇನ್ ಮಾಡಿ.",
     "Too many attempts. Please wait a moment and try again.": "ಹಲವಾರು ಪ್ರಯತ್ನಗಳಾಗಿವೆ. ಸ್ವಲ್ಪ ಸಮಯ ಕಾದು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
     "Server is having trouble. Please try again shortly.": "ಸರ್ವರ್‌ನಲ್ಲಿ ಸಮಸ್ಯೆ ಇದೆ. ಸ್ವಲ್ಪ ಸಮಯದಲ್ಲಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "You're offline. Check your internet and try again.": "ನೀವು ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿದ್ದೀರಿ. ಇಂಟರ್ನೆಟ್ ನೋಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "Can't reach DukhaanAI right now. Check your internet and try again.": "ಈಗ DukhaanAI ಗೆ ಸಂಪರ್ಕವಾಗುತ್ತಿಲ್ಲ. ಇಂಟರ್ನೆಟ್ ನೋಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   },
   "ml-IN": {
     "Good morning":  "സുപ്രഭാതം",

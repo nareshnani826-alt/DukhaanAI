@@ -1,4 +1,5 @@
 import { useEffect, lazy, Suspense }     from "react"
+import ErrorScreen from "./components/ErrorScreen"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { BANGLE_ENABLED } from "./utils/features"
 import { initializeSeedTraining }        from "./voice-ai/seedTraining"
@@ -104,6 +105,7 @@ export default function App() {
           <InstallPrompt />
           <OfflineBanner />
           <AndroidBackButton />
+          <ErrorScreen>
           <Suspense fallback={
             <div role="status" aria-label="Loading"
               style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh" }}>
@@ -169,6 +171,7 @@ export default function App() {
             </FirstRunGuard>} />
           </Routes>
           </Suspense>
+          </ErrorScreen>
         </BrowserRouter>
       </AppModeProvider>
       </PlanProvider>

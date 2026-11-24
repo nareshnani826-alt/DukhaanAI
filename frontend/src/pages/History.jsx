@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
-import { Invoices, Products, isCloud } from "../sync/db"
+import { Invoices, Products, Udhar, isCloud } from "../sync/db"
 import InvoiceView from "../components/InvoiceView"
 import { tr, uiLang } from "../i18n/kiranaStrings"
 import { SkeletonRows } from "../components/Skeleton"
@@ -304,6 +304,7 @@ export default function History() {
     setVoiding(true)
     try {
       await Invoices.updateStatus(inv.id, "cancelled")
+      await Udhar.reverseBill(inv).catch(() => null)   // a credit bill comes off the customer's khata
       setInvoices(prev => prev.map(x => x.id === inv.id ? { ...x, status: "cancelled" } : x))
       setShowVoid(null)
       // Refresh summary

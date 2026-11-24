@@ -80,7 +80,14 @@ export async function call(method, path, body = null, retry = true) {
   if (token) headers["Authorization"] = "Bearer " + token
   const opts = { method, headers }
   if (body) opts.body = JSON.stringify(body)
-  const res = await fetch(BASE + path, opts)
+  let res
+  try { res = await fetch(BASE + path, opts) }
+  catch {
+    // No internet / server unreachable: the browser only says "Failed to fetch"
+    throw new Error(navigator.onLine === false
+      ? tr("You're offline. Check your internet and try again.", currentLang())
+      : tr("Can't reach DukhaanAI right now. Check your internet and try again.", currentLang()))
+  }
   if (res.status === 401 && retry) {
     const hadSession = !!(getToken() || getRefresh())
     const ok = await tryRefresh()
@@ -114,6 +121,17 @@ function localRead() {
 function emptyDb() { return { products:[], sales:[], invoices:[], nextId:1, nextInvNo:1 } }
 function localWrite(d) { localStorage.setItem(LS, JSON.stringify(d)) }
 function lid(d) { const id = "local-" + d.nextId++; localWrite(d); return id }
+// Unique id for phone-only records. Date.now() alone repeated when two records were made in the
+// same millisecond (6 khata customers saved quickly got only 3 ids), mixing up their balances.
+const uid = prefix => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+// Same rules the server applies (app/schemas/schemas.py ProductCreate)
+function checkProduct(p) {
+  if (!String(p.name || "").trim()) throw new Error("Product name cannot be empty")
+  if (String(p.name).trim().length > 150) throw new Error("Product name too long (max 150 characters)")
+  for (const [k, label] of [["mrp", "MRP"], ["cost_price", "Cost price"], ["stock", "Stock"], ["min_stock", "Minimum stock"]])
+    if (p[k] != null && p[k] !== "" && +p[k] < 0) throw new Error(`${label} cannot be negative`)
+}
 
 // ── Products ──────────────────────────────────────────────
 export const Products = {
@@ -143,6 +161,8 @@ export const Products = {
   async create(product) {
     if (isCloud()) return api.post("/products", product)
     const d = localRead()
+    checkProduct(product)   // (a duplicate name is allowed: the stock form warns, then lets the owner add it)
+    product = { ...product, name: String(product.name).trim() }
     const p = { ...product, id: lid(d), vendor_id:"local", is_active:true, created_at:new Date().toISOString(), updated_at:new Date().toISOString() }
     d.products.push(p); localWrite(d); return p
   },
@@ -150,6 +170,7 @@ export const Products = {
     if (isCloud()) return api.patch("/products/" + id, updates)
     const d = localRead(); const i = d.products.findIndex(p => p.id === id)
     if (i < 0) throw new Error("Not found")
+    checkProduct({ ...d.products[i], ...updates })
     d.products[i] = { ...d.products[i], ...updates, updated_at: new Date().toISOString() }
     localWrite(d); return d.products[i]
   },
@@ -359,7 +380,7 @@ export const Customers = {
       }
     } else {
       d.customers.push({
-        id: "cust-" + Date.now(),
+        id: uid("cust"),
         vendor_id: "local",
         name, phone: phone || null, gstin: gstin || null,
         total_spent: amount, visit_count: 1,
@@ -408,6 +429,18 @@ const _CustomersUpdate = async (id, updates) => {
 Customers.update = _CustomersUpdate
 
 // ── Udhar Khata ───────────────────────────────────────────
+// One khata customer per phone number (same rule as the server, app/routers/udhar.py).
+// Last 10 digits, so +91 98480 12345, 098480 12345 and 9848012345 count as one number.
+const phoneKey = p => String(p || "").replace(/\D/g, "").slice(-10)
+function checkPhoneFree(customers, phone, excludeId = null) {
+  const key = phoneKey(phone)
+  if (!key) return
+  const taken = customers.find(c => c.id !== excludeId && phoneKey(c.phone) === key)
+  if (taken) throw new Error(`${key} is already saved for ${taken.name}`)
+}
+
+const isCreditBill = inv => /^(credit|udhar|khata)$/i.test(String(inv?.payment_mode || ""))
+
 export const Udhar = {
 
   // ── Customers ─────────────────────────────────────────
@@ -430,8 +463,9 @@ export const Udhar = {
     const d = localRead()
     if (!d.udhar_customers) d.udhar_customers = []
     if (!d.udhar_txns)      d.udhar_txns      = []
+    checkPhoneFree(d.udhar_customers, phone)
     const c = {
-      id: "uc-" + Date.now(), vendor_id:"local",
+      id: uid("uc"), vendor_id:"local",
       name, phone: phone||null, address: address||null,
       total_due: 0, last_txn_at: null,
       created_at: new Date().toISOString()
@@ -444,6 +478,7 @@ export const Udhar = {
     const d = localRead()
     const idx = (d.udhar_customers||[]).findIndex(c => c.id === id)
     if (idx < 0) throw new Error("Customer not found")
+    checkPhoneFree(d.udhar_customers, phone, id)
     d.udhar_customers[idx] = { ...d.udhar_customers[idx], name, phone: phone||null, address: address||null }
     localWrite(d)
     return d.udhar_customers[idx]
@@ -470,14 +505,47 @@ export const Udhar = {
     if (isCloud()) return api.post("/udhar/transactions", {
       customer_id: customerId, type:"credit", amount, note, invoice_id: invoiceId||null
     })
-    return _localTxn({ customerId, type:"credit", amount, note })
+    return _localTxn({ customerId, type:"credit", amount, note, invoiceId })
   },
 
-  async addPayment({ customerId, amount, note }) {
+  async addPayment({ customerId, amount, note, invoiceId }) {
     if (isCloud()) return api.post("/udhar/transactions", {
-      customer_id: customerId, type:"payment", amount, note
+      customer_id: customerId, type:"payment", amount, note, invoice_id: invoiceId||null
     })
-    return _localTxn({ customerId, type:"payment", amount, note })
+    return _localTxn({ customerId, type:"payment", amount, note, invoiceId })
+  },
+
+  // A bill paid on Credit goes onto the customer's khata (it used to be saved as a bill only,
+  // so the khata never showed the money owed). Finds the customer by phone, else by name,
+  // and adds them if they are new.
+  async creditFromBill(inv, { name, phone } = {}) {
+    if (!isCreditBill(inv) || !(+inv.total > 0)) return null
+    const who = String(name || inv.customer_name || "").trim()
+    if (!who || /^walk-?in/i.test(who)) return null
+    const list = await Udhar.listCustomers()
+    const key = phoneKey(phone || inv.customer_phone)
+    let c = (key && list.find(x => phoneKey(x.phone) === key))
+         || list.find(x => x.name.trim().toLowerCase() === who.toLowerCase())
+    if (!c) c = await Udhar.addCustomer({ name: who, phone: phone || inv.customer_phone || null })
+    await Udhar.addCredit({ customerId: c.id, amount: +inv.total, note: `Bill ${inv.invoice_no}`, invoiceId: inv.id })
+    return c
+  },
+
+  // Cancelling a credit bill takes it back off the khata (as a "cancelled" entry, so the history stays)
+  async reverseBill(inv) {
+    if (!isCreditBill(inv)) return null
+    const list = await Udhar.listCustomers()
+    for (const c of list) {
+      const txns = await Udhar.transactions(c.id)
+      const credit = txns.find(t => t.type === "credit" && String(t.invoice_id || "") === String(inv.id))
+      if (!credit) continue
+      if (txns.some(t => t.type === "payment" && String(t.invoice_id || "") === String(inv.id))) return null  // already undone
+      const owed = +((await Udhar.listCustomers()).find(x => x.id === c.id)?.total_due) || 0
+      const back = Math.min(+credit.amount, owed)   // already paid part of it? only the rest comes off
+      if (back > 0) await Udhar.addPayment({ customerId: c.id, amount: back, note: `Bill ${inv.invoice_no} cancelled`, invoiceId: inv.id })
+      return c
+    }
+    return null
   },
 
   async summary() {
@@ -490,18 +558,22 @@ export const Udhar = {
   }
 }
 
-function _localTxn({ customerId, type, amount, note }) {
+function _localTxn({ customerId, type, amount, note, invoiceId }) {
   const d = localRead()
   if (!d.udhar_customers) d.udhar_customers = []
   if (!d.udhar_txns)      d.udhar_txns      = []
   const ci = d.udhar_customers.findIndex(c => c.id === customerId)
   if (ci < 0) throw new Error("Customer not found")
+  // Same rules as the server: positive amounts, and a payment can't be more than is owed
+  if (!(+amount > 0)) throw new Error("amount must be positive")
+  const owed = +d.udhar_customers[ci].total_due || 0
+  if (type === "payment" && +amount > owed + 0.01) throw new Error(`Payment amount (${+amount}) exceeds outstanding balance (${Math.round(owed * 100) / 100})`)
   const delta = type === "credit" ? +amount : -amount
   d.udhar_customers[ci].total_due   = Math.max(0, Math.round(((d.udhar_customers[ci].total_due||0) + delta)*100)/100)
   d.udhar_customers[ci].last_txn_at = new Date().toISOString()
   const txn = {
-    id: "ut-" + Date.now(), vendor_id:"local", customer_id: customerId,
-    type, amount: +amount, note: note||null,
+    id: uid("ut"), vendor_id:"local", customer_id: customerId,
+    type, amount: +amount, note: note||null, invoice_id: invoiceId||null,
     created_at: new Date().toISOString()
   }
   d.udhar_txns.push(txn); localWrite(d); return txn
@@ -521,6 +593,8 @@ export const Wastage = {
     if (!d.wastage_records) d.wastage_records = []
     const prod = (d.products||[]).find(p => p.id === productId)
     if (!prod) throw new Error("Product not found")
+    if (!(+qty > 0)) throw new Error("qty must be positive")
+    if (+qty > (+prod.stock || 0) + 1e-9) throw new Error(`Wastage qty (${qty}) exceeds available stock (${+prod.stock || 0})`)
     const newStock = Math.max(0, (prod.stock||0) - qty)
     const lossVal  = Math.round(qty * (prod.cost_price||0) * 100) / 100
     // Update stock
@@ -528,7 +602,7 @@ export const Wastage = {
     if (pi >= 0) d.products[pi].stock = newStock
     // Record
     const rec = {
-      id: "wr-" + Date.now(), vendor_id:"local",
+      id: uid("wr"), vendor_id:"local",
       product_id: productId, product_name: prod.name,
       qty, unit: prod.unit||"piece", reason, note: note||null,
       loss_value: lossVal, stock_before: prod.stock||0, stock_after: newStock,

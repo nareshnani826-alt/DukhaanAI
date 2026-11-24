@@ -273,7 +273,7 @@ function TextAlertCard({ product, lang, onClose, onReadEnglish }) {
       background:"rgba(0,0,0,0.6)", backdropFilter:"blur(3px)",
       display:"flex", alignItems:"center", justifyContent:"center", padding:16,
     }} onClick={e => { if(e.target===e.currentTarget) onClose() }}>
-      <div style={{
+      <div className="pastel-card" style={{
         background:r.bg, border:`2px solid ${r.border}`,
         borderRadius:20, width:"100%", maxWidth:480,
         boxShadow:`0 24px 60px ${r.color}33`,
@@ -381,7 +381,7 @@ function ProductCard({ p, lang, nativeVoices, onSpeak }) {
   const valRisk = p.risk_level!=="safe"
     ? Math.round(parseFloat(p.cost_price||0)*parseFloat(p.stock||0)) : null
   return (
-    <div style={{
+    <div className="pastel-card" style={{
       background:r.bg, border:`1.5px solid ${r.border}`, borderRadius:14,
       padding:"14px 16px", display:"flex", flexDirection:"column", gap:6,
       boxShadow:p.risk_level==="likely_expired"?`0 0 0 2px ${r.color}33`:"0 1px 4px rgba(0,0,0,0.06)",

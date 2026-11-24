@@ -55,7 +55,7 @@
   --brass-lite: #f6c768;
   --brass-deep: #c08a3a;
   --brass-bg: rgba(192,138,58,0.12);
-  --ember: #b3261e;
+  --ember: #f07a6a;   /* light red: #b3261e was 2.6:1 on the dark background */
   --ember-lite: #ff8e7a;
   --ember-bg: rgba(179,38,30,0.15);
   --jade: #3a8a6b;
@@ -230,6 +230,12 @@ input, select, textarea, button {
 /* Wrapper Layout puts around each page for the route fade — passes the flex
    column through so pages size exactly as if they were direct children */
 .page-transition { flex:1; min-height:0; min-width:0; display:flex; flex-direction:column; }
+/* Tablet / desktop: app-main does not scroll, so a page taller than the window
+   (chai Menu & Stock, Help…) scrolls here. Pages with their own scroll area fit
+   the window exactly and are unaffected. Phones scroll app-main instead (below). */
+@media (min-width: 769px) {
+  .page-transition { overflow-y: auto; overflow-x: hidden; }
+}
 /* Utility: pages wrap their content in this to get full-height scroll */
 .page-scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
 
@@ -497,3 +503,64 @@ input, select, textarea, button {
 .lh-inp::placeholder { color: #b5aca0; -webkit-text-fill-color: #b5aca0; opacity: 1; }
 /* Phone autofill (saved email/password) keeps the same dark text */
 .lh-inp:-webkit-autofill { -webkit-text-fill-color: #1c1209; }
+
+/* Chai "Menu & Stock" pop-ups: on phones keep the box above the bottom menu */
+@media (max-width: 768px) {
+  .chai-sheet-wrap { padding-bottom: calc(68px + 12px + env(safe-area-inset-bottom, 0px)) !important; padding-top: 12px !important; }
+}
+
+/* ── Older screens use fixed Tailwind greys (text-gray-*, bg-white, bg-gray-50…) that ignored
+   the theme: in dark mode Khata names were dark grey on dark brown (1.2:1, unreadable) and
+   light boxes got cream text. Map them onto the theme tokens. In light mode text-gray-400 was
+   too pale on white/cream (2.3:1), so it gets a darker warm grey (4.6:1). ── */
+.text-gray-400 { color: #7a7268; }
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-700 { color: var(--ink); }
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-500 { color: var(--ink-dim); }
+[data-theme="dark"] .text-gray-400,
+[data-theme="dark"] .text-gray-300 { color: #a8977a; }
+[data-theme="dark"] .bg-white      { background-color: var(--bg1); }
+[data-theme="dark"] .bg-gray-50    { background-color: var(--bg2); }
+[data-theme="dark"] .bg-gray-100   { background-color: var(--bg3); }
+[data-theme="dark"] .border-gray-100,
+[data-theme="dark"] .border-gray-200 { border-color: var(--rule); }
+[data-theme="dark"] .bg-red-50     { background-color: rgba(231, 76, 60, 0.16); }
+[data-theme="dark"] .bg-amber-50,
+[data-theme="dark"] .bg-yellow-50  { background-color: rgba(245, 158, 11, 0.16); }
+[data-theme="dark"] .bg-green-50,
+[data-theme="dark"] .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.16); }
+[data-theme="dark"] .bg-orange-50  { background-color: rgba(232, 119, 34, 0.16); }
+[data-theme="dark"] .bg-blue-50    { background-color: rgba(59, 130, 246, 0.16); }
+/* Red "Out of stock" / "Critical" text was too dark on the dark theme */
+[data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-red-700 { color: #f08070; }
+
+/* Input boxes in a row may shrink (browsers give them a ~170px minimum otherwise, which pushed
+   the button next to them off the screen on small phones: Bulk Import "Clear", Agent send). */
+input, select, textarea { min-width: 0; }
+
+/* Sideways category rows: fade the right edge so it's clear more chips are hidden there.
+   The extra right padding lets the last chip scroll fully clear of the fade. */
+.chip-row {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  padding-right: 28px;
+}
+
+/* Light pastel cards (Wastage rows, Expiry cards…) stay light in the dark theme, so the text
+   inside them must stay dark too: re-point the text tokens inside the card. */
+[data-theme="dark"] .pastel-card {
+  --ink: #1c1209; --ink-soft: #3d2c1c; --ink-dim: #5c4a36; --ink-faint: #6e5e48;
+  color: var(--ink);
+}
+/* Very pale greys in the light theme (1.5:1 on white) */
+.text-gray-300 { color: #8a8278; }
+/* Greys inside pastel cards stay dark in the dark theme (beats the dark .text-gray-* rules) */
+[data-theme="dark"] .pastel-card .text-gray-400,
+[data-theme="dark"] .pastel-card .text-gray-500,
+[data-theme="dark"] .pastel-card .text-gray-300 { color: #6e5e48; }
+[data-theme="dark"] .pastel-card .text-gray-600,
+[data-theme="dark"] .pastel-card .text-gray-700,
+[data-theme="dark"] .pastel-card .text-gray-800 { color: #1c1209; }

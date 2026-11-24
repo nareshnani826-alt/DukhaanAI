@@ -372,7 +372,8 @@ function ProductModal({ editId, initialForm, lang: initialLang, onSave, onClose,
               </div>
               <div>
                 <label className="label">Barcode</label>
-                <input className="input" value={form.sku} inputMode="numeric"
+                {/* Some barcodes (Code 128) carry letters, so this one is not digits-only */}
+                <input className="input" value={form.sku} inputMode="numeric" data-allow-text=""
                   onChange={e => set("sku", e.target.value)} placeholder="Optional" />
               </div>
             </div>

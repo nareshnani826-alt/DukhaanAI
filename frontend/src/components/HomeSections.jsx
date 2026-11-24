@@ -351,9 +351,9 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
       {/* A day at your dukaan */}
       <section id="story" className="hm-section hm-story-section">
         <div className="hm-wrap">
-          <SectionHead key={shop} kicker={C.storyKicker} title={C.storyTitle}
+          <SectionHead key={"head-" + shop} kicker={C.storyKicker} title={C.storyTitle}
             sub="Scroll through a day at the counter and see where DukhaanAI saves you time."/>
-          <DayStory key={shop} chapters={STORIES[C.story]}/>
+          <DayStory key={"story-" + shop} chapters={STORIES[C.story]}/>
         </div>
       </section>
 

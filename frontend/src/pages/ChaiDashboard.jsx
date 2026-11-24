@@ -243,14 +243,14 @@ export default function ChaiDashboard() {
 
       <AnimatePresence>
         {closing && <CloseDaySheet onClose={() => setClosing(false)} onSaved={c => { setClosed(c); setClosing(false) }}
-          lowList={low} toBuy={toBuy} dayName={dayName} />}
+          lowList={low} toBuy={toBuy} dayName={dayName} openTables={data?.open || []} />}
       </AnimatePresence>
     </div>
   )
 }
 
 // End of day: count the cash drawer against what the app expects, then send the day's summary
-function CloseDaySheet({ onClose, onSaved, lowList, toBuy, dayName }) {
+function CloseDaySheet({ onClose, onSaved, lowList, toBuy, dayName, openTables = [] }) {
   const today = localDay()
   const [rep, setRep] = useState(null)
   const [counted, setCounted] = useState(readClose(today)?.counted ?? "")
@@ -301,6 +301,18 @@ function CloseDaySheet({ onClose, onSaved, lowList, toBuy, dayName }) {
                 </div>
               ))}
             </div>
+            {/* Tables not paid yet are not in today's total: say so before the day is closed */}
+            {openTables.length > 0 && (
+              <div role="alert" style={{ display:"flex", gap:8, alignItems:"flex-start", background:"rgba(230,126,34,0.12)",
+                border:"1.5px solid #e67e22", borderRadius:12, padding:"10px 12px", fontSize:14, fontWeight:700, color:"var(--ink)" }}>
+                <BillIcon name="alert" size={18} />
+                <span>{openTables.length} {L("tables still to pay")} · {INR(openTables.reduce((s, o) => s + +o.total, 0))}
+                  <span style={{ display:"block", fontWeight:600, fontSize:13, color:"var(--ink-dim)" }}>
+                    {openTables.map(o => o.label || "#" + o.order_no).join(", ")} · {L("not in today's total until paid")}
+                  </span>
+                </span>
+              </div>
+            )}
             <label style={{ display:"flex", flexDirection:"column", gap:6, fontWeight:800, fontSize:14 }}>
               {L("Cash in the drawer now")}
               <input autoFocus type="number" inputMode="decimal" value={counted} onChange={e => setCounted(e.target.value)} placeholder={String(expected)}

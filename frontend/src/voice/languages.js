@@ -21,13 +21,16 @@ export const NUMBER_WORDS = {
   "gyarah":11,"barah":12,"terah":13,"chaudah":14,"pandrah":15,"solah":16,"satrah":17,"atharah":18,"unnees":19,"bees":20,
   "tees":30,"chaalees":40,"pachaas":50,"saath":60,"sattar":70,"assi":80,"nabbe":90,"sau":100,
   // Telugu
-  "okati":1,"rendu":2,"moodu":3,"naalugu":4,"aidu":5,"aaru":6,"edu":7,"enimidi":8,"tommidi":9,"padi":10,
+  "okati":1,"oka":1,"okka":1,"rendu":2,"moodu":3,"naalugu":4,"aidu":5,"aaru":6,"edu":7,"enimidi":8,"tommidi":9,"padi":10,
   "padakondu":11,"pannendu":12,"padinmoodu":13,"padinalugu":14,"padihenu":15,"padaaru":16,"padihedu":17,"padhenimidi":18,"pandommidi":19,"iyyi":20,
   // Tamil
   "onnu":1,"moonu":3,"naangu":4,"anju":5,"ezhu":7,"ettu":8,"ombodu":9,"pathu":10,
   "pathionnu":11,"pannrendu":12,
   // Common
-  "half":0.5,"quarter":0.25,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,
+  "half":0.5,"quarter":0.25,
+  // fractions said at the counter: aadha kilo, paav kilo, dedh kilo / ara kilo, paavu kilo
+  "aadha":0.5,"adha":0.5,"aadhi":0.5,"adhi":0.5,"aadhe":0.5,"paav":0.25,"pav":0.25,"pao":0.25,"dedh":1.5,"derh":1.5,"dhai":2.5,"dhaai":2.5,"sawa":1.25,
+  "ara":0.5,"arra":0.5,"paavu":0.25,"pavu":0.25,"mukkal":0.75,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,
   "eleven":11,"twelve":12,"fifteen":15,"twenty":20,"thirty":30,"fifty":50,"hundred":100,
 }
 

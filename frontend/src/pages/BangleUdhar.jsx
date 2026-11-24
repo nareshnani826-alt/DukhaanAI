@@ -359,7 +359,7 @@ _Powered by DukhaanAI_ 💍`
         style={{ flexDirection: window.innerWidth <= 768 ? "column" : "row" }}>
 
         {/* Left — customer list */}
-        <div style={{ width: window.innerWidth <= 768 ? "100%" : "288px", flexShrink:0,
+        <div style={{ width: window.innerWidth <= 768 ? "100%" : "288px", flex: window.innerWidth <= 768 ? "1 1 0" : "0 0 288px", minHeight:0,
           display: window.innerWidth <= 768 && showDetail ? "none" : "flex", flexDirection:"column" }}>
           <input className="input mb-2" placeholder="Search customer or phone..."
             value={search} onChange={e => setSearch(e.target.value)} />
