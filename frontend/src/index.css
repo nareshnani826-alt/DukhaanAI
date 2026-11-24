@@ -294,9 +294,18 @@ input, select, textarea, button {
   .app-main {
     order: 1; flex: 1;
     overflow-y: auto !important; overflow-x: hidden !important;
-    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0 !important;
     min-width: 0; width: 100%;
     -webkit-overflow-scrolling: touch;
+  }
+  /* Room for the bottom menu, placed AFTER the page. Padding on app-main did not
+     work for tall pages (chai Home, Stock...): they overflow the screen-height
+     wrapper, so their last ~68px stayed hidden under the menu. This spacer sits
+     below the page's real end, and pages that fill the screen (Billing) still
+     shrink by exactly the menu height. */
+  .page-transition::after {
+    content: ""; display: block; flex: 0 0 auto;
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
   }
   /* The wrapper stays screen-height (min-height:0 above) so pages with their own
      bottom bar — Billing's Pay bar — keep it on screen. Taller pages simply
@@ -395,7 +404,7 @@ input, select, textarea, button {
 
 @supports (padding: env(safe-area-inset-bottom)) {
   @media (max-width: 768px) {
-    .app-main { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+    .app-main { padding-bottom: 0; }
   }
 }
 

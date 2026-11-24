@@ -1,13 +1,22 @@
 /**
  * First-run onboarding — shown once when a new user opens the app.
- * 3 steps: language → store name → ready.
- * Sets dk_voice_lang (unified language key) and dk_onboarding_done.
+ * 2 steps: language → shop type (kirana / chai), then the sign-in / sign-up
+ * page for that shop (/kirana or /chai), with the store type already chosen.
+ * The store name is asked only once, on the sign-up form.
+ * Sets dk_voice_lang (unified language key), dk_home_shop and dk_onboarding_done.
  */
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { shopEnabled } from "../utils/features"
 
 const DONE_KEY = "dk_onboarding_done"
 const LANG_KEY = "dk_voice_lang"   // same key used by voice agent
+
+const SHOPS = [
+  { id: "kirana", emoji: "🏪", name: "Kirana Store", sub: "Grocery & general store" },
+  { id: "chai",   emoji: "☕", name: "Chai / Tea Shop", sub: "Tea stall, café & snacks" },
+  { id: "bangle", emoji: "💍", name: "Bangle Store", sub: "Bangles, jewellery & fancy" },
+].filter(s => shopEnabled(s.id))
 
 const LANGUAGES = [
   { code: "te-IN", label: "తెలుగు",   name: "Telugu",    flag: "🏳️" },
@@ -52,6 +61,10 @@ const STEP_LABELS = {
   next:    { "te-IN": "తదుపరి", "hi-IN": "अगला", "ta-IN": "அடுத்து", "kn-IN": "ಮುಂದೆ", "ml-IN": "അടുത്തത്", "mr-IN": "पुढे", "bn-IN": "পরবর্তী", "gu-IN": "આગળ", "pa-IN": "ਅੱਗੇ", "en-IN": "Next" },
   enter:   { "te-IN": "దుకాణం తెరవండి →", "hi-IN": "दुकान खोलें →", "ta-IN": "கடை திறக்கவும் →", "kn-IN": "ಅಂಗಡಿ ತೆರೆಯಿರಿ →", "ml-IN": "കട തുറക്കുക →", "mr-IN": "दुकान उघडा →", "bn-IN": "দোকান খুলুন →", "gu-IN": "દુકાન ખોલો →", "pa-IN": "ਦੁਕਾਨ ਖੋਲ੍ਹੋ →", "en-IN": "Enter your store →" },
   skip:    { "te-IN": "దాటవేయి", "hi-IN": "छोड़ें", "ta-IN": "தவிர்", "kn-IN": "ಬಿಟ್ಟುಬಿಡಿ", "ml-IN": "ഒഴിവാക്കുക", "mr-IN": "वगळा", "bn-IN": "এড়িয়ে যান", "gu-IN": "છોડો", "pa-IN": "ਛੱਡੋ", "en-IN": "Skip" },
+  shopQ:   { "te-IN": "మీది ఏ దుకాణం?", "hi-IN": "आपकी कौन सी दुकान है?", "ta-IN": "உங்களுடையது எந்த கடை?", "kn-IN": "ನಿಮ್ಮದು ಯಾವ ಅಂಗಡಿ?", "ml-IN": "നിങ്ങളുടേത് ഏത് കടയാണ്?", "mr-IN": "तुमचे कोणते दुकान आहे?", "bn-IN": "আপনার কোন দোকান?", "gu-IN": "તમારી કઈ દુકાન છે?", "pa-IN": "ਤੁਹਾਡੀ ਕਿਹੜੀ ਦੁਕਾਨ ਹੈ?", "en-IN": "What shop do you run?" },
+  kirana:  { "te-IN": "కిరాణా స్టోర్", "hi-IN": "किराना स्टोर", "ta-IN": "மளிகைக் கடை", "kn-IN": "ಕಿರಾಣಿ ಅಂಗಡಿ", "ml-IN": "പലചരക്ക് കട", "mr-IN": "किराणा दुकान", "bn-IN": "মুদির দোকান", "gu-IN": "કરિયાણાની દુકાન", "pa-IN": "ਕਰਿਆਨਾ ਸਟੋਰ", "en-IN": "Kirana Store" },
+  chai:    { "te-IN": "టీ కొట్టు / చాయ్ షాప్", "hi-IN": "चाय की दुकान", "ta-IN": "டீ கடை", "kn-IN": "ಟೀ ಅಂಗಡಿ", "ml-IN": "ചായക്കട", "mr-IN": "चहाची टपरी", "bn-IN": "চায়ের দোকান", "gu-IN": "ચાની દુકાન", "pa-IN": "ਚਾਹ ਦੀ ਦੁਕਾਨ", "en-IN": "Chai / Tea Shop" },
+  bangle:  { "en-IN": "Bangle Store" },
   storePh: { "te-IN": "ఉదా: రాజు కిరాణా స్టోర్", "hi-IN": "जैसे: राजू किराना स्टोर", "ta-IN": "எ.கா: ராஜு கிரானா ஸ்டோர்", "kn-IN": "ಉದಾ: ರಾಜು ಕಿರಾಣ ಸ್ಟೋರ್", "ml-IN": "ഉദാ: രാജു കിരാണ സ്റ്റോർ", "mr-IN": "उदा: राजू किराणा स्टोर", "bn-IN": "যেমন: রাজু কিরানা স্টোর", "gu-IN": "દા.ત.: રાજુ કરિયાણા સ્ટોર", "pa-IN": "ਜਿਵੇਂ: ਰਾਜੂ ਕਿਰਾਣਾ ਸਟੋਰ", "en-IN": "e.g. Raju Kirana Store" },
 }
 
@@ -63,19 +76,16 @@ export default function Onboarding() {
   const navigate    = useNavigate()
   const [step,      setStep]      = useState(1)
   const [lang,      setLang]      = useState(detectDefaultLang)
-  const [storeName, setStoreName] = useState("")
-
-  // Onboarding now runs before login/signup (see FirstRunGuard in App.jsx),
-  // so "/" is the right next stop either way: LoginHome shows the auth form
-  // for a fresh visitor, or auto-redirects straight to the dashboard for
-  // anyone who already has a valid session.
-  function finish() {
+  // Onboarding runs before login/signup (see FirstRunGuard in App.jsx).
+  // /kirana or /chai opens LoginHome with that shop type picked for sign-up
+  // (or goes straight to the dashboard for anyone already signed in).
+  function finish(shop) {
     try {
       localStorage.setItem(LANG_KEY, lang)
       localStorage.setItem(DONE_KEY, "1")
-      if (storeName.trim()) localStorage.setItem("dk_store_name_hint", storeName.trim())
+      localStorage.setItem("dk_home_shop", shop)
     } catch {}
-    navigate("/")
+    navigate("/" + shop, { replace: true })
   }
 
   function skip() {
@@ -150,93 +160,42 @@ export default function Onboarding() {
     </div>
   )
 
-  // ── Step 2: Store name ───────────────────────────────────
-  if (step === 2) return (
+  // ── Step 2: Which shop? → straight to sign in / sign up for that shop ──
+  return (
     <div style={{ minHeight: "100dvh", background: "#0f0f0f",
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", padding: "32px 24px" }}>
 
-      <div style={{ fontSize: 56, marginBottom: 20 }}>🏪</div>
-
       <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff",
-        textAlign: "center", marginBottom: 8 }}>
-        {GREET[lang]}
+        textAlign: "center", marginBottom: 8, lineHeight: 1.3 }}>
+        {lbl("shopQ", lang)}
       </h1>
-      <p style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 32 }}>
-        What's your store name?
+      <p style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 28 }}>
+        What shop do you run?
       </p>
 
-      <input
-        value={storeName}
-        onChange={e => setStoreName(e.target.value)}
-        placeholder={lbl("storePh", lang)}
-        autoFocus
-        style={{ width: "100%", maxWidth: 380, padding: "16px", borderRadius: 14,
-          border: "2px solid #333", background: "#1a1a1a", color: "#fff",
-          fontSize: 15, fontWeight: 600, outline: "none", marginBottom: 20,
-          boxSizing: "border-box" }}
-        aria-label="Store name"
-        maxLength={60}
-        onKeyDown={e => e.key === "Enter" && storeName.trim() && setStep(3)}
-      />
-
-      <button onClick={() => storeName.trim() && setStep(3)}
-        disabled={!storeName.trim()}
-        style={{ width: "100%", maxWidth: 380, padding: "15px", borderRadius: 14, border: "none",
-          background: "linear-gradient(135deg,#e87722,#d45f00)",
-          color: "#fff", fontSize: 15, fontWeight: 800,
-          cursor: storeName.trim() ? "pointer" : "not-allowed",
-          opacity: storeName.trim() ? 1 : 0.45,
-          marginBottom: 12 }}>
-        {lbl("next", lang)} →
-      </button>
-      <button onClick={() => setStep(1)}
-        style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer" }}>
-        ← Back
-      </button>
-    </div>
-  )
-
-  // ── Step 3: You're all set ───────────────────────────────
-  return (
-    <div style={{ minHeight: "100dvh", background: "#0f0f0f",
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "32px 24px", textAlign: "center" }}>
-
-      <div style={{ fontSize: 64, marginBottom: 20 }}>🎉</div>
-
-      <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff", marginBottom: 8 }}>
-        {storeName ? `${storeName} is ready!` : "Your store is ready!"}
-      </h1>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 40, lineHeight: 1.6 }}>
-        Start by adding products, then speak to bill customers instantly.
-      </p>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12,
-        width: "100%", maxWidth: 380 }}>
-        {[
-          { icon: "📦", text: "Add your first product", sub: "Set MRP, stock, category" },
-          { icon: "🎤", text: "Speak to generate a bill", sub: "\"Do litre doodh, ek bread\"" },
-          { icon: "📊", text: "See today's profit", sub: "Open & close day to track earnings" },
-        ].map((item, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 14,
-            padding: "14px 16px", borderRadius: 14, background: "#1a1a1a",
-            border: "1px solid #2a2a2a", textAlign: "left" }}>
-            <div style={{ fontSize: 26, width: 40, textAlign: "center", flexShrink: 0 }}>{item.icon}</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{item.text}</div>
-              <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{item.sub}</div>
-            </div>
-          </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 380, marginBottom: 24 }}>
+        {SHOPS.map(s => (
+          <button key={s.id} onClick={() => finish(s.id)}
+            aria-label={s.name}
+            style={{ display: "flex", alignItems: "center", gap: 16, textAlign: "left",
+              padding: "18px 18px", borderRadius: 16, cursor: "pointer",
+              border: "2px solid #2a2a2a", background: "#1a1a1a" }}>
+            <span style={{ fontSize: 40, lineHeight: 1 }}>{s.emoji}</span>
+            <span>
+              <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: "#fff" }}>
+                {lbl(s.id, lang)}
+              </span>
+              <span style={{ display: "block", fontSize: 12, color: "#888", marginTop: 3 }}>{s.sub}</span>
+            </span>
+            <span style={{ marginLeft: "auto", color: "#e87722", fontSize: 22, fontWeight: 800 }}>→</span>
+          </button>
         ))}
       </div>
 
-      <button onClick={finish}
-        style={{ marginTop: 32, width: "100%", maxWidth: 380, padding: "16px",
-          borderRadius: 14, border: "none",
-          background: "linear-gradient(135deg,#e87722,#d45f00)",
-          color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
-        {lbl("enter", lang)}
+      <button onClick={() => setStep(1)}
+        style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer" }}>
+        ← Back
       </button>
     </div>
   )

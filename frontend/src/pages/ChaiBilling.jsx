@@ -63,8 +63,11 @@ export default function ChaiBilling() {
       // Use the first alternative that names something on the menu
       const parsed = heard.map(t => ({ t, ...parseChaiOrder(t, menu) })).find(r => r.lines.length) || { t: heard[0], lines: [] }
       if (!parsed.lines.length) return flash(`"${parsed.t}" — ${L("not on the menu, try again")}`, false)
+      const said = parsed.lines.map(({ item, qty }) => `${qty} ${item.name}`).join(", ")
+      const missed = parsed.unknown?.length ? ` · ${L("Not on menu")}: ${parsed.unknown.join(" ")}` : ""
+      if (parsed.table) { voiceTable(parsed.table, parsed.lines, said + missed); return }
       parsed.lines.forEach(({ item, qty }) => add(item, qty))
-      flash(parsed.lines.map(({ item, qty }) => `${qty} ${item.name}`).join(", ") + " ✓")
+      flash(said + " ✓" + missed, !missed)
     }
     rec.onerror = e => flash(e?.error === "no-speech" ? L("Didn't hear anything, tap Speak and say the order") : L("Mic error, check permission"), false)
     rec.onend = () => setListening(false)
@@ -104,6 +107,24 @@ export default function ChaiBilling() {
       const o = await ChaiOrders.saveOpen({ label, items: lines })
       await loadOpen(); setActive(o.id); setLines(o.items || [])
     } catch (e) { flash(e.message, false) }
+  }
+  // "Table two, do elaichi chai": open T2 (or add to it if already open) with these items
+  async function voiceTable(label, spoken, said) {
+    const existing = openOrders.find(o => (o.label || "").toLowerCase() === label.toLowerCase())
+    const items = (existing?.items || []).map(l => ({ ...l }))
+    for (const { item, qty } of spoken) {
+      const l = items.find(x => x.menu_id === item.id)
+      if (l) l.qty += qty
+      else items.push({ menu_id: item.id, name: item.name, price: +item.price, qty })
+    }
+    setMode("table"); setRegular(null); setNewTable(false)
+    setBusy(true)
+    try {
+      const o = await ChaiOrders.saveOpen(existing ? { id: existing.id, items } : { label, items })
+      await loadOpen(); setActive(o.id); setLines(o.items || items)
+      flash(`${label}: ${said} ✓`)
+    } catch (e) { flash(e.message, false) }
+    setBusy(false)
   }
   async function saveTable() {
     if (!activeId) return setNewTable(true)

@@ -1246,6 +1246,8 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
 
   const inp = { width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"12px 14px",
     fontSize:16, outline:"none", boxSizing:"border-box", background:"#fafafa",
+    // The card is always white: fixed dark text, or the phone's dark mode makes typed text cream-on-white
+    color:"#1c1209", WebkitTextFillColor:"#1c1209", caretColor:"#e87722", colorScheme:"light",
     transition:"border 0.15s, box-shadow 0.15s", fontFamily:"inherit" }
   const inpFocus = e => { e.target.style.border="1.5px solid #e87722"; e.target.style.boxShadow="0 0 0 3px rgba(232,119,34,0.12)" }
   const inpBlur  = e => { e.target.style.border="1.5px solid #e5e7eb"; e.target.style.boxShadow="none" }
@@ -1448,7 +1450,11 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
       </button>
 
       <div style={{ textAlign:"center" }}>
-        <button type="button" onClick={onLocalMode}
+        <button type="button" onClick={() => {
+            // Local-only shops have no account: keep the store name typed here for bills
+            try { if (form.store_name.trim()) localStorage.setItem("dk_store_name_hint", form.store_name.trim()) } catch {}
+            onLocalMode()
+          }}
           style={{ background:"none", border:"none", color:"#aaa", fontSize:11,
             cursor:"pointer", textDecoration:"underline" }}>
           {t("Use without account (local only)")}

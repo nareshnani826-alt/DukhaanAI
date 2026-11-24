@@ -22,7 +22,8 @@ const WORDS = {
   "चाय":"tea", "டீ":"tea", "தேநீர்":"tea", "ಟೀ":"tea", "ಚಹಾ":"tea", "ചായ":"tea",
   kaapi:"coffee", kapi:"coffee", kafi:"coffee", "కాఫీ":"coffee", "कॉफ़ी":"coffee", "कॉफी":"coffee", "காபி":"coffee", "ಕಾಫಿ":"coffee",
   allam:"ginger", adrak:"ginger", inji:"ginger", "అల్లం":"ginger", "अदरक":"ginger", "இஞ்சி":"ginger", "ಶುಂಠಿ":"ginger",
-  elachi:"elaichi", ilachi:"elaichi", yalakki:"elaichi", "ఇలాచి":"elaichi", "యాలకుల":"elaichi", "इलायची":"elaichi", "ஏலக்காய்":"elaichi",
+  elachi:"elaichi", ilachi:"elaichi", yalakki:"elaichi", "ఇలాచి":"elaichi", "ఇలాయిచి":"elaichi", "ఇలైచి":"elaichi", "యాలకుల":"elaichi", "ఏలకుల":"elaichi",
+  "इलायची":"elaichi", "इलाइची":"elaichi", "इलाची":"elaichi", "ईलायची":"elaichi", "ஏலக்காய்":"elaichi", "ಏಲಕ್ಕಿ":"elaichi", "ഏലക്ക":"elaichi",
   nimbu:"lemon", nimmakaya:"lemon", "నిమ్మ":"lemon", "నిమ్మకాయ":"lemon", "नींबू":"lemon", "எலுமிச்சை":"lemon",
   kali:"black", "బ్లాక్":"black", "काली":"black", "ब्लैक":"black",
   "సమోసా":"samosa", "समोसा":"samosa", "சமோசா":"samosa", "ಸಮೋಸ":"samosa", "ಸಮೋಸಾ":"samosa",
@@ -35,11 +36,23 @@ const WORDS = {
   "నీళ్ళు":"water", "నీళ్లు":"water", "पानी":"water", "தண்ணீர்":"water", bottle:"bottle",
 }
 
-const tokenize = s => String(s || "").toLowerCase().replace(/[,.;!?।]/g, " ").split(/\s+/).filter(Boolean)
+// "table two", "టేబుల్ రెండు", "टेबल नंबर दो", "token 5", "T2"
+const TABLE_WORDS = new Set(["table", "tabel", "tebal", "tebul", "mez", "mej", "मेज", "मेज़", "टेबल", "टेबिल", "టేబుల్", "టేబుల్", "டேபிள்", "ಟೇಬಲ್", "ടേബിൾ"])
+const TOKEN_WORDS = new Set(["token", "tokan", "टोकन", "టోకెన్", "டோக்கன்", "ಟೋಕನ್"])
+const NUMBER_FILLER = new Set(["number", "no", "num", "नंबर", "नम्बर", "నంబర్", "నెంబర్", "நம்பர்", "ನಂಬರ್"])
+
+// Speech engines write elaichi many ways: ilaichi, elaychi, ilayachi, elakkai...
+const ELAICHI = /^(e|i|ye|ya)l+a+[iy]*[ae]?ch+[ie]+$|^(elakkai|yelakki|elakki|ilaychi)$/
+
+const tokenize = s => String(s || "").toLowerCase().replace(/[,.;!?।]/g, " ")
+  .replace(/\b([tT])(\d{1,2})\b/g, "table $2")          // "T2" → "table 2"
+  .replace(/([^\d\s])(\d)/g, "$1 $2")                   // "table2" → "table 2"
+  .split(/\s+/).filter(Boolean)
 
 // English for one spoken word; native-script words may carry suffixes (టీలు, సమోసాలు)
 function toEnglish(tok) {
   if (WORDS[tok]) return WORDS[tok]
+  if (ELAICHI.test(tok)) return "elaichi"
   if (/[^\x00-\x7f]/.test(tok)) {  // eslint-disable-line no-control-regex
     const key = Object.keys(WORDS).filter(k => /[^\x00-\x7f]/.test(k) && k.length >= 2 && tok.startsWith(k))  // eslint-disable-line no-control-regex
       .sort((a, b) => b.length - a.length)[0]
@@ -58,14 +71,29 @@ function toNumber(tok) {
   return null
 }
 
-/** Parse a spoken order against the menu. Returns { lines:[{item, qty}], unknown:[words] }. */
+/** Parse a spoken order against the menu.
+ *  Returns { lines:[{item, qty}], unknown:[words], table:"T2"|"Token 5"|null }. */
 export function parseChaiOrder(text, menu) {
   const items = (menu || []).map(m => ({ m, words: tokenize(m.name).map(toEnglish) }))
   const toks = tokenize(text)
   const lines = new Map()
   const unknown = []
   let qty = null
+  let table = null
   for (let i = 0; i < toks.length;) {
+    // "table two" / "token number 5": the number names the table, it is not a quantity
+    const isTable = TABLE_WORDS.has(toks[i]) || [...TABLE_WORDS].some(w => /[^\x00-\x7f]/.test(w) && toks[i].startsWith(w))  // eslint-disable-line no-control-regex
+    const isToken = TOKEN_WORDS.has(toks[i])
+    if (isTable || isToken) {
+      let j = i + 1
+      if (NUMBER_FILLER.has(toks[j])) j++
+      const no = toks[j] !== undefined ? toNumber(toks[j]) : null
+      if (no !== null && no >= 1 && Number.isInteger(no)) {
+        table = isToken ? `Token ${no}` : `T${no}`
+        i = j + 1
+      } else i++
+      continue
+    }
     const n = toNumber(toks[i])
     if (n !== null) { qty = n; i++; continue }
     // Longest run of spoken words found together in a menu name; a full-name match wins
@@ -88,5 +116,5 @@ export function parseChaiOrder(text, menu) {
       i++
     }
   }
-  return { lines: [...lines.values()], unknown }
+  return { lines: [...lines.values()], unknown, table }
 }
