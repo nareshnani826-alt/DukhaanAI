@@ -14,6 +14,7 @@ const SECTIONS = [
       { label:"New bill",           to:"/billing",     icon:"🧾", desc:"Make a bill" },
       { label:"Past bills",         to:"/history",     icon:"📋", desc:"All bills you made" },
       { label:"Khata (udhaar)",     to:"/udhar",       icon:"📒", desc:"Who owes you money" },
+      { label:"Online orders (QR)", to:"/online-orders", icon:"📲", desc:"Customers order from your QR" },
       { label:"Customers",          to:"/customers",   icon:"👥", desc:"Regular customers" },
     ],
   },
@@ -53,6 +54,7 @@ const CHAI_SECTIONS = [
       { label:"New bill",           to:"/chai-billing",   icon:"☕", desc:"Counter and tables" },
       { label:"Today's report",     to:"/chai-dashboard", icon:"📊", desc:"Cash, UPI, cups sold" },
       { label:"Khata (udhaar)",     to:"/chai-khata",     icon:"📒", desc:"Regulars who pay later" },
+      { label:"Online orders (QR)", to:"/online-orders",  icon:"📲", desc:"Customers order from your table QR" },
     ],
   },
   {

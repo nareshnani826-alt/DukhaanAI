@@ -131,7 +131,6 @@ def list_menu(vendor=Depends(get_current_vendor)):
     return _active_menu(db, vendor["id"])
 
 
-@router.post("/menu", status_code=201)
 def _check_menu_item(body: MenuItem) -> None:
     if body.name is not None and not body.name.strip():
         raise HTTPException(status_code=400, detail="The item needs a name")
@@ -139,6 +138,7 @@ def _check_menu_item(body: MenuItem) -> None:
         raise HTTPException(status_code=400, detail="The price must be more than 0")
 
 
+@router.post("/menu", status_code=201)
 def add_menu_item(body: MenuItem, vendor=Depends(get_current_vendor)):
     if not body.name or body.price is None:
         raise HTTPException(status_code=400, detail="Name and price are needed")

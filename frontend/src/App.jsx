@@ -40,6 +40,9 @@ const LoginHome         = lazy(() => import("./pages/LoginHome"))
 const AITest            = lazy(() => import("./pages/AITest"))
 const More              = lazy(() => import("./pages/More"))
 const ResetPassword     = lazy(() => import("./pages/ResetPassword"))
+const ShopOrder         = lazy(() => import("./pages/ShopOrder"))
+const OrderStatus       = lazy(() => import("./pages/OrderStatus"))
+const OnlineOrders      = lazy(() => import("./pages/OnlineOrders"))
 const PrivacyPolicy     = lazy(() => import("./pages/Legal").then(m => ({ default: m.PrivacyPolicy })))
 const DeleteAccountInfo = lazy(() => import("./pages/Legal").then(m => ({ default: m.DeleteAccountInfo })))
 const BangleInventory   = lazy(() => import("./pages/BangleInventory"))
@@ -120,6 +123,9 @@ export default function App() {
             ))}
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            {/* QR ordering — public, no login */}
+            <Route path="/s/:code" element={<ShopOrder />} />
+            <Route path="/o/:id" element={<OrderStatus />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/delete-account" element={<DeleteAccountInfo />} />
             <Route path="/hero-loop" element={<HeroLoop />} />
@@ -164,6 +170,7 @@ export default function App() {
                   <Route path="/chai-khata"        element={<UdharKhata />} />
                   <Route path="/reorder"           element={BANGLE_ENABLED ? <ReorderHub /> : <Navigate to="/" replace />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
+                  <Route path="/online-orders" element={<OnlineOrders />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 </RoleGuard>

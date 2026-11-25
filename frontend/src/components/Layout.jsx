@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import Logo from "./Logo"
 import { shopEnabled } from "../utils/features"
 import ReportAnswer from "./ReportAnswer"
+import OrderAlert from "./OrderAlert"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
@@ -1550,6 +1551,7 @@ export default function Layout({ children }) {
 
       {/* Groq AI chat bubble — hidden while auth modal is open */}
       {!showAuth && <AIChatWidget />}
+      <OrderAlert />
 
       {/* Daily open/close gate — prompts on first load each day */}
       {loggedIn && <DaySessionGate vendor={vendor} />}

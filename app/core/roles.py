@@ -12,7 +12,7 @@ from app.core.config import settings
 
 # Owner only: staff, plan / payments, shop profile, platform admin
 _OWNER_ONLY = ("/staff", "/subscriptions", "/admin")
-_OWNER_ONLY_WRITES = ("/auth/me",)
+_OWNER_ONLY_WRITES = ("/auth/me", "/online-orders/settings")
 
 # Cashier: billing and sales only — can't change stock or products
 _CASHIER_NO_WRITES = (
