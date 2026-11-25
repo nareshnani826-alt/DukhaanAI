@@ -113,6 +113,13 @@ export function AuthProvider({ children }) {
     finally { setLoading(false) }
   }
 
+  // Testing period: a Free shop switches itself to Pro (then MoveToAccount offers to move phone data)
+  async function claimPro() {
+    await api.post("/auth/me/claim-pro", {})
+    const v = { ...vendorRaw, plan: "pro" }
+    setVendor(v); setVendorState(v)
+  }
+
   async function logout() {
     const r = getRefresh()
     if (r) await api.post("/auth/logout", { refresh_token: r }).catch(() => {})
@@ -121,7 +128,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, setModules, role, loading, error, setError, login, staffLogin, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout }}>
+    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, setModules, role, loading, error, setError, login, staffLogin, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout, claimPro }}>
       {children}
     </AuthCtx.Provider>
   )

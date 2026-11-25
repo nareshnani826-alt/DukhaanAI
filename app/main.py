@@ -63,6 +63,7 @@ from app.routers import (
     staff,
     chai,
     online_orders,
+    migrate,
 )
 from app.core.roles import enforce_role
 
@@ -177,6 +178,7 @@ app.include_router(staff.router)
 app.include_router(chai.router)
 app.include_router(online_orders.router)
 app.include_router(online_orders.public)
+app.include_router(migrate.router)
 app.include_router(
     voice.router,
     prefix="/api/voice",

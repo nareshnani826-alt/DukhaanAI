@@ -81,6 +81,7 @@ export default defineConfig(({ command }) => ({
       "/public":            apiProxy(),
       "/chai":              apiProxy(),
       "/online-orders":     apiProxy(),
+      "/migrate":           apiProxy(),
       "/staff":             apiProxy(),
       "/vocab":             apiProxy(),
       "/voice":             apiProxy(),

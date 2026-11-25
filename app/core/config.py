@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 30
 
     # Groq AI — primary LLM (free tier: 30 RPM, 14,400 req/day — Llama 3.3 70B)
+    # Testing period: every new account starts on Pro for free. Set FREE_PRO_SIGNUPS=false in
+    # Render at public launch (accounts made before then keep Pro; nothing is taken away).
+    free_pro_signups: bool = True
     groq_api_key: str = ""
     # Groq retires models (llama-3.3-70b-versatile was shut down 2026-08-16). Set GROQ_MODEL in
     # Render to switch without a code change; see console.groq.com/docs/deprecations.

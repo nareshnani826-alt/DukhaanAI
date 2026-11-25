@@ -290,7 +290,7 @@ def register_confirm(request: Request, body: RegisterConfirm):
         "store_name":     pending["store_name"],
         "phone":          phone,
         "gstin":          pending.get("gstin"),
-        "plan":           "free",
+        "plan":           "pro" if settings.free_pro_signups else "free",   # testing period: Pro for everyone
         "modules":        [shop],
         "shop_type":      shop,
         "phone_verified": bool(phone),
@@ -475,6 +475,28 @@ def reset_password(body: ResetPasswordRequest):
     db.table("password_reset_tokens").delete().eq("token_hash", token_hash).execute()
 
     return MessageResponse(message="Password updated successfully. You can now log in.")
+
+
+# ── Testing period: Pro free for everyone ───────────────────────────────────
+
+@router.get("/promo")
+def promo():
+    """Is Pro free right now? (Settings shows a "Switch to Pro" button while it is.)"""
+    return {"free_pro": settings.free_pro_signups}
+
+
+@router.post("/me/claim-pro", response_model=MessageResponse)
+def claim_pro(vendor=Depends(get_current_vendor)):
+    """A Free shop switches itself to Pro during the testing period. Owner only (roles.py, /auth/me).
+    The app then offers to move the phone's saved data into the account (MoveToAccount)."""
+    from app.core.security import bust_vendor_cache
+    if not settings.free_pro_signups:
+        raise HTTPException(status_code=403, detail="Free Pro has ended.")
+    if vendor["plan"] in ("pro", "wholesale"):
+        return MessageResponse(message="Already on Pro")
+    get_db().table("vendors").update({"plan": "pro", "plan_expires_at": None}).eq("id", vendor["id"]).execute()
+    bust_vendor_cache(vendor["id"])
+    return MessageResponse(message="Switched to Pro")
 
 
 # ── Delete account (Google Play: users must be able to delete their account) ──

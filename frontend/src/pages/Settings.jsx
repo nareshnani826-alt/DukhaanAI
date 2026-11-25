@@ -6,6 +6,7 @@ import { LANGUAGES } from "../voice/languages.js"
 import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan, normalizePlan } from "../context/PlanContext"
 import { useAuth } from "../context/AuthContext"
+import { api } from "../sync/db"
 import AddChildUser from "../components/AddChildUser"
 import DeleteAccount from "../components/DeleteAccount"
 import { shopEnabled, isNativeApp } from "../utils/features"
@@ -194,6 +195,32 @@ function GstDefaultSetting() {
   )
 }
 
+// Testing period: Pro is free — signed-in Free owners switch with one tap
+function FreeProOffer() {
+  const { vendor, role, claimPro } = useAuth()
+  const [on, setOn] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState("")
+  useEffect(() => {
+    if (!vendor || role !== "owner" || ["pro", "wholesale"].includes(vendor.plan)) return
+    api.get("/auth/promo").then(d => setOn(!!d.free_pro)).catch(() => {})
+  }, [vendor?.plan, role])   // eslint-disable-line react-hooks/exhaustive-deps
+  if (!on || !vendor || ["pro", "wholesale"].includes(vendor.plan)) return null
+  return (
+    <div style={{ marginTop:12, padding:12, borderRadius:12, background:"#fff6e5", border:"1.5px solid #f6c768" }}>
+      <div style={{ fontSize:13, fontWeight:800, color:"#7a4a00" }}>🎁 {L("Pro is free while we test")}</div>
+      <div style={{ fontSize:12, color:"#7a5a2a", marginTop:4, lineHeight:1.45 }}>
+        {L("Get cloud backup, use your shop on more than one phone, staff logins, QR ordering and reports — free during testing.")}
+      </div>
+      {err && <div style={{ fontSize:12, color:"#c0392b", marginTop:6 }}>{err}</div>}
+      <button disabled={busy} onClick={async () => { setBusy(true); setErr(""); try { await claimPro() } catch (e) { setErr(e.message); setBusy(false) } }}
+        style={{ width:"100%", marginTop:10, padding:"11px", borderRadius:10, border:"none", background:"#e87722", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", opacity: busy ? .6 : 1 }}>
+        {busy ? L("Switching…") : L("Switch to Pro — free")}
+      </button>
+    </div>
+  )
+}
+
 export default function Settings() {
   const { plan, hasFeature, planLabel } = usePlan()
   const { vendor, logout } = useAuth()
@@ -282,6 +309,8 @@ export default function Settings() {
           </div>
           )}
         </div>
+
+        <FreeProOffer />
 
         {/* Upgrade buttons */}
         {plan === "free" && !isNativeApp() && (
