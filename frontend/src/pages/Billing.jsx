@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { printOpenInvoice } from "../utils/print.js"
 import { motion, AnimatePresence } from "motion/react"
 import { backdrop, sheet, pop, celebrate } from "../components/popupMotion"
 import { AnimatedAmount, BillIcon } from "../components/billing/billMotion"
@@ -1430,7 +1431,7 @@ Thank you for shopping! 🙏`
                 📱 Send on WhatsApp
               </button>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                <button onClick={() => window.print()}
+                <button onClick={() => printOpenInvoice("Bill")}
                   style={{ padding:"12px", borderRadius:12,
                     border:"1px solid var(--rule)", background:"transparent",
                     color:"var(--ink)", fontSize:13, fontWeight:600, cursor:"pointer" }}>

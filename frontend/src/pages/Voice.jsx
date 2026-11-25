@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import VoiceAgent from "../voice/VoiceAgent.jsx"
+import { printOpenInvoice } from "../utils/print.js"
 import InvoiceView from "../components/InvoiceView.jsx"
 import { Invoices, Products } from "../sync/db.js"
 import { BangleProducts } from "../sync/bangleDb.js"
@@ -801,7 +802,7 @@ Thank you! 🙏`
                 </svg>
                 {L("Send on WhatsApp")}
               </button>
-              <button onClick={() => window.print()} style={{
+              <button onClick={() => printOpenInvoice("Bill")} style={{
                 width:"100%", padding:"11px",
                 background:"#f9fafb", color:"#374151", border:"1px solid #e5e7eb",
                 borderRadius:12, fontSize:12, fontWeight:600,

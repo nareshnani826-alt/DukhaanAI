@@ -1,6 +1,7 @@
+import { printReceiptLines } from "./print.js"
 // Print a chai bill on a 58 mm thermal printer.
-// Android app: hands ESC/POS bytes to the free RawBT app, which prints to any Bluetooth/USB
-// printer it is paired with. Browser: opens a 58 mm receipt and the system print dialog.
+// Android app: Android's print screen (Bluetooth receipt-printer apps such as RawBT show up there).
+// Website: the browser's print dialog. See utils/print.js.
 
 const W = 32  // characters per line on 58 mm paper
 
@@ -28,25 +29,13 @@ export function receiptLines(order, storeName) {
   ]
 }
 
-function escpos(lines) {
-  const text = lines.join("\n") + "\n\n\n"
-  const bytes = [0x1b, 0x40, ...new TextEncoder().encode(text), 0x1d, 0x56, 0x42, 0x00]  // init … partial cut
-  let bin = ""
-  for (const b of bytes) bin += String.fromCharCode(b)
-  return btoa(bin)
-}
+export const padLine = pad
+export const centerLine = center
+export const LINE_WIDTH = W
 
+// Printed through Android's print screen (Bluetooth receipt-printer apps such as RawBT appear there)
+// or the browser's — never a new window or an app link, which could leave the app.
 export function printChaiBill(order, storeName) {
   const lines = receiptLines(order, storeName)
-  if (window.Capacitor?.isNativePlatform?.()) {
-    window.location.href = `intent:base64,${escpos(lines)}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`
-    return
-  }
-  const w = window.open("", "_blank", "width=320,height=600")
-  if (!w) return
-  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bill ${order.order_no}</title>
-<style>@page{size:58mm auto;margin:2mm}body{margin:0;font:12px/1.35 monospace;white-space:pre}</style></head>
-<body>${esc(lines.join("\n"))}<script>onload=()=>{print();setTimeout(()=>close(),300)}</scr` + `ipt></body></html>`)
-  w.document.close()
+  return printReceiptLines(`Bill ${order.order_no}`, lines)
 }

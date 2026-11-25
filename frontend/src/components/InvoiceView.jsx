@@ -66,6 +66,8 @@ export default function InvoiceView({ invoice, customerPhone }) {
       fontSize: 12,
     }}>
 
+      {/* Paper part of the bill — what the Print buttons print (utils/print.js) */}
+      <div data-print-root>
       {/* ── Top accent bar ── */}
       <div style={{ height: 6, background: `linear-gradient(90deg, ${SAFFRON}, ${SAFFRON2})` }} />
 
@@ -299,6 +301,7 @@ export default function InvoiceView({ invoice, customerPhone }) {
           Powered by DukhaanAI
         </div>
       </div>
+      </div>{/* end data-print-root */}
 
       {/* ══ UPI QR + PRINT ══════════════════════════════════════ */}
       <div style={{ borderTop: "1px solid #f0f0f0", background: "#fafafa" }}>

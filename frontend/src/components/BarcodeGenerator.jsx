@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { printHtml } from "../utils/print.js"
 
 const JsBarcode_CDN = "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"
 
@@ -70,30 +71,9 @@ export default function BarcodeGenerator({ product, onClose, onSaveBarcode }) {
       </div>
     `).join("")
 
-    const win = window.open("", "_blank")
-    win.document.write(`
-      <!DOCTYPE html><html><head>
-        <title>Barcode Labels — ${product.name}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 12px; }
-          @media print {
-            @page { margin: 8mm; }
-            button { display: none !important; }
-          }
-        </style>
-      </head>
-      <body>
-        <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
-          <b style="font-size:14px">${product.name} — ${qty} label${qty>1?"s":""}</b>
-          <button onclick="window.print()" style="background:#1D9E75;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer">
-            Print
-          </button>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">${labels}</div>
-      </body></html>
-    `)
-    win.document.close()
-    setTimeout(() => win.print(), 500)
+    // In the app, a new window would cover DukhaanAI with no way back — print in place instead
+    printHtml(`Barcode labels — ${product.name}`,
+      `<div style="display:flex;flex-wrap:wrap;gap:4px">${labels}</div>`)
   }
 
   async function handleSave() {

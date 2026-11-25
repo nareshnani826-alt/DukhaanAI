@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
+import { printOpenInvoice } from "../utils/print.js"
 import { useAuth } from "../context/AuthContext"
 import { Invoices, Products, Udhar, isCloud } from "../sync/db"
 import InvoiceView from "../components/InvoiceView"
@@ -641,7 +642,7 @@ export default function History() {
               display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <span style={{ fontSize: 14, fontWeight: 700 }}>{viewing.invoice_no}</span>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => window.print()}
+                <button onClick={() => printOpenInvoice("Bill")}
                   style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid var(--rule)",
                     background: "transparent", fontSize: 11, cursor: "pointer" }}>{L("🖨 Print")}</button>
                 <button onClick={() => setViewing(null)}

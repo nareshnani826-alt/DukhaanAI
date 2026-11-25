@@ -5,6 +5,8 @@ import { backdrop, pop } from "../components/popupMotion"
 import { useAuth } from "../context/AuthContext.jsx"
 import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
 import { SkeletonRows } from "../components/Skeleton"
+import { padLine, centerLine, LINE_WIDTH } from "../utils/chaiPrint.js"
+import { printReceiptLines } from "../utils/print.js"
 
 const L = k => tr(k, uiLang())
 
@@ -28,6 +30,7 @@ export default function UdharKhata() {
   const [customers, setCustomers] = useState([])
   const [summary,   setSummary]   = useState({ total_due:0, overdue_count:0, customer_count:0 })
   const [selected,  setSelected]  = useState(null)
+  const [proof,     setProof]     = useState(null)   // { c, txn } — receipt shown inside the app
   const [txns,      setTxns]      = useState([])
   const [loading,   setLoading]   = useState(true)
   const [search,    setSearch]    = useState("")
@@ -38,6 +41,13 @@ export default function UdharKhata() {
   const [showDetail,setShowDetail]= useState(false)
 
   useEffect(() => { load() }, [search])
+  // Android back button closes the receipt instead of leaving the screen
+  useEffect(() => {
+    if (!proof) return
+    const onBack = e => { e.preventDefault(); setProof(null) }
+    window.addEventListener("dk:back", onBack)
+    return () => window.removeEventListener("dk:back", onBack)
+  }, [proof])
 
   async function load() {
     setLoading(true)
@@ -171,73 +181,36 @@ _Powered by DukhaanAI_`
     showNotif(L("Proof sent on WhatsApp!"))
   }
 
-  // Print a proof receipt
-  function printProof(c, txn) {
-    const txnId = txn.id.slice(-6).toUpperCase()
-    const win   = window.open("", "_blank")
-    win.document.write(`
-      <!DOCTYPE html><html><head>
-        <title>Receipt #UD-${txnId}</title>
-        <style>
-          body { font-family: Arial, sans-serif; max-width: 320px; margin: 20px auto; font-size: 13px; }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .divider { border-top: 1px dashed #ccc; margin: 8px 0; }
-          .row { display: flex; justify-content: space-between; margin: 4px 0; }
-          .big { font-size: 20px; font-weight: bold; color: ${txn.type==="credit"?"#EF9F27":"var(--jade)"}; }
-          .proof-box { border: 2px solid #333; padding: 12px; margin-top: 12px; font-size: 11px; }
-          .signature { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size: 10px; }
-          @media print { button { display:none; } }
-        </style>
-      </head><body>
-        <div class="center">
-          <div class="bold" style="font-size:16px">${vendor?.store_name || "DukhaanAI"}</div>
-          <div style="font-size:11px;color:#666">${vendor?.gstin ? "GSTIN: "+vendor.gstin : ""}</div>
-        </div>
-        <div class="divider"></div>
-        <div class="center bold">UDHAR ${txn.type==="credit"?"CREDIT":"PAYMENT"} RECEIPT</div>
-        <div class="center" style="color:#666;font-size:11px">Receipt #UD-${txnId}</div>
-        <div class="divider"></div>
-        <div class="row"><span>Date:</span><span>${fmtTime(txn.created_at)}</span></div>
-        <div class="row"><span>Customer:</span><span class="bold">${c.name}</span></div>
-        ${c.phone ? `<div class="row"><span>Phone:</span><span>${c.phone}</span></div>` : ""}
-        ${c.address ? `<div class="row"><span>Address:</span><span>${c.address}</span></div>` : ""}
-        <div class="divider"></div>
-        <div class="row"><span>${txn.type==="credit"?"Amount taken on credit:":"Payment received:"}</span></div>
-        <div class="center big">${INR(txn.amount)}</div>
-        ${txn.note ? `<div class="center" style="color:#666;font-size:11px">${txn.note}</div>` : ""}
-        <div class="divider"></div>
-        <div class="row"><span>Total balance due:</span><span class="bold">${INR(c.total_due)}</span></div>
-        <div class="proof-box">
-          <div class="bold">⚠ Proof of Transaction</div>
-          <div style="margin-top:4px">This receipt confirms that on ${fmtTime(txn.created_at)},
-          ${txn.type==="credit"
-            ? `<b>${c.name}</b> has taken goods worth <b>${INR(txn.amount)}</b> on credit from <b>${vendor?.store_name||"this store"}</b>.`
-            : `<b>${c.name}</b> has paid <b>${INR(txn.amount)}</b> to <b>${vendor?.store_name||"this store"}</b>.`
-          }
-          Total remaining balance: <b>${INR(c.total_due)}</b></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
-          <div>
-            <div class="signature">Customer signature</div>
-            <div style="font-size:10px;color:#666">${c.name}</div>
-          </div>
-          <div>
-            <div class="signature">Store signature</div>
-            <div style="font-size:10px;color:#666">${vendor?.store_name||"Store"}</div>
-          </div>
-        </div>
-        <div class="center" style="margin-top:16px">
-          <button onclick="window.print()" style="background:#1D9E75;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px">
-            Print Receipt
-          </button>
-        </div>
-        <div class="center" style="margin-top:8px;font-size:10px;color:#aaa">Powered by DukhaanAI</div>
-      </body></html>
-    `)
-    win.document.close()
-    setTimeout(() => win.print(), 500)
+  // Print a proof receipt: shown inside the app first (a new window would cover the Android
+  // app with no way back), printed from there.
+  function printProof(c, txn) { setProof({ c, txn }) }
+
+  function proofLines(c, txn) {
+    const rs = n => "Rs " + Math.round(Math.abs(n || 0)).toLocaleString("en-IN")
+    return [
+      centerLine(vendor?.store_name || "DukhaanAI"),
+      ...(vendor?.gstin ? [centerLine("GSTIN: " + vendor.gstin)] : []),
+      "-".repeat(LINE_WIDTH),
+      centerLine(`UDHAR ${txn.type === "credit" ? "CREDIT" : "PAYMENT"} RECEIPT`),
+      centerLine("#UD-" + txn.id.slice(-6).toUpperCase()),
+      fmtTime(txn.created_at),
+      "-".repeat(LINE_WIDTH),
+      padLine("Customer:", c.name),
+      ...(c.phone ? [padLine("Phone:", c.phone)] : []),
+      padLine(txn.type === "credit" ? "Taken on credit:" : "Payment received:", rs(txn.amount)),
+      ...(txn.note ? [String(txn.note).slice(0, LINE_WIDTH)] : []),
+      padLine("Balance due:", rs(c.total_due)),
+      "", "", "Customer sign: ________________", "", "Store sign:    ________________", "",
+      centerLine("Thank you"),
+    ]
   }
+
+  function doPrint() {
+    if (!proof) return
+    printReceiptLines("Receipt #UD-" + proof.txn.id.slice(-6).toUpperCase(), proofLines(proof.c, proof.txn))
+      .catch(e => showNotif(L("Could not print") + ": " + (e?.message || e)))
+  }
+
 
   // Color coding by amount
   const dueColor = due => due > 5000 ? "#E24B4A" : due > 1000 ? "#B86E00" : "var(--jade)"
@@ -588,6 +561,43 @@ _Powered by DukhaanAI_`
           )}
         </div>
       </div>
+
+      {/* Receipt — inside the app, with Print and Close */}
+      <AnimatePresence>
+        {proof && (
+          <motion.div {...backdrop} onClick={() => setProof(null)}
+            style={{ position:"fixed", inset:0, zIndex:60, background:"rgba(0,0,0,0.45)",
+              display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+            <motion.div {...pop} onClick={e => e.stopPropagation()}
+              style={{ width:"100%", maxWidth:420, maxHeight:"90vh", overflowY:"auto", background:"var(--bg1, #fff)",
+                borderRadius:"18px 18px 0 0", padding:"16px 16px calc(16px + env(safe-area-inset-bottom, 0px))" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                <div style={{ fontSize:15, fontWeight:800, color:"var(--ink)" }}>{L("Receipt")}</div>
+                <button onClick={() => setProof(null)} aria-label={L("Close")}
+                  style={{ width:34, height:34, borderRadius:10, border:"1px solid var(--rule)", background:"var(--bg2, #f6f6f6)",
+                    color:"var(--ink)", fontSize:16, cursor:"pointer" }}>✕</button>
+              </div>
+              <pre style={{ margin:0, padding:12, borderRadius:10, background:"#fff", color:"#222", border:"1px dashed #ccc",
+                font:"12px/1.4 ui-monospace, Menlo, Consolas, monospace", whiteSpace:"pre", overflowX:"auto" }}>
+                {proofLines(proof.c, proof.txn).join("\n")}
+              </pre>
+              <div style={{ display:"flex", gap:8, marginTop:12 }}>
+                <button onClick={() => setProof(null)}
+                  style={{ flex:1, height:46, borderRadius:12, border:"1px solid var(--rule)", background:"transparent",
+                    color:"var(--ink)", fontSize:14, fontWeight:700, cursor:"pointer" }}>{L("Close")}</button>
+                <button onClick={doPrint}
+                  style={{ flex:1, height:46, borderRadius:12, border:"none", background:"#1D9E75",
+                    color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>🖨 {L("Print")}</button>
+              </div>
+              {window.Capacitor?.isNativePlatform?.() && (
+                <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:8, textAlign:"center" }}>
+                  {L("Prints on a Bluetooth receipt printer through the free RawBT app.")}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

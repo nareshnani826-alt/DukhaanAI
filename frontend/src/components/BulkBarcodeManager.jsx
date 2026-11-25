@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Products } from "../sync/db.js"
+import { printHtml } from "../utils/print.js"
 
 const JsBarcode_CDN = "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"
 
@@ -110,58 +111,32 @@ export default function BulkBarcodeManager({ products, onClose, onChanged }) {
       alert("Could not load barcode library: " + e.message)
       return
     }
-    const win = window.open("", "_blank")
-    if (!win) { alert("Pop-up blocked. Allow pop-ups to print labels."); return }
-
     const items = target
       .filter(p => hasUsableBarcode(p))
       .flatMap(p => Array(copiesPerProduct).fill(p))
+    if (!items.length) { alert("No products with barcodes selected."); return }
 
-    if (!items.length) {
-      win.document.write("<p>No products with barcodes selected.</p>")
-      win.document.close()
-      return
+    // Draw each barcode here (JsBarcode is loaded in this page), then print the finished
+    // pictures in place — a new window would cover the Android app with no way back.
+    const draw = code => {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+      try { window.JsBarcode(svg, code, { format:"EAN13", width:1.6, height:40, fontSize:10, margin:2 }) }
+      catch { try { window.JsBarcode(svg, code, { format:"CODE128", width:1.6, height:40, fontSize:10, margin:2 }) } catch { return "" } }
+      return svg.outerHTML
     }
-
-    const labelsHtml = items.map((p, i) => `
+    const labelsHtml = items.map(p => `
       <div class="lbl">
         <div class="name">${escapeHtml(p.name).slice(0, 28)}</div>
-        <svg id="bc-${i}"></svg>
+        ${draw(p.sku)}
         <div class="mrp">MRP ₹${p.mrp ?? 0}</div>
-      </div>
-    `).join("")
+      </div>`).join("")
 
-    win.document.write(`<!DOCTYPE html><html><head>
-      <title>Barcode Labels (${items.length})</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 8mm; }
-        .toolbar { margin-bottom: 10px; display:flex; gap:8px; align-items:center; }
-        .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; }
-        .lbl  { border:1px dashed #bbb; border-radius:4px; padding:6px; text-align:center; page-break-inside:avoid; }
-        .name { font-size:10px; font-weight:600; margin-bottom:2px; min-height:24px; }
-        .mrp  { font-size:11px; margin-top:2px; font-weight:600; }
-        svg { width:100%; height:auto; max-height:50px; }
-        @media print { .toolbar { display:none; } @page { margin: 6mm; } }
-      </style>
-      <script src="${JsBarcode_CDN}"></script>
-    </head>
-    <body>
-      <div class="toolbar">
-        <b>Barcode labels — ${items.length} sticker${items.length>1?"s":""}</b>
-        <button onclick="window.print()" style="background:#1D9E75;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">Print</button>
-      </div>
-      <div class="grid">${labelsHtml}</div>
-      <script>
-        window.addEventListener('load', () => {
-          const data = ${JSON.stringify(items.map(p => p.sku))};
-          data.forEach((code, i) => {
-            try { JsBarcode('#bc-' + i, code, { format:'EAN13', width:1.6, height:40, fontSize:10, margin:2 }) }
-            catch(e) { try { JsBarcode('#bc-' + i, code, { format:'CODE128', width:1.6, height:40, fontSize:10, margin:2 }) } catch(_){} }
-          });
-        });
-      <\/script>
-    </body></html>`)
-    win.document.close()
+    await printHtml(`Barcode labels (${items.length})`, `<div class="grid">${labelsHtml}</div>`, `
+      .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; }
+      .lbl  { border:1px dashed #bbb; border-radius:4px; padding:6px; text-align:center; page-break-inside:avoid; }
+      .name { font-size:10px; font-weight:600; margin-bottom:2px; min-height:24px; }
+      .mrp  { font-size:11px; margin-top:2px; font-weight:600; }
+      svg { width:100%; height:auto; max-height:50px; }`)
   }
 
   function escapeHtml(s) {
