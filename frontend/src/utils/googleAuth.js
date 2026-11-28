@@ -67,9 +67,15 @@ export async function nativeGoogleSignIn() {
     if (!token) throw new Error("Google did not return a sign-in. Please try again.")
     return token
   } catch (e) {
-    if (/cancel/i.test(String(e?.message || e))) return null   // closed the picker
-    throw new Error(/no credential|no account/i.test(String(e?.message || e))
-      ? "Add a Google account to this phone (Settings → Accounts), then try again."
-      : "Google sign-in did not work. Please try again or use email and password.")
+    const why = String(e?.message || e || "").replace(/\s+/g, " ").trim()
+    if (/cancel/i.test(why)) return null   // closed the picker
+    if (/no credential|no account/i.test(why))
+      throw new Error("Add a Google account to this phone (Settings → Accounts), then try again.")
+    // 28444 / "Developer console is not set up correctly": Google doesn't yet accept this app's
+    // signing key + package for our client ID (new Google Cloud setup can take a few hours)
+    if (/28444|developer console|not set up correctly/i.test(why))
+      throw new Error("Google hasn't accepted this app yet (setup can take a few hours). Please use email and password for now.")
+    // Anything else: show Google's own short reason so it can be fixed
+    throw new Error(`Google sign-in did not work${why ? ` (${why.slice(0, 120)})` : ""}. Please try again or use email and password.`)
   }
 }

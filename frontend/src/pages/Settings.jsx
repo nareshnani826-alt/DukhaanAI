@@ -282,61 +282,62 @@ export default function Settings() {
         <h1 className="text-sm font-semibold">{L("Settings")}</h1>
       </div>
 
-      {/* Current plan card */}
-      <div className="card mb-4" style={{ borderColor: planI.color, borderWidth:1.5 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-semibold" style={{ color: planI.color }}>
-                {L(planI.name)} {L("Plan")}
-              </span>
-              <span className="badge text-[10px] font-medium px-2 py-0.5 rounded-full"
-                style={planStatus?.locked ? { background:"#fdecea", color:"#c0392b" } : { background: planI.bg, color: planI.color }}>
-                {L(planStatus?.locked ? "Ended" : planStatus?.trial ? "Free trial" : "Active")}
-              </span>
-            </div>
-            <div className="text-xs text-gray-400">
-              {vendor?.store_name} · {vendor?.email || ""}
-            </div>
-            {planStatus?.expires_at && (
-              <div className="text-xs mt-1" style={{ color: planStatus.locked ? "#c0392b" : planStatus.days_left <= 7 ? "#b45309" : "var(--ink-dim)", fontWeight:600 }}>
-                {planStatus.locked
-                  ? `${L("Ended on")} ${new Date(planStatus.expires_at).toLocaleDateString(dateLocale(), { day:"numeric", month:"short", year:"numeric" })} — ${L("renew to keep billing")}`
-                  : `${L(planStatus.trial ? "Trial ends on" : "Renews on")} ${new Date(planStatus.expires_at).toLocaleDateString(dateLocale(), { day:"numeric", month:"short", year:"numeric" })} · ${planStatus.days_left} ${L("days left")}`}
+      {/* Current plan card: status + end date with a days-left bar on the left, price + Pay on the right */}
+      {(() => {
+        const st = planStatus
+        const locked = !!st?.locked
+        const tone = locked ? { fg:"#c0392b", bg:"#fdecea" } : st?.trial ? { fg:"#1a7f4b", bg:"#e3f5ec" } : { fg:"#2a5bd7", bg:"#e6effd" }
+        const badge = plan === "free" ? L("Free") : L(locked ? "Ended" : st?.trial ? "Free trial" : "Active")
+        const until = st?.expires_at ? new Date(st.expires_at).toLocaleDateString(dateLocale(), { day:"numeric", month:"short", year:"numeric" }) : ""
+        const line = !st?.expires_at ? "" : locked
+          ? `${L("Ended on")} ${until} — ${L("renew to keep billing")}`
+          : `${L(st.trial ? "Trial ends on" : "Paid until")} ${until}`
+        const fill = st?.expires_at && !locked ? Math.min(1, (st.days_left || 0) / 30) : 0
+        const low = !locked && st?.days_left != null && st.days_left <= 7
+        const who = [vendor?.store_name, vendor?.email].filter(Boolean).join(" · ")
+        return (
+          <div className="card mb-4" style={{ padding:"18px 20px", border:`1.5px solid ${locked ? "#f1b0a8" : "var(--rule)"}` }}>
+            <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"14px 24px" }}>
+              <div style={{ flex:"1 1 260px", minWidth:0, display:"flex", gap:14, alignItems:"flex-start" }}>
+                <div aria-hidden="true" style={{ width:44, height:44, borderRadius:12, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
+                  background:"linear-gradient(135deg,#e87722,#c25500)", color:"#fff", fontSize:20 }}>★</div>
+                <div style={{ minWidth:0, flex:1 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:17, fontWeight:800, color:"var(--ink)" }}>{plan === "free" ? L("Free plan") : L("Pro plan")}</span>
+                    <span style={{ fontSize:11, fontWeight:800, padding:"3px 10px", borderRadius:20, background:tone.bg, color:tone.fg, textTransform:"uppercase", letterSpacing:.4 }}>{badge}</span>
+                  </div>
+                  {who && <div style={{ fontSize:13, color:"var(--ink-faint)", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{who}</div>}
+                  {line && (
+                    <div style={{ marginTop:10 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", gap:10, fontSize:13, fontWeight:700,
+                        color: locked ? "#c0392b" : low ? "#b45309" : "var(--ink-dim)" }}>
+                        <span>{line}</span>
+                        {!locked && <span style={{ whiteSpace:"nowrap" }}>{st.days_left} {L(st.days_left === 1 ? "day left" : "days left")}</span>}
+                      </div>
+                      {!locked && (
+                        <div style={{ height:6, borderRadius:6, background:"var(--bg2)", marginTop:6, overflow:"hidden" }}>
+                          <div style={{ width:`${Math.max(4, fill * 100)}%`, height:"100%", borderRadius:6, background: low ? "#e0902f" : "var(--jade, #1D9E75)" }} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-          {!isNativeApp() && (
-          <div className="text-right">
-            <div className="text-lg font-semibold" style={{ color: planI.color }}>
-              {planI.price}
+              {!isNativeApp() && (plan === "free" || st?.expires_at) && (
+                <div style={{ flex:"0 0 auto", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8, marginLeft:"auto" }}>
+                  <div style={{ textAlign:"right", lineHeight:1.1 }}>
+                    <span style={{ fontSize:24, fontWeight:900, color:"var(--ink)" }}>₹299</span>
+                    <span style={{ fontSize:12, color:"var(--ink-faint)", fontWeight:600 }}> / {L("month")}</span>
+                  </div>
+                  <PayProButton className="btn btn-primary" style={{ minHeight:42, padding:"0 18px", fontSize:14, fontWeight:800, borderRadius:12 }}
+                    label={plan === "free" ? L("Upgrade to Pro") : L(locked ? "Pay ₹299 to unlock" : "Pay ₹299 · add 30 days")} />
+                </div>
+              )}
             </div>
-            <div className="text-[10px] text-gray-400">{L("per month")}</div>
+            <FreeProOffer />
           </div>
-          )}
-        </div>
-
-        <FreeProOffer />
-
-        {/* Upgrade buttons */}
-        {plan === "free" && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <PayProButton label={L("Upgrade to Pro — ₹299/month")} className="btn btn-primary flex-1 py-2 text-xs font-medium" style={{ whiteSpace:"normal", minWidth:150 }} />
-          </div>
-        )}
-        {/* Trial or paid month running out / ended: pay for the next 30 days (website, owner) */}
-        {plan === "pro" && planStatus?.expires_at && (
-          <div className="mt-3" style={{ display:"flex", justifyContent:"center" }}>
-            <PayProButton label={L(planStatus.locked ? "Pay ₹299 to unlock · 30 days" : "Pay ₹299 · add 30 days")}
-              className="btn btn-primary py-2 text-xs font-semibold" />
-          </div>
-        )}
-        {plan === "pro" && !planStatus?.locked && (
-          <div className="mt-3 text-[10px] text-gray-400 text-center">
-            {L("You have the highest plan — all features unlocked!")}
-          </div>
-        )}
-      </div>
+        )
+      })()}
 
       {/* Appearance — theme picker */}
       <div className="card mb-4" style={{ padding: 14 }}>

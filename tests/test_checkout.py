@@ -125,3 +125,16 @@ def test_webhook_refuses_everything_without_a_secret(monkeypatch):
     with pytest.raises(HTTPException) as e:
         asyncio.run(subs.razorpay_webhook(None, x_razorpay_signature="anything"))
     assert e.value.status_code == 503
+
+
+def test_razorpay_refusal_is_logged_and_explained(caplog):
+    import httpx
+    bad_keys = httpx.Response(401, json={"error": {"code": "BAD_REQUEST_ERROR", "description": "Authentication failed"}})
+    with caplog.at_level("WARNING"), pytest.raises(HTTPException) as e:
+        subs._rz_fail(bad_keys, "POST /orders")
+    assert e.value.status_code == 503 and "not set up correctly" in e.value.detail
+    assert "Authentication failed" in caplog.text and "rzp_" not in caplog.text.replace("mode=", "")
+    down = httpx.Response(500, text="oops")
+    with pytest.raises(HTTPException) as e:
+        subs._rz_fail(down, "POST /orders")
+    assert e.value.status_code == 502 and "{" not in e.value.detail

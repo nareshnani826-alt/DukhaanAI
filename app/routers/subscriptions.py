@@ -1,6 +1,7 @@
 import hmac
 import hashlib
 import json
+import logging
 from datetime import datetime, timezone, timedelta
 
 import httpx
@@ -16,6 +17,21 @@ from app.schemas.schemas import SubscriptionCreate, SubscriptionOut
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
 RAZORPAY_BASE = "https://api.razorpay.com/v1"
+logger = logging.getLogger("dukhaanai.payments")
+
+
+def _rz_fail(r: httpx.Response, action: str):
+    """Razorpay said no: log its reason (never the keys) and give the shop owner a short message."""
+    try:
+        err = (r.json() or {}).get("error") or {}
+    except ValueError:
+        err = {}
+    logger.warning("Razorpay %s failed: HTTP %s %s — %s (mode=%s)", action, r.status_code, err.get("code", ""),
+                   err.get("description", r.text[:200]), "live" if settings.razorpay_key_id.startswith("rzp_live_") else "test")
+    if r.status_code == 401:
+        # Wrong / mismatched key ID and secret on the server
+        raise HTTPException(status_code=503, detail="Online payment is not set up correctly. Please contact us to renew.")
+    raise HTTPException(status_code=502, detail="The payment service is not answering. Please try again in a minute.")
 
 
 async def _rz_post(path: str, body: dict) -> dict:
@@ -27,7 +43,7 @@ async def _rz_post(path: str, body: dict) -> dict:
             timeout=15,
         )
     if r.status_code >= 400:
-        raise HTTPException(status_code=502, detail=f"Razorpay error: {r.text}")
+        _rz_fail(r, f"POST {path}")
     return r.json()
 
 
@@ -40,7 +56,7 @@ async def _rz_cancel(sub_id: str) -> dict:
             timeout=15,
         )
     if r.status_code >= 400:
-        raise HTTPException(status_code=502, detail=f"Razorpay error: {r.text}")
+        _rz_fail(r, "cancel subscription")
     return r.json()
 
 
@@ -48,7 +64,7 @@ async def _rz_get(path: str) -> dict:
     async with httpx.AsyncClient() as client:
         r = await client.get(f"{RAZORPAY_BASE}{path}", auth=(settings.razorpay_key_id, settings.razorpay_key_secret), timeout=15)
     if r.status_code >= 400:
-        raise HTTPException(status_code=502, detail="Could not check the payment with Razorpay. Please try again.")
+        _rz_fail(r, f"GET {path.split('/')[1] if '/' in path else path}")
     return r.json()
 
 

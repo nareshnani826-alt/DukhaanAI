@@ -1238,7 +1238,9 @@ function AuthForm({ onSuccess, defaultModule = "kirana", shopType = null, initia
   function switchTab(t) { setTab(t); setForm(f => ({ identifier:"", password:"", store_name:"", phone:"", username:"", shop: f.shop })); setFieldErr({}); setError(""); setOtpStep(false) }
   // A plain name in the sign-in box ("mahesh") is a staff login: ask for the shop and a PIN.
   // The shop is remembered on this phone so staff only type it once.
-  const isStaff = tab === "login" && /^[a-z][a-z0-9._-]{1,}$/i.test(form.identifier.trim()) && !isValidPhone(form.identifier)
+  // Only decided once they leave the box — while typing an email, "nar…" would look like a username.
+  const [idTyping, setIdTyping] = useState(false)
+  const isStaff = tab === "login" && !idTyping && /^[a-z][a-z0-9._-]{1,}$/i.test(form.identifier.trim()) && !isValidPhone(form.identifier)
   // One shop type per account at sign-up; more can be added later in Settings
   function toggleModule(id) { setModules([id]) }
 
@@ -1467,7 +1469,13 @@ function AuthForm({ onSuccess, defaultModule = "kirana", shopType = null, initia
         </label>
         <input className="lh-inp" style={inp} placeholder={tab === "register" ? "email@example.com" : "email@example.com or 9876543210"} autoCapitalize="none"
           value={form.identifier} onChange={e => set("identifier", e.target.value)}
-          onFocus={inpFocus} onBlur={inpBlur} autoComplete="username" />
+          onFocus={e => { setIdTyping(true); inpFocus(e) }} onBlur={e => { setIdTyping(false); inpBlur(e) }} autoComplete="username"
+          onKeyDown={e => {
+            // Enter on a staff username: show the shop + PIN boxes instead of submitting half-filled
+            if (e.key === "Enter" && tab === "login" && /^[a-z][a-z0-9._-]{1,}$/i.test(form.identifier.trim()) && !isValidPhone(form.identifier)) {
+              e.preventDefault(); e.currentTarget.blur()
+            }
+          }} />
         {fieldErr.identifier && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.identifier}</p>}
       </div>
 
@@ -1487,7 +1495,8 @@ function AuthForm({ onSuccess, defaultModule = "kirana", shopType = null, initia
           <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Staff login · shop owner's phone or email")}</label>
           <input className="lh-inp" style={inp} placeholder="9876543210" autoCapitalize="none"
             value={form.shop} onChange={e => set("shop", e.target.value)}
-            onFocus={inpFocus} onBlur={inpBlur} />
+            onFocus={inpFocus} onBlur={inpBlur}
+            autoComplete="off" name="staff-shop" inputMode="email" />
           {fieldErr.shop && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.shop}</p>}
         </div>
       )}

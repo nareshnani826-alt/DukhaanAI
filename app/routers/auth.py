@@ -589,8 +589,13 @@ def plan_status(vendor=Depends(get_current_vendor)):
     """What the app shows in its plan banner: days left, or locked (trial / plan ran out)."""
     from app.core.security import plan_expires, plan_locked
     exp = plan_expires(vendor)
-    paid = bool(get_db().table("subscriptions").select("id").eq("vendor_id", vendor["id"])
-                .eq("status", "active").limit(1).execute().data) if exp else False
+    db = get_db()
+    # Paid at least once: a website payment (₹299 = 30 days) or an active subscription
+    paid = bool(exp) and bool(
+        db.table("payment_events").select("id").eq("vendor_id", vendor["id"]).eq("event_type", "checkout.paid")
+          .limit(1).execute().data
+        or db.table("subscriptions").select("id").eq("vendor_id", vendor["id"]).eq("status", "active")
+          .limit(1).execute().data)
     days_left = max(0, -(-(exp - datetime.now(timezone.utc)).total_seconds() // 86400)) if exp else None
     return {
         "plan": vendor["plan"],
