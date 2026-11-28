@@ -106,7 +106,7 @@ export default function ChaiStock() {
                 {items.map(m => (
                   <button key={m.id} onClick={() => setEdit({ kind:"item", value:m })}
                     style={{ ...card, display:"flex", alignItems:"center", gap:12, cursor:"pointer", textAlign:"left", color:"var(--ink)" }}>
-                    <span style={{ fontSize:28 }}>{m.emoji || "☕"}</span>
+                    <span style={{ fontSize:28 }}>{m.emoji || (isRestaurant() ? "🍽️" : "☕")}</span>
                     <span style={{ flex:1, minWidth:0 }}>
                       <span style={{ display:"block", fontWeight:800, fontSize:15 }}>{m.name}</span>
                       <span style={{ display:"block", fontSize:12, color:"var(--ink-faint)" }}>

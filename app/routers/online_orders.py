@@ -156,9 +156,13 @@ def place_order(request: Request, code: str, body: PlaceOrder):
         lines.append({"id": m["id"], "name": m["name"], "price": m["price"], "qty": qty, "amount": amount})
         total += amount
 
+    if body.mode == "table" and _shop_type(v) == "chai":
+        _check_table_free(db, v["id"], body.table.strip(), phone)
+
     open_rows = (db.table("online_orders").select("customer_phone,status").eq("vendor_id", v["id"])
                  .in_("status", list(OPEN)).execute().data or [])
-    if sum(1 for r in open_rows if r["customer_phone"] == phone) >= MAX_OPEN_PER_PHONE:
+    # Waiting for the shop to answer (accepted rounds join the table bill, so they don't count)
+    if sum(1 for r in open_rows if r["customer_phone"] == phone and r["status"] == "new") >= MAX_OPEN_PER_PHONE:
         raise HTTPException(status_code=429, detail="You already have orders waiting at this shop. Please wait for them first.")
     if sum(1 for r in open_rows if r["status"] == "new") >= MAX_NEW_PER_SHOP:
         raise HTTPException(status_code=429, detail="The shop is very busy right now. Please try again in a few minutes.")
@@ -262,6 +266,61 @@ def _set(db, order_id: str, **fields) -> dict:
     return row
 
 
+# "Table 4", "table-4A", "T4" (a bare T only with a number, so "Token 5" / "Takeaway" are not tables)
+_TABLE_RE = re.compile(r"^\s*(?:table\s*[-#.:]?\s*([a-z0-9]+)|t\s*[-#.:]?\s*(\d+[a-z]?))(?![a-z0-9])", re.I)
+
+
+def _table_key(label: str | None) -> str | None:
+    """'T1', 'Table 1', 'table-01', 'Table 1 · Online · Ravi' → '1'. Anything else (Pickup, tokens) → None."""
+    m = _TABLE_RE.match(label or "")
+    if not m:
+        return None
+    key = (m.group(1) or m.group(2)).lower()
+    return key.lstrip("0") or "0"
+
+
+def _check_table_free(db, vendor_id: str, table: str, phone: str) -> None:
+    """A table with an unpaid bill belongs to the people sitting there: the customer whose QR orders
+    are on it (same mobile) may order more; anyone else is turned away until it is paid or cancelled.
+    A table the staff opened by hand ("T4") has no QR customer, so no one can add to it by QR."""
+    key = _table_key(f"Table {table}")
+    if not key:
+        return
+    bills = [b for b in (db.table("chai_orders").select("id,label").eq("vendor_id", vendor_id).eq("status", "open")
+                         .execute().data or []) if _table_key(b.get("label")) == key]
+    bill_ids = {b["id"] for b in bills}
+    cols = "customer_phone,status,table_label,chai_order_id"
+    on_bill = (db.table("online_orders").select(cols).eq("vendor_id", vendor_id).in_("chai_order_id", list(bill_ids))
+               .execute().data or []) if bill_ids else []
+    waiting = (db.table("online_orders").select(cols).eq("vendor_id", vendor_id).eq("status", "new")
+               .execute().data or [])
+    # Who is at this table: their orders are on its open bill, or still waiting to be accepted
+    at_table = [r for r in on_bill if r.get("status") != "rejected"] + [
+        r for r in waiting if r.get("table_label") and _table_key(f"Table {r['table_label']}") == key]
+    if not bills and not at_table:
+        return                                   # table is free
+    if phone in {r["customer_phone"] for r in at_table}:
+        return                                   # same customer ordering another round
+    raise HTTPException(status_code=409, detail=f"Table {table} already has an order that isn't paid yet. "
+                                                "Please ask the staff, or check you scanned the right table.")
+
+
+def _merge_items(current: list[dict], new: list[dict], sign: int = 1) -> list[dict]:
+    """Add (sign=1) or take away (sign=-1) dishes on a table bill; same dish + price → one line."""
+    out = [dict(i) for i in current]
+    for n in new:
+        hit = next((i for i in out if i.get("menu_id") == n["menu_id"] and float(i["price"]) == float(n["price"])), None)
+        if hit:
+            hit["qty"] = round(float(hit["qty"]) + sign * float(n["qty"]), 3)
+        elif sign > 0:
+            out.append(dict(n))
+    return [i for i in out if float(i["qty"]) > 0]
+
+
+def _online_items(o: dict) -> list[dict]:
+    return [{"menu_id": i["id"], "name": i["name"], "price": i["price"], "qty": i["qty"]} for i in o["items"]]
+
+
 @router.post("/{order_id}/accept")
 def accept(order_id: str, vendor=Depends(get_current_vendor)):
     db = get_db()
@@ -270,15 +329,28 @@ def accept(order_id: str, vendor=Depends(get_current_vendor)):
         raise HTTPException(status_code=409, detail="This order was already answered.")
     extra = {}
     if o["shop_type"] == "chai":
-        # Becomes a normal open order on the Tables screen; payment is taken there as usual
+        # Becomes part of the table's bill on the Tables screen; payment is taken there as usual.
+        # A table that already has an open bill (an earlier QR order, or one the staff opened as
+        # "T1" / "Table 1") gets these dishes added — one table, one bill.
         from app.routers.chai import _next_no as chai_next_no, _total as chai_total
-        items = [{"menu_id": i["id"], "name": i["name"], "price": i["price"], "qty": i["qty"]} for i in o["items"]]
-        label = (f"Table {o['table_label']}" if o.get("table_label") else "Pickup") + f" · Online · {o['customer_name']}"
-        chai = db.table("chai_orders").insert({
-            "vendor_id": vendor["id"], "order_no": chai_next_no(db, vendor["id"]), "kind": "table",
-            "label": label[:60], "items": items, "total": chai_total(items), "status": "open",
-        }).execute().data[0]
-        extra["chai_order_id"] = chai["id"]
+        items = _online_items(o)
+        key = _table_key(f"Table {o['table_label']}") if o.get("table_label") else None
+        same_table = None
+        if key:
+            open_rows = (db.table("chai_orders").select("*").eq("vendor_id", vendor["id"]).eq("status", "open")
+                         .order("created_at").execute().data or [])
+            same_table = next((r for r in open_rows if _table_key(r.get("label")) == key), None)
+        if same_table:
+            merged = _merge_items(same_table.get("items") or [], items)
+            db.table("chai_orders").update({"items": merged, "total": chai_total(merged)}).eq("id", same_table["id"]).execute()
+            extra["chai_order_id"] = same_table["id"]
+        else:
+            label = (f"Table {o['table_label']}" if o.get("table_label") else "Pickup") + f" · Online · {o['customer_name']}"
+            chai = db.table("chai_orders").insert({
+                "vendor_id": vendor["id"], "order_no": chai_next_no(db, vendor["id"]), "kind": "table",
+                "label": label[:60], "items": items, "total": chai_total(items), "status": "open",
+            }).execute().data[0]
+            extra["chai_order_id"] = chai["id"]
     return _set(db, order_id, status="accepted", **extra)
 
 
@@ -293,7 +365,16 @@ def reject(order_id: str, body: RejectIn | None = None, vendor=Depends(get_curre
     if o["status"] not in OPEN:
         raise HTTPException(status_code=409, detail="This order is already closed.")
     if o.get("chai_order_id"):
-        db.table("chai_orders").update({"status": "cancelled"}).eq("id", o["chai_order_id"]).eq("status", "open").execute()
+        # Take only this order's dishes off the table bill (it may hold other orders too);
+        # nothing left → the table bill is cancelled
+        from app.routers.chai import _total as chai_total
+        rows = db.table("chai_orders").select("*").eq("id", o["chai_order_id"]).eq("status", "open").execute().data or []
+        if rows:
+            left = _merge_items(rows[0].get("items") or [], _online_items(o), sign=-1)
+            if left:
+                db.table("chai_orders").update({"items": left, "total": chai_total(left)}).eq("id", rows[0]["id"]).execute()
+            else:
+                db.table("chai_orders").update({"status": "cancelled"}).eq("id", rows[0]["id"]).execute()
     return _set(db, order_id, status="rejected", reject_reason=(body.reason if body else None) or "Sorry, the shop can't take this order.")
 
 

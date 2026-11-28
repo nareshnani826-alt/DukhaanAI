@@ -1,6 +1,7 @@
 // New QR-order alert, shown on every screen of the owner app (Pro shops with QR ordering on).
 // Checks every 6 s while the app is open. A new order rings loudly (and vibrates) until someone
-// taps the banner. Push notifications for when the app is closed are a later stage.
+// taps the banner; after that a reminder rings every 30 s while any order is still waiting to be
+// accepted or rejected. Push notifications for when the app is closed are a later stage.
 import { useEffect, useRef, useState } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { api } from "../sync/db"
@@ -44,6 +45,7 @@ export default function OrderAlert() {
   const [pending, setPending] = useState({ count: 0, latest: null })
   const [ringing, setRinging] = useState(false)
   const seen = useRef((() => { try { return localStorage.getItem(SEEN_KEY) || "" } catch { return "" } })())
+  const waiting = useRef(0)   // orders still waiting to be answered, for the 30 s reminder
   const onOrders = pathname === "/online-orders"
 
   // Is QR ordering switched on? (re-checked when the owner changes it or every 2 min)
@@ -66,7 +68,7 @@ export default function OrderAlert() {
         try {
           const d = await api.get("/online-orders/pending-count")
           if (stop) return
-          setPending(d)
+          setPending(d); waiting.current = d.count
           if (d.count > 0 && d.latest && d.latest.id !== seen.current) setRinging(true)
           if (d.count === 0) setRinging(false)
         } catch {}
@@ -87,12 +89,23 @@ export default function OrderAlert() {
     return () => clearInterval(t)
   }, [ringing])
 
+  // Reminder: while any order is still waiting to be accepted or rejected, ring once every 30 s —
+  // on every screen, the orders screen too — so an order never sits forgotten
+  useEffect(() => {
+    if (!cloud || !enabled) return
+    const t = setInterval(() => {
+      if (waiting.current > 0 && document.visibilityState === "visible") ringOnce()
+    }, 30000)
+    return () => clearInterval(t)
+  }, [cloud, enabled])
+
   function acknowledge() {
     setRinging(false)
     if (pending.latest) { seen.current = pending.latest.id; try { localStorage.setItem(SEEN_KEY, pending.latest.id) } catch {} }
   }
 
-  // On the orders screen itself the list shows them: stop ringing once it's open
+  // On the orders screen the list shows them: a newly arrived order rings once (the ring effect above
+  // has just played it), not on repeat; the 30 s reminder keeps going until it is answered
   useEffect(() => { if (onOrders && ringing) acknowledge() }, [onOrders, ringing])   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!cloud || !enabled || pending.count === 0 || onOrders) return null

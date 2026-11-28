@@ -31,6 +31,11 @@ const statusText = o => o.status === "paid"
   ? (o.payment_mode === "credit" ? `${L("Khata")}${o.customer_name ? " · " + o.customer_name : ""}` : o.payment_mode === "cash" ? L("Cash") : "UPI")
   : L(o.status === "open" ? "Open" : "Cancelled")
 const statusColor = o => o.status === "paid" ? "var(--jade)" : o.status === "open" ? "var(--saffron)" : "var(--ink-faint)"
+// Badge colours: Cash green, UPI blue, Khata orange, Open amber, Cancelled red
+const BADGE = { cash:["#e3f5ec","#1a7f4b"], upi:["#e6effd","#2a5bd7"], credit:["#fdeedd","#b45309"], open:["#fff4d6","#a16207"], cancelled:["#fde8e6","#c0392b"] }
+const badgeOf = o => BADGE[o.status === "paid" ? o.payment_mode : o.status] || BADGE.cancelled
+// A table opened and cancelled before anything was ordered: nothing happened, so not shown
+const isEmptyCancelled = o => o.status === "cancelled" && !(o.items || []).length && !(+o.total)
 
 const chip = on => ({ flexShrink:0, minHeight:40, padding:"0 14px", borderRadius:20, fontWeight:700, fontSize:14, cursor:"pointer",
   border: on ? "none" : "1px solid var(--rule)", background: on ? "var(--saffron)" : "var(--bg1)", color: on ? "#fff" : "var(--ink-dim)" })
@@ -67,6 +72,7 @@ export default function ChaiHistory() {
   const list = useMemo(() => {
     const q = search.trim().toLowerCase().replace(/^#/, "")
     return (orders || []).filter(o => {
+      if (isEmptyCancelled(o)) return false
       if (filter === "open" || filter === "cancelled") { if (o.status !== filter) return false }
       else if (filter !== "all" && !(o.status === "paid" && o.payment_mode === filter)) return false
       if (!q) return true
@@ -78,6 +84,8 @@ export default function ChaiHistory() {
   }, [orders, search, filter])
 
   const paidTotal = list.filter(o => o.status === "paid").reduce((s, o) => s + (+o.total || 0), 0)
+  const cancelledList = list.filter(o => o.status === "cancelled")
+  const cancelledTotal = cancelledList.reduce((s, o) => s + (+o.total || 0), 0)
 
   async function cancel(o) {
     if (!confirm(`${L("Cancel bill")} #${o.order_no} (${INR(o.total)})?`)) return
@@ -128,7 +136,14 @@ export default function ChaiHistory() {
       {/* Count and money for what is shown */}
       {orders && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", padding:"4px 2px", fontWeight:700, color:"var(--ink-dim)" }}>
-          <span>{list.length} {L(list.length === 1 ? "bill" : "bills")}</span>
+          <span>
+            {list.length} {L(list.length === 1 ? "bill" : "bills")}
+            {cancelledList.length > 0 && filter !== "cancelled" && (
+              <span style={{ fontSize:12, fontWeight:600, color:"#c0392b", marginLeft:8 }}>
+                · {cancelledList.length} {L("cancelled")} ({INR(cancelledTotal)})
+              </span>
+            )}
+          </span>
           <span>{L("Paid")} <b style={{ color:"var(--ink)", fontSize:18 }}>{INR(paidTotal)}</b></span>
         </div>
       )}
@@ -140,18 +155,19 @@ export default function ChaiHistory() {
           : list.slice(0, shown).map((o, i) => (
             <button key={o.id} onClick={() => setOpen(o)} aria-label={`Bill ${o.order_no}`}
               style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"12px 0", border:"none", background:"transparent",
-                borderTop: i ? "1px solid var(--rule)" : "none", cursor:"pointer", textAlign:"left", color:"var(--ink)",
-                opacity: o.status === "cancelled" ? 0.55 : 1 }}>
+                borderTop: i ? "1px solid var(--rule)" : "none", cursor:"pointer", textAlign:"left", color:"var(--ink)" }}>
               <span style={{ flex:1, minWidth:0 }}>
-                <span style={{ display:"block", fontWeight:800 }}>
-                  #{o.order_no}{o.label ? ` · ${o.label}` : ""}{" "}
-                  <span style={{ fontSize:12, fontWeight:700, color:statusColor(o) }}>{statusText(o)}</span>
+                <span style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", fontWeight:800 }}>
+                  <span>#{o.order_no}{o.label ? ` · ${o.label}` : ""}</span>
+                  <span style={{ fontSize:11, fontWeight:800, padding:"3px 9px", borderRadius:20, whiteSpace:"nowrap",
+                    background: badgeOf(o)[0], color: badgeOf(o)[1] }}>{statusText(o)}</span>
                 </span>
-                <span style={{ display:"block", fontSize:12, color:"var(--ink-faint)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {fmtWhen(o)} · {(o.items || []).map(it => `${it.name} ×${it.qty}`).join(", ")}
+                <span style={{ display:"block", fontSize:12, color:"var(--ink-faint)", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {fmtWhen(o)} · {(o.items || []).length ? o.items.map(it => `${it.name} ×${it.qty}`).join(", ") : L("No items")}
                 </span>
               </span>
-              <span style={{ fontWeight:800, textDecoration: o.status === "cancelled" ? "line-through" : "none" }}>{INR(o.total)}</span>
+              <span style={{ fontWeight:800, color: o.status === "cancelled" ? "var(--ink-faint)" : "var(--ink)",
+                textDecoration: o.status === "cancelled" ? "line-through" : "none" }}>{INR(o.total)}</span>
             </button>
           ))}
       </div>

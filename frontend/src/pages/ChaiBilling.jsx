@@ -155,6 +155,21 @@ export default function ChaiBilling() {
     setBusy(false)
   }
 
+  // Customer changed their mind / left before ordering: close the table without a bill.
+  // An open table has not used any stock yet, so nothing needs to be given back.
+  async function cancelTable() {
+    if (!activeId) return
+    const name = active?.label || L("this table")
+    if (!confirm(`${L("Cancel")} ${name}${total ? ` (${INR(total)})` : ""}? ${L("The order will be removed and the table freed.")}`)) return
+    setBusy(true)
+    try {
+      await ChaiOrders.cancel(activeId)
+      await loadOpen(); flash(`${name} ${L("cancelled")} ✓`)
+      setActive(null); setLines([]); setShowBill(false)
+    } catch (e) { flash(e.message, false) }
+    setBusy(false)
+  }
+
   async function pay(payment_mode, customer) {
     setBusy(true)
     try {
@@ -196,6 +211,14 @@ export default function ChaiBilling() {
   )
 
   const actions = (
+    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+    {mode === "table" && activeId && (
+      <button type="button" disabled={busy} onClick={cancelTable}
+        style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, minHeight:40, borderRadius:12,
+          border:"1px solid #f1b0a8", background:"transparent", color:"#c0392b", fontWeight:700, fontSize:14, cursor:"pointer" }}>
+        <BillIcon name="trash" size={16} />{L("Cancel table")} {active?.label || ""}
+      </button>
+    )}
     <div style={{ display:"flex", gap:8 }}>
       {mode === "table" && (
         <button className="btn" disabled={busy || lines.length === 0} onClick={saveTable}
@@ -208,6 +231,7 @@ export default function ChaiBilling() {
         style={{ flex:2, minHeight:52, borderRadius:14, fontWeight:800, fontSize:16 }}>
         {busy ? L("Saving…") : `${L("Pay")} ${INR(total)}`}
       </motion.button>
+    </div>
     </div>
   )
 
@@ -310,7 +334,7 @@ export default function ChaiBilling() {
                     style={{ position:"relative", minHeight: wide ? 110 : 92, borderRadius:16, cursor:"pointer", padding: wide ? "12px 8px" : "8px 4px",
                       border: q ? "2px solid var(--saffron)" : "1.5px solid var(--rule)", background:"var(--bg1)",
                       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4 }}>
-                    <span style={{ fontSize: wide ? 34 : 28, lineHeight:1 }}>{m.emoji || "☕"}</span>
+                    <span style={{ fontSize: wide ? 34 : 28, lineHeight:1 }}>{m.emoji || (isRestaurant() ? "🍽️" : "☕")}</span>
                     <span style={{ fontSize: wide ? 14 : 13, fontWeight:800, color:"var(--ink)", textAlign:"center", lineHeight:1.2 }}>{m.name}</span>
                     <span style={{ fontSize:13, fontWeight:700, color:"var(--jade)" }}>{INR(m.price)}</span>
                     <AnimatePresence>

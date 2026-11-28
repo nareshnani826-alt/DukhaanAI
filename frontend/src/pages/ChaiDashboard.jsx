@@ -221,7 +221,7 @@ export default function ChaiDashboard() {
             {L("Search all bills")} →
           </button>
         </div>
-        {!data ? <SkeletonRows rows={5} /> : data.orders.length === 0 ? <Empty /> : data.orders.slice(0, 100).map((o, i) => (
+        {!data ? <SkeletonRows rows={5} /> : data.orders.length === 0 ? <Empty /> : data.orders.filter(o => !(o.status === "cancelled" && !(o.items || []).length && !(+o.total))).slice(0, 100).map((o, i) => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderTop: i ? "1px solid var(--rule)" : "none",
             opacity: o.status === "cancelled" ? 0.5 : 1 }}>
             <div style={{ flex:1, minWidth:0, cursor: o.status === "open" ? "pointer" : "default" }}
