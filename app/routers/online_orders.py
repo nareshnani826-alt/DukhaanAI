@@ -46,10 +46,8 @@ MAX_LINES, MAX_QTY = 30, 50
 # ── helpers ───────────────────────────────────────────────────
 
 def _is_pro(v: dict) -> bool:
-    if v.get("plan") not in ("pro", "wholesale"):
-        return False
-    exp = v.get("plan_expires_at")
-    return not exp or datetime.fromisoformat(exp) > datetime.now(timezone.utc)
+    from app.core.security import plan_locked
+    return v.get("plan") in ("pro", "wholesale") and not plan_locked(v)
 
 
 def _shop_by_code(db, code: str) -> dict:

@@ -46,6 +46,21 @@ export function AuthProvider({ children }) {
     finally { setLoading(false) }
   }
 
+  // Sign in with Google: { id_token, shop_type?, create?, store_name?, phone? }.
+  // First time for that Google account → { status: "needs_signup", email, name } (show the shop form).
+  async function googleSignIn(payload) {
+    setLoading(true); setError("")
+    try {
+      const d = await api.post("/auth/google", payload)
+      if (d.status === "needs_signup") return d
+      setTokens(d.access_token, d.refresh_token, true)
+      const v = { id: d.vendor_id, store_name: d.store_name, plan: d.plan, modules: d.modules || ["kirana"] }
+      setVendor(v); setVendorState(v)
+      return d
+    } catch(e) { setError(e.message); throw e }
+    finally { setLoading(false) }
+  }
+
   // Staff sign in on the shop's device with the shop's phone/email + their username + PIN
   async function staffLogin(shop, username, pin, remember = true, shopType) {
     setLoading(true); setError("")
@@ -128,7 +143,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, setModules, role, loading, error, setError, login, staffLogin, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout, claimPro }}>
+    <AuthCtx.Provider value={{ vendor, loggedIn, cloud, hasModule, setModules, role, loading, error, setError, login, googleSignIn, staffLogin, register, registerConfirm, sendOtp, verifyOtp, forgotPassword, logout, claimPro }}>
       {children}
     </AuthCtx.Provider>
   )

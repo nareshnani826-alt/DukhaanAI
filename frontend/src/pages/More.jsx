@@ -54,6 +54,7 @@ const CHAI_SECTIONS = [
     items: [
       { label:"New bill",           to:"/chai-billing",   icon:"☕", desc:"Counter and tables" },
       { label:"Today's report",     to:"/chai-dashboard", icon:"📊", desc:"Cash, UPI, cups sold" },
+      { label:"Bill history",       to:"/chai-history",   icon:"🧾", desc:"Search, print or resend any bill" },
       { label:"Khata (udhaar)",     to:"/chai-khata",     icon:"📒", desc:"Regulars who pay later" },
       { label:"Online orders (QR)", to:"/online-orders",  icon:"📲", desc:"Customers order from your table QR" },
     ],

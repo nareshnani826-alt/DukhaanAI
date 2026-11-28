@@ -6,6 +6,7 @@ import { isTokenValid, clearAuth } from "../sync/db"
 import { tr } from "../i18n/kiranaStrings"
 import HomeSections from "../components/HomeSections"
 import { CONTENT } from "../components/home/shopContent"
+import { renderGoogleButton, setGoogleHandler } from "../utils/googleAuth"
 
 // Homepage version per address: dukhaanai.in/chai opens the chai shop page, and so on
 const ROUTE_SHOP  = { "/kirana":"kirana", "/chai":"chai", "/restaurant":"restaurant", ...(shopEnabled("bangle") ? { "/bangle":"bangle" } : {}) }
@@ -1178,13 +1179,13 @@ function AnimatedShowcase() {
 }
 
 // ── Auth form ─────────────────────────────────────────────────
-function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType = null, initialTab = "login", initialEmail = "" }) {
-  const { login, staffLogin, register, registerConfirm, forgotPassword, loading, error, setError } = useAuth()
+function AuthForm({ onSuccess, defaultModule = "kirana", shopType = null, initialTab = "login", initialEmail = "" }) {
+  const { login, googleSignIn, staffLogin, register, registerConfirm, forgotPassword, loading, error, setError } = useAuth()
   const lang = currentLang()
   const t = k => tr(k, lang)
   const [tab,      setTab]      = useState(initialTab)
   const [choices,  setChoices]  = useState(null)     // this login has several shops: which one?
-  const [form,     setForm]     = useState(() => ({ identifier:initialEmail, password:"", store_name:"", username:"",
+  const [form,     setForm]     = useState(() => ({ identifier:initialEmail, password:"", store_name:"", phone:"", username:"",
     shop: (() => { try { return localStorage.getItem("dk_staff_shop") || "" } catch { return "" } })() }))
   // The shop picked on the homepage is the store type a new account gets (the form is keyed by it)
   const [modules,  setModules]  = useState([defaultModule])
@@ -1196,9 +1197,44 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
   const [forgot,     setForgot]     = useState(null)   // null | "ask" | "sent" — reset password by email
   const [fpEmail,    setFpEmail]    = useState("")
   const [fpErr,      setFpErr]      = useState("")
+  // Sign in with Google (website): the Google ID token, and the "Set up your shop" step for a first-time account
+  const [gTok,       setGTok]       = useState("")
+  const [gSetup,     setGSetup]     = useState(null)   // { email, name } while setting up a new shop
+  const gBtn = useRef(null)
+  const showGoogle = !window.Capacitor?.isNativePlatform?.()   // Android app: native picker comes later
+
+  async function googleContinue(token, pickedShop) {
+    setError("")
+    try {
+      const d = await googleSignIn({ id_token: token, shop_type: pickedShop ?? (tab === "register" ? modules[0] : shopType) })
+      if (d.status === "needs_signup") { setGTok(token); setGSetup({ email: d.email, name: d.name }); return }
+      onSuccess(d.modules || modules, d.email)
+    } catch (err) {
+      if (err.status === 409 && err.detail?.choose_shop) { setError(""); setGTok(token); setChoices(err.detail.choose_shop) }
+    }
+  }
+  async function googleCreate(e) {
+    e.preventDefault()
+    const errs = {}
+    if (!form.store_name.trim()) errs.store_name = t("Required")
+    if (!form.phone.trim()) errs.phone = t("Required")
+    else if (!isValidPhone(form.phone)) errs.phone = t("Valid 10-digit mobile number")
+    if (Object.keys(errs).length) { setFieldErr(errs); return }
+    try {
+      const d = await googleSignIn({ id_token: gTok, create: true, shop_type: modules[0], store_name: form.store_name.trim(), phone: form.phone })
+      if (d.status === "needs_signup") return   // should not happen: the shop was just made
+      onSuccess(d.modules || modules)
+    } catch { /* message shown from the auth context */ }
+  }
+  useEffect(() => { setGoogleHandler(tok => googleContinue(tok)) })   // latest tab / store type on every render
+  const onForm = !gSetup && !choices && !otpStep && !forgot
+  useEffect(() => {
+    if (!showGoogle || !onForm) return
+    renderGoogleButton(gBtn.current, { text: tab === "register" ? "signup_with" : "continue_with" }).catch(() => {})
+  }, [showGoogle, onForm, tab])
 
   function set(k, v) { setForm(f => ({ ...f, [k]:v })); setError(""); setFieldErr(e => ({ ...e, [k]:"" })) }
-  function switchTab(t) { setTab(t); setForm(f => ({ identifier:"", password:"", store_name:"", username:"", shop: f.shop })); setFieldErr({}); setError(""); setOtpStep(false) }
+  function switchTab(t) { setTab(t); setForm(f => ({ identifier:"", password:"", store_name:"", phone:"", username:"", shop: f.shop })); setFieldErr({}); setError(""); setOtpStep(false) }
   // A plain name in the sign-in box ("mahesh") is a staff login: ask for the shop and a PIN.
   // The shop is remembered on this phone so staff only type it once.
   const isStaff = tab === "login" && /^[a-z][a-z0-9._-]{1,}$/i.test(form.identifier.trim()) && !isValidPhone(form.identifier)
@@ -1219,6 +1255,8 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
     else if (isStaff && !/^\d{4}$/.test(form.password)) errs.password = t("4-digit PIN")
     if (isStaff && !isValidEmail(form.shop) && !isValidPhone(form.shop)) errs.shop = t("Shop owner's phone or email")
     if (tab === "register" && !form.store_name) errs.store_name = t("Required")
+    if (tab === "register" && !form.phone.trim()) errs.phone = t("Required")
+    else if (tab === "register" && !isValidPhone(form.phone)) errs.phone = t("Valid 10-digit mobile number")
     if (Object.keys(errs).length) { setFieldErr(errs); return }
     try {
       if (isStaff) {
@@ -1252,6 +1290,52 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
     transition:"border 0.15s, box-shadow 0.15s", fontFamily:"inherit" }
   const inpFocus = e => { e.target.style.border="1.5px solid #e87722"; e.target.style.boxShadow="0 0 0 3px rgba(232,119,34,0.12)" }
   const inpBlur  = e => { e.target.style.border="1.5px solid #e5e7eb"; e.target.style.boxShadow="none" }
+
+  // First time with this Google account: a few shop details, then the shop is made (30-day trial)
+  if (gSetup) return (
+    <form onSubmit={googleCreate} style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div>
+        <div style={{ fontSize:17, fontWeight:800, color:"#1a0c04" }}>{t("Set up your shop")}</div>
+        <div style={{ fontSize:12, color:"#857d72", marginTop:4 }}>{t("Signed in with Google as")} <b>{gSetup.email}</b></div>
+      </div>
+      <div>
+        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Store Name")}</label>
+        <input className="lh-inp" style={inp} placeholder={t("Raju General Store")} value={form.store_name}
+          onChange={e => set("store_name", e.target.value)} onFocus={inpFocus} onBlur={inpBlur} autoFocus />
+        {fieldErr.store_name && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.store_name}</p>}
+      </div>
+      <div>
+        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Mobile number")}</label>
+        <input className="lh-inp" style={inp} type="tel" inputMode="numeric" placeholder="98765 43210" maxLength={14}
+          value={form.phone} onChange={e => set("phone", e.target.value)} onFocus={inpFocus} onBlur={inpBlur} autoComplete="tel-national" />
+        {fieldErr.phone && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.phone}</p>}
+      </div>
+      <div>
+        <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:8 }}>{t("Store Type")}</label>
+        <div style={{ display:"flex", gap:8 }}>
+          {MODULES.map(m => (
+            <button key={m.id} type="button" onClick={() => toggleModule(m.id)}
+              style={{ flex:1, padding:"12px 8px", borderRadius:11, cursor:"pointer",
+                border: modules.includes(m.id) ? "2px solid #e87722" : "2px solid #e5e7eb",
+                background: modules.includes(m.id) ? "rgba(232,119,34,0.07)" : "#fafafa" }}>
+              <div style={{ fontSize:22, marginBottom:5 }}>{m.emoji}</div>
+              <div style={{ fontSize:10, fontWeight:700, color:"#333", lineHeight:1.3 }}>
+                {t({ kirana:"Kirana Store", bangle_fancy:"Bangle Store", chai:"Chai / Tea Shop", restaurant:"Restaurant / Fast Food" }[m.id])}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && <div style={{ color:"#E24B4A", fontSize:13, fontWeight:600 }}>{error}</div>}
+      <button type="submit" disabled={loading}
+        style={{ width:"100%", padding:"14px", borderRadius:12, border:"none", background:"linear-gradient(135deg,#e87722,#c25500)",
+          color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", opacity:loading?0.7:1 }}>
+        {loading ? t("Please wait…") : t("Start my 30-day free trial →")}
+      </button>
+      <button type="button" onClick={() => { setGSetup(null); setGTok(""); setError("") }}
+        style={{ background:"none", border:"none", color:"#888", fontSize:13, cursor:"pointer", minHeight:40 }}>{t("← Back")}</button>
+    </form>
+  )
 
   if (otpStep) return (
     <form onSubmit={confirmOtp} style={{ display:"flex", flexDirection:"column", gap:16 }}>
@@ -1288,7 +1372,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
       {choices.map(id => {
         const m = MODULES.find(x => x.id === id)
         return (
-          <button key={id} type="button" disabled={loading} onClick={() => { setChoices(null); submit(null, id) }}
+          <button key={id} type="button" disabled={loading} onClick={() => { setChoices(null); gTok ? googleContinue(gTok, id) : submit(null, id) }}
             style={{ minHeight:54, borderRadius:12, border:"1.5px solid #e5e7eb", background:"#fff", color:"#1a0c04",
               fontSize:15, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:10, padding:"0 16px" }}>
             <span style={{ fontSize:22 }}>{m?.emoji}</span>{m?.label || id}
@@ -1386,6 +1470,17 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
         {fieldErr.identifier && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.identifier}</p>}
       </div>
 
+      {/* Shop's mobile: they can sign in with it too, and it is used for payment receipts */}
+      {tab === "register" && (
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Mobile number")}</label>
+          <input className="lh-inp" style={inp} type="tel" inputMode="numeric" placeholder="98765 43210" maxLength={14}
+            value={form.phone} onChange={e => set("phone", e.target.value)}
+            onFocus={inpFocus} onBlur={inpBlur} autoComplete="tel-national" />
+          {fieldErr.phone && <p style={{ color:"#E24B4A", fontSize:11, marginTop:4 }}>{fieldErr.phone}</p>}
+        </div>
+      )}
+
       {isStaff && (
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#555", marginBottom:5 }}>{t("Staff login · shop owner's phone or email")}</label>
@@ -1450,17 +1545,15 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
         {loading ? t("Please wait…") : tab==="register" ? t("Create Account →") : t("Sign In →")}
       </button>
 
-      <div style={{ textAlign:"center" }}>
-        <button type="button" onClick={() => {
-            // Local-only shops have no account: keep the store name typed here for bills
-            try { if (form.store_name.trim()) localStorage.setItem("dk_store_name_hint", form.store_name.trim()) } catch {}
-            onLocalMode()
-          }}
-          style={{ background:"none", border:"none", color:"#857d72", fontSize:11,
-            cursor:"pointer", textDecoration:"underline" }}>
-          {t("Use without account (local only)")}
-        </button>
-      </div>
+      {/* Or one tap with Google (website; the server makes the account the first time) */}
+      {showGoogle && !isStaff && (
+        <>
+          <div style={{ display:"flex", alignItems:"center", gap:10, color:"#a8a29a", fontSize:12, fontWeight:600 }}>
+            <span style={{ flex:1, height:1, background:"#ece7e1" }} />{t("or")}<span style={{ flex:1, height:1, background:"#ece7e1" }} />
+          </div>
+          <div ref={gBtn} style={{ display:"flex", justifyContent:"center", minHeight:44 }} />
+        </>
+      )}
 
       {/* APK lives on GitHub Releases — "latest" always serves the newest version. Not bundled, or the app would contain itself */}
       {!window.Capacitor?.isNativePlatform?.() && (
@@ -1569,15 +1662,8 @@ export default function LoginHome() {
     if (only) return handlePick(only)
     setAllowedMods(list); setPhase("pick")
   }
-  function handleLocalMode() {
-    // On this phone without an account: ask the shop type once, then always open that shop
-    const chosen = localStorage.getItem("dk_local_shop") && MODULES.find(m => m.id === localStorage.getItem("storeMode"))
-    if (chosen) return handlePick(chosen)
-    setAllowedMods(MODULES.map(m => m.id)); setPhase("pick")
-  }
   function handlePick(m) {
     localStorage.setItem("storeMode", m.id)
-    if (!vendor) localStorage.setItem("dk_local_shop", "1")
     navigate(m.route, { replace:true })
   }
 
@@ -1591,7 +1677,7 @@ export default function LoginHome() {
             padding:"32px 28px",
             boxShadow:"0 12px 48px rgba(180,100,20,0.15), 0 2px 8px rgba(0,0,0,0.06)",
             border:"1px solid rgba(232,119,34,0.12)" }}>
-            {phase === "auth" && <AuthForm key={`${shop}-${formInit.n}`} onSuccess={handleAuthSuccess} onLocalMode={handleLocalMode}
+            {phase === "auth" && <AuthForm key={`${shop}-${formInit.n}`} onSuccess={handleAuthSuccess}
               defaultModule={SHOP_MODULE[shop] || "kirana"} shopType={shop === "general" ? null : SHOP_MODULE[shop]}
               initialTab={formInit.tab} initialEmail={formInit.email} />}
             {phase === "pick" && <ModulePicker allowedModules={allowedMods} onPick={handlePick} />}
@@ -1715,7 +1801,7 @@ export default function LoginHome() {
             padding:"32px 28px",
             boxShadow:"0 12px 48px rgba(180,100,20,0.15), 0 2px 8px rgba(0,0,0,0.06)",
             border:"1px solid rgba(232,119,34,0.12)" }}>
-            {phase === "auth" && <AuthForm onSuccess={handleAuthSuccess} onLocalMode={handleLocalMode} />}
+            {phase === "auth" && <AuthForm onSuccess={handleAuthSuccess} />}
             {phase === "pick" && <ModulePicker allowedModules={allowedMods} onPick={handlePick} />}
           </div>
 

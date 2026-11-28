@@ -214,7 +214,13 @@ export default function ChaiDashboard() {
       </div>
 
       <div style={card}>
-        <CardTitle icon="receipt">{L("Bills")}</CardTitle>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
+          <CardTitle icon="receipt">{L("Bills")}</CardTitle>
+          <button onClick={() => navigate("/chai-history")}
+            style={{ border:"none", background:"transparent", color:"var(--saffron)", fontWeight:800, fontSize:14, cursor:"pointer", minHeight:36, padding:"0 4px" }}>
+            {L("Search all bills")} →
+          </button>
+        </div>
         {!data ? <SkeletonRows rows={5} /> : data.orders.length === 0 ? <Empty /> : data.orders.slice(0, 100).map((o, i) => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderTop: i ? "1px solid var(--rule)" : "none",
             opacity: o.status === "cancelled" ? 0.5 : 1 }}>

@@ -130,9 +130,8 @@ function HeroGlyphs() {
 }
 
 // ── Content ──────────────────────────────────────────────────
+// One plan for every shop: Pro, with the first 30 days free (no Free plan — dropped 2026-11-28)
 const PLANS = [
-  { name:"Free", price:"₹0", per:"forever", blurb:"To get your shop started",
-    items:["Billing & stock", "Udhar khata", "UPI QR & WhatsApp bills", "Daily dashboard"] },
   { name:"Pro", price:"₹299", per:"/month", popular:true },
 ]
 
@@ -327,7 +326,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
             <motion.div variants={heroItem} className="hm-cta-row">
               <Magnetic>
                 <button className="hm-btn hm-btn-primary hm-hero-start" onClick={() => scrollToId("start")}>
-                  Start free <Icon name="arrow" size={18}/>
+                  Start free trial <Icon name="arrow" size={18}/>
                 </button>
               </Magnetic>
               <Magnetic>
@@ -337,7 +336,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
               </Magnetic>
             </motion.div>
             <motion.ul variants={heroItem} className="hm-trust">
-              <li><Icon name="check" size={16}/> Free plan, no card needed</li>
+              <li><Icon name="check" size={16}/> 30-day free trial, no card needed</li>
               <li><Icon name="languages" size={16}/> 10 Indian languages</li>
               <li><Icon name="wifiOff" size={16}/> Works offline</li>
             </motion.ul>
@@ -452,9 +451,9 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
       {/* Pricing */}
       <section id="pricing" className="hm-section hm-white">
         <div className="hm-wrap">
-          <SectionHead kicker="Pricing" title="Simple prices. Start free."
-            sub="Upgrade only when your shop needs more."/>
-          <div className="hm-plans" onPointerLeave={() => setHoverPlan("Pro")}>
+          <SectionHead kicker="Pricing" title="One simple price. First 30 days free."
+            sub="Every feature for your shop. No card needed to start — pay only if it works for you."/>
+          <div className="hm-plans" style={{ gridTemplateColumns:"minmax(0, calc(440px * var(--k)))", justifyContent:"center" }} onPointerLeave={() => setHoverPlan("Pro")}>
             {PLANS.map(p => p.popular ? { ...p, blurb: C.proBlurb, items: C.proItems } : p).map((p, i) => (
               <Reveal key={p.name} delay={i * 0.08} className={`hm-plan ${p.popular ? "is-popular" : ""}`}>
                 <div onPointerEnter={e => e.pointerType === "mouse" && setHoverPlan(p.name)}
@@ -463,7 +462,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
                     <motion.div layoutId="hm-plan-glow" className="hm-plan-glow" aria-hidden="true"
                       transition={{ type:"spring", bounce:0.15, visualDuration:0.4 }}/>
                   )}
-                  {p.popular && <div className="hm-plan-tag">Most popular</div>}
+                  {p.popular && <div className="hm-plan-tag">30 days free</div>}
                   <div style={{ position:"relative", display:"flex", flexDirection:"column", height:"100%" }}>
                     <div style={{ fontSize:"calc(15px * var(--k))", fontWeight:800 }}>{p.name}</div>
                     <div style={{ fontSize:"calc(13px * var(--k))", color:"#6b5436", marginTop:2 }}>{p.blurb}</div>
@@ -476,7 +475,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
                     </ul>
                     <button className={`hm-btn ${p.popular ? "hm-btn-primary" : "hm-btn-ghost"}`}
                       style={{ width:"100%", marginTop:"auto" }} onClick={() => scrollToId("start")}>
-                      {p.name === "Free" ? "Start free" : "Choose Pro"}
+                      Start your 30-day free trial
                     </button>
                   </div>
                 </div>
@@ -543,7 +542,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
             initial={{ y: 90, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 90, opacity: 0 }}
             transition={{ type:"spring", bounce:0.2, visualDuration:0.4 }}>
             <button className="hm-btn hm-btn-primary" onClick={() => scrollToId("start")}>
-              Start free <Icon name="arrow" size={18}/>
+              Start free trial <Icon name="arrow" size={18}/>
             </button>
             <a className="hm-btn hm-btn-ghost" href={APK_URL} aria-label="Download Android app">
               <Icon name="download" size={18}/>

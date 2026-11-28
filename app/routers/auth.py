@@ -20,7 +20,7 @@ from app.schemas.schemas import (
     RefreshRequest, VendorProfile, VendorUpdate, MessageResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
     SendOtpRequest, VerifyOtpRequest,
-    RegisterOtpRequired, RegisterConfirm, StaffLogin, DeleteAccountRequest,
+    RegisterOtpRequired, RegisterConfirm, StaffLogin, DeleteAccountRequest, GoogleSignIn,
 )
 from app.core.config import settings
 from app.core.mailer import email_configured, send_email
@@ -290,7 +290,9 @@ def register_confirm(request: Request, body: RegisterConfirm):
         "store_name":     pending["store_name"],
         "phone":          phone,
         "gstin":          pending.get("gstin"),
-        "plan":           "pro" if settings.free_pro_signups else "free",   # testing period: Pro for everyone
+        # Free Pro trial for every new shop (config trial_days); then locked until paid
+        "plan":           "pro",
+        "plan_expires_at": _trial_end(),
         "modules":        [shop],
         "shop_type":      shop,
         "phone_verified": bool(phone),
@@ -323,6 +325,104 @@ def login(request: Request, body: VendorLogin):
         lambda r: verify_password(body.password, r["password_hash"]),
         HTTPException(status_code=401, detail="Invalid email/phone or password"),
     )
+    if not vendor["is_active"]:
+        raise HTTPException(status_code=403, detail="Account suspended")
+    return _issue_tokens(db, vendor)
+
+
+# ── Sign in with Google ────────────────────────────────────────────────────────
+# The app gets an ID token from Google (website button or the Android account picker) and sends it
+# here. We check Google signed it for our client ID, then sign in to that email's shop — or, the
+# first time, create the shop from the "Set up your shop" form. Google already verified the email,
+# so there is no email code. Accounts made this way get a random password nobody knows; the owner
+# can set one later with "Forgot password".
+
+_GOOGLE_CERTS: dict = {"keys": None, "at": 0.0}
+_GOOGLE_ISSUERS = ("accounts.google.com", "https://accounts.google.com")
+
+
+def _google_certs(refresh: bool = False) -> dict:
+    import time
+    import httpx
+    if refresh or not _GOOGLE_CERTS["keys"] or time.time() - _GOOGLE_CERTS["at"] > 3600:
+        r = httpx.get("https://www.googleapis.com/oauth2/v3/certs", timeout=10)
+        r.raise_for_status()
+        _GOOGLE_CERTS.update(keys=r.json(), at=time.time())
+    return _GOOGLE_CERTS["keys"]
+
+
+def _verify_google(id_token: str) -> dict:
+    from jose import jwt as jose_jwt, JWTError
+    client_ids = [c.strip() for c in settings.google_client_id.split(",") if c.strip()]
+    if not client_ids:
+        raise HTTPException(status_code=503, detail="Google sign-in is not set up yet. Please use email and password.")
+    bad = HTTPException(status_code=401, detail="Google sign-in failed. Please try again.")
+    claims = None
+    for attempt in range(2):   # Google rotates its keys: on a miss, fetch them once more
+        try:
+            certs = _google_certs(refresh=attempt == 1)
+        except Exception:
+            raise HTTPException(status_code=503, detail="Could not reach Google. Please try again.")
+        for aud in client_ids:
+            try:
+                claims = jose_jwt.decode(id_token, certs, algorithms=["RS256"], audience=aud,
+                                         options={"verify_at_hash": False})
+                break
+            except JWTError:
+                continue
+        if claims:
+            break
+    if not claims or claims.get("iss") not in _GOOGLE_ISSUERS:
+        raise bad
+    if not claims.get("email") or claims.get("email_verified") not in (True, "true"):
+        raise HTTPException(status_code=401, detail="Your Google account's email is not verified.")
+    return claims
+
+
+@router.post("/google")
+@limiter.limit("20/minute")
+def google_sign_in(request: Request, body: GoogleSignIn):
+    claims = _verify_google(body.id_token)
+    email = claims["email"].strip().lower()
+    shop = _shop_type(body.shop_type)
+    db = get_db()
+    rows = db.table("vendors").select("*").eq("email", email).execute().data or []
+
+    # New shop from the "Set up your shop" form (this email has no shop of that type yet)
+    if body.create and not any(r.get("shop_type", "kirana") == shop for r in rows):
+        if not shop:
+            raise HTTPException(status_code=422, detail="Please choose your store type.")
+        if shop in NEW_SIGNUPS_OFF:
+            raise HTTPException(status_code=403, detail=f"{SHOP_LABELS[shop]} accounts are not open yet.")
+        store = (body.store_name or "").strip()
+        if not store:
+            raise HTTPException(status_code=422, detail="Please enter your store name.")
+        phone = None
+        if body.phone:
+            phone = _normalize_phone_local(body.phone)
+            if len(phone) != 10 or not phone.isdigit():
+                raise HTTPException(status_code=422, detail="Enter a valid 10-digit Indian mobile number")
+            if db.table("vendors").select("id").eq("phone", phone).eq("shop_type", shop).execute().data:
+                raise HTTPException(status_code=409, detail=f"This phone number already has a {SHOP_LABELS[shop]} account.")
+        vendor = db.table("vendors").insert({
+            "email":           email,
+            "password_hash":   hash_password(secrets.token_urlsafe(32)),
+            "store_name":      store[:80],
+            "phone":           phone,
+            "plan":            "pro",              # 30-day trial, like every new shop
+            "plan_expires_at": _trial_end(),
+            "modules":         [shop],
+            "shop_type":       shop,
+            "phone_verified":  False,
+        }).execute().data[0]
+        return _issue_tokens(db, vendor)
+
+    # First time with this Google account: the app shows the "Set up your shop" form
+    if not rows:
+        return {"status": "needs_signup", "email": email, "name": claims.get("name") or ""}
+
+    vendor = _choose_account(rows, shop, lambda r: True,
+                             HTTPException(status_code=401, detail="Google sign-in failed. Please try again."))
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
     return _issue_tokens(db, vendor)
@@ -477,7 +577,28 @@ def reset_password(body: ResetPasswordRequest):
     return MessageResponse(message="Password updated successfully. You can now log in.")
 
 
-# ── Testing period: Pro free for everyone ───────────────────────────────────
+# ── Free trial and plan status ──────────────────────────────────────────────
+
+def _trial_end() -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=settings.trial_days)).isoformat()
+
+
+@router.get("/plan-status")
+def plan_status(vendor=Depends(get_current_vendor)):
+    """What the app shows in its plan banner: days left, or locked (trial / plan ran out)."""
+    from app.core.security import plan_expires, plan_locked
+    exp = plan_expires(vendor)
+    paid = bool(get_db().table("subscriptions").select("id").eq("vendor_id", vendor["id"])
+                .eq("status", "active").limit(1).execute().data) if exp else False
+    days_left = max(0, -(-(exp - datetime.now(timezone.utc)).total_seconds() // 86400)) if exp else None
+    return {
+        "plan": vendor["plan"],
+        "expires_at": exp.isoformat() if exp else None,
+        "days_left": int(days_left) if days_left is not None else None,   # None: never ends
+        "locked": plan_locked(vendor),
+        "trial": bool(exp) and not paid,
+    }
+
 
 @router.get("/promo")
 def promo():
@@ -494,7 +615,7 @@ def claim_pro(vendor=Depends(get_current_vendor)):
         raise HTTPException(status_code=403, detail="Free Pro has ended.")
     if vendor["plan"] in ("pro", "wholesale"):
         return MessageResponse(message="Already on Pro")
-    get_db().table("vendors").update({"plan": "pro", "plan_expires_at": None}).eq("id", vendor["id"]).execute()
+    get_db().table("vendors").update({"plan": "pro", "plan_expires_at": _trial_end()}).eq("id", vendor["id"]).execute()
     bust_vendor_cache(vendor["id"])
     return MessageResponse(message="Switched to Pro")
 

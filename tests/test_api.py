@@ -276,9 +276,10 @@ def test_list_plans_public():
     r = client.get("/subscriptions/plans")
     assert r.status_code == 200
     plans = r.json()["plans"]
-    assert len(plans) == 2          # Free + Pro (Wholesale was folded into Pro)
-    assert plans[0]["id"] == "free"
-    assert plans[1]["price_monthly"] == 299
+    assert len(plans) == 1          # Pro only: no Free plan (dropped 2026-11-28), Wholesale folded into Pro
+    assert plans[0]["id"] == "pro"
+    assert plans[0]["price_monthly"] == 299
+    assert plans[0]["trial_days"] == 30
 
 
 # ── Invoices ─────────────────────────────────────────────────

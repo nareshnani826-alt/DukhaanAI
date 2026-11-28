@@ -29,7 +29,10 @@ export default function OnlineOrders() {
   const link = cfg?.shop_code ? `${SITE}/s/${cfg.shop_code}` : ""
   const note = m => { setMsg(m); setTimeout(() => setMsg(""), 3500) }
 
-  useEffect(() => { api.get("/online-orders/settings").then(setCfg).catch(e => setCfg({ error: e.message })) }, [])
+  useEffect(() => {
+    if (!vendor) return   // data only on this phone: QR orders need an account (see below)
+    api.get("/online-orders/settings").then(setCfg).catch(e => setCfg({ error: e.message }))
+  }, [vendor])
   useEffect(() => { if (link) QRCode.toDataURL(link, { width: 520, margin: 1 }).then(setQr) }, [link])
 
   // Orders refresh every 5 s while this screen is open
@@ -78,6 +81,19 @@ export default function OnlineOrders() {
       .s{font-size:13px;color:#555;margin-top:4px}`)
   }
 
+  // Shop kept only on this phone: customers' orders have to reach the shop through the server
+  if (!vendor) return (
+    <Page>
+      <Card>
+        <div style={{ fontSize:30 }}>📲</div>
+        <div style={{ fontSize:17, fontWeight:800, marginTop:6 }}>{L("QR ordering needs an account")}</div>
+        <div style={{ fontSize:14, color:"var(--ink-dim)", marginTop:6, lineHeight:1.5 }}>
+          {L("Customers' orders reach your shop over the internet, so sign in or create a free account first. Your bills on this phone can be moved to the account.")}
+        </div>
+        <button onClick={() => navigate("/")} className="btn btn-primary" style={{ marginTop:14, minHeight:48, width:"100%" }}>{L("Login / Register")}</button>
+      </Card>
+    </Page>
+  )
   if (!cfg) return <Page><div style={{ padding:30, textAlign:"center", color:"var(--ink-faint)" }}>{L("Loading…")}</div></Page>
   if (cfg.error) return <Page><Card><div style={{ color:"#c0392b" }}>{cfg.error}</div></Card></Page>
 

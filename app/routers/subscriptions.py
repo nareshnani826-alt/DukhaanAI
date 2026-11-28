@@ -6,10 +6,11 @@ from datetime import datetime, timezone, timedelta
 import httpx
 from fastapi import APIRouter, HTTPException, Depends, Request, Header
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from app.core.config import settings, PLAN_PRICING
 from app.core.database import get_db
-from app.core.security import get_current_vendor
+from app.core.security import bust_vendor_cache, get_current_vendor
 from app.schemas.schemas import SubscriptionCreate, SubscriptionOut
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
@@ -43,6 +44,94 @@ async def _rz_cancel(sub_id: str) -> dict:
     return r.json()
 
 
+async def _rz_get(path: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        r = await client.get(f"{RAZORPAY_BASE}{path}", auth=(settings.razorpay_key_id, settings.razorpay_key_secret), timeout=15)
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail="Could not check the payment with Razorpay. Please try again.")
+    return r.json()
+
+
+# ── Pay on the website (Razorpay Standard Checkout) ─────────────────────────
+# One payment of the Pro monthly price adds PRO_DAYS to the shop's plan (on top of any days
+# still left, so paying early loses nothing). The price is decided here, never by the browser.
+# The Android app pays through Google Play instead (Play policy), so it never calls these.
+
+PRO_DAYS = 30
+PAID_EVENT = "checkout.paid"   # payment_events.event_type; razorpay_sub_id holds the payment id
+
+
+class CheckoutVerify(BaseModel):
+    razorpay_order_id:   str = Field(min_length=1, max_length=64)
+    razorpay_payment_id: str = Field(min_length=1, max_length=64)
+    razorpay_signature:  str = Field(min_length=1, max_length=256)
+
+
+def _payments_ready() -> None:
+    if not settings.razorpay_key_id or not settings.razorpay_key_secret:
+        raise HTTPException(status_code=503, detail="Online payment is not set up yet. Please contact us to renew.")
+
+
+def _extend_plan(db, vendor_id: str, payment_id: str, order: dict) -> str:
+    """Add PRO_DAYS to the shop's plan for one paid order. Safe to call twice for the same payment
+    (the checkout verify and the webhook can both arrive) — the second call changes nothing."""
+    from app.core.security import plan_expires
+    done = (db.table("payment_events").select("id").eq("event_type", PAID_EVENT)
+            .eq("razorpay_sub_id", payment_id).limit(1).execute().data)
+    row = db.table("vendors").select("plan_expires_at").eq("id", vendor_id).limit(1).execute().data
+    current = plan_expires(row[0]) if row else None
+    if done:
+        return current.isoformat() if current else ""
+    now = datetime.now(timezone.utc)
+    new_end = max(now, current or now) + timedelta(days=PRO_DAYS)
+    db.table("vendors").update({"plan": "pro", "plan_expires_at": new_end.isoformat()}).eq("id", vendor_id).execute()
+    db.table("payment_events").insert({"vendor_id": vendor_id, "event_type": PAID_EVENT, "razorpay_sub_id": payment_id,
+                                       "payload": {"order_id": order.get("id"), "amount": order.get("amount"),
+                                                   "days": PRO_DAYS, "plan_expires_at": new_end.isoformat()}}).execute()
+    bust_vendor_cache(vendor_id)
+    return new_end.isoformat()
+
+
+@router.post("/checkout/order", status_code=201)
+async def create_checkout_order(vendor=Depends(get_current_vendor)):
+    """Start a website payment for 30 days of Pro. Returns what Razorpay Checkout needs."""
+    _payments_ready()
+    amount = PLAN_PRICING["pro"]["monthly"]["amount"]
+    order = await _rz_post("/orders", {
+        "amount": amount, "currency": "INR",
+        "receipt": f"pro-{vendor['id'][:8]}-{int(datetime.now(timezone.utc).timestamp())}",
+        "notes": {"vendor_id": vendor["id"], "plan": "pro", "days": str(PRO_DAYS)},
+    })
+    return {"order_id": order["id"], "amount": order["amount"], "currency": order["currency"],
+            "key_id": settings.razorpay_key_id, "days": PRO_DAYS,
+            "store_name": vendor.get("store_name") or "", "email": vendor.get("email") or "", "phone": vendor.get("phone") or ""}
+
+
+@router.post("/checkout/verify")
+async def verify_checkout(body: CheckoutVerify, vendor=Depends(get_current_vendor)):
+    """After Checkout says paid: check the signature, then confirm with Razorpay that this payment
+    is for this shop's order and the full price before adding the days."""
+    _payments_ready()
+    expected = hmac.new(settings.razorpay_key_secret.encode(),
+                        f"{body.razorpay_order_id}|{body.razorpay_payment_id}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, body.razorpay_signature):
+        raise HTTPException(status_code=400, detail="Payment could not be verified. If money was taken, contact us.")
+
+    order = await _rz_get(f"/orders/{body.razorpay_order_id}")
+    payment = await _rz_get(f"/payments/{body.razorpay_payment_id}")
+    price = PLAN_PRICING["pro"]["monthly"]["amount"]
+    if (order.get("notes") or {}).get("vendor_id") != vendor["id"] or payment.get("order_id") != order.get("id") \
+            or int(payment.get("amount") or 0) != price:
+        raise HTTPException(status_code=400, detail="This payment does not belong to this shop.")
+    if payment.get("status") == "authorized":   # dashboard set to manual capture: capture it now
+        payment = await _rz_post(f"/payments/{payment['id']}/capture", {"amount": price, "currency": "INR"})
+    if payment.get("status") != "captured":
+        raise HTTPException(status_code=400, detail="The payment has not gone through yet. If money was taken, contact us.")
+
+    expires = _extend_plan(get_db(), vendor["id"], payment["id"], order)
+    return {"ok": True, "plan_expires_at": expires, "days": PRO_DAYS}
+
+
 def _get_plan_id(plan: str, billing_cycle: str) -> str:
     mapping = {
         ("pro", "monthly"):       settings.razorpay_pro_monthly_plan_id,
@@ -58,10 +147,9 @@ def _get_plan_id(plan: str, billing_cycle: str) -> str:
 async def list_plans():
     return {
         "plans": [
-            {"id": "free", "name": "Local (Free)", "price_monthly": 0, "price_yearly": 0,
-             "features": ["Full inventory management", "GST invoice generation", "AI agent (local logic)", "Single device only"]},
             {"id": "pro", "name": "Pro", "price_monthly": 299, "price_yearly": 2390,
-             "features": ["Everything in Free", "Cloud sync + auto backup", "Voice billing in 10 languages", "AI shop assistant & invoice scanner", "Staff logins (manager, cashier)", "Reports, GST summary & data export", "WhatsApp invoice share"]},
+             "trial_days": settings.trial_days,
+             "features": ["Billing, stock & udhar khata", "Cloud sync + auto backup", "Voice billing in 10 languages", "AI shop assistant & invoice scanner", "Staff logins (manager, cashier)", "Reports, GST summary & data export", "WhatsApp invoice share"]},
         ]
     }
 
@@ -113,6 +201,9 @@ async def cancel_subscription(vendor=Depends(get_current_vendor)):
 @router.post("/webhook")
 async def razorpay_webhook(request: Request, x_razorpay_signature: str = Header(...)):
     db = get_db()
+    # No secret set: an empty-key signature is easy to forge, so accept nothing
+    if not settings.razorpay_webhook_secret:
+        raise HTTPException(status_code=503, detail="Webhook not configured")
     body_bytes = await request.body()
     expected = hmac.new(settings.razorpay_webhook_secret.encode(), body_bytes, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, x_razorpay_signature):
@@ -120,6 +211,17 @@ async def razorpay_webhook(request: Request, x_razorpay_signature: str = Header(
 
     payload = json.loads(body_bytes)
     event = payload.get("event", "")
+
+    # Website payment finished (also covers a customer who closed the page before the app confirmed)
+    if event == "order.paid":
+        order = payload.get("payload", {}).get("order", {}).get("entity", {})
+        payment = payload.get("payload", {}).get("payment", {}).get("entity", {})
+        notes = order.get("notes") or {}
+        if notes.get("plan") == "pro" and notes.get("vendor_id") and payment.get("id") \
+                and int(order.get("amount_paid") or 0) == PLAN_PRICING["pro"]["monthly"]["amount"]:
+            _extend_plan(db, notes["vendor_id"], payment["id"], order)
+        return JSONResponse({"status": "ok"})
+
     entity = payload.get("payload", {}).get("subscription", {}).get("entity", {})
     rz_sub_id = entity.get("id")
     vendor_id = entity.get("notes", {}).get("vendor_id")
@@ -142,9 +244,12 @@ def _activate_vendor(db, rz_sub_id: str, vendor_id: str):
     expires = datetime.now(timezone.utc) + timedelta(days=32 if sub["billing_cycle"] == "monthly" else 366)
     db.table("vendors").update({"plan": sub["plan"], "plan_expires_at": expires.isoformat()}).eq("id", vendor_id).execute()
     db.table("subscriptions").update({"status": "active", "current_start": datetime.now(timezone.utc).isoformat(), "current_end": expires.isoformat()}).eq("razorpay_sub_id", rz_sub_id).execute()
+    bust_vendor_cache(vendor_id)   # unlock straight away, not after the cache runs out
 
 
 def _deactivate_vendor(db, rz_sub_id: str, vendor_id: str):
-    if vendor_id:
-        db.table("vendors").update({"plan": "free", "plan_expires_at": None}).eq("id", vendor_id).execute()
+    # The shop keeps Pro until the paid period ends (plan_expires_at from the last charge), then it
+    # is locked until paid again — never dropped to Free, which would hide its cloud data.
     db.table("subscriptions").update({"status": "cancelled"}).eq("razorpay_sub_id", rz_sub_id).execute()
+    if vendor_id:
+        bust_vendor_cache(vendor_id)

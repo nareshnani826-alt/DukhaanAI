@@ -7,7 +7,7 @@ import time
 
 import bcrypt
 from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.core.config import settings
@@ -74,7 +74,39 @@ def decode_access_token(token: str) -> dict[str, Any]:
         )
 
 
+def plan_expires(vendor: dict) -> datetime | None:
+    raw = vendor.get("plan_expires_at")
+    if not raw:
+        return None
+    try:
+        exp = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None   # unreadable date: never lock a shop because of it
+    return exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)
+
+
+def plan_locked(vendor: dict) -> bool:
+    """Pro trial or paid plan has run out: the shop can still sign in and read, not save."""
+    if vendor.get("plan") not in ("pro", "wholesale"):
+        return False
+    exp = plan_expires(vendor)
+    return exp is not None and exp < datetime.now(timezone.utc)
+
+
+# Still allowed when locked: signing in/out, account settings and deletion, paying
+_LOCKED_OK = ("/auth", "/subscriptions")
+
+
+def _check_lock(vendor: dict, request: Request) -> None:
+    if request.method in ("GET", "HEAD", "OPTIONS") or request.url.path.startswith(_LOCKED_OK):
+        return
+    if plan_locked(vendor):
+        raise HTTPException(status_code=402, detail="Your free trial has ended. Renew your plan to keep billing — "
+                                                    "all your bills and stock are safe and still visible.")
+
+
 async def get_current_vendor(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ):
     import asyncio
@@ -86,6 +118,7 @@ async def get_current_vendor(
     # Cache hit — skip the DB round-trip for repeated calls within TTL
     cached = _cache_get(vendor_id)
     if cached:
+        _check_lock(cached, request)
         return cached
 
     def _fetch():
@@ -101,6 +134,7 @@ async def get_current_vendor(
     if not vendor["is_active"]:
         raise HTTPException(status_code=403, detail="Account suspended")
     _cache_set(vendor_id, vendor)
+    _check_lock(vendor, request)
     return vendor
 
 
@@ -117,12 +151,7 @@ def require_plan(*plans: str):
                 status_code=402,
                 detail=f"This feature requires a {' or '.join(plans)} plan.",
             )
-        if vendor.get("plan_expires_at"):
-            expires = datetime.fromisoformat(vendor["plan_expires_at"])
-            if expires < datetime.now(timezone.utc):
-                raise HTTPException(
-                    status_code=402,
-                    detail="Your subscription has expired. Please renew.",
-                )
+        if plan_locked(vendor):
+            raise HTTPException(status_code=402, detail="Your free trial has ended. Renew your plan to use this.")
         return vendor
     return check

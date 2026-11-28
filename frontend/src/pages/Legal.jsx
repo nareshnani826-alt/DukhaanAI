@@ -51,8 +51,9 @@ export function PrivacyPolicy() {
         </tbody>
       </table>
       <p>
-        <b>Free plan without sign-in:</b> your shop data is saved only on your phone and is not sent
-        to our servers. <b>Pro plan:</b> your shop data is stored on our servers so it syncs between devices.
+        Every shop signs in with an account. Your shop data is stored on our servers so it is backed up
+        and syncs between your devices. Shop data saved on your phone by an older version of the app stays
+        on the phone until you choose to move it to your account.
       </p>
       <p>We do <b>not</b> show ads, do not sell your data, and do not use your data to track you across other apps or websites.</p>
 

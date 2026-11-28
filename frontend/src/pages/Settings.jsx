@@ -7,6 +7,8 @@ import { getSavedLang, saveLang, LANG_KEY } from "../voice/i18n.js"
 import { usePlan, normalizePlan } from "../context/PlanContext"
 import { useAuth } from "../context/AuthContext"
 import { api } from "../sync/db"
+import { usePlanStatus } from "../components/usePlanStatus"
+import PayProButton from "../components/PayProButton"
 import AddChildUser from "../components/AddChildUser"
 import DeleteAccount from "../components/DeleteAccount"
 import { shopEnabled, isNativeApp } from "../utils/features"
@@ -225,6 +227,7 @@ function FreeProOffer() {
 export default function Settings() {
   const { plan, hasFeature, planLabel } = usePlan()
   const { vendor, logout } = useAuth()
+  const planStatus = usePlanStatus()   // trial / plan end date and days left
   const { theme, setTheme } = useTheme()
   const { appMode, setAppMode } = useAppMode()
   const navigate = useNavigate()
@@ -288,16 +291,18 @@ export default function Settings() {
                 {L(planI.name)} {L("Plan")}
               </span>
               <span className="badge text-[10px] font-medium px-2 py-0.5 rounded-full"
-                style={{ background: planI.bg, color: planI.color }}>
-                {L("Active")}
+                style={planStatus?.locked ? { background:"#fdecea", color:"#c0392b" } : { background: planI.bg, color: planI.color }}>
+                {L(planStatus?.locked ? "Ended" : planStatus?.trial ? "Free trial" : "Active")}
               </span>
             </div>
             <div className="text-xs text-gray-400">
               {vendor?.store_name} · {vendor?.email || ""}
             </div>
-            {vendor?.plan_expires_at && (
-              <div className="text-[10px] text-gray-400 mt-0.5">
-                Expires: {new Date(vendor.plan_expires_at).toLocaleDateString(dateLocale())}
+            {planStatus?.expires_at && (
+              <div className="text-xs mt-1" style={{ color: planStatus.locked ? "#c0392b" : planStatus.days_left <= 7 ? "#b45309" : "var(--ink-dim)", fontWeight:600 }}>
+                {planStatus.locked
+                  ? `${L("Ended on")} ${new Date(planStatus.expires_at).toLocaleDateString(dateLocale(), { day:"numeric", month:"short", year:"numeric" })} — ${L("renew to keep billing")}`
+                  : `${L(planStatus.trial ? "Trial ends on" : "Renews on")} ${new Date(planStatus.expires_at).toLocaleDateString(dateLocale(), { day:"numeric", month:"short", year:"numeric" })} · ${planStatus.days_left} ${L("days left")}`}
               </div>
             )}
           </div>
@@ -314,14 +319,19 @@ export default function Settings() {
         <FreeProOffer />
 
         {/* Upgrade buttons */}
-        {plan === "free" && !isNativeApp() && (
+        {plan === "free" && (
           <div className="mt-3 flex flex-wrap gap-2">
-            <button className="btn btn-primary flex-1 py-2 text-xs font-medium" style={{ whiteSpace:"normal", minWidth:150 }}>
-              {L("Upgrade to Pro — ₹299/month")}
-            </button>
+            <PayProButton label={L("Upgrade to Pro — ₹299/month")} className="btn btn-primary flex-1 py-2 text-xs font-medium" style={{ whiteSpace:"normal", minWidth:150 }} />
           </div>
         )}
-        {plan === "pro" && (
+        {/* Trial or paid month running out / ended: pay for the next 30 days (website, owner) */}
+        {plan === "pro" && planStatus?.expires_at && (
+          <div className="mt-3" style={{ display:"flex", justifyContent:"center" }}>
+            <PayProButton label={L(planStatus.locked ? "Pay ₹299 to unlock · 30 days" : "Pay ₹299 · add 30 days")}
+              className="btn btn-primary py-2 text-xs font-semibold" />
+          </div>
+        )}
+        {plan === "pro" && !planStatus?.locked && (
           <div className="mt-3 text-[10px] text-gray-400 text-center">
             {L("You have the highest plan — all features unlocked!")}
           </div>
@@ -472,7 +482,7 @@ export default function Settings() {
                 ) : (
                   // Plan doesn't allow — show Upgrade button
                   <button
-                    onClick={() => {}}
+                    onClick={() => { const r = document.getElementById("root"); (r && r.scrollHeight > r.clientHeight ? r : window).scrollTo({ top: 0, behavior: "smooth" }) }}   // the plan card with the Pay button is at the top
                     className="flex-shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg border font-medium"
                     style={{ borderColor: reqPlan.color, color: reqPlan.color }}>
                     {L("Upgrade")}
@@ -484,31 +494,6 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Plans comparison — website only (no prices in the Play Store app) */}
-      {!isNativeApp() && <div className="card mb-4">
-        <div className="text-xs font-medium text-gray-600 mb-3">{L("Plan Comparison")}</div>
-        <div className="grid grid-cols-3 gap-2">
-          {Object.entries(PLAN_INFO).map(([key, p]) => (
-            <div key={key} className={`rounded-xl p-3 text-center border ${
-              plan === key ? "border-current pastel-card" : "border-gray-100"
-            }`}
-            style={plan === key ? { borderColor: p.color, background: p.bg } : {}}>
-              <div className="text-xs font-semibold mb-0.5" style={{ color: p.color }}>
-                {L(p.name)}
-              </div>
-              <div className="text-sm font-bold" style={{ color: p.color }}>
-                {p.price}
-              </div>
-              <div className="text-[9px] text-gray-400">{L("/month")}</div>
-              {plan === key && (
-                <div className="text-[9px] font-medium mt-1" style={{ color: p.color }}>
-                  {L("Current plan")}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>}
 
       {/* Account settings */}
       <div className="card mb-4">

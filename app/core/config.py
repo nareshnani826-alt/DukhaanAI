@@ -25,10 +25,16 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
     jwt_refresh_token_expire_days: int = 30
 
-    # Groq AI — primary LLM (free tier: 30 RPM, 14,400 req/day — Llama 3.3 70B)
-    # Testing period: every new account starts on Pro for free. Set FREE_PRO_SIGNUPS=false in
-    # Render at public launch (accounts made before then keep Pro; nothing is taken away).
+    # There is no Free plan any more (dropped 2026-11-28): every new account starts on Pro with a
+    # free trial of TRIAL_DAYS days. When it ends the shop is locked until paid: sign-in and reading
+    # data keep working, saving anything new is refused (security.plan_locked).
+    # FREE_PRO_SIGNUPS only controls the "Switch to Pro" trial button for old accounts still on Free.
     free_pro_signups: bool = True
+    trial_days: int = 30
+    # Sign in with Google: the OAuth Web client ID(s), comma-separated (Google Cloud → Google Auth
+    # Platform → Clients). Public values — the app also has them. Empty: Google sign-in is off.
+    google_client_id: str = ""
+    # Groq AI — primary LLM (free tier: 30 RPM, 14,400 req/day)
     groq_api_key: str = ""
     # Groq retires models (llama-3.3-70b-versatile was shut down 2026-08-16). Set GROQ_MODEL in
     # Render to switch without a code change; see console.groq.com/docs/deprecations.

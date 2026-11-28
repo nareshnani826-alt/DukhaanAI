@@ -14,6 +14,7 @@ import OfflineBanner     from "./components/OfflineBanner"
 import AndroidBackButton from "./components/AndroidBackButton"
 import { tr, uiLang } from "./i18n/kiranaStrings"
 import { CASHIER_PATHS } from "./utils/roles"
+import { getToken, getRefresh } from "./sync/db"
 
 const L = k => tr(k, uiLang())
 
@@ -57,6 +58,7 @@ const BangleUdhar       = lazy(() => import("./pages/BangleUdhar"))
 const ChaiDashboard     = lazy(() => import("./pages/ChaiDashboard"))
 const ChaiBilling       = lazy(() => import("./pages/ChaiBilling"))
 const ChaiStock         = lazy(() => import("./pages/ChaiStock"))
+const ChaiHistory       = lazy(() => import("./pages/ChaiHistory"))
 const ReorderHub        = lazy(() => import("./pages/ReorderHub"))
 const AgentSuggestions  = lazy(() => import("./pages/AgentSuggestions"))
 const Onboarding        = lazy(() => import("./pages/Onboarding"))
@@ -69,6 +71,14 @@ function Gated({ feature, children }) {
 function FirstRunGuard({ children }) {
   const done = (() => { try { return !!localStorage.getItem("dk_onboarding_done") } catch { return true } })()
   if (!done) { window.location.replace("/onboarding"); return null }
+  return children
+}
+
+// Every shop needs an account (no more phone-only use): signed out → the sign-in page.
+// Data saved on the phone before this stays there and is offered for upload after sign-in (MoveToAccount).
+function SignInGuard({ children }) {
+  const signedIn = (() => { try { return !!(getToken() || getRefresh()) } catch { return false } })()
+  if (!signedIn) return <Navigate to="/" replace />
   return children
 }
 
@@ -132,6 +142,7 @@ export default function App() {
             <Route path="/invoice/:id" element={<PublicInvoice />} />
             <Route path="/*" element={
               <FirstRunGuard>
+              <SignInGuard>
               <Layout>
                 <RoleGuard>
                 <Routes>
@@ -167,6 +178,7 @@ export default function App() {
                   <Route path="/chai-dashboard"    element={<ChaiDashboard />} />
                   <Route path="/chai-billing"      element={<ChaiBilling />} />
                   <Route path="/chai-stock"        element={<ChaiStock />} />
+                  <Route path="/chai-history"      element={<ChaiHistory />} />
                   <Route path="/chai-khata"        element={<UdharKhata />} />
                   <Route path="/reorder"           element={BANGLE_ENABLED ? <ReorderHub /> : <Navigate to="/" replace />} />
                   <Route path="/ai-test" element={<Gated feature="voice_agent"><AITest /></Gated>} />
@@ -175,6 +187,7 @@ export default function App() {
                 </Routes>
                 </RoleGuard>
               </Layout>
+              </SignInGuard>
             </FirstRunGuard>} />
           </Routes>
           </Suspense>

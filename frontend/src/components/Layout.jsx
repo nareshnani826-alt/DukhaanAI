@@ -4,6 +4,7 @@ import { shopEnabled } from "../utils/features"
 import ReportAnswer from "./ReportAnswer"
 import OrderAlert from "./OrderAlert"
 import MoveToAccount from "./MoveToAccount"
+import PlanBanner from "./PlanBanner"
 import { useAuth } from "../context/AuthContext"
 import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
@@ -27,7 +28,7 @@ const KIRANA_NAV = [
     sub:null },
   { label:"Sales", to:"/billing",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>,
-    sub:[{to:"/billing",label:"GST Billing"},{to:"/history",label:"History"},{to:"/udhar",label:"Udhar Khata"},{to:"/customers",label:"Customers"}] },
+    sub:[{to:"/billing",label:"GST Billing"},{to:"/history",label:"History"},{to:"/online-orders",label:"📲 Online Orders (QR)"},{to:"/udhar",label:"Udhar Khata"},{to:"/customers",label:"Customers"}] },
   { label:"Stock", to:"/inventory",
     icon:<svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
     sub:[{to:"/inventory",label:"Inventory"},{to:"/bulk-import",label:"Bulk Import ✨"},{to:"/wastage",label:"Wastage"},{to:"/demand",label:"Demand Intel"},{to:"/expiry",label:"Expiry Intel 🕐"}] },
@@ -70,7 +71,7 @@ const BANGLE_MOB_TABS = [
 // Chai shop: Home (day report), Bill, Menu & Stock, Khata, More
 const CHAI_NAV = [
   { label:"Home",  to:"/chai-dashboard", icon:BANGLE_NAV[0].icon, sub:null },
-  { label:"Sales", to:"/chai-billing",   icon:BANGLE_NAV[2].icon, sub:[{to:"/chai-billing",label:"☕ Billing"},{to:"/chai-khata",label:"📒 Khata"}] },
+  { label:"Sales", to:"/chai-billing",   icon:BANGLE_NAV[2].icon, sub:[{to:"/chai-billing",label:"☕ Billing"},{to:"/chai-history",label:"🧾 Bill history"},{to:"/online-orders",label:"📲 Online Orders (QR)"},{to:"/chai-khata",label:"📒 Khata"}] },
   { label:"Stock", to:"/chai-stock",     icon:BANGLE_NAV[1].icon, sub:null },
   { label:"More",  to:"/more",           icon:BANGLE_NAV[4].icon, sub:[{to:"/settings",label:"Settings"},{to:"/help",label:"Help"},{to:"/install",label:"Install App"}] },
 ]
@@ -1209,7 +1210,8 @@ export default function Layout({ children }) {
     }
     setStoreMode(newMode)
 
-    const SHARED_ROUTES = ["/voice", "/more", "/settings", "/help", "/install"]
+    // Pages every shop type uses (no redirect to the shop home when opened directly)
+    const SHARED_ROUTES = ["/voice", "/more", "/settings", "/help", "/install", "/online-orders"]
     const onShared      = SHARED_ROUTES.some(r => location.pathname.startsWith(r))
     // Every bangle-store route is prefixed "/bangle-" (plus "/reorder") and every
     // chai-shop route "/chai-", so new pages in either can't fall through this guard.
@@ -1464,6 +1466,7 @@ export default function Layout({ children }) {
             break position:fixed pop-ups inside pages. */}
         {/* Keyed by language too: pages read the language while drawing, so after a language
             change they must be drawn again (only the header and menu switched before) */}
+        <PlanBanner />
         <motion.div key={location.pathname + "|" + uiLang} ref={pageRef} className="page-transition"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: 0.18, ease: "easeOut" }}>

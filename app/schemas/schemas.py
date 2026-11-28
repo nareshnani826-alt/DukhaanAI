@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, Literal
 from datetime import datetime
 from uuid import UUID
@@ -20,6 +20,15 @@ class VendorRegister(BaseModel):
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
         return v
+
+
+class GoogleSignIn(BaseModel):
+    """Sign in (or sign up) with a Google ID token. create=True with the shop details makes a new shop."""
+    id_token:   str = Field(min_length=20, max_length=4096)
+    shop_type:  Optional[str] = None          # kirana | chai | restaurant | bangle_fancy
+    create:     bool = False
+    store_name: Optional[str] = Field(default=None, max_length=80)
+    phone:      Optional[str] = Field(default=None, max_length=16)
 
 
 class VendorLogin(BaseModel):

@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "motion/react"
 import { Icon, Reveal } from "./kit"
 
 const QUESTIONS = [
-  { q:"Is DukhaanAI really free?",
-    a:"Yes. The Free plan costs nothing and has no time limit. Move to Pro (₹299/month) only when you want voice billing, barcode scanning and cloud sync." },
+  { q:"How much does DukhaanAI cost?",
+    a:"₹299 a month for every feature — and your first 30 days are free, with no card needed. Your bills, stock and khata are backed up safely, and you can cancel any time." },
   { q:"Do I need internet to use it?",
     a:"No. You can keep billing without internet. With Pro, everything is also backed up to the cloud when you're back online, so you can see it from any device." },
   { q:"Which languages does it understand?",
