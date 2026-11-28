@@ -25,7 +25,7 @@ class VendorRegister(BaseModel):
 class VendorLogin(BaseModel):
     identifier: str  # email or phone number
     password: str
-    shop_type: Optional[str] = None  # kirana | chai | bangle_fancy — which of this login's shops to open
+    shop_type: Optional[str] = None  # kirana | chai | restaurant | bangle_fancy — which of this login's shops to open
 
 
 class TokenResponse(BaseModel):

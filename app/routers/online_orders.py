@@ -66,7 +66,8 @@ def _shop_by_code(db, code: str) -> dict:
 
 def _shop_type(v: dict) -> str:
     t = v.get("shop_type") or ((v.get("modules") or ["kirana"])[0])
-    return "chai" if t == "chai" else "kirana"
+    # A restaurant runs on the chai shop menu and Tables screen
+    return "chai" if t in ("chai", "restaurant") else "kirana"
 
 
 def _menu(db, v: dict) -> list[dict]:
@@ -114,6 +115,7 @@ def shop_menu(request: Request, code: str):
     db = get_db()
     v = _shop_by_code(db, code)
     return {"store_name": v["store_name"], "shop_type": _shop_type(v), "address": v.get("address"),
+            "restaurant": (v.get("shop_type") or "") == "restaurant",
             "items": _menu(db, v)}
 
 

@@ -83,13 +83,14 @@ const CHAI_MOB_TABS = [
 ]
 
 // Each shop type's home page, nav and name
-const STORE_HOME  = { kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard" }
-const STORE_NAV   = { kirana:KIRANA_NAV, bangle_fancy:BANGLE_NAV, chai:CHAI_NAV }
-const STORE_LABEL = { kirana:"Kirana POS", bangle_fancy:"Bangle Store", chai:"Chai Shop" }
+const STORE_HOME  = { kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard", restaurant:"/chai-dashboard" }
+const STORE_NAV   = { kirana:KIRANA_NAV, bangle_fancy:BANGLE_NAV, chai:CHAI_NAV, restaurant:CHAI_NAV }
+const STORE_LABEL = { kirana:"Kirana POS", bangle_fancy:"Bangle Store", chai:"Chai Shop", restaurant:"Restaurant" }
 const STORE_CHIPS = [
   { id:"kirana",       label:"🛒 Kirana" },
   { id:"bangle_fancy", label:"💍 Bangle" },
   { id:"chai",         label:"☕ Chai" },
+  { id:"restaurant",   label:"🍜 Restaurant" },
 ].filter(c => shopEnabled(c.id))
 
 // Short labels for the five bottom tabs (the general translations are too long for a tab)
@@ -113,7 +114,7 @@ const MOB_TABS = [
   { to:"/more",      label:"More",  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
 ]
 
-const STORE_TABS = { kirana:MOB_TABS, bangle_fancy:BANGLE_MOB_TABS, chai:CHAI_MOB_TABS }
+const STORE_TABS = { kirana:MOB_TABS, bangle_fancy:BANGLE_MOB_TABS, chai:CHAI_MOB_TABS, restaurant:CHAI_MOB_TABS }
 
 const API = import.meta.env.VITE_API_URL
 
@@ -1146,7 +1147,7 @@ export default function Layout({ children }) {
   const { vendor, loggedIn, cloud, hasModule, logout, role } = useAuth()
   const hasBangle = hasModule("bangle_fancy")
   const hasKirana = hasModule("kirana")
-  const hasChai   = hasModule("chai")
+  const hasChai   = hasModule("chai") || hasModule("restaurant")
   const multiStore = [hasBangle, hasKirana, hasChai].filter(Boolean).length > 1
 
   const [storeMode, setStoreMode] = useState("kirana")
@@ -1190,12 +1191,13 @@ export default function Layout({ children }) {
 
   // Re-derive mode whenever vendor changes (login/logout) or modules change
   useEffect(() => {
-    const owned = ["kirana", "bangle_fancy", "chai"].filter(m => hasModule(m))
+    const owned = ["kirana", "bangle_fancy", "chai", "restaurant"].filter(m => hasModule(m))
     const saved = localStorage.getItem("storeMode")
     let newMode = "kirana"
     const path      = location.pathname
+    // A restaurant also runs on the /chai- pages
     const routeMode = path.startsWith("/bangle-") || path.startsWith("/reorder") ? "bangle_fancy"
-                    : path.startsWith("/chai-") ? "chai" : "kirana"
+                    : path.startsWith("/chai-") ? (saved === "restaurant" ? "restaurant" : "chai") : "kirana"
     if (!vendor) {
       // Not signed in (data on this phone): a shop page opened directly decides the mode,
       // otherwise the last used one
@@ -1211,7 +1213,7 @@ export default function Layout({ children }) {
     const onShared      = SHARED_ROUTES.some(r => location.pathname.startsWith(r))
     // Every bangle-store route is prefixed "/bangle-" (plus "/reorder") and every
     // chai-shop route "/chai-", so new pages in either can't fall through this guard.
-    if (vendor && !onShared && routeMode !== newMode) navigate(STORE_HOME[newMode])
+    if (vendor && !onShared && STORE_HOME[routeMode] !== STORE_HOME[newMode]) navigate(STORE_HOME[newMode])
   }, [vendor, hasBangle, hasKirana, hasChai])
 
   function switchMode(mode) {

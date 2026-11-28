@@ -7,8 +7,8 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { isNativeApp } from "../utils/features"
 
-const SHOP_HOME    = { kirana:"/dashboard", chai:"/chai-dashboard", bangle_fancy:"/bangle-dashboard" }
-const CASHIER_HOME = { kirana:"/billing",   chai:"/chai-billing",   bangle_fancy:"/bangle-billing" }
+const SHOP_HOME    = { kirana:"/dashboard", chai:"/chai-dashboard", restaurant:"/chai-dashboard", bangle_fancy:"/bangle-dashboard" }
+const CASHIER_HOME = { kirana:"/billing",   chai:"/chai-billing",   restaurant:"/chai-billing",   bangle_fancy:"/bangle-billing" }
 const ALWAYS_HOME  = ["/", "/kirana", "/chai", "/onboarding"]
 
 function toast(text) {

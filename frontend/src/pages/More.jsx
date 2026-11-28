@@ -4,6 +4,7 @@ import { usePlan } from "../context/PlanContext"
 import { useTheme } from "../context/ThemeContext"
 import { useAppMode, APP_MODES } from "../context/AppModeContext"
 import { tr, uiLang } from "../i18n/kiranaStrings"
+import { isFoodShop } from "../utils/features"
 
 const L = k => tr(k, uiLang())
 
@@ -71,7 +72,7 @@ export default function More() {
   const navigate = useNavigate()
   const { vendor, cloud, logout, loggedIn, hasModule } = useAuth()
   const isBangleOnly = hasModule("bangle_fancy") && !hasModule("kirana")
-  const isChai = (() => { try { return localStorage.getItem("storeMode") === "chai" } catch { return false } })()
+  const isChai = (() => { try { return isFoodShop(localStorage.getItem("storeMode")) } catch { return false } })()
   const { planLabel } = usePlan()
   const { isDark, toggleTheme } = useTheme()
   const { appMode, setAppMode, isScreenVisible, APP_MODES } = useAppMode()

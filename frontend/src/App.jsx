@@ -1,7 +1,7 @@
 import { useEffect, lazy, Suspense }     from "react"
 import ErrorScreen from "./components/ErrorScreen"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
-import { BANGLE_ENABLED } from "./utils/features"
+import { BANGLE_ENABLED, isFoodShop } from "./utils/features"
 import { initializeSeedTraining }        from "./voice-ai/seedTraining"
 import { ThemeProvider }    from "./context/ThemeContext"
 import { AuthProvider, useAuth } from "./context/AuthContext"
@@ -78,7 +78,7 @@ function RoleGuard({ children }) {
   const { pathname } = useLocation()
   if (role === "cashier" && !CASHIER_PATHS.includes(pathname)) {
     const mode = pathname.startsWith("/bangle") ? "bangle_fancy" : pathname.startsWith("/chai") ? "chai" : localStorage.getItem("storeMode")
-    return <Navigate to={mode === "bangle_fancy" ? "/bangle-billing" : mode === "chai" ? "/chai-billing" : "/billing"} replace />
+    return <Navigate to={mode === "bangle_fancy" ? "/bangle-billing" : isFoodShop(mode) ? "/chai-billing" : "/billing"} replace />
   }
   return children
 }
@@ -118,7 +118,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<FirstRunGuard><LoginHome /></FirstRunGuard>} />
             {!BANGLE_ENABLED && <Route path="/bangle" element={<Navigate to="/" replace />} />}
-            {["/kirana", "/chai", ...(BANGLE_ENABLED ? ["/bangle"] : [])].map(p => (
+            {["/kirana", "/chai", "/restaurant", ...(BANGLE_ENABLED ? ["/bangle"] : [])].map(p => (
               <Route key={p} path={p} element={<FirstRunGuard><LoginHome /></FirstRunGuard>} />
             ))}
             <Route path="/onboarding" element={<Onboarding />} />

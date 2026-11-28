@@ -203,6 +203,7 @@ export default function AuthModal({ onClose }) {
                     { id: "kirana",       label: "Kirana / Grocery store",  icon: "🛒" },
                     { id: "bangle_fancy", label: "Bangles / Fancy store",   icon: "💍" },
                     { id: "chai",         label: "Chai / Tea shop",         icon: "☕" },
+                    { id: "restaurant",   label: "Restaurant / Fast food",  icon: "🍜" },
                   ].filter(o => shopEnabled(o.id)).map(({ id, label, icon }) => {
                     const checked = modules.includes(id)
                     return (

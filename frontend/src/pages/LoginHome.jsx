@@ -8,8 +8,8 @@ import HomeSections from "../components/HomeSections"
 import { CONTENT } from "../components/home/shopContent"
 
 // Homepage version per address: dukhaanai.in/chai opens the chai shop page, and so on
-const ROUTE_SHOP  = { "/kirana":"kirana", "/chai":"chai", ...(shopEnabled("bangle") ? { "/bangle":"bangle" } : {}) }
-const SHOP_MODULE = { kirana:"kirana", chai:"chai", bangle:"bangle_fancy" }
+const ROUTE_SHOP  = { "/kirana":"kirana", "/chai":"chai", "/restaurant":"restaurant", ...(shopEnabled("bangle") ? { "/bangle":"bangle" } : {}) }
+const SHOP_MODULE = { kirana:"kirana", chai:"chai", restaurant:"restaurant", bangle:"bangle_fancy" }
 const HOME_SHOP   = "dk_home_shop"
 
 // Language is picked during onboarding, before this page is ever shown
@@ -24,6 +24,7 @@ const isValidPhone = v => /^(\+91|0|91)?[6-9]\d{9}$/.test(v.replace(/\s/g, ""))
 const MODULES = [
   { id:"kirana",       label:"Kirana / General Store",    sub:"Grocery, FMCG, daily essentials", emoji:"🏪", route:"/dashboard",        gradient:"linear-gradient(135deg,#e87722,#c25500)", border:"rgba(232,119,34,0.4)", bg:"rgba(232,119,34,0.08)" },
   { id:"chai",         label:"Chai / Tea Shop",           sub:"Tea, coffee, snacks · counter & tables", emoji:"☕", route:"/chai-dashboard", gradient:"linear-gradient(135deg,#8d5524,#5d3a1a)", border:"rgba(141,85,36,0.4)" },
+  { id:"restaurant",   label:"Restaurant / Fast Food",    sub:"Chinese, fast food · tables & parcels", emoji:"🍜", route:"/chai-dashboard", gradient:"linear-gradient(135deg,#c0392b,#8e1f14)", border:"rgba(192,57,43,0.4)" },
   { id:"bangle_fancy", label:"Bangle / Jewellery Store",  sub:"Bangles, earrings, accessories",  emoji:"💍", route:"/bangle-dashboard",  gradient:"linear-gradient(135deg,#7c5cbf,#5b3fa6)", border:"rgba(124,92,191,0.4)",  bg:"rgba(124,92,191,0.08)"  },
 ].filter(m => shopEnabled(m.id))
 
@@ -1425,7 +1426,7 @@ function AuthForm({ onSuccess, onLocalMode, defaultModule = "kirana", shopType =
                   transition:"all 0.15s" }}>
                 <div style={{ fontSize:22, marginBottom:5 }}>{m.emoji}</div>
                 <div style={{ fontSize:10, fontWeight:700, color:"#333", lineHeight:1.3 }}>
-                  {t({ kirana:"Kirana Store", bangle_fancy:"Bangle Store", chai:"Chai / Tea Shop" }[m.id])}
+                  {t({ kirana:"Kirana Store", bangle_fancy:"Bangle Store", chai:"Chai / Tea Shop", restaurant:"Restaurant / Fast Food" }[m.id])}
                 </div>
               </button>
             ))}
@@ -1709,26 +1710,6 @@ export default function LoginHome() {
             </div>
           </div>
 
-          {/* Module badges */}
-          <div className="lh-badges" style={{ display:"flex", gap:12, marginBottom:32 }}>
-            {[
-              { emoji:"🏪", name:"Kirana Store", sub:"Grocery & FMCG",   nameColor:"#c25500", border:"rgba(232,119,34,0.35)", bg:"rgba(232,119,34,0.07)" },
-              { emoji:"☕", name:"Chai Shop",    sub:"Tea, coffee & snacks", nameColor:"#7a4a1e", border:"rgba(141,85,36,0.35)", bg:"rgba(141,85,36,0.07)" },
-              { emoji:"💍", name:"Bangle Store", sub:"Jewellery & Fancy", nameColor:"#5b3fa6", border:"rgba(124,92,191,0.35)", bg:"rgba(124,92,191,0.07)", id:"bangle_fancy" },
-            ].filter(b => shopEnabled(b.id || "kirana")).map(b => (
-              <div key={b.name} style={{ display:"flex", alignItems:"center", gap:10,
-                background:b.bg, border:`1.5px solid ${b.border}`,
-                borderRadius:16, padding:"12px 18px",
-                boxShadow:"0 4px 16px rgba(0,0,0,0.07)" }}>
-                <span style={{ fontSize:22 }}>{b.emoji}</span>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:b.nameColor, lineHeight:1 }}>{b.name}</div>
-                  <div style={{ fontSize:10, color:"#a08060", marginTop:3 }}>{b.sub}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {/* Form card */}
           <div className="lh-form-card" style={{ width:"100%", background:"#fff", borderRadius:22,
             padding:"32px 28px",
@@ -1778,7 +1759,6 @@ export default function LoginHome() {
             padding-left: 14px !important;
             padding-right: 14px !important;
           }
-          .lh-badges { flex-direction: column !important; }
           .lh-logo-icon { width: 60px !important; height: 60px !important; border-radius: 16px !important; }
         }
 
@@ -1808,8 +1788,6 @@ export default function LoginHome() {
           .lh-logo-text   { font-size: 20px !important; margin-bottom: 4px !important; }
           .lh-logo-sub    { display: none !important; }
           .lh-logo-wrap   { margin-bottom: 12px !important; }
-          .lh-badges      { margin-bottom: 14px !important; gap: 8px !important; }
-          .lh-badges > div { padding: 8px 12px !important; }
           .lh-form-card   { padding: 18px 20px !important; border-radius: 16px !important; }
         }
 

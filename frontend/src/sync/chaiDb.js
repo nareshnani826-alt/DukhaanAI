@@ -2,6 +2,7 @@
 // Same split as db.js: Pro/Wholesale shops use the server (/chai/*), everyone
 // else keeps the data on this phone under "dk_chai".
 import { api, isCloud, Udhar } from "./db"
+import { isRestaurant } from "../utils/features"
 
 const LS = "dk_chai"
 
@@ -46,6 +47,40 @@ export const STARTER_MENU = [
 ]
 export const CATEGORIES = ["Tea", "Coffee", "Snacks", "Other"]
 
+// Restaurant (same screens, different starter menu). Keep in step with app/routers/chai.py.
+export const RESTAURANT_MATERIALS = [
+  { key:"rice",    name:"Basmati rice", unit:"kg", stock:0, min_stock:5,  cost_per_unit:90 },
+  { key:"noodles", name:"Noodles",      unit:"kg", stock:0, min_stock:3,  cost_per_unit:120 },
+  { key:"chicken", name:"Chicken",      unit:"kg", stock:0, min_stock:3,  cost_per_unit:240 },
+  { key:"veg",     name:"Vegetables",   unit:"kg", stock:0, min_stock:3,  cost_per_unit:50 },
+  { key:"paneer",  name:"Paneer",       unit:"kg", stock:0, min_stock:1,  cost_per_unit:380 },
+  { key:"oil",     name:"Cooking oil",  unit:"L",  stock:0, min_stock:3,  cost_per_unit:140 },
+  { key:"boxes",   name:"Parcel boxes", unit:"pc", stock:0, min_stock:50, cost_per_unit:4 },
+]
+export const RESTAURANT_MENU = [
+  { name:"Veg Manchurian",       category:"Starters",       price:120, emoji:"🥦", recipe:[["veg",0.15],["oil",0.03]] },
+  { name:"Gobi Manchurian",      category:"Starters",       price:110, emoji:"🥦", recipe:[["veg",0.15],["oil",0.03]] },
+  { name:"Chilli Paneer",        category:"Starters",       price:160, emoji:"🧀", recipe:[["paneer",0.12],["veg",0.05],["oil",0.03]] },
+  { name:"Chilli Chicken",       category:"Starters",       price:180, emoji:"🍗", recipe:[["chicken",0.2],["veg",0.05],["oil",0.03]] },
+  { name:"Chicken 65",           category:"Starters",       price:180, emoji:"🍗", recipe:[["chicken",0.2],["oil",0.04]] },
+  { name:"Veg Momos",            category:"Starters",       price:80,  emoji:"🥟", recipe:[["veg",0.08]] },
+  { name:"Chicken Momos",        category:"Starters",       price:100, emoji:"🥟", recipe:[["chicken",0.08]] },
+  { name:"Manchow Soup",         category:"Soups",          price:80,  emoji:"🍲", recipe:[["veg",0.05]] },
+  { name:"Sweet Corn Soup",      category:"Soups",          price:80,  emoji:"🌽", recipe:[["veg",0.05]] },
+  { name:"Veg Fried Rice",       category:"Rice & Noodles", price:120, emoji:"🍚", recipe:[["rice",0.15],["veg",0.08],["oil",0.02]] },
+  { name:"Egg Fried Rice",       category:"Rice & Noodles", price:130, emoji:"🍳", recipe:[["rice",0.15],["veg",0.05],["oil",0.02]] },
+  { name:"Chicken Fried Rice",   category:"Rice & Noodles", price:150, emoji:"🍚", recipe:[["rice",0.15],["chicken",0.1],["oil",0.02]] },
+  { name:"Schezwan Fried Rice",  category:"Rice & Noodles", price:140, emoji:"🌶️", recipe:[["rice",0.15],["veg",0.08],["oil",0.02]] },
+  { name:"Veg Hakka Noodles",    category:"Rice & Noodles", price:120, emoji:"🍜", recipe:[["noodles",0.15],["veg",0.08],["oil",0.02]] },
+  { name:"Chicken Noodles",      category:"Rice & Noodles", price:150, emoji:"🍜", recipe:[["noodles",0.15],["chicken",0.1],["oil",0.02]] },
+  { name:"Soft Drink",           category:"Drinks",         price:40,  emoji:"🥤", recipe:[] },
+  { name:"Water Bottle",         category:"Drinks",         price:20,  emoji:"💧", recipe:[] },
+]
+export const RESTAURANT_CATEGORIES = ["Starters", "Soups", "Rice & Noodles", "Main Course", "Drinks", "Other"]
+
+// Menu categories for the open shop (chai shop or restaurant)
+export const menuCategories = () => isRestaurant() ? RESTAURANT_CATEGORIES : CATEGORIES
+
 // Order totals and the raw material it uses — shared by the phone and the server rules
 export function orderTotal(items) {
   return round2((items || []).reduce((s, it) => s + (+it.price || 0) * (+it.qty || 0), 0))
@@ -64,10 +99,11 @@ const round4 = n => Math.round(n * 10000) / 10000
 
 function seedLocal(d) {
   if (d.menu) return d
-  const mats = STARTER_MATERIALS.map(m => ({ ...m, id: newId("cm") }))
+  const rest = isRestaurant()
+  const mats = (rest ? RESTAURANT_MATERIALS : STARTER_MATERIALS).map(m => ({ ...m, id: newId("cm") }))
   const idOf = Object.fromEntries(mats.map(m => [m.key, m.id]))
   d.materials = mats.map(({ key, ...m }) => m) // eslint-disable-line no-unused-vars
-  d.menu = STARTER_MENU.map((m, i) => ({
+  d.menu = (rest ? RESTAURANT_MENU : STARTER_MENU).map((m, i) => ({
     ...m, id: newId("ci"), sort: i, active: true,
     recipe: m.recipe.map(([k, q]) => [idOf[k], q]),
   }))

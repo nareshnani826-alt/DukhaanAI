@@ -37,6 +37,7 @@ const PLAN_INFO = {
 const SHOP_TYPES = [
   { id:"kirana",       icon:"🛒", label:"Kirana / General Store" },
   { id:"chai",         icon:"☕", label:"Chai / Tea Shop" },
+  { id:"restaurant",   icon:"🍜", label:"Restaurant / Fast Food" },
   { id:"bangle_fancy", icon:"💍", label:"Bangle / Fancy Store" },
 ].filter(t => shopEnabled(t.id))
 
@@ -47,7 +48,7 @@ function ShopTypes() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg]   = useState("")
   if (vendor && role !== "owner") return null
-  const HOME = { kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard" }
+  const HOME = { kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard", restaurant:"/chai-dashboard" }
   const current = (() => { try { return localStorage.getItem("storeMode") || "kirana" } catch { return "kirana" } })()
   // Not signed in (data on this phone): every shop type is available, pick one to open
   const mods = vendor ? (vendor.modules || ["kirana"]) : [current]
@@ -76,7 +77,7 @@ function ShopTypes() {
       if (!mods.includes(id)) {
         // Jump straight into the shop type just turned on
         localStorage.setItem("storeMode", id)
-        navigate({ kirana:"/dashboard", bangle_fancy:"/bangle-dashboard", chai:"/chai-dashboard" }[id])
+        navigate(HOME[id])
       }
     } catch (e) { setMsg(e.message) }
     setBusy(false)

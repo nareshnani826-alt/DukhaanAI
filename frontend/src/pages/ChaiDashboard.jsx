@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react"
 import { ChaiMenu, ChaiMaterials, ChaiOrders, buildReport, localDay, chaiBillText, sendOnWhatsApp, buyingList } from "../sync/chaiDb.js"
 import { backdrop, sheet } from "../components/popupMotion.js"
 import { getStoreName } from "../sync/db.js"
+import { isRestaurant } from "../utils/features"
 import { AnimatedAmount, BillIcon } from "../components/billing/billMotion.jsx"
 import { SkeletonBar, SkeletonRows } from "../components/Skeleton.jsx"
 import { tr, uiLang, dateLocale } from "../i18n/kiranaStrings"
@@ -62,7 +63,7 @@ export default function ChaiDashboard() {
 
   function shareBuyList() {
     const lines = toBuy.map(x => `• ${x.name}: ${fmtQty(x.buy, x.unit)}`).join("\n")
-    sendOnWhatsApp("", `🛒 *${getStoreName() || L("Chai Shop")}* — ${L("to buy for")} ${dayName}\n\n${lines}`)
+    sendOnWhatsApp("", `🛒 *${getStoreName() || L(isRestaurant() ? "Restaurant" : "Chai Shop")}* — ${L("to buy for")} ${dayName}\n\n${lines}`)
   }
 
   async function cancel(o) {
@@ -77,7 +78,7 @@ export default function ChaiDashboard() {
     <div style={{ padding:16, display:"flex", flexDirection:"column", gap:14, maxWidth:1100, width:"100%", margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
         <div>
-          <div style={{ fontSize:22, fontWeight:900 }}>{L("Chai Shop")}</div>
+          <div style={{ fontSize:22, fontWeight:900 }}>{L(isRestaurant() ? "Restaurant" : "Chai Shop")}</div>
           <div style={{ fontSize:13, color:"var(--ink-faint)" }}>{new Date().toLocaleDateString(dateLocale(), { weekday:"long", day:"numeric", month:"long" })}</div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
@@ -268,7 +269,7 @@ function CloseDaySheet({ onClose, onSaved, lowList, toBuy, dayName, openTables =
       const top = rep.items.slice(0, 3).map(it => `${it.name} ×${it.qty}`).join(", ")
       const milk = rep.used.find(u => /milk/i.test(u.name))
       const text = [
-        `📊 *${getStoreName() || "Chai Shop"}* — ${new Date().toLocaleDateString(dateLocale(), { weekday:"long", day:"numeric", month:"short" })}`,
+        `📊 *${getStoreName() || (isRestaurant() ? "Restaurant" : "Chai Shop")}* — ${new Date().toLocaleDateString(dateLocale(), { weekday:"long", day:"numeric", month:"short" })}`,
         "",
         `${L("Total sales")}: *${INR(rep.total)}* (${rep.bills} ${L("bills")}, ${rep.cups} ${L("cups")})`,
         `${L("Cash")}: ${INR(rep.byMode.cash)} · UPI: ${INR(rep.byMode.upi)} · ${L("Khata")}: ${INR(rep.byMode.credit)}`,

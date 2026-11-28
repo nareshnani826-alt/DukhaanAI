@@ -6,6 +6,7 @@ import { shopEnabled } from "../../utils/features"
 export const SHOPS = [
   { id:"kirana", label:"Kirana",     icon:"store",  module:"kirana",       sub:"Grocery & general store" },
   { id:"chai",   label:"Chai / Tea", icon:"coffee", module:"chai",         sub:"Tea stall, café & snacks" },
+  { id:"restaurant", label:"Restaurant", icon:"utensils", module:"restaurant", sub:"Chinese, fast food & dhabas" },
   { id:"bangle", label:"Bangle",     icon:"gem",    module:"bangle_fancy", sub:"Bangles, fancy & jewellery" },
 ].filter(s => shopEnabled(s.module))
 
@@ -204,6 +205,56 @@ export const CONTENT = {
   },
 }
 
+// Restaurants use the chai shop app, so the page is the chai one with restaurant wording
+CONTENT.restaurant = {
+  ...CONTENT.chai,
+  title: "DukhaanAI for restaurants — table QR orders, fast billing, UPI, stock",
+  pill: "Made for Chinese, fast food & family restaurants",
+  h1: ["Every table, every order", "on one phone"],
+  lead: "Customers order from the table QR, you accept and bill in a tap. Take UPI, run parcels and tables, and know what to buy for tomorrow.",
+  stats: [
+    { to:1,  label:"tap to accept an order" },
+    { to:10, label:"Indian languages" },
+    { to:17, label:"dishes ready to start" },
+    { to:0,  prefix:"₹", label:"to get started" },
+  ],
+  demo: {
+    ...CONTENT.chai.demo,
+    title:"“Two chicken fried rice, one chilli paneer” — done.",
+    sub:"In the dinner rush, say the order the way the customer said it. DukhaanAI finds the dishes and shows the total.",
+    lines:[
+      { said:"Rendu chicken fried rice", item:"Chicken Fried Rice", qty:"2 plates", amount:300 },
+      { said:"Ek chilli paneer",         item:"Chilli Paneer",      qty:"1 plate",  amount:160 },
+      { said:"Two soft drinks",          item:"Soft Drink",         qty:"2",        amount:80 },
+    ],
+    pay:"Scan UPI QR · ₹540",
+  },
+  storyKicker:"A day at your restaurant", storyTitle:"From the lunch rush to closing time",
+  story: "restaurant",
+  featuresTitle:"Made for the speed of a busy kitchen",
+  features: [
+    { icon:"qr", title:"Table QR ordering", wide:true, text:"Customers scan the QR on the table and order from your menu. You accept, the bill stays open on that table." },
+    { icon:"zap", title:"One-tap billing", text:"Big buttons for every dish — fried rice, noodles, manchurian, momos. Change the menu any time." },
+    { icon:"mic", title:"Speak the order", text:"“Do chicken noodles, ek manchurian” — the bill fills itself." },
+    { icon:"utensils", title:"Tables & parcels", text:"Dine-in tables and parcel tokens side by side — pay when they leave." },
+    { icon:"qr", title:"UPI QR for the exact amount", text:"Customer scans with GPay, PhonePe or Paytm. No change problems." },
+    { icon:"truck", title:"Kitchen stock tracking", text:"Every plate uses rice, noodles, chicken and oil — stock goes down by itself." },
+    { icon:"sun", title:"Tomorrow's buying list", wide:true, text:"“Sunday: buy 12 kg chicken, 5 kg noodles” — learned from your own sales, shared on WhatsApp." },
+    { icon:"chart", title:"Close the day", text:"Count the cash drawer and send the day's summary and best dishes on WhatsApp." },
+  ],
+  steps: [
+    { n:"1", title:"Sign up as a restaurant", text:"Takes a minute. A ready menu of starters, soups, fried rice and noodles is set up for you." },
+    { n:"2", title:"Set your menu",           text:"Change prices, add your own dishes and print the table QR codes." },
+    { n:"3", title:"Start serving",           text:"Accept table orders, take cash, UPI or khata. Reports and stock update by themselves." },
+  ],
+  proBlurb:"For busy restaurants",
+  faq: [...COMMON_FAQ,
+    { q:"Can customers order from the table?", a:"Yes. Print your shop QR and put it on the tables. Customers see your menu and order; you accept and the order waits on that table's bill." },
+    { q:"Can I print bills?", a:"Yes. On the Android app, bills print on any 58 mm Bluetooth thermal printer through the free RawBT app. Or send them on WhatsApp." },
+    { q:"Is it only for Chinese restaurants?", a:"No. The starter menu is Indo-Chinese, but you can change it to any food — biryani, South Indian, dhaba, fast food." }],
+  final:"Your restaurant, in your pocket.",
+}
+
 // Day story chapters: what the phone shows at each time of day
 export const STORIES = {
   kirana: [
@@ -239,6 +290,23 @@ export const STORIES = {
       text:"Count the drawer — the app tells you if cash is short. Tomorrow's milk list goes to your WhatsApp.",
       hero:{ label:"TODAY", value:"₹4,860", sub:"312 cups · cash matches ✓", bg:"#e6f3ee", fg:"#1f7a5e" },
       label:"Buy for tomorrow", rows:[["Milk", "Saturday", "Buy 16 L"], ["Samosa", "", "Buy 50"], ["Paper cups", "", "Buy 200"]] },
+  ],
+  restaurant: [
+    { id:"open", time:"11:00 AM", icon:"sun", color:"#d98a1c", title:"Before lunch",
+      text:"Chicken, rice and veg come in — add the delivery once. Each dish knows what it uses.",
+      hero:{ label:"CHICKEN IN STOCK", value:"8 kg", sub:"enough for ~40 dishes", bg:"#fff4e0", fg:"#9a6a12" },
+      label:"Today's stock", rows:[["Basmati rice", "", "12 kg"], ["Noodles", "", "6 kg"], ["Parcel boxes", "", "150 pc"]] },
+    { id:"rush", time:"1:30 PM", icon:"zap", color:"#d4621f", title:"The lunch rush",
+      text:"Customers scan the table QR and order. You accept it, the kitchen cooks, the bill waits on the table.",
+      label:"Table 4", rows:[["Chicken Fried Rice", "× 2", "₹300"], ["Chilli Paneer", "× 1", "₹160"], ["Soft Drink", "× 2", "₹80"]], total:"₹540", chip:"Paid by UPI" },
+    { id:"udhar", time:"7:00 PM", icon:"users", color:"#7c5cbf", title:"Tables & parcels",
+      text:"Open tables, parcels and regulars on khata — all on one screen, nothing on paper.",
+      hero:{ label:"OPEN TABLES", value:"5", sub:"₹2,180 to collect", bg:"#f1ebfa", fg:"#5b3fa6" },
+      rows:[["Table 2", "open", "₹620", "#d4621f"], ["Table 6", "open", "₹410", "#d4621f"], ["Parcel #31", "ready", "₹240", "#7c5cbf"]] },
+    { id:"close", time:"11:00 PM", icon:"moon", color:"#1f7a5e", title:"Close & plan tomorrow",
+      text:"Count the drawer and see the day's best dishes. Tomorrow's buying list goes to your WhatsApp.",
+      hero:{ label:"TODAY", value:"₹18,640", sub:"96 bills · cash matches ✓", bg:"#e6f3ee", fg:"#1f7a5e" },
+      label:"Buy for tomorrow", rows:[["Chicken", "Sunday", "Buy 12 kg"], ["Noodles", "", "Buy 5 kg"], ["Parcel boxes", "", "Buy 100"]] },
   ],
   bangle: [
     { id:"open", time:"10:00 AM", icon:"sun", color:"#d98a1c", title:"Open the store",

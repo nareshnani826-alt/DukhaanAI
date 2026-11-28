@@ -2,7 +2,8 @@
 // "add delivery", and the menu with prices and what each cup uses.
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "motion/react"
-import { ChaiMenu, ChaiMaterials, CATEGORIES } from "../sync/chaiDb.js"
+import { ChaiMenu, ChaiMaterials, menuCategories } from "../sync/chaiDb.js"
+import { isRestaurant } from "../utils/features"
 import { backdrop, pop } from "../components/popupMotion.js"
 import { SkeletonRows } from "../components/Skeleton.jsx"
 import { BillIcon } from "../components/billing/billMotion.jsx"
@@ -12,7 +13,8 @@ const L = k => tr(k, uiLang())
 const INR = n => "₹" + (Math.round((+n || 0) * 100) / 100).toLocaleString("en-IN")
 const fmt = n => String(Math.round((+n || 0) * 1000) / 1000)
 const UNITS = ["L", "kg", "g", "pc", "packet"]
-const EMOJIS = ["☕", "🍵", "🫖", "🫚", "🍋", "🥛", "🍪", "🥟", "🍞", "🥐", "🌶️", "🍩", "🥪", "🍌", "💧", "🚬", "🍬", "🥤"]
+const EMOJIS = ["☕", "🍵", "🫖", "🫚", "🍋", "🥛", "🍪", "🥟", "🍞", "🥐", "🌶️", "🍩", "🥪", "🍌", "💧", "🚬", "🍬", "🥤",
+  "🍽️", "🍚", "🍜", "🍗", "🧀", "🥦", "🍲", "🌽", "🍳", "🍤", "🥗", "🍛"]
 
 const card  = { background:"var(--bg1)", border:"1px solid var(--rule)", borderRadius:16, padding:"12px 14px" }
 const input = { minHeight:46, borderRadius:12, border:"1.5px solid var(--rule)", padding:"0 12px", fontSize:15,
@@ -40,7 +42,7 @@ export default function ChaiStock() {
         <div style={{ fontSize:22, fontWeight:900 }}>{L("Menu & Stock")}</div>
         <motion.button whileTap={{ scale:0.95 }} className="btn btn-primary"
           onClick={() => setEdit(tab === "menu"
-            ? { kind:"item", value:{ name:"", category:"Tea", price:"", emoji:"☕", recipe:[] } }
+            ? { kind:"item", value:{ name:"", category:menuCategories()[0], price:"", emoji:isRestaurant() ? "🍽️" : "☕", recipe:[] } }
             : { kind:"mat",  value:{ name:"", unit:"kg", stock:0, min_stock:0, cost_per_unit:0 } })}
           style={{ minHeight:44, padding:"0 14px", borderRadius:12, fontWeight:800, whiteSpace:"nowrap" }}>
           <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}><BillIcon name="plus" size={18} />{tab === "menu" ? L("Add item") : L("Add raw material")}</span>
@@ -95,7 +97,7 @@ export default function ChaiStock() {
         </>
       ) : (
         <>
-          {!menu ? <SkeletonRows rows={6} /> : CATEGORIES.map(c => {
+          {!menu ? <SkeletonRows rows={6} /> : menuCategories().map(c => {
             const items = menu.filter(m => m.category === c)
             if (!items.length) return null
             return (
@@ -120,7 +122,7 @@ export default function ChaiStock() {
               </div>
             )
           })}
-          <button onClick={() => setEdit({ kind:"item", value:{ name:"", category:"Tea", price:"", emoji:"☕", recipe:[] } })}
+          <button onClick={() => setEdit({ kind:"item", value:{ name:"", category:menuCategories()[0], price:"", emoji:isRestaurant() ? "🍽️" : "☕", recipe:[] } })}
             style={{ minHeight:48, borderRadius:14, border:"1.5px dashed var(--saffron)", background:"transparent", color:"var(--saffron)", fontWeight:800, cursor:"pointer" }}>
             <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}><BillIcon name="plus" size={18} />{L("Add menu item")}</span>
           </button>
@@ -235,7 +237,7 @@ function ItemForm({ item, mats, onSave, onDelete, onClose }) {
         <Field label={L("Price (₹)")}><input type="number" inputMode="decimal" value={v.price} onChange={e => set("price", e.target.value)} style={input} /></Field>
         <Field label={L("Category")}>
           <select value={v.category} onChange={e => set("category", e.target.value)} style={input}>
-            {CATEGORIES.map(c => <option key={c} value={c}>{L(c)}</option>)}
+            {menuCategories().map(c => <option key={c} value={c}>{L(c)}</option>)}
           </select>
         </Field>
       </div>

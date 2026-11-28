@@ -79,7 +79,7 @@ export default function ShopOrder() {
     <Shell>
       {/* Header */}
       <div style={{ background:`linear-gradient(135deg, ${C.saffron}, ${C.dark})`, color:"#fff", padding:"22px 18px 18px" }}>
-        <div style={{ fontSize:13, opacity:.85, fontWeight:600 }}>{shop.shop_type === "chai" ? "☕ Order from your table" : "🛍️ Order & pick up"}</div>
+        <div style={{ fontSize:13, opacity:.85, fontWeight:600 }}>{shop.shop_type === "chai" ? (shop.restaurant ? "🍽️ Order from your table" : "☕ Order from your table") : "🛍️ Order & pick up"}</div>
         <div style={{ fontSize:24, fontWeight:900, marginTop:4, lineHeight:1.15 }}>{shop.store_name}</div>
         {table
           ? <div style={{ display:"inline-block", marginTop:10, background:"rgba(255,255,255,.2)", borderRadius:20, padding:"5px 12px", fontSize:13, fontWeight:800 }}>Table {table}</div>
@@ -167,7 +167,7 @@ export default function ShopOrder() {
             <label style={lbl}>Mobile number</label>
             <input value={me.phone} onChange={e => setMe(m => ({ ...m, phone: e.target.value }))} placeholder="98765 43210" inputMode="tel" maxLength={16} autoComplete="tel" style={inp} />
             <label style={lbl}>Note for the shop (optional)</label>
-            <input value={note} onChange={e => setNote(e.target.value)} placeholder={shop.shop_type === "chai" ? "Less sugar" : "Pack separately"} maxLength={200} style={inp} />
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder={shop.shop_type === "chai" ? (shop.restaurant ? "Less spicy" : "Less sugar") : "Pack separately"} maxLength={200} style={inp} />
             {formErr && <div style={{ color:"#c0392b", fontSize:13, fontWeight:600, marginTop:10 }}>{formErr}</div>}
             <button onClick={placeOrder} disabled={sending}
               style={{ width:"100%", marginTop:14, padding:"16px", borderRadius:14, border:"none", background:C.jade, color:"#fff", fontSize:17, fontWeight:900, cursor:"pointer", opacity: sending ? .6 : 1 }}>

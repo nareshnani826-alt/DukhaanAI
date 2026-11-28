@@ -33,6 +33,37 @@ STARTER_MENU = [
     ("Mirchi Bajji", "Snacks", 20, "🌶️", []), ("Water Bottle", "Other", 20, "💧", []),
 ]
 
+# Restaurants use the same screens with an Indo-Chinese starter menu
+# (keep in step with RESTAURANT_MENU in frontend/src/sync/chaiDb.js)
+RESTAURANT_MATERIALS = [
+    ("rice", "Basmati rice", "kg", 5, 90), ("noodles", "Noodles", "kg", 3, 120),
+    ("chicken", "Chicken", "kg", 3, 240), ("veg", "Vegetables", "kg", 3, 50),
+    ("paneer", "Paneer", "kg", 1, 380), ("oil", "Cooking oil", "L", 3, 140),
+    ("boxes", "Parcel boxes", "pc", 50, 4),
+]
+RESTAURANT_MENU = [
+    ("Veg Manchurian", "Starters", 120, "🥦", [["veg", 0.15], ["oil", 0.03]]),
+    ("Gobi Manchurian", "Starters", 110, "🥦", [["veg", 0.15], ["oil", 0.03]]),
+    ("Chilli Paneer", "Starters", 160, "🧀", [["paneer", 0.12], ["veg", 0.05], ["oil", 0.03]]),
+    ("Chilli Chicken", "Starters", 180, "🍗", [["chicken", 0.2], ["veg", 0.05], ["oil", 0.03]]),
+    ("Chicken 65", "Starters", 180, "🍗", [["chicken", 0.2], ["oil", 0.04]]),
+    ("Veg Momos", "Starters", 80, "🥟", [["veg", 0.08]]),
+    ("Chicken Momos", "Starters", 100, "🥟", [["chicken", 0.08]]),
+    ("Manchow Soup", "Soups", 80, "🍲", [["veg", 0.05]]),
+    ("Sweet Corn Soup", "Soups", 80, "🌽", [["veg", 0.05]]),
+    ("Veg Fried Rice", "Rice & Noodles", 120, "🍚", [["rice", 0.15], ["veg", 0.08], ["oil", 0.02]]),
+    ("Egg Fried Rice", "Rice & Noodles", 130, "🍳", [["rice", 0.15], ["veg", 0.05], ["oil", 0.02]]),
+    ("Chicken Fried Rice", "Rice & Noodles", 150, "🍚", [["rice", 0.15], ["chicken", 0.1], ["oil", 0.02]]),
+    ("Schezwan Fried Rice", "Rice & Noodles", 140, "🌶️", [["rice", 0.15], ["veg", 0.08], ["oil", 0.02]]),
+    ("Veg Hakka Noodles", "Rice & Noodles", 120, "🍜", [["noodles", 0.15], ["veg", 0.08], ["oil", 0.02]]),
+    ("Chicken Noodles", "Rice & Noodles", 150, "🍜", [["noodles", 0.15], ["chicken", 0.1], ["oil", 0.02]]),
+    ("Soft Drink", "Drinks", 40, "🥤", []), ("Water Bottle", "Drinks", 20, "💧", []),
+]
+
+
+def _is_restaurant(vendor: dict) -> bool:
+    return "restaurant" in (vendor.get("modules") or [])
+
 
 class MenuItem(BaseModel):
     name:     Optional[str] = None
@@ -104,15 +135,16 @@ def _adjust_stock(db, vendor_id: str, used: dict[str, float], sign: int) -> None
         db.table("chai_materials").update({"stock": new}).eq("id", r["id"]).execute()
 
 
-def _seed(db, vendor_id: str) -> None:
+def _seed(db, vendor_id: str, restaurant: bool = False) -> None:
+    materials, menu = (RESTAURANT_MATERIALS, RESTAURANT_MENU) if restaurant else (STARTER_MATERIALS, STARTER_MENU)
     mats = db.table("chai_materials").insert([
         {"vendor_id": vendor_id, "name": n, "unit": u, "min_stock": mn, "cost_per_unit": c}
-        for _, n, u, mn, c in STARTER_MATERIALS]).execute().data
-    id_of = {key: m["id"] for (key, *_), m in zip(STARTER_MATERIALS, mats)}
+        for _, n, u, mn, c in materials]).execute().data
+    id_of = {key: m["id"] for (key, *_), m in zip(materials, mats)}
     db.table("chai_menu").insert([
         {"vendor_id": vendor_id, "name": n, "category": cat, "price": p, "emoji": e, "sort": i,
          "recipe": [[id_of[k], q] for k, q in r]}
-        for i, (n, cat, p, e, r) in enumerate(STARTER_MENU)]).execute()
+        for i, (n, cat, p, e, r) in enumerate(menu)]).execute()
 
 
 def _active_menu(db, vendor_id: str) -> list[dict]:
@@ -127,7 +159,7 @@ def list_menu(vendor=Depends(get_current_vendor)):
     db = get_db()
     # First visit: give the shop a ready menu and the usual raw materials
     if not db.table("chai_menu").select("id").eq("vendor_id", vendor["id"]).limit(1).execute().data:
-        _seed(db, vendor["id"])
+        _seed(db, vendor["id"], _is_restaurant(vendor))
     return _active_menu(db, vendor["id"])
 
 

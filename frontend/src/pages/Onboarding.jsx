@@ -15,6 +15,7 @@ const LANG_KEY = "dk_voice_lang"   // same key used by voice agent
 const SHOPS = [
   { id: "kirana", emoji: "🏪", name: "Kirana Store", sub: "Grocery & general store" },
   { id: "chai",   emoji: "☕", name: "Chai / Tea Shop", sub: "Tea stall, café & snacks" },
+  { id: "restaurant", emoji: "🍜", name: "Restaurant", sub: "Chinese, fast food & dhabas" },
   { id: "bangle", emoji: "💍", name: "Bangle Store", sub: "Bangles, jewellery & fancy" },
 ].filter(s => shopEnabled(s.id))
 
@@ -64,6 +65,7 @@ const STEP_LABELS = {
   shopQ:   { "te-IN": "మీది ఏ దుకాణం?", "hi-IN": "आपकी कौन सी दुकान है?", "ta-IN": "உங்களுடையது எந்த கடை?", "kn-IN": "ನಿಮ್ಮದು ಯಾವ ಅಂಗಡಿ?", "ml-IN": "നിങ്ങളുടേത് ഏത് കടയാണ്?", "mr-IN": "तुमचे कोणते दुकान आहे?", "bn-IN": "আপনার কোন দোকান?", "gu-IN": "તમારી કઈ દુકાન છે?", "pa-IN": "ਤੁਹਾਡੀ ਕਿਹੜੀ ਦੁਕਾਨ ਹੈ?", "en-IN": "What shop do you run?" },
   kirana:  { "te-IN": "కిరాణా స్టోర్", "hi-IN": "किराना स्टोर", "ta-IN": "மளிகைக் கடை", "kn-IN": "ಕಿರಾಣಿ ಅಂಗಡಿ", "ml-IN": "പലചരക്ക് കട", "mr-IN": "किराणा दुकान", "bn-IN": "মুদির দোকান", "gu-IN": "કરિયાણાની દુકાન", "pa-IN": "ਕਰਿਆਨਾ ਸਟੋਰ", "en-IN": "Kirana Store" },
   chai:    { "te-IN": "టీ కొట్టు / చాయ్ షాప్", "hi-IN": "चाय की दुकान", "ta-IN": "டீ கடை", "kn-IN": "ಟೀ ಅಂಗಡಿ", "ml-IN": "ചായക്കട", "mr-IN": "चहाची टपरी", "bn-IN": "চায়ের দোকান", "gu-IN": "ચાની દુકાન", "pa-IN": "ਚਾਹ ਦੀ ਦੁਕਾਨ", "en-IN": "Chai / Tea Shop" },
+  restaurant: { "te-IN": "రెస్టారెంట్", "hi-IN": "रेस्टोरेंट", "ta-IN": "உணவகம்", "kn-IN": "ರೆಸ್ಟೋರೆಂಟ್", "ml-IN": "റെസ്റ്റോറന്റ്", "mr-IN": "रेस्टॉरंट", "bn-IN": "রেস্তোরাঁ", "gu-IN": "રેસ્ટોરન્ટ", "pa-IN": "ਰੈਸਟੋਰੈਂਟ", "en-IN": "Restaurant / Fast Food" },
   bangle:  { "en-IN": "Bangle Store" },
   storePh: { "te-IN": "ఉదా: రాజు కిరాణా స్టోర్", "hi-IN": "जैसे: राजू किराना स्टोर", "ta-IN": "எ.கா: ராஜு கிரானா ஸ்டோர்", "kn-IN": "ಉದಾ: ರಾಜು ಕಿರಾಣ ಸ್ಟೋರ್", "ml-IN": "ഉദാ: രാജു കിരാണ സ്റ്റോർ", "mr-IN": "उदा: राजू किराणा स्टोर", "bn-IN": "যেমন: রাজু কিরানা স্টোর", "gu-IN": "દા.ત.: રાજુ કરિયાણા સ્ટોર", "pa-IN": "ਜਿਵੇਂ: ਰਾਜੂ ਕਿਰਾਣਾ ਸਟੋਰ", "en-IN": "e.g. Raju Kirana Store" },
 }

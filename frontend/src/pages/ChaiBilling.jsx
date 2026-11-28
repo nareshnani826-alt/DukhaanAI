@@ -2,7 +2,7 @@
 // table / token orders stay open until the customer pays.
 import { useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "motion/react"
-import { ChaiMenu, ChaiOrders, CATEGORIES, orderTotal, chaiBillText, sendOnWhatsApp, regularsUsual, localDay } from "../sync/chaiDb.js"
+import { ChaiMenu, ChaiOrders, menuCategories, orderTotal, chaiBillText, sendOnWhatsApp, regularsUsual, localDay } from "../sync/chaiDb.js"
 import { parseChaiOrder } from "../voice/chaiVoice.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
 import { printChaiBill } from "../utils/chaiPrint.js"
@@ -279,7 +279,7 @@ export default function ChaiBilling() {
         {/* All categories always on screen: they share the row, and wrap on very narrow phones
             (a sideways-scrolling row hid "Other" off the right edge with no hint it was there) */}
         <div style={{ display:"flex", flexWrap:"wrap", gap:6, paddingBottom:10 }}>
-          {["All", ...CATEGORIES].map(c => (
+          {["All", ...menuCategories()].map(c => (
             <button key={c} onClick={() => setCat(c)}
               style={{ position:"relative", flex:"1 0 auto", minHeight:40, padding:"8px 9px", fontSize:14, borderRadius:20, border:"1.5px solid var(--rule)",
                 background:"var(--bg1)", fontWeight:700, cursor:"pointer", color: cat === c ? "#fff" : "var(--ink-dim)" }}>

@@ -56,8 +56,8 @@ def _normalize_phone_local(raw: str) -> str:
 
 
 # Each email / phone can have one account per shop type (scripts/separate_shop_accounts.sql)
-SHOP_TYPES = ("kirana", "chai", "bangle_fancy")
-SHOP_LABELS = {"kirana": "Kirana", "chai": "Chai shop", "bangle_fancy": "Bangle store"}
+SHOP_TYPES = ("kirana", "chai", "restaurant", "bangle_fancy")
+SHOP_LABELS = {"kirana": "Kirana", "chai": "Chai shop", "restaurant": "Restaurant", "bangle_fancy": "Bangle store"}
 # Shop types not open for sign-up yet (the app hides them too: frontend/src/utils/features.js)
 NEW_SIGNUPS_OFF = {"bangle_fancy"}
 
@@ -171,7 +171,7 @@ async def register(request: Request, body: VendorRegister):
     email = str(body.email)
     shop = _shop_type(body.modules) or "kirana"
     if shop in NEW_SIGNUPS_OFF:
-        raise HTTPException(status_code=403, detail=f"{SHOP_LABELS[shop]} accounts are not open yet. Please choose Kirana or Chai shop.")
+        raise HTTPException(status_code=403, detail=f"{SHOP_LABELS[shop]} accounts are not open yet. Please choose Kirana, Chai shop or Restaurant.")
     otp_key = f"{email}|{shop}"
 
     # Production must send real emails. In local development without SMTP, the OTP is

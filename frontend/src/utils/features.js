@@ -6,6 +6,11 @@ const OFF = BANGLE_ENABLED ? [] : ["bangle_fancy", "bangle"]
 
 export const shopEnabled = id => !OFF.includes(id)
 
+// A restaurant runs on the chai shop screens (/chai-*) and the /chai API, with its own
+// name and starter menu. Use these instead of comparing with "chai" directly.
+export const isFoodShop = id => id === "chai" || id === "restaurant"
+export const isRestaurant = () => { try { return localStorage.getItem("storeMode") === "restaurant" } catch { return false } }
+
 // A vendor's modules without the switched-off shop types (never empty: falls back to kirana)
 export function liveModules(mods) {
   const list = (mods || ["kirana"]).filter(shopEnabled)

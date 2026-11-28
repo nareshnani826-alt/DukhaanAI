@@ -16,3 +16,17 @@ def test_unknown_menu_item_uses_nothing():
 def test_shop_day_bounds_are_ist():
     assert _ist_bound("2026-11-03") == "2026-11-02T18:30:00.000000Z"
     assert _ist_bound("2026-11-03", end=True) == "2026-11-03T18:29:59.999999Z"
+
+
+def test_restaurant_starter_menu_uses_known_materials():
+    from app.routers.chai import RESTAURANT_MATERIALS, RESTAURANT_MENU, STARTER_MATERIALS, STARTER_MENU, _is_restaurant
+    for materials, menu in ((RESTAURANT_MATERIALS, RESTAURANT_MENU), (STARTER_MATERIALS, STARTER_MENU)):
+        keys = {m[0] for m in materials}
+        assert all(k in keys for *_, recipe in menu for k, _ in recipe)
+    assert _is_restaurant({"modules": ["restaurant"]}) and not _is_restaurant({"modules": ["chai"]})
+
+
+def test_restaurant_orders_use_the_chai_flow():
+    from app.routers.online_orders import _shop_type
+    assert _shop_type({"shop_type": "restaurant"}) == "chai"
+    assert _shop_type({"shop_type": "kirana"}) == "kirana"
