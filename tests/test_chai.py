@@ -30,3 +30,9 @@ def test_restaurant_orders_use_the_chai_flow():
     from app.routers.online_orders import _shop_type
     assert _shop_type({"shop_type": "restaurant"}) == "chai"
     assert _shop_type({"shop_type": "kirana"}) == "kirana"
+
+
+def test_starter_buy_prices_match_menu_items():
+    from app.routers.chai import RESTAURANT_MENU, STARTER_BUY_PRICES, STARTER_MENU
+    names = {m[0] for m in STARTER_MENU} | {m[0] for m in RESTAURANT_MENU}
+    assert set(STARTER_BUY_PRICES) <= names

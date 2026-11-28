@@ -61,6 +61,14 @@ RESTAURANT_MENU = [
 ]
 
 
+# Starter items usually bought ready-made: what one piece costs the shop (owner can change it).
+# Keep in step with buy_price in frontend/src/sync/chaiDb.js.
+STARTER_BUY_PRICES = {
+    "Osmania Biscuit": 3, "Samosa": 10, "Bun": 10, "Puff": 18,
+    "Water Bottle": 14, "Soft Drink": 30,
+}
+
+
 def _is_restaurant(vendor: dict) -> bool:
     return "restaurant" in (vendor.get("modules") or [])
 
@@ -72,6 +80,7 @@ class MenuItem(BaseModel):
     emoji:    Optional[str] = None
     sort:     Optional[int] = None
     recipe:   Optional[list] = None
+    buy_price: Optional[float] = None   # ready-made items (soft drink, biscuit): what one costs the shop
 
 
 class Material(BaseModel):
@@ -143,7 +152,7 @@ def _seed(db, vendor_id: str, restaurant: bool = False) -> None:
     id_of = {key: m["id"] for (key, *_), m in zip(materials, mats)}
     db.table("chai_menu").insert([
         {"vendor_id": vendor_id, "name": n, "category": cat, "price": p, "emoji": e, "sort": i,
-         "recipe": [[id_of[k], q] for k, q in r]}
+         "recipe": [[id_of[k], q] for k, q in r], "buy_price": STARTER_BUY_PRICES.get(n, 0)}
         for i, (n, cat, p, e, r) in enumerate(menu)]).execute()
 
 
@@ -168,6 +177,8 @@ def _check_menu_item(body: MenuItem) -> None:
         raise HTTPException(status_code=400, detail="The item needs a name")
     if body.price is not None and body.price <= 0:
         raise HTTPException(status_code=400, detail="The price must be more than 0")
+    if body.buy_price is not None and body.buy_price < 0:
+        raise HTTPException(status_code=400, detail="The buying price cannot be below 0")
 
 
 @router.post("/menu", status_code=201)

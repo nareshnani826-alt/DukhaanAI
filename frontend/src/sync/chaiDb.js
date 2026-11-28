@@ -38,12 +38,12 @@ export const STARTER_MENU = [
   { name:"Coffee",       category:"Coffee", price:20, emoji:"☕", recipe:[["milk",0.1],["sugar",0.012],["coffee",0.005],["cups",1]] },
   { name:"Boost",        category:"Coffee", price:25, emoji:"🥛", recipe:[["milk",0.12],["cups",1]] },
   { name:"Badam Milk",   category:"Coffee", price:25, emoji:"🥛", recipe:[["milk",0.15],["sugar",0.015],["cups",1]] },
-  { name:"Osmania Biscuit", category:"Snacks", price:5,  emoji:"🍪", recipe:[] },
-  { name:"Samosa",       category:"Snacks", price:15, emoji:"🥟", recipe:[] },
-  { name:"Bun",          category:"Snacks", price:15, emoji:"🍞", recipe:[] },
-  { name:"Puff",         category:"Snacks", price:25, emoji:"🥐", recipe:[] },
+  { name:"Osmania Biscuit", category:"Snacks", price:5,  emoji:"🍪", recipe:[], buy_price:3 },
+  { name:"Samosa",       category:"Snacks", price:15, emoji:"🥟", recipe:[], buy_price:10 },
+  { name:"Bun",          category:"Snacks", price:15, emoji:"🍞", recipe:[], buy_price:10 },
+  { name:"Puff",         category:"Snacks", price:25, emoji:"🥐", recipe:[], buy_price:18 },
   { name:"Mirchi Bajji", category:"Snacks", price:20, emoji:"🌶️", recipe:[] },
-  { name:"Water Bottle", category:"Other",  price:20, emoji:"💧", recipe:[] },
+  { name:"Water Bottle", category:"Other",  price:20, emoji:"💧", recipe:[], buy_price:14 },
 ]
 export const CATEGORIES = ["Tea", "Coffee", "Snacks", "Other"]
 
@@ -73,8 +73,8 @@ export const RESTAURANT_MENU = [
   { name:"Schezwan Fried Rice",  category:"Rice & Noodles", price:140, emoji:"🌶️", recipe:[["rice",0.15],["veg",0.08],["oil",0.02]] },
   { name:"Veg Hakka Noodles",    category:"Rice & Noodles", price:120, emoji:"🍜", recipe:[["noodles",0.15],["veg",0.08],["oil",0.02]] },
   { name:"Chicken Noodles",      category:"Rice & Noodles", price:150, emoji:"🍜", recipe:[["noodles",0.15],["chicken",0.1],["oil",0.02]] },
-  { name:"Soft Drink",           category:"Drinks",         price:40,  emoji:"🥤", recipe:[] },
-  { name:"Water Bottle",         category:"Drinks",         price:20,  emoji:"💧", recipe:[] },
+  { name:"Soft Drink",           category:"Drinks",         price:40,  emoji:"🥤", recipe:[], buy_price:30 },
+  { name:"Water Bottle",         category:"Drinks",         price:20,  emoji:"💧", recipe:[], buy_price:14 },
 ]
 export const RESTAURANT_CATEGORIES = ["Starters", "Soups", "Rice & Noodles", "Main Course", "Drinks", "Other"]
 
@@ -252,6 +252,12 @@ export const ChaiOrders = {
   },
 }
 
+// What one plate / cup of a menu item costs the shop: recipe materials + buying price
+export function itemCost(item, materials) {
+  const costOf = Object.fromEntries((materials || []).map(m => [m.id, +m.cost_per_unit || 0]))
+  return round2((+item.buy_price || 0) + (item.recipe || []).reduce((s, [id, q]) => s + (costOf[id] || 0) * (+q || 0), 0))
+}
+
 // ── Report for a date range (YYYY-MM-DD, inclusive) ───────
 export function buildReport(orders, menu, materials) {
   const paid = orders.filter(o => o.status === "paid")
@@ -265,13 +271,17 @@ export function buildReport(orders, menu, materials) {
       const e = byItem[it.name] || (byItem[it.name] = { name: it.name, qty: 0, amount: 0 })
       e.qty += +it.qty || 0
       e.amount = round2(e.amount + (+it.price || 0) * (+it.qty || 0))
-      if (["Tea", "Coffee"].includes(catOf[it.menu_id])) cups += +it.qty || 0
+      // Chai shop: cups of tea/coffee. Restaurant: every item (plate) sold
+      if (isRestaurant() || ["Tea", "Coffee"].includes(catOf[it.menu_id])) cups += +it.qty || 0
     }
   }
   const used = {}
   for (const o of paid) for (const [k, v] of Object.entries(materialsUsed(o.items, menu))) used[k] = round4((used[k] || 0) + v)
   const matById = Object.fromEntries((materials || []).map(m => [m.id, m]))
-  const cost = round2(Object.entries(used).reduce((s, [k, q]) => s + q * (+matById[k]?.cost_per_unit || 0), 0))
+  // Cost = raw material used by the recipes + buying price of ready-made items
+  const buyOf = Object.fromEntries((menu || []).map(m => [m.id, +m.buy_price || 0]))
+  const bought = paid.reduce((s, o) => s + (o.items || []).reduce((t, it) => t + (buyOf[it.menu_id] || 0) * (+it.qty || 0), 0), 0)
+  const cost = round2(bought + Object.entries(used).reduce((s, [k, q]) => s + q * (+matById[k]?.cost_per_unit || 0), 0))
   const total = round2(paid.reduce((s, o) => s + (+o.total || 0), 0))
   return {
     total, bills: paid.length, cups, byMode, cost,

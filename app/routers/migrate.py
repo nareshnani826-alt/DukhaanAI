@@ -227,7 +227,7 @@ def import_local(body: ImportBody, vendor=Depends(get_current_vendor)):
             menu_map = _insert_mapped(db, "chai_menu", [(m.get("id"), {
                 "vendor_id": vid, "name": str(m.get("name") or "Item")[:60], "category": m.get("category") or "Tea",
                 "price": max(0.0, _num(m.get("price"))), "emoji": m.get("emoji"), "sort": int(_num(m.get("sort"))),
-                "active": m.get("active") is not False,
+                "active": m.get("active") is not False, "buy_price": max(0.0, _num(m.get("buy_price"))),
                 "recipe": [[mat_map[str(r[0])], r[1]] for r in (m.get("recipe") or []) if isinstance(r, list) and len(r) == 2 and str(r[0]) in mat_map],
             }) for m in (c.get("menu") or [])])
             orders = []

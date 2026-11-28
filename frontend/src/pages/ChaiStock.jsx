@@ -2,7 +2,7 @@
 // "add delivery", and the menu with prices and what each cup uses.
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "motion/react"
-import { ChaiMenu, ChaiMaterials, menuCategories } from "../sync/chaiDb.js"
+import { ChaiMenu, ChaiMaterials, menuCategories, itemCost } from "../sync/chaiDb.js"
 import { isRestaurant } from "../utils/features"
 import { backdrop, pop } from "../components/popupMotion.js"
 import { SkeletonRows } from "../components/Skeleton.jsx"
@@ -50,7 +50,7 @@ export default function ChaiStock() {
       </div>
 
       <div style={{ display:"flex", gap:6, padding:4, borderRadius:14, background:"var(--bg2)" }}>
-        {[["stock", "package", L("Raw material")], ["menu", "coffee", L("Menu")]].map(([id, icon, label]) => (
+        {[["stock", "package", L("Raw material")], ["menu", isRestaurant() ? "utensils" : "coffee", L("Menu")]].map(([id, icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ position:"relative", flex:1, minHeight:44, border:"none", borderRadius:11, background:"transparent",
               fontWeight:800, fontSize:14, cursor:"pointer", color: tab === id ? "#fff" : "var(--ink-dim)" }}>
@@ -113,10 +113,17 @@ export default function ChaiStock() {
                         {(m.recipe || []).length ? (m.recipe || []).map(([id, q]) => {
                           const mat = (mats || []).find(x => x.id === id)
                           return mat ? `${mat.name} ${fmt(q)} ${mat.unit}` : null
-                        }).filter(Boolean).join(" · ") : L("No raw material linked")}
+                        }).filter(Boolean).join(" · ") : +m.buy_price > 0 ? `${L("Bought at")} ${INR(m.buy_price)}` : L("No raw material linked")}
                       </span>
                     </span>
-                    <span style={{ fontWeight:900, fontSize:17, color:"var(--jade)" }}>{INR(m.price)}</span>
+                    <span style={{ textAlign:"right" }}>
+                      <span style={{ display:"block", fontWeight:900, fontSize:17, color:"var(--jade)" }}>{INR(m.price)}</span>
+                      {itemCost(m, mats) > 0 && (
+                        <span style={{ display:"block", fontSize:12, fontWeight:700, color: m.price - itemCost(m, mats) >= 0 ? "var(--ink-dim)" : "#c0392b" }}>
+                          {L("Profit")} {INR(m.price - itemCost(m, mats))}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -241,7 +248,7 @@ function ItemForm({ item, mats, onSave, onDelete, onClose }) {
           </select>
         </Field>
       </div>
-      <div style={{ fontSize:13, fontWeight:800, color:"var(--ink-dim)" }}>{L("Raw material per cup / piece")}</div>
+      <div style={{ fontSize:13, fontWeight:800, color:"var(--ink-dim)" }}>{L(isRestaurant() ? "Raw material per plate" : "Raw material per cup / piece")}</div>
       {v.recipe.map(([id, q], i) => (
         <div key={i} style={{ display:"grid", gridTemplateColumns:"minmax(0,1.4fr) minmax(0,1fr) 44px", gap:8, alignItems:"center" }}>
           <select value={id} onChange={e => setRecipe(i, 0, e.target.value)} style={input}>
@@ -262,8 +269,26 @@ function ItemForm({ item, mats, onSave, onDelete, onClose }) {
           + {L("Link raw material")}
         </button>
       )}
+      <Field label={L("Buying price (₹) — for ready-made items")}>
+        <input type="number" inputMode="decimal" min="0" value={v.buy_price ?? ""} onChange={e => set("buy_price", e.target.value)}
+          placeholder={L("e.g. soft drink bought at 30")} style={input} />
+      </Field>
+      {(() => {
+        // Live cost and profit for one plate / cup, from the recipe and buying price
+        const cost = itemCost({ buy_price: v.buy_price, recipe: v.recipe.map(([id, q]) => [id, +q || 0]) }, mats)
+        const profit = (+v.price || 0) - cost
+        if (!cost) return <div style={{ fontSize:12, color:"var(--ink-faint)" }}>{L("Link raw material or add a buying price to see the profit on this item.")}</div>
+        return (
+          <div style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"10px 12px", borderRadius:12, background:"var(--bg2)", fontSize:14, fontWeight:700 }}>
+            <span>{L("Cost")} {INR(cost)}</span>
+            <span style={{ color: profit >= 0 ? "var(--jade)" : "#c0392b" }}>
+              {L("Profit")} {INR(profit)}{+v.price > 0 ? ` (${Math.round(profit / +v.price * 100)}%)` : ""}
+            </span>
+          </div>
+        )
+      })()}
       <Buttons onClose={onClose} onDelete={onDelete} disabled={!v.name.trim() || !(+v.price > 0)}
-        onSave={() => onSave({ ...v, name: v.name.trim(), price: +v.price,
+        onSave={() => onSave({ ...v, name: v.name.trim(), price: +v.price, buy_price: Math.max(0, +v.buy_price || 0),
           recipe: v.recipe.filter(([id, q]) => id && +q > 0).map(([id, q]) => [id, +q]) })} />
     </>
   )

@@ -12,14 +12,9 @@ function appVersion() {
   }
 }
 
-// Routes that exist both as React pages AND as backend API paths.
-// A browser back/forward navigation sends a real HTTP request with
-// Accept: text/html — we must serve index.html in that case, not
-// proxy to the backend (which returns {"detail":"Not authenticated"}).
-const SPA_ROUTES = new Set([
-  "/customers", "/udhar", "/admin", "/sales", "/insights",
-  "/products", "/invoices", "/expiry", "/wastage", "/voice", "/agent",
-])
+// Several React pages share a prefix with backend API paths (/customers, /chai-dashboard…).
+// A page load or back/forward sends Accept: text/html — serve index.html then, never
+// proxy it to the backend (which would answer {"detail":"Not authenticated"} or 404).
 
 function apiProxy(target = "http://localhost:8000") {
   return {
@@ -29,7 +24,8 @@ function apiProxy(target = "http://localhost:8000") {
       // Browser page navigation sends "text/html" in Accept.
       // Fetch/XHR API calls send "application/json" or no html accept.
       const accept = req.headers["accept"] || ""
-      if (accept.includes("text/html") && SPA_ROUTES.has(req.url?.split("?")[0])) {
+      // Any page load goes to the app (e.g. /chai-dashboard starts with the /chai API prefix)
+      if (accept.includes("text/html")) {
         return "/index.html"   // let React Router handle it
       }
       return null              // proxy to backend as normal

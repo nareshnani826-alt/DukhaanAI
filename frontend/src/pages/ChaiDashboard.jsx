@@ -30,6 +30,8 @@ const readClose = day => { try { return JSON.parse(localStorage.getItem(CLOSE_KE
 
 export default function ChaiDashboard() {
   const navigate = useNavigate()
+  // Open a table's bill on the billing screen (no id: just the Tables tab to pick one)
+  const openTable = id => navigate("/chai-billing", { state:{ mode:"table", orderId:id } })
   const [range, setRange] = useState("today")
   const [data, setData]   = useState(null)
   const [error, setError] = useState(null)
@@ -89,7 +91,7 @@ export default function ChaiDashboard() {
           </motion.button>
           <motion.button whileTap={{ scale:0.96 }} className="btn btn-primary" onClick={() => navigate("/chai-billing")}
             style={{ minHeight:52, padding:"0 20px", borderRadius:14, fontWeight:800, fontSize:16 }}>
-            <span style={{ display:"inline-flex", alignItems:"center", gap:8 }}><BillIcon name="coffee" size={20} />{L("Start billing")}</span>
+            <span style={{ display:"inline-flex", alignItems:"center", gap:8 }}><BillIcon name={isRestaurant() ? "receipt" : "coffee"} size={20} />{L("Start billing")}</span>
           </motion.button>
         </div>
       </div>
@@ -117,7 +119,7 @@ export default function ChaiDashboard() {
             </div>
           </div>
           <div style={{ display:"flex", gap:18 }}>
-            <Mini icon="coffee" label={L("Cups sold")} value={r?.cups} />
+            <Mini icon={isRestaurant() ? "utensils" : "coffee"} label={L(isRestaurant() ? "Items sold" : "Cups sold")} value={r?.cups} />
             <Mini icon="receipt" label={L("Bills")} value={r?.bills} />
             {r && r.cost > 0 && <Mini icon="trend" label={L("Approx. profit")} value={INR(r.total - r.cost)} />}
           </div>
@@ -126,10 +128,10 @@ export default function ChaiDashboard() {
       </div>
 
       {data && data.open.length > 0 && (
-        <button onClick={() => navigate("/chai-billing")}
+        <button onClick={() => openTable(data.open.length === 1 ? data.open[0].id : null)}
           style={{ ...card, textAlign:"left", cursor:"pointer", borderColor:"var(--saffron)", color:"var(--ink)" }}>
           <span style={{ display:"inline-flex", alignItems:"center", gap:8 }}><BillIcon name="utensils" size={18} />
-            <b>{data.open.length} {L("tables still to pay")}</b> · {INR(data.open.reduce((s, o) => s + +o.total, 0))}</span>
+            <b>{data.open.length} {L(data.open.length === 1 ? "table still to pay" : "tables still to pay")}</b> · {INR(data.open.reduce((s, o) => s + +o.total, 0))}</span>
         </button>
       )}
 
@@ -142,7 +144,7 @@ export default function ChaiDashboard() {
           </span>
           <span>
             <span style={{ display:"block", fontWeight:800 }}>{L("Add today's stock")}</span>
-            <span style={{ display:"block", fontSize:13, color:"var(--ink-dim)" }}>{L("Enter milk, sugar, tea powder and cups once. Every sale then reduces them.")}</span>
+            <span style={{ display:"block", fontSize:13, color:"var(--ink-dim)" }}>{L(isRestaurant() ? "Enter rice, noodles, chicken and vegetables once. Every sale then reduces them." : "Enter milk, sugar, tea powder and cups once. Every sale then reduces them.")}</span>
           </span>
         </button>
       ) : low.length > 0 && (
@@ -216,7 +218,9 @@ export default function ChaiDashboard() {
         {!data ? <SkeletonRows rows={5} /> : data.orders.length === 0 ? <Empty /> : data.orders.slice(0, 100).map((o, i) => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderTop: i ? "1px solid var(--rule)" : "none",
             opacity: o.status === "cancelled" ? 0.5 : 1 }}>
-            <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ flex:1, minWidth:0, cursor: o.status === "open" ? "pointer" : "default" }}
+              onClick={o.status === "open" ? () => openTable(o.id) : undefined}
+              role={o.status === "open" ? "button" : undefined} aria-label={o.status === "open" ? `Open bill ${o.order_no}` : undefined}>
               <div style={{ fontWeight:800 }}>
                 #{o.order_no}{o.label ? ` · ${o.label}` : ""}{" "}
                 <span style={{ fontSize:12, fontWeight:700, color: o.status === "paid" ? "var(--jade)" : o.status === "open" ? "var(--saffron)" : "var(--ink-faint)" }}>
@@ -271,7 +275,7 @@ function CloseDaySheet({ onClose, onSaved, lowList, toBuy, dayName, openTables =
       const text = [
         `📊 *${getStoreName() || (isRestaurant() ? "Restaurant" : "Chai Shop")}* — ${new Date().toLocaleDateString(dateLocale(), { weekday:"long", day:"numeric", month:"short" })}`,
         "",
-        `${L("Total sales")}: *${INR(rep.total)}* (${rep.bills} ${L("bills")}, ${rep.cups} ${L("cups")})`,
+        `${L("Total sales")}: *${INR(rep.total)}* (${rep.bills} ${L("bills")}, ${rep.cups} ${L(isRestaurant() ? "items" : "cups")})`,
         `${L("Cash")}: ${INR(rep.byMode.cash)} · UPI: ${INR(rep.byMode.upi)} · ${L("Khata")}: ${INR(rep.byMode.credit)}`,
         diff !== null ? `${L("Cash counted")}: ${INR(+counted)} (${diff === 0 ? L("matches") : diff > 0 ? L("extra") + " " + INR(diff) : L("short") + " " + INR(-diff)})` : "",
         top ? `${L("Best sellers")}: ${top}` : "",
@@ -307,7 +311,7 @@ function CloseDaySheet({ onClose, onSaved, lowList, toBuy, dayName, openTables =
               <div role="alert" style={{ display:"flex", gap:8, alignItems:"flex-start", background:"rgba(230,126,34,0.12)",
                 border:"1.5px solid #e67e22", borderRadius:12, padding:"10px 12px", fontSize:14, fontWeight:700, color:"var(--ink)" }}>
                 <BillIcon name="alert" size={18} />
-                <span>{openTables.length} {L("tables still to pay")} · {INR(openTables.reduce((s, o) => s + +o.total, 0))}
+                <span>{openTables.length} {L(openTables.length === 1 ? "table still to pay" : "tables still to pay")} · {INR(openTables.reduce((s, o) => s + +o.total, 0))}
                   <span style={{ display:"block", fontWeight:600, fontSize:13, color:"var(--ink-dim)" }}>
                     {openTables.map(o => o.label || "#" + o.order_no).join(", ")} · {L("not in today's total until paid")}
                   </span>

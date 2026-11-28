@@ -177,7 +177,7 @@ export default function OnlineOrders() {
                     <button onClick={() => act(o, "bill", { payment_mode:"UPI" })} disabled={b("bill")} style={{ ...btn("#e87722"), flex:1 }}>🧾 {L("Bill · UPI")}</button>
                   </>}
                   {o.shop_type === "chai" && ["accepted","ready"].includes(o.status) && <>
-                    <button onClick={() => navigate("/chai-billing")} style={{ ...btn("transparent"), color:"var(--ink)", border:"1px solid var(--rule)", flex:1 }}>{L("Open Tables")}</button>
+                    <button onClick={() => navigate("/chai-billing", { state:{ mode:"table" } })} style={{ ...btn("transparent"), color:"var(--ink)", border:"1px solid var(--rule)", flex:1 }}>{L("Open Tables")}</button>
                     <button onClick={() => act(o, "done")} disabled={b("done")} style={{ ...btn("#888"), flex:1 }}>{L("Done")}</button>
                   </>}
                 </div>

@@ -2,6 +2,8 @@
 // table / token orders stay open until the customer pays.
 import { useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "motion/react"
+import { useLocation } from "react-router-dom"
+import { isRestaurant } from "../utils/features"
 import { ChaiMenu, ChaiOrders, menuCategories, orderTotal, chaiBillText, sendOnWhatsApp, regularsUsual, localDay } from "../sync/chaiDb.js"
 import { parseChaiOrder } from "../voice/chaiVoice.js"
 import { getSpeechRecognition } from "../voice/nativeSpeech.js"
@@ -23,7 +25,9 @@ export default function ChaiBilling() {
   const wide = useWideBilling()
   const [menu, setMenu]       = useState(null)
   const [cat, setCat]         = useState("All")
-  const [mode, setMode]       = useState("counter")      // counter | table
+  // "Tables still to pay" on the dashboard opens straight on the Tables tab
+  const location = useLocation()
+  const [mode, setMode]       = useState(() => location.state?.mode === "table" ? "table" : "counter")      // counter | table
   const [openOrders, setOpen] = useState([])
   const [activeId, setActive] = useState(null)           // open table order being edited
   // The counter bill being made is kept on the phone (survives a language change or the app closing)
@@ -48,11 +52,16 @@ export default function ChaiBilling() {
   }, [lines, mode, activeId])
 
   const flash = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 2200) }
-  const loadOpen = () => ChaiOrders.list({ status: "open" }).then(setOpen).catch(() => {})
+  const loadOpen = () => ChaiOrders.list({ status: "open" }).then(l => { setOpen(l); return l }).catch(() => [])
 
   useEffect(() => {
     ChaiMenu.list().then(setMenu).catch(e => { setMenu([]); flash(e.message || L("Could not load menu"), false) })
-    loadOpen()
+    // Opened from the dashboard for one table: show that table's order straight away
+    const wantId = location.state?.orderId
+    loadOpen().then(list => {
+      const o = wantId && (list || []).find(x => x.id === wantId)
+      if (o) { pickOrder(o); if (!wide) setShowBill(true) }
+    })
     // Regulars and what they usually take, from the last 30 days of khata bills
     const from = new Date(); from.setDate(from.getDate() - 30)
     ChaiOrders.list({ from: localDay(from) }).then(o => setRegulars(regularsUsual(o))).catch(() => {})
@@ -208,7 +217,7 @@ export default function ChaiBilling() {
         {/* Counter / tables switch, and Speak */}
         <div style={{ display:"flex", gap:8, marginBottom:10 }}>
         <div style={{ flex:1, display:"flex", gap:6, padding:4, borderRadius:14, background:"var(--bg2)" }}>
-          {[["counter", "coffee", L("Counter")], ["table", "utensils", `${L("Tables")}${openOrders.length ? ` (${openOrders.length})` : ""}`]].map(([id, icon, label]) => (
+          {[["counter", isRestaurant() ? "receipt" : "coffee", L("Counter")], ["table", "utensils", `${L("Tables")}${openOrders.length ? ` (${openOrders.length})` : ""}`]].map(([id, icon, label]) => (
             <button key={id} onClick={() => switchMode(id)}
               style={{ position:"relative", flex:1, minHeight:44, border:"none", borderRadius:11, background:"transparent",
                 fontWeight:800, fontSize:14, cursor:"pointer", color: mode === id ? "#fff" : "var(--ink-dim)" }}>
