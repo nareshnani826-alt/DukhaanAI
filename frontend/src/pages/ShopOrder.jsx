@@ -31,6 +31,9 @@ export default function ShopOrder() {
   const [note, setNote]     = useState("")
   const [sending, setSending] = useState(false)
   const [formErr, setFormErr] = useState("")
+  // Chai shop / restaurant opened from the shop's main QR or link (no ?t=): ask for the table
+  const [tableIn, setTableIn] = useState("")
+  const [parcel, setParcel]   = useState(false)
 
   useEffect(() => {
     document.title = "Order online"
@@ -45,6 +48,7 @@ export default function ShopOrder() {
   const lines = items.filter(i => cart[i.id] > 0).map(i => ({ ...i, qty: cart[i.id] }))
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0)
   const count = lines.reduce((s, l) => s + l.qty, 0)
+  const askTable = !table && shop?.shop_type === "chai"
 
   const change = (it, d) => setCart(c => {
     const max = it.stock != null ? Math.floor(it.stock) : 50
@@ -56,12 +60,14 @@ export default function ShopOrder() {
     const phone = me.phone.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "")
     if (!me.name.trim()) return setFormErr("Please enter your name")
     if (!/^[6-9]\d{9}$/.test(phone)) return setFormErr("Please enter a valid 10-digit mobile number")
+    const tbl = table || (askTable && !parcel ? tableIn.trim().slice(0, 12) : "")
+    if (askTable && !parcel && !tbl) return setFormErr("Please enter your table number, or tick Parcel")
     setFormErr(""); setSending(true)
     try {
       try { localStorage.setItem(ME_KEY, JSON.stringify({ name: me.name.trim(), phone })) } catch {}
       const d = await call(`/public/shops/${encodeURIComponent(code)}/orders`, { method:"POST", body: JSON.stringify({
-        customer_name: me.name.trim(), customer_phone: phone, mode: table ? "table" : "pickup",
-        table: table || null, note: note.trim() || null, items: lines.map(l => ({ id: l.id, qty: l.qty })),
+        customer_name: me.name.trim(), customer_phone: phone, mode: tbl ? "table" : "pickup",
+        table: tbl || null, note: note.trim() || null, items: lines.map(l => ({ id: l.id, qty: l.qty })),
       }) })
       navigate(`/o/${d.id}?t=${encodeURIComponent(d.token)}&s=${encodeURIComponent(code)}`)
     } catch (e) { setFormErr(e.message); setSending(false) }
@@ -160,8 +166,20 @@ export default function ShopOrder() {
               <div style={{ display:"flex", justifyContent:"space-between", padding:"9px 0 4px", fontSize:16, fontWeight:900, color:C.ink }}><span>Total</span><span>{INR(total)}</span></div>
             </div>
             <div style={{ fontSize:13, color:C.soft, marginBottom:10, fontWeight:600 }}>
-              {table ? `🪑 Served at Table ${table} · pay at the counter` : "🛍️ Pick up at the shop · pay at the counter (cash or UPI)"}
+              {table ? `🪑 Served at Table ${table} · pay at the counter`
+                : askTable ? (parcel ? "🛍️ Parcel · pay at the counter (cash or UPI)" : "🪑 Served at your table · pay at the counter")
+                : "🛍️ Pick up at the shop · pay at the counter (cash or UPI)"}
             </div>
+            {askTable && <>
+              {!parcel && <>
+                <label style={lbl}>Table number</label>
+                <input value={tableIn} onChange={e => setTableIn(e.target.value)} placeholder="e.g. 4" maxLength={12} inputMode="numeric" style={inp} />
+              </>}
+              <label style={{ display:"flex", alignItems:"center", gap:8, marginTop:10, fontSize:14, fontWeight:600, color:C.ink, cursor:"pointer" }}>
+                <input type="checkbox" checked={parcel} onChange={e => setParcel(e.target.checked)} style={{ width:18, height:18 }} />
+                Parcel / take away (no table)
+              </label>
+            </>}
             <label style={lbl}>Your name</label>
             <input value={me.name} onChange={e => setMe(m => ({ ...m, name: e.target.value }))} placeholder="Ravi" maxLength={60} autoComplete="name" style={inp} />
             <label style={lbl}>Mobile number</label>

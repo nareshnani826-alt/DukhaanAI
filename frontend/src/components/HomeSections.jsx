@@ -20,6 +20,7 @@ const LANG_WORDS = ["हिन्दी", "తెలుగు", "தமிழ்
 const GREETINGS  = ["नमस्ते", "నమస్కారం", "வணக்கம்", "ನಮಸ್ಕಾರ", "नमस्कार", "নমস্কার", "નમસ્તે", "ਸਤ ਸ੍ਰੀ ਅਕਾਲ", "നമസ്കാരം", "Hello"]
 
 const NAV = [
+  { id:"stores",   label:"Our stores" },
   { id:"story",    label:"A day with us" },
   { id:"features", label:"Features" },
   { id:"pricing",  label:"Pricing" },
@@ -188,6 +189,46 @@ function ShopPicker({ shop, onShop }) {
   )
 }
 
+// "Our stores" — one big panel per kind of shop; Explore switches the page to that shop
+function OurStores({ shop, onShop }) {
+  const open = id => {
+    onShop(id)
+    rootScroller.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }
+  return (
+    <section id="stores" className="hm-section hm-white">
+      <div className="hm-wrap">
+        <SectionHead kicker="Our stores" title="One app, made for every kind of shop"
+          sub="Each shop gets its own app — its own screens, menu and reports. Pick yours."/>
+        <div className="hm-stores">
+          {SHOPS.map((s, i) => (
+            <Reveal key={s.id} delay={i * 0.08} className="hm-store">
+              <motion.button type="button" className="hm-store-card" onClick={() => open(s.id)}
+                whileHover={{ y:-6 }} whileTap={{ scale:0.98 }} aria-label={`Explore ${s.name}`}>
+                <span className="hm-store-top" style={{ background:`linear-gradient(135deg, ${s.colors[0]}, ${s.colors[1]})` }}>
+                  <span className="hm-store-icon"><Icon name={s.icon} size={30}/></span>
+                  <span className="hm-store-name">{s.name}</span>
+                  {shop === s.id && <span className="hm-store-here">You're viewing</span>}
+                </span>
+                <span className="hm-store-body">
+                  <span className="hm-store-tag">{s.tagline}</span>
+                  <span className="hm-store-desc">{s.desc}</span>
+                  <span className="hm-store-points">
+                    {s.points.map(p => (
+                      <span key={p}><span style={{ color:s.colors[0], display:"inline-flex" }}><Icon name="check" size={16}/></span> {p}</span>
+                    ))}
+                  </span>
+                  <span className="hm-store-more" style={{ color:s.colors[0] }}>Explore {s.label} <Icon name="arrow" size={16}/></span>
+                </span>
+              </motion.button>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function SectionHead({ kicker, title, sub }) {
   return (
     <Reveal className="hm-head">
@@ -328,6 +369,8 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
           ))}
         </div>
       </section>
+
+      <OurStores shop={shop} onShop={onShop}/>
 
       {/* Voice demo */}
       <section className="hm-section hm-white">
@@ -515,6 +558,27 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
 }
 
 const SHOP_PICK_CSS = `
+  .hm-stores { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, calc(300px * var(--k))), 1fr)); gap:calc(20px * var(--k)); margin-top:calc(36px * var(--k)); }
+  .hm-store { display:flex; }
+  .hm-store-card { display:flex; flex-direction:column; width:100%; padding:0; border:1px solid rgba(26,12,4,.08); border-radius:22px;
+    overflow:hidden; background:#fff; cursor:pointer; text-align:left; font:inherit; color:#1a0c04;
+    box-shadow:0 10px 30px rgba(120,60,10,.08); transition:box-shadow .25s; }
+  .hm-store-card:hover { box-shadow:0 18px 44px rgba(120,60,10,.18); }
+  .hm-store-card:focus-visible { outline:3px solid #d4621f; outline-offset:3px; }
+  .hm-store-top { position:relative; display:flex; flex-direction:column; gap:calc(14px * var(--k)); color:#fff;
+    padding:calc(26px * var(--k)) calc(24px * var(--k)); min-height:calc(150px * var(--k)); justify-content:flex-end; }
+  .hm-store-icon { width:calc(56px * var(--k)); height:calc(56px * var(--k)); border-radius:16px; display:flex; align-items:center;
+    justify-content:center; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3); }
+  .hm-store-name { font-size:calc(22px * var(--k)); font-weight:900; letter-spacing:-.3px; }
+  .hm-store-here { position:absolute; top:calc(16px * var(--k)); right:calc(16px * var(--k)); font-size:12px; font-weight:800;
+    padding:5px 10px; border-radius:20px; background:rgba(255,255,255,.95); color:#1a0c04; }
+  .hm-store-body { display:flex; flex-direction:column; gap:calc(10px * var(--k)); padding:calc(22px * var(--k)) calc(24px * var(--k)) calc(24px * var(--k)); flex:1; }
+  .hm-store-tag { font-size:calc(19px * var(--k)); font-weight:800; line-height:1.25; }
+  .hm-store-desc { font-size:calc(15px * var(--k)); color:#6b5540; line-height:1.5; }
+  .hm-store-points { display:flex; flex-direction:column; gap:6px; margin-top:4px; font-size:calc(14px * var(--k)); font-weight:600; }
+  .hm-store-points > span { display:flex; align-items:center; gap:8px; }
+  .hm-store-more { margin-top:auto; padding-top:calc(12px * var(--k)); display:inline-flex; align-items:center; gap:6px;
+    font-weight:800; font-size:calc(15px * var(--k)); }
   .hm-shop-big { margin-bottom:calc(8px * var(--k)); }
   .hm-shop-big-q { font-size:calc(17px * var(--k)); font-weight:800; color:#1a0c04; margin-bottom:calc(12px * var(--k)); }
   .hm-shop-big-row { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:calc(12px * var(--k)); max-width:calc(560px * var(--k)); }

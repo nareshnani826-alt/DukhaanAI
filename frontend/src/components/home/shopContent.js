@@ -4,10 +4,22 @@
 import { shopEnabled } from "../../utils/features"
 
 export const SHOPS = [
-  { id:"kirana", label:"Kirana",     icon:"store",  module:"kirana",       sub:"Grocery & general store" },
-  { id:"chai",   label:"Chai / Tea", icon:"coffee", module:"chai",         sub:"Tea stall, café & snacks" },
-  { id:"restaurant", label:"Restaurant", icon:"utensils", module:"restaurant", sub:"Chinese, fast food & dhabas" },
-  { id:"bangle", label:"Bangle",     icon:"gem",    module:"bangle_fancy", sub:"Bangles, fancy & jewellery" },
+  { id:"kirana", label:"Kirana",     icon:"store",  module:"kirana",       sub:"Grocery & general store",
+    name:"DukhaanAI Kirana", tagline:"Every item, every rupee, counted",
+    desc:"Billing, stock and khata for grocery and general stores — with 1,200 products ready to add.",
+    points:["Speak or scan to bill", "Stock & expiry alerts", "Udhar khata on WhatsApp"], colors:["#e87722", "#b84f0f"] },
+  { id:"chai",   label:"Chai / Tea", icon:"coffee", module:"chai",         sub:"Tea stall, café & snacks",
+    name:"DukhaanAI Chai", tagline:"One tap for every cup",
+    desc:"Fast counter billing for tea stalls and cafés, with tables, tokens and milk tracking.",
+    points:["15 items on one screen", "Tables & tokens", "Tomorrow's milk list"], colors:["#8d5524", "#4f2c10"] },
+  { id:"restaurant", label:"Restaurant", icon:"utensils", module:"restaurant", sub:"Chinese, fast food & dhabas",
+    name:"DukhaanAI Restaurant", tagline:"Every table, on one phone",
+    desc:"Table QR ordering, parcels and kitchen stock for Chinese, fast food and family restaurants.",
+    points:["Customers order from the table", "Tables & parcels", "Kitchen stock by dish"], colors:["#c0392b", "#7a1a10"] },
+  { id:"bangle", label:"Bangle",     icon:"gem",    module:"bangle_fancy", sub:"Bangles, fancy & jewellery",
+    name:"DukhaanAI Bangle", tagline:"Every colour and size, in stock",
+    desc:"Bangles by colour, size and dozen, with festival-season stock planning.",
+    points:["Dozen & set pricing", "Stock per colour & size", "Festival calendar"], colors:["#7c5cbf", "#4a2f8a"] },
 ].filter(s => shopEnabled(s.module))
 
 const COMMON_FAQ = [
