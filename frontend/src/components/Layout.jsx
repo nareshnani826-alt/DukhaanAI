@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom"
 import Logo from "./Logo"
-import { shopEnabled } from "../utils/features"
+import { shopEnabled, isFoodShop } from "../utils/features"
+import { foodReply, FOOD_CHIPS_BY_LANG } from "../utils/foodChat"
 import ReportAnswer from "./ReportAnswer"
 import OrderAlert from "./OrderAlert"
 import MoveToAccount from "./MoveToAccount"
@@ -672,6 +673,8 @@ function AIChatWidget() {
     : !hasBangle ? "kirana"
     : (localStorage.getItem("storeMode") || "kirana")
   const isBangle = storeMode === "bangle_fancy"
+  // Chai shop / restaurant: answers come from its own bills, tables and raw material
+  const isFood = (() => { try { return isFoodShop(localStorage.getItem("storeMode")) } catch { return false } })()
 
   const [open, setOpen]           = useState(false)
   // Android back button closes the chat instead of leaving the screen
@@ -733,8 +736,13 @@ function AIChatWidget() {
       let reply     = null
       let teachData = null
 
-      // 1. Store question → local db.js APIs (zero latency, always free; works logged in or on-phone only)
-      if (isStoreQuestion(q)) {
+      // 0. Chai shop / restaurant: sales, best sellers, open tables, stock from its own data
+      if (isFood) {
+        try { reply = await foodReply(q) } catch(e) { console.error(e) }
+      }
+
+      // 1. Kirana store question → local db.js APIs (zero latency, always free; works logged in or on-phone only)
+      if (!reply && !isFood && isStoreQuestion(q)) {
         try {
           const localResult = await localReply(q, storeMode, lang)
           if (localResult && localResult._teach) {
@@ -848,7 +856,9 @@ function AIChatWidget() {
     if (!open) stopMic()
   }, [open])
 
-  const chips = isBangle
+  const chips = isFood
+    ? (FOOD_CHIPS_BY_LANG[lang] || FOOD_CHIPS_BY_LANG["en-IN"])
+    : isBangle
     ? (BANGLE_CHIPS_BY_LANG[lang] || BANGLE_CHIPS_BY_LANG["en-IN"])
     : (CHIPS_BY_LANG[lang] || CHIPS_BY_LANG["en-IN"])
 
