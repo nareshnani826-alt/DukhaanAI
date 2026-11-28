@@ -117,6 +117,16 @@ def test_set_up_creates_a_trial_shop_then_signs_in(db):
     assert len(db.rows["vendors"]) == 1
 
 
+def test_create_account_for_a_new_shop_type_asks_to_set_it_up(db):
+    _call(shop_type="kirana", create=True, store_name="Aparna", phone="9811172634")
+    # Sign up with Google for a restaurant: this email only runs a kirana → set up the restaurant
+    assert _call(shop_type="restaurant", signup=True)["status"] == "needs_signup"
+    # Sign up again for the kirana it already has → just sign in to it
+    assert _call(shop_type="kirana", signup=True)["signed_in"] == db.rows["vendors"][0]["id"]
+    # Sign In (not sign up) with Google on the restaurant page → opens the shop it has
+    assert _call(shop_type="restaurant")["signed_in"] == db.rows["vendors"][0]["id"]
+
+
 def test_set_up_needs_a_store_name_and_valid_phone(db):
     with pytest.raises(HTTPException):
         _call(shop_type="chai", create=True, store_name="  ")

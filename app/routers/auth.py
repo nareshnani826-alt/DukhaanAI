@@ -417,8 +417,9 @@ def google_sign_in(request: Request, body: GoogleSignIn):
         }).execute().data[0]
         return _issue_tokens(db, vendor)
 
-    # First time with this Google account: the app shows the "Set up your shop" form
-    if not rows:
+    # First time with this Google account — or Create Account for a kind of shop this email doesn't
+    # run yet (each shop type is its own account): the app shows the "Set up your shop" form
+    if not rows or (body.signup and shop and not any(r.get("shop_type", "kirana") == shop for r in rows)):
         return {"status": "needs_signup", "email": email, "name": claims.get("name") or ""}
 
     vendor = _choose_account(rows, shop, lambda r: True,

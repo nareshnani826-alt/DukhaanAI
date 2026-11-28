@@ -1,6 +1,8 @@
-// "Continue with Google" on the website (Google Identity Services). Google gives us an ID token;
-// the server checks it (POST /auth/google). The client ID is public — it is in every page that
-// uses Google sign-in. The Android app needs Google's native account picker instead (not yet).
+// "Continue with Google". Website: Google Identity Services button. Android app: Google's native
+// account picker (Credential Manager, @capgo/capacitor-social-login). Both give us an ID token for
+// the WEB client ID below, which the server checks (POST /auth/google). The Android OAuth clients
+// (upload key + Play signing key SHA-1) are only registered in Google Cloud, never used here.
+// The client ID is public — it is in every page and app that uses Google sign-in.
 const SCRIPT = "https://accounts.google.com/gsi/client"
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
   || "2056383600-ddgj7ko9n3ve17lnlujn611aoeku5gah.apps.googleusercontent.com"
@@ -45,4 +47,29 @@ export async function renderGoogleButton(el, { text = "continue_with", width } =
     type: "standard", theme: "outline", size: "large", shape: "pill", text, logo_alignment: "center",
     width: Math.max(200, Math.min(400, width || el.offsetWidth || 320)),
   })
+}
+
+// ── Android app: native Google account picker ────────────────────────────────
+let nativeReady = null
+// Resolves with Google's ID token, or null if the person closed the picker.
+export async function nativeGoogleSignIn() {
+  const { SocialLogin } = await import("@capgo/capacitor-social-login")
+  if (!nativeReady) {
+    // Only the ID token is needed (the server signs in with it), so skip the extra
+    // "authorize" step that can hang on Capacitor's stock activity.
+    nativeReady = SocialLogin.initialize({ google: { webClientId: GOOGLE_CLIENT_ID, skipAuthOnlyAuthorizationAfterSignIn: true } })
+      .catch(e => { nativeReady = null; throw e })
+  }
+  await nativeReady
+  try {
+    const res = await SocialLogin.login({ provider: "google", options: {} })
+    const token = res?.result?.idToken
+    if (!token) throw new Error("Google did not return a sign-in. Please try again.")
+    return token
+  } catch (e) {
+    if (/cancel/i.test(String(e?.message || e))) return null   // closed the picker
+    throw new Error(/no credential|no account/i.test(String(e?.message || e))
+      ? "Add a Google account to this phone (Settings → Accounts), then try again."
+      : "Google sign-in did not work. Please try again or use email and password.")
+  }
 }

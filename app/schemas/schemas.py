@@ -27,6 +27,7 @@ class GoogleSignIn(BaseModel):
     id_token:   str = Field(min_length=20, max_length=4096)
     shop_type:  Optional[str] = None          # kirana | chai | restaurant | bangle_fancy
     create:     bool = False
+    signup:     bool = False                  # from Create Account: no shop of this type yet → set it up
     store_name: Optional[str] = Field(default=None, max_length=80)
     phone:      Optional[str] = Field(default=None, max_length=16)
 
