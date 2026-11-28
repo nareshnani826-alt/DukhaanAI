@@ -1554,17 +1554,6 @@ function AuthForm({ onSuccess, defaultModule = "kirana", shopType = null, initia
           <div ref={gBtn} style={{ display:"flex", justifyContent:"center", minHeight:44 }} />
         </>
       )}
-
-      {/* APK lives on GitHub Releases — "latest" always serves the newest version. Not bundled, or the app would contain itself */}
-      {!window.Capacitor?.isNativePlatform?.() && (
-        <a href="https://github.com/nareshnani826-alt/DukhaanAI/releases/latest/download/dukaanai.apk"
-          style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-            padding:"12px", borderRadius:12, border:"1.5px solid #f0d9c4",
-            background:"#fff8f2", color:"#c25500", fontSize:13, fontWeight:700,
-            textDecoration:"none" }}>
-          <span aria-hidden="true">📱</span> {t("Download the Android app")}
-        </a>
-      )}
     </form>
   )
 }

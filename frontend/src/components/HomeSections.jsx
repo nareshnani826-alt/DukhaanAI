@@ -6,7 +6,7 @@ import {
 import {
   Icon, LogoMark, Reveal, ScrollProgress, Magnetic, SpotlightCard, CountUp, WordRotator, WordsReveal,
 } from "./home/kit"
-import { APK_URL, rootScroller, scrollToId } from "./home/utils"
+import { PLAY_STORE_URL, rootScroller, scrollToId } from "./home/utils"
 import DayStory from "./home/DayStory"
 import Faq from "./home/Faq"
 import { HOME_CSS } from "./home/homeCss"
@@ -330,7 +330,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
                 </button>
               </Magnetic>
               <Magnetic>
-                <a className="hm-btn hm-btn-ghost" href={APK_URL}>
+                <a className="hm-btn hm-btn-ghost" href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
                   <Icon name="download" size={18}/> Android app
                 </a>
               </Magnetic>
@@ -506,8 +506,8 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
               </p>
               <div className="hm-cta-row" style={{ justifyContent:"center" }}>
                 <Magnetic>
-                  <a className="hm-btn hm-btn-primary" href={APK_URL}>
-                    <Icon name="download" size={18}/> Download Android app
+                  <a className="hm-btn hm-btn-primary" href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
+                    <Icon name="download" size={18}/> Get it on Google Play
                   </a>
                 </Magnetic>
                 <Magnetic>
@@ -544,7 +544,7 @@ export default function HomeSections({ formCard, shop = "general", onShop = () =
             <button className="hm-btn hm-btn-primary" onClick={() => scrollToId("start")}>
               Start free trial <Icon name="arrow" size={18}/>
             </button>
-            <a className="hm-btn hm-btn-ghost" href={APK_URL} aria-label="Download Android app">
+            <a className="hm-btn hm-btn-ghost" href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Get the Android app on Google Play">
               <Icon name="download" size={18}/>
             </a>
           </motion.div>
